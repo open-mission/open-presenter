@@ -30,10 +30,12 @@ export function SongEditorDialog() {
 
   const [draft, setDraft] = useState<Song | null>(editorSong);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(editorSong);
     setConfirmDelete(false);
+    setActionError(null);
   }, [editorSong]);
 
   const updateDraft = (patch: Partial<Song>) =>
@@ -83,7 +85,8 @@ export function SongEditorDialog() {
 
   const handleSave = async () => {
     if (draft === null || draft.title.trim() === "") return;
-    await saveEditor({
+    setActionError(null);
+    const ok = await saveEditor({
       ...draft,
       title: draft.title.trim(),
       artist: draft.artist.trim(),
@@ -96,6 +99,11 @@ export function SongEditorDialog() {
           .filter((line) => line !== ""),
       })),
     });
+    if (!ok) {
+      setActionError(
+        useSongsStore.getState().error ?? "Não foi possível salvar.",
+      );
+    }
   };
 
   const handleDelete = async () => {
@@ -104,7 +112,13 @@ export function SongEditorDialog() {
       setConfirmDelete(true);
       return;
     }
-    await deleteSong(draft.id);
+    setActionError(null);
+    const ok = await deleteSong(draft.id);
+    if (!ok) {
+      setActionError(
+        useSongsStore.getState().error ?? "Não foi possível excluir.",
+      );
+    }
   };
 
   return (
@@ -209,6 +223,9 @@ export function SongEditorDialog() {
               ＋ bloco
             </Button>
           </div>
+          {actionError !== null && (
+            <p className="text-sm text-destructive">{actionError}</p>
+          )}
           <DialogFooter>
             <Button
               variant="destructive"

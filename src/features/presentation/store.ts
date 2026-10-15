@@ -54,6 +54,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     const next: LiveSlide = {
       ...get().live,
       cleared: true,
+      nextUp: undefined,
       updatedAt: new Date().toISOString(),
     };
     get().applyRemote(next);

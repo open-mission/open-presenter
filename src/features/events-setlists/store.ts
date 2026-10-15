@@ -15,9 +15,9 @@ import type {
   ServiceEvent,
   SlideContent,
   Song,
+  SongSummary,
 } from "@/core/types";
 import { usePresentationStore } from "@/features/presentation/store";
-import { useSongsStore } from "@/features/songs/store";
 
 interface SetlistState {
   events: EventSummary[];
@@ -37,13 +37,14 @@ interface SetlistState {
   renamePart(partId: string, title: string): void;
   removePart(partId: string): void;
   movePart(partId: string, dir: -1 | 1): void;
-  addSong(partId: string, songId: string): void;
+  addSong(partId: string, song: SongSummary): void;
   removeItem(itemId: string): void;
   moveItem(itemId: string, dir: -1 | 1): void;
   setNextItem(itemId: string, nextItemId: string | null): void;
   save(): Promise<void>;
   selectItem(itemId: string | null): void;
   loadItemSong(itemId: string): Promise<Song | null>;
+  invalidateSong(songId: string, summary: SongSummary | null): void;
   projectSection(itemId: string, index: number): Promise<void>;
   projectNext(): Promise<void>;
   projectPrev(): Promise<void>;
@@ -218,15 +219,13 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       return { event: { ...event, parts }, dirty: true };
     }),
 
-  addSong: (partId, songId) =>
+  addSong: (partId, song) =>
     set((state) => {
       const { event } = state;
       if (event === null) return {};
-      const song =
-        useSongsStore.getState().songs.find((s) => s.id === songId) ?? null;
       const item: EventItem = {
         id: crypto.randomUUID(),
-        songId,
+        songId: song.id,
         nextItemId: null,
         song,
       };
@@ -335,6 +334,22 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       return null;
     }
   },
+
+  invalidateSong: (songId, summary) =>
+    set((state) => {
+      const songsCache = Object.fromEntries(
+        Object.entries(state.songsCache).filter(([id]) => id !== songId),
+      );
+      const { event } = state;
+      if (event === null) return { songsCache };
+      const parts = event.parts.map((part) => ({
+        ...part,
+        items: part.items.map((item) =>
+          item.songId === songId ? { ...item, song: summary } : item,
+        ),
+      }));
+      return { songsCache, event: { ...event, parts } };
+    }),
 
   projectSection: async (itemId, index) => {
     const song = await get().loadItemSong(itemId);

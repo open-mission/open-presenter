@@ -16,6 +16,7 @@ export function LiveControls() {
       content: preview,
       cleared: false,
       blackout: false,
+      nextUp: undefined,
       updatedAt: new Date().toISOString(),
     };
     usePresentationStore.getState().applyRemote(slide);

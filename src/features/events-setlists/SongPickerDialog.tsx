@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useSongsStore } from "@/features/songs/store";
+import { listSongs } from "@/core/ipc/commands";
+import type { SongSummary } from "@/core/types";
 import { useSetlistStore } from "./store";
 
 interface SongPickerDialogProps {
@@ -22,29 +23,37 @@ export function SongPickerDialog({
   open,
   onOpenChange,
 }: SongPickerDialogProps) {
-  const songs = useSongsStore((s) => s.songs);
-  const loading = useSongsStore((s) => s.loading);
-  const error = useSongsStore((s) => s.error);
-  const load = useSongsStore((s) => s.load);
   const addSong = useSetlistStore((s) => s.addSong);
 
   const [query, setQuery] = useState("");
+  const [catalog, setCatalog] = useState<SongSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open && useSongsStore.getState().songs.length === 0) {
-      void load();
+    if (!open) {
+      setQuery("");
+      return;
     }
-  }, [open, load]);
-
-  useEffect(() => {
-    if (!open) setQuery("");
+    setQuery("");
+    setLoading(true);
+    setError(null);
+    void (async () => {
+      try {
+        setCatalog(await listSongs());
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [open]);
 
   const needle = query.trim().toLowerCase();
   const filtered =
     needle === ""
-      ? songs
-      : songs.filter(
+      ? catalog
+      : catalog.filter(
           (song) =>
             song.title.toLowerCase().includes(needle) ||
             song.artist.toLowerCase().includes(needle),
@@ -63,18 +72,18 @@ export function SongPickerDialog({
         />
         <ScrollArea className="h-64">
           <div className="flex flex-col gap-1 pr-2">
-            {loading && songs.length === 0 && (
+            {loading && catalog.length === 0 && (
               <p className="text-sm text-muted-foreground">Carregando…</p>
             )}
             {!loading && error !== null && (
               <p className="text-sm text-destructive">{error}</p>
             )}
-            {!loading && error === null && songs.length === 0 && (
+            {!loading && error === null && catalog.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 Nenhuma música no catálogo.
               </p>
             )}
-            {!loading && error === null && songs.length > 0 && filtered.length === 0 && (
+            {!loading && error === null && catalog.length > 0 && filtered.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 Nenhuma música encontrada.
               </p>
@@ -85,7 +94,7 @@ export function SongPickerDialog({
                 variant="secondary"
                 className="justify-start"
                 onClick={() => {
-                  addSong(partId, song.id);
+                  addSong(partId, song);
                   onOpenChange(false);
                 }}
               >

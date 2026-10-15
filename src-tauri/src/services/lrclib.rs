@@ -34,6 +34,7 @@ struct GetPayload {
 pub fn client() -> reqwest::Client {
     reqwest::Client::builder()
         .user_agent(USER_AGENT)
+        .timeout(std::time::Duration::from_secs(15))
         .build()
         .expect("falha ao inicializar o cliente HTTP")
 }

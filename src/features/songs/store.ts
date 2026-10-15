@@ -14,6 +14,7 @@ import type {
   Song,
   SongSummary,
 } from "@/core/types";
+import { useSetlistStore } from "@/features/events-setlists/store";
 import { pickHolyricsFile } from "./services/files";
 
 interface SongsState {
@@ -34,7 +35,7 @@ interface SongsState {
   editSong(id: string): Promise<void>;
   closeEditor(): void;
   saveEditor(song: Song): Promise<boolean>;
-  deleteSong(id: string): Promise<void>;
+  deleteSong(id: string): Promise<boolean>;
   startHolyricsImport(): Promise<void>;
   closeImportReport(): void;
   openOnlineSearch(): void;
@@ -107,6 +108,13 @@ export const useSongsStore = create<SongsState>((set, get) => ({
     }
     set({ editorSong: null });
     await get().load();
+    useSetlistStore
+      .getState()
+      .invalidateSong(song.id, {
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+      });
     return true;
   },
 
@@ -115,12 +123,14 @@ export const useSongsStore = create<SongsState>((set, get) => ({
       await deleteSongCommand(id);
     } catch (err) {
       set({ error: errorMessage(err) });
-      return;
+      return false;
     }
     set((state) => ({
       editorSong: state.editorSong?.id === id ? null : state.editorSong,
     }));
     await get().load();
+    useSetlistStore.getState().invalidateSong(id, null);
+    return true;
   },
 
   startHolyricsImport: async () => {
@@ -138,7 +148,8 @@ export const useSongsStore = create<SongsState>((set, get) => ({
 
   closeImportReport: () => set({ importReport: null }),
 
-  openOnlineSearch: () => set({ onlineOpen: true, onlineError: null }),
+  openOnlineSearch: () =>
+    set({ onlineOpen: true, onlineError: null, onlineLoading: false }),
 
   closeOnlineSearch: () => set({ onlineOpen: false }),
 
@@ -150,6 +161,7 @@ export const useSongsStore = create<SongsState>((set, get) => ({
       set({ onlineError: "Digite o nome da música ou do artista." });
       return;
     }
+    if (get().onlineLoading) return;
     set({ onlineLoading: true, onlineError: null });
     try {
       const onlineResults = await searchLyricsOnline(query);
