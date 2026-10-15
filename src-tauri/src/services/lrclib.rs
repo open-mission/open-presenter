@@ -14,6 +14,7 @@ const MENSAGEM_INDISPONIVEL: &str =
     "o LRCLIB está indisponível no momento — tente de novo em instantes";
 const RETRY_MAX_SEGUNDOS: u64 = 3;
 const RETRY_PADRAO_SEGUNDOS: u64 = 1;
+const RETRY_ESPERAS_SEGUNDOS: [u64; 2] = [1, 2];
 
 #[derive(Deserialize)]
 struct SearchItem {
@@ -123,22 +124,22 @@ async fn get(
     path: &str,
     query: &[(&str, &str)],
 ) -> Result<reqwest::Response, AppError> {
-    let response = enviar(client, path, query).await?;
-    if response.status() != reqwest::StatusCode::TOO_MANY_REQUESTS {
-        return Ok(response);
+    let mut response = enviar(client, path, query).await?;
+    let mut tentativa = 0;
+    while response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        let header = response
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok());
+        let Some(espera) = espera_tentativa(tentativa, header) else {
+            break;
+        };
+        tracing::warn!(?espera, tentativa, "LRCLIB limitou as consultas; tentando de novo");
+        tokio::time::sleep(espera).await;
+        response = enviar(client, path, query).await?;
+        tentativa += 1;
     }
-    let header = response
-        .headers()
-        .get(reqwest::header::RETRY_AFTER)
-        .and_then(|value| value.to_str().ok());
-    match espera_retry(header) {
-        None => Ok(response),
-        Some(espera) => {
-            tracing::warn!(?espera, "LRCLIB limitou as consultas; tentando novamente");
-            tokio::time::sleep(espera).await;
-            enviar(client, path, query).await
-        }
-    }
+    Ok(response)
 }
 
 async fn enviar(
@@ -157,15 +158,14 @@ async fn enviar(
         })
 }
 
-fn espera_retry(header: Option<&str>) -> Option<std::time::Duration> {
-    let Some(valor) = header.map(str::trim) else {
-        return Some(std::time::Duration::from_secs(RETRY_PADRAO_SEGUNDOS));
+fn espera_tentativa(tentativa: usize, header: Option<&str>) -> Option<std::time::Duration> {
+    let base = *RETRY_ESPERAS_SEGUNDOS.get(tentativa)?;
+    let segundos_header = match header.map(str::trim).and_then(|valor| valor.parse::<u64>().ok()) {
+        Some(segundos) if segundos > RETRY_MAX_SEGUNDOS => return None,
+        Some(segundos) => segundos,
+        None => RETRY_PADRAO_SEGUNDOS,
     };
-    match valor.parse::<u64>() {
-        Ok(segundos) if segundos > RETRY_MAX_SEGUNDOS => None,
-        Ok(segundos) => Some(std::time::Duration::from_secs(segundos)),
-        Err(_) => Some(std::time::Duration::from_secs(RETRY_PADRAO_SEGUNDOS)),
-    }
+    Some(std::time::Duration::from_secs(base.max(segundos_header)))
 }
 
 fn sucesso(response: reqwest::Response) -> Result<reqwest::Response, AppError> {
@@ -249,13 +249,21 @@ mod tests {
     }
 
     #[test]
-    fn espera_retry_respeita_header_dentro_do_limite() {
+    fn espera_tentativa_escala_com_a_tentativa_e_respeita_header() {
         let espera = std::time::Duration::from_secs;
-        assert_eq!(espera_retry(None), Some(espera(1)));
-        assert_eq!(espera_retry(Some("2")), Some(espera(2)));
-        assert_eq!(espera_retry(Some(" 3 ")), Some(espera(3)));
-        assert_eq!(espera_retry(Some("0")), Some(espera(0)));
-        assert_eq!(espera_retry(Some("60")), None);
-        assert_eq!(espera_retry(Some("abc")), Some(espera(1)));
+        assert_eq!(espera_tentativa(0, None), Some(espera(1)));
+        assert_eq!(espera_tentativa(0, Some("2")), Some(espera(2)));
+        assert_eq!(espera_tentativa(0, Some(" 3 ")), Some(espera(3)));
+        assert_eq!(espera_tentativa(0, Some("abc")), Some(espera(1)));
+        assert_eq!(espera_tentativa(0, Some("60")), None);
+    }
+
+    #[test]
+    fn espera_tentativa_mantem_piso_da_escada_e_encerra_no_fim() {
+        let espera = std::time::Duration::from_secs;
+        assert_eq!(espera_tentativa(1, None), Some(espera(2)));
+        assert_eq!(espera_tentativa(1, Some("1")), Some(espera(2)));
+        assert_eq!(espera_tentativa(1, Some("3")), Some(espera(3)));
+        assert_eq!(espera_tentativa(2, None), None);
     }
 }
