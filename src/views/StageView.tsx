@@ -6,7 +6,7 @@ import { StageClock } from "@/features/stage-display/StageClock";
 export default function StageView() {
   usePresentationSync();
   const live = usePresentationStore((s) => s.live);
-  const nextUp = usePresentationStore((s) => s.nextUp);
+  const nextUp = usePresentationStore((s) => s.live.nextUp);
 
   return (
     <div className="flex min-h-full flex-col gap-6 bg-black p-6 text-white">

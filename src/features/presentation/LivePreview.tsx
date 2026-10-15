@@ -25,6 +25,7 @@ export function LivePreview() {
             <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
               <p className="text-xs uppercase tracking-widest text-zinc-400">
                 {live.content.title}
+                {live.content.section ? ` · ${live.content.section}` : ""}
               </p>
               {live.content.lines.map((line) => (
                 <p key={line} className="text-2xl font-bold leading-snug">

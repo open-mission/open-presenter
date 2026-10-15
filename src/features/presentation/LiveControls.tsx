@@ -7,7 +7,6 @@ import { usePresentationStore } from "./store";
 export function LiveControls() {
   const live = usePresentationStore((s) => s.live);
   const preview = usePresentationStore((s) => s.preview);
-  const setCleared = usePresentationStore((s) => s.setCleared);
   const setBlackoutLocal = usePresentationStore((s) => s.setBlackout);
 
   async function goLive() {
@@ -30,8 +29,7 @@ export function LiveControls() {
   }
 
   async function clear() {
-    setCleared(true);
-    await publishSlide({ ...live, cleared: true, updatedAt: new Date().toISOString() });
+    await usePresentationStore.getState().clearLive();
   }
 
   return (

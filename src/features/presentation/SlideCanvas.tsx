@@ -19,6 +19,7 @@ export function SlideCanvas({
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-[4%] text-center">
         <p className="text-[2vw] font-medium uppercase tracking-[0.3em] text-white/60">
           {slide.content.title}
+          {slide.content.section ? ` · ${slide.content.section}` : ""}
         </p>
         {slide.content.lines.map((line) => (
           <p
