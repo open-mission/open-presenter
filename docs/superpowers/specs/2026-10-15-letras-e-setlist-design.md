@@ -19,6 +19,7 @@ Hoje nada disso é funcional: `songs` e `events-setlists` têm seed em memória 
 ## 2. Decisões do dono do produto (validadas no mockup)
 
 - **Menubar shadcn** (`npx shadcn@latest add menubar`) no topo do painel: menu **Arquivo** → **Nova música**, **Importar músicas do Holyrics…**
+- **Menu de contexto (shadcn)** nos itens da setlist: **Editar**, **Remover**, **Definir a próxima música** (mostra as músicas do setlist para escolher).
 - **Componentes shadcn/ui em todo o painel de controle** — aposentar os componentes artesanais de `src/components/ui` por versões oficiais do shadcn, customizando só o necessário.
 - **Organização SOLID**, feature-based, conforme AGENTS.md.
 
@@ -36,8 +37,9 @@ Hoje nada disso é funcional: `songs` e `events-setlists` têm seed em memória 
 | D8 | Reordenar = botões ↑/↓ (sem lib de drag-and-drop no v1) | Zero dependência nova além do combinado; drag pode vir depois |
 | D9 | IDs gerados no front (`crypto.randomUUID()`) | Evita dep `uuid` no Rust; app local de operador único |
 | D10 | Busca online mora no **Rust** (`reqwest`/rustls) | Evita depender de CORS do LRCLIB na webview; rede é papel do main (padrão do Spresenter) |
-| D11 | Navegação **para no fim da música**; troca é manual (clique no item do setlist); `nextUp` = próximo verso dentro da música, **vazio no último** | Decisão do dono do produto (confirmada nesta conversa); é o padrão do Spresenter (modo sequencial desligado) e o mais seguro ao vivo |
+| D11 | Navegação **para no fim da música**; troca é manual (clique no item do setlist ou no botão dedicado da próxima definida — D13); `nextUp` = próximo verso dentro da música | Decisão do dono do produto (confirmada nesta conversa); é o padrão do Spresenter (modo sequencial desligado) e o mais seguro ao vivo |
 | D12 | `nextUp` viaja **dentro do `LiveSlide`** (`LiveSlide.nextUp?`, extensão opcional) | A tela de palco recebe por todos os canais existentes (`presentation://slide`, WS) sem canal novo; ver A2 |
+| D13 | **Próxima música definida**: campo opcional por item da setlist (`nextItemId`) apontando para outro item do mesmo evento (pode cruzar partes; nunca o próprio item); no fim da música, botão dedicado **"Ir para [próxima]"** — nada automático | Pedido do dono do produto; botão dedicado (escolhido por ele) evita pular de música por clique repetido no Próximo |
 
 ## 4. Goals / Non-goals / Anti-goals
 
@@ -46,8 +48,8 @@ Hoje nada disso é funcional: `songs` e `events-setlists` têm seed em memória 
 - G2 Letra em blocos com rótulo de seção (nullable) + editor dedicado.
 - G3 Importação Holyrics (.json/.txt) com relatório (importadas/puladas/erros) e dedupe por (título, artista).
 - G4 Busca online (LRCLIB) + importar para a biblioteca (draft abre no editor).
-- G5 Setlist do culto: eventos com partes tituladas e músicas ordenadas; único tipo de entrada = letra.
-- G6 Projeção: verso a verso (clique + Anterior/Próximo), telão com título + rótulo da seção; a tela de palco mostra o próximo verso (`LiveSlide.nextUp?`, vazio no fim da música).
+- G5 Setlist do culto: eventos com partes tituladas e músicas ordenadas; menu de contexto por item (editar, remover, definir próxima); único tipo de entrada = letra.
+- G6 Projeção: verso a verso (clique + Anterior/Próximo), telão com título + rótulo da seção; no fim da música, botão **"Ir para a próxima definida"** quando existir; a tela de palco mostra o próximo verso (`LiveSlide.nextUp?` — no fim, o 1º verso da próxima definida).
 - G7 Painel todo em shadcn/ui + menubar "Arquivo".
 - G8 Estrutura SOLID: comando → serviço → estado no Rust; features verticais no front; tipos espelhados Rust↔TS.
 
@@ -87,7 +89,7 @@ Setlist (documento por evento):
 service_events(id TEXT PK, title TEXT, event_date TEXT, created_at TEXT, setlist_json TEXT NOT NULL)
 ```
 
-`setlist_json` = `{ "parts": [ { "id": "...", "title": "Louvor", "songIds": ["...", "..."] } ] }` — a ordem das músicas é a ordem dos ids; títulos/artistas resolvidos por join com `songs` na leitura.
+`setlist_json` = `{ "parts": [ { "id": "...", "title": "Louvor", "items": [ { "id": "...", "songId": "...", "nextItemId": null } ] } ] }` — a ordem das músicas é a ordem dos itens; `nextItemId` é o apontador opcional de "próxima música" (pode cruzar partes; nunca aponta para o próprio item); títulos/artistas resolvidos por join com `songs` na leitura; item cujo `songId` não existe mais aparece como "removida".
 
 Tipos de seção (9, iguais aos do Spresenter) com rótulo pt-BR e cor fixa:
 `verse` Verso · `pre-chorus` Pré-refrão · `chorus` Refrão · `bridge` Ponte · `intro` Introdução · `outro` Final · `instrumental` Instrumental · `tag` Tag · `ending` Encerramento. (Cores: as do relatório — `#3b82f6`, `#06b6d4`, `#ef4444`, `#a855f7`, `#22c55e`, `#f97316`, `#6b7280`, `#ec4899`, `#eab308`.) Numeração de display ("Verso 1", "Verso 2"; Refrão nunca numera) é calculada, não gravada.
@@ -127,9 +129,9 @@ services/setlists.service.rs  ler/gravar documento + juntar títulos/artistas p/
 ### 6.5 Front (features)
 
 - **`features/songs`**: `store.ts` (catálogo, busca, draft do editor), `SongsPanel.tsx` (busca + lista + "Buscar na internet"), `SongEditorDialog.tsx` (título/artista + blocos: textarea por bloco, Select de rótulo, adicionar/remover/↑↓, Salvar), `OnlineLyricsDialog.tsx` (query → resultados → importar).
-- **`features/events-setlists`**: `store.ts` (evento ativo + parte/item + dirty + persistência via IPC), `SetlistPanel.tsx` (partes tituladas, itens, picker "adicionar música", renomear/remover/reordenar partes e músicas, "salvar"), `SongRunner.tsx` (blocos da música selecionada: clicar = projetar; Anterior/Próximo navegam **só dentro da música** — no último bloco "Próximo" desabilita e a troca é manual, clicando no item do setlist; `nextUp` = próximo verso, vazio no fim; Limpar).
+- **`features/events-setlists`**: `store.ts` (evento ativo + parte/item + dirty + persistência via IPC), `SetlistPanel.tsx` (partes tituladas, itens, picker "adicionar música", renomear/remover/reordenar partes e músicas, "salvar"), **menu de contexto (shadcn `ContextMenu`)** por item: **Editar** (abre o editor da letra da música), **Remover** (tira do setlist, sem diálogo) e **Definir a próxima música** ▸ submenu com os itens do setlist agrupados por parte (+ "Nenhuma" para limpar) — item com próxima definida ganha indicador discreto. `SongRunner.tsx`: blocos da música selecionada, clicar = projetar; Anterior/Próximo navegam **só dentro da música** (no último bloco "Próximo" desabilita); havendo próxima definida, aparece o botão **"Ir para [música]"**, que troca a seleção e projeta o 1º bloco dela; `nextUp` = próximo verso (no fim, o 1º bloco da próxima definida, ou vazio); Limpar.
 - **`features/presentation`**: nova ação `publishLive(slide, nextUp?)` no store (aplica local + `publishSlide` IPC); `SlideCanvas` mostra chip "Título · Seção" quando `content.section` existe; `LiveSlide.nextUp?` alimenta a tela de palco em todas as saídas.
-- **`components/ui`**: componentes oficiais do shadcn (button, card, badge, input, textarea, select, dialog, menubar, dropdown-menu, scroll-area, separator), preservando variantes do projeto (`danger`, `live`) via cva.
+- **`components/ui`**: componentes oficiais do shadcn (button, card, badge, input, textarea, select, dialog, menubar, context-menu, dropdown-menu, scroll-area, separator), preservando variantes do projeto (`danger`, `live`) via cva.
 - **Menubar** em `AdminView` (painel do operador): **Arquivo ▸ Nova música / Importar músicas do Holyrics…** — escolha de arquivo via `plugin-dialog`, resultado num Dialog (importadas/puladas/erros).
 - **`core`**: tipos novos em `core/types` (Song, SongSection, SongLine, ServiceEvent, EventPart, OnlineLyricHit); wrappers em `core/ipc/commands.ts`; rótulos/cores das seções em `core/config/lyrics.ts`.
 - Comunicação entre features pelos canais sancionados: `events-setlists` lê o store de `songs` (catálogo) e o store de `presentation` (projeção).
@@ -137,7 +139,7 @@ services/setlists.service.rs  ler/gravar documento + juntar títulos/artistas p/
 ### 6.6 Shadcn (setup)
 
 1. `npx shadcn@latest init` (Tailwind v4) com aliases: `ui` → `@/components/ui`, `utils` → `@/core/lib/utils` (nosso `cn`), `components` → `@/components`; tema dark (zinc) injetado no `index.css`; `class="dark"` no `index.html`.
-2. `npx shadcn@latest add menubar dropdown-menu input textarea select dialog scroll-area separator button card badge`.
+2. `npx shadcn@latest add menubar context-menu dropdown-menu input textarea select dialog scroll-area separator button card badge`.
 3. Substituir os componentes artesanais e ajustar os call-sites; dependências novas pinadas (sem `^`) no `package.json`, conforme AGENTS.md.
 
 ### 6.7 Testes / qualidade
