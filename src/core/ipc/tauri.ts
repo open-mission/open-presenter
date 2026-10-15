@@ -19,6 +19,14 @@ export async function invokeCommand<T>(
   }
 }
 
+export async function invokeStrict<T>(
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  if (!isTauri()) throw new Error("Disponível apenas no app desktop.");
+  return invoke<T>(command, args);
+}
+
 export async function listenCommand<T>(
   event: string,
   handler: (payload: T) => void,

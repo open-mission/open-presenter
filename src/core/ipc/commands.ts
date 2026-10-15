@@ -1,9 +1,15 @@
 import type {
+  EventSummary,
+  ImportReport,
   LiveSlide,
   MonitorInfo,
+  OnlineLyricHit,
   OutputTarget,
+  ServiceEvent,
+  Song,
+  SongSummary,
 } from "../types";
-import { invokeCommand } from "./tauri";
+import { invokeCommand, invokeStrict } from "./tauri";
 
 export async function listMonitors(): Promise<MonitorInfo[]> {
   return (await invokeCommand<MonitorInfo[]>("list_monitors")) ?? [];
@@ -13,7 +19,7 @@ export async function openOutputWindow(
   target: OutputTarget,
   monitorId: string | null,
 ): Promise<void> {
-  await invokeCommand("open_output_window", { target, monitor_id: monitorId });
+  await invokeCommand("open_output_window", { target, monitorId });
 }
 
 export async function closeOutputWindow(
@@ -36,4 +42,62 @@ export async function fetchLiveSlide(): Promise<LiveSlide | null> {
 
 export async function fetchServerHost(): Promise<string> {
   return (await invokeCommand<string>("get_server_host")) ?? "localhost";
+}
+
+export async function listSongs(query?: string): Promise<SongSummary[]> {
+  return invokeStrict<SongSummary[]>("list_songs", { query: query ?? null });
+}
+
+export async function getSong(id: string): Promise<Song | null> {
+  return invokeStrict<Song | null>("get_song", { id });
+}
+
+export async function saveSong(song: Song): Promise<void> {
+  await invokeStrict("save_song", { song });
+}
+
+export async function deleteSong(id: string): Promise<void> {
+  await invokeStrict("delete_song", { id });
+}
+
+export async function importHolyrics(path: string): Promise<ImportReport> {
+  return invokeStrict<ImportReport>("import_holyrics", { path });
+}
+
+export async function searchLyricsOnline(
+  query: string,
+): Promise<OnlineLyricHit[]> {
+  return invokeStrict<OnlineLyricHit[]>("search_lyrics_online", { query });
+}
+
+export async function fetchOnlineLyrics(
+  id: string,
+  trackName: string,
+  artistName: string,
+): Promise<Song> {
+  return invokeStrict<Song>("fetch_online_lyrics", {
+    id,
+    trackName,
+    artistName,
+  });
+}
+
+export async function listEvents(): Promise<EventSummary[]> {
+  return invokeStrict<EventSummary[]>("list_events");
+}
+
+export async function getEvent(id: string): Promise<ServiceEvent | null> {
+  return invokeStrict<ServiceEvent | null>("get_event", { id });
+}
+
+export async function createEvent(event: ServiceEvent): Promise<void> {
+  await invokeStrict("create_event", { event });
+}
+
+export async function saveEvent(event: ServiceEvent): Promise<void> {
+  await invokeStrict("save_event", { event });
+}
+
+export async function deleteEvent(id: string): Promise<void> {
+  await invokeStrict("delete_event", { id });
 }
