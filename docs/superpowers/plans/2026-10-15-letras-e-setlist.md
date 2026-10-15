@@ -243,7 +243,7 @@ fn insert_new_gera_id_e_find_duplicate_acha_case_insensitive() {
     let conn = open_in_memory();
     let id = insert_new(&conn, "Ousado Amor", "Isaias Saad", &[SongSection { section_type: None, lines: vec!["x".into()] }]).unwrap();
     assert_eq!(id.len(), 32);
-    assert!(find_duplicate(&conn, " ousado amor ", "ISAIS SAAD").unwrap().is_some());
+    assert!(find_duplicate(&conn, " ousado amor ", "ISAIAS SAAD").unwrap().is_some());
     assert!(find_duplicate(&conn, "outra", "").unwrap().is_none());
 }
 ```
