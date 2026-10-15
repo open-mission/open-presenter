@@ -2,10 +2,12 @@ import { create } from "zustand";
 import {
   deleteSong as deleteSongCommand,
   getSong,
+  importHolyrics,
   listSongs,
   saveSong,
 } from "@/core/ipc/commands";
-import type { Song, SongSummary } from "@/core/types";
+import type { ImportReport, Song, SongSummary } from "@/core/types";
+import { pickHolyricsFile } from "./services/files";
 
 interface SongsState {
   songs: SongSummary[];
@@ -13,6 +15,7 @@ interface SongsState {
   loading: boolean;
   error: string | null;
   editorSong: Song | null;
+  importReport: ImportReport | null;
   load(): Promise<void>;
   setQuery(query: string): void;
   startNewSong(): void;
@@ -20,6 +23,8 @@ interface SongsState {
   closeEditor(): void;
   saveEditor(song: Song): Promise<boolean>;
   deleteSong(id: string): Promise<void>;
+  startHolyricsImport(): Promise<void>;
+  closeImportReport(): void;
 }
 
 function errorMessage(err: unknown): string {
@@ -32,6 +37,7 @@ export const useSongsStore = create<SongsState>((set, get) => ({
   loading: false,
   error: null,
   editorSong: null,
+  importReport: null,
 
   load: async () => {
     set({ loading: true, error: null });
@@ -94,4 +100,19 @@ export const useSongsStore = create<SongsState>((set, get) => ({
     }));
     await get().load();
   },
+
+  startHolyricsImport: async () => {
+    set({ error: null });
+    try {
+      const path = await pickHolyricsFile();
+      if (path === null) return;
+      const importReport = await importHolyrics(path);
+      set({ importReport });
+      await get().load();
+    } catch (err) {
+      set({ error: errorMessage(err) });
+    }
+  },
+
+  closeImportReport: () => set({ importReport: null }),
 }));

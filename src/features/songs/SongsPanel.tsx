@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ImportReportDialog } from "./ImportReportDialog";
 import { SongEditorDialog } from "./SongEditorDialog";
 import { useSongsStore } from "./store";
 
@@ -83,6 +84,7 @@ export function SongsPanel() {
         </CardContent>
       </Card>
       <SongEditorDialog />
+      <ImportReportDialog />
     </>
   );
 }

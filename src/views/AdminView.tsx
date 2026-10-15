@@ -1,4 +1,5 @@
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
+import { AppMenubar } from "@/components/AppMenubar";
 import { OutputManagerPanel } from "@/features/output-manager/OutputManagerPanel";
 import { SetlistPanel } from "@/features/events-setlists/SetlistPanel";
 import { SongRunner } from "@/features/events-setlists/SongRunner";
@@ -13,9 +14,12 @@ export default function AdminView() {
 
   return (
     <div className="min-h-full bg-zinc-950 text-zinc-100">
-      <header className="border-b border-zinc-800 px-6 py-4">
-        <h1 className="text-lg font-bold tracking-tight">Open Presenter</h1>
-        <p className="text-sm text-zinc-400">Painel do operador</p>
+      <header className="flex flex-col gap-3 border-b border-zinc-800 px-6 py-4">
+        <AppMenubar />
+        <div>
+          <h1 className="text-lg font-bold tracking-tight">Open Presenter</h1>
+          <p className="text-sm text-zinc-400">Painel do operador</p>
+        </div>
       </header>
       <main className="grid gap-4 p-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-4">
