@@ -1,6 +1,7 @@
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { OutputManagerPanel } from "@/features/output-manager/OutputManagerPanel";
 import { SetlistPanel } from "@/features/events-setlists/SetlistPanel";
+import { SongRunner } from "@/features/events-setlists/SongRunner";
 import { LiveControls } from "@/features/presentation/LiveControls";
 import { LivePreview } from "@/features/presentation/LivePreview";
 import { BackgroundPicker } from "@/features/media-shaders/BackgroundPicker";
@@ -21,6 +22,7 @@ export default function AdminView() {
           <LivePreview />
           <LiveControls />
           <SetlistPanel />
+          <SongRunner />
         </div>
         <div className="flex flex-col gap-4">
           <OutputManagerPanel />

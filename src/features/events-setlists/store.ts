@@ -3,15 +3,20 @@ import {
   createEvent as createEventCommand,
   deleteEvent as deleteEventCommand,
   getEvent,
+  getSong,
   listEvents,
   saveEvent,
 } from "@/core/ipc/commands";
+import { buildSongSlides } from "@/core/lib/lyrics";
 import type {
   EventItem,
   EventPart,
   EventSummary,
   ServiceEvent,
+  SlideContent,
+  Song,
 } from "@/core/types";
+import { usePresentationStore } from "@/features/presentation/store";
 import { useSongsStore } from "@/features/songs/store";
 
 interface SetlistState {
@@ -20,6 +25,8 @@ interface SetlistState {
   event: ServiceEvent | null;
   dirty: boolean;
   selectedItemId: string | null;
+  songsCache: Record<string, Song>;
+  runnerIndex: number | null;
   error: string | null;
   load(): Promise<void>;
   selectEvent(id: string): Promise<void>;
@@ -36,6 +43,10 @@ interface SetlistState {
   setNextItem(itemId: string, nextItemId: string | null): void;
   save(): Promise<void>;
   selectItem(itemId: string | null): void;
+  loadItemSong(itemId: string): Promise<Song | null>;
+  projectSection(itemId: string, index: number): Promise<void>;
+  projectNext(): Promise<void>;
+  projectPrev(): Promise<void>;
 }
 
 function errorMessage(err: unknown): string {
@@ -50,6 +61,18 @@ function clearPointers(
   return { ...item, nextItemId: null };
 }
 
+export function findEventItem(
+  event: ServiceEvent | null,
+  itemId: string,
+): EventItem | undefined {
+  if (event === null) return undefined;
+  for (const part of event.parts) {
+    const item = part.items.find((candidate) => candidate.id === itemId);
+    if (item !== undefined) return item;
+  }
+  return undefined;
+}
+
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -60,6 +83,8 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
   event: null,
   dirty: false,
   selectedItemId: null,
+  songsCache: {},
+  runnerIndex: null,
   error: null,
 
   load: async () => {
@@ -285,5 +310,81 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     }
   },
 
-  selectItem: (itemId) => set({ selectedItemId: itemId }),
+  selectItem: (itemId) => {
+    set({ selectedItemId: itemId, runnerIndex: null });
+    if (itemId !== null) void get().loadItemSong(itemId);
+  },
+
+  loadItemSong: async (itemId) => {
+    const item = findEventItem(get().event, itemId);
+    if (item === undefined || item.song === null) return null;
+    const cached = get().songsCache[item.songId];
+    if (cached !== undefined) return cached;
+    try {
+      const song = await getSong(item.songId);
+      if (song === null) {
+        set({ error: "Música não encontrada." });
+        return null;
+      }
+      set((state) => ({
+        songsCache: { ...state.songsCache, [song.id]: song },
+      }));
+      return song;
+    } catch (err) {
+      set({ error: errorMessage(err) });
+      return null;
+    }
+  },
+
+  projectSection: async (itemId, index) => {
+    const song = await get().loadItemSong(itemId);
+    if (song === null) return;
+    const slides = buildSongSlides(song);
+    if (index < 0 || index >= slides.length) return;
+
+    let nextUp: SlideContent | null = null;
+    if (index + 1 < slides.length) {
+      nextUp = slides[index + 1].slide;
+    } else {
+      const event = get().event;
+      const item = findEventItem(event, itemId);
+      const nextItem =
+        item !== undefined && item.nextItemId !== null
+          ? findEventItem(event, item.nextItemId)
+          : undefined;
+      if (nextItem !== undefined && nextItem.song !== null) {
+        const nextSong = await get().loadItemSong(nextItem.id);
+        if (nextSong !== null) {
+          nextUp = buildSongSlides(nextSong)[0]?.slide ?? null;
+        }
+      }
+    }
+
+    set({ runnerIndex: index });
+    await usePresentationStore
+      .getState()
+      .publishLive(slides[index].slide, nextUp);
+  },
+
+  projectNext: async () => {
+    const { selectedItemId, runnerIndex } = get();
+    if (selectedItemId === null) return;
+    if (runnerIndex === null) {
+      await get().projectSection(selectedItemId, 0);
+      return;
+    }
+    const song = await get().loadItemSong(selectedItemId);
+    if (song === null) return;
+    const slides = buildSongSlides(song);
+    if (runnerIndex + 1 >= slides.length) return;
+    await get().projectSection(selectedItemId, runnerIndex + 1);
+  },
+
+  projectPrev: async () => {
+    const { selectedItemId, runnerIndex } = get();
+    if (selectedItemId === null || runnerIndex === null || runnerIndex === 0) {
+      return;
+    }
+    await get().projectSection(selectedItemId, runnerIndex - 1);
+  },
 }));
