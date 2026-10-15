@@ -4,10 +4,12 @@ pub mod server;
 pub mod services;
 pub mod state;
 
+use rusqlite::Connection;
 use tauri::Manager;
 use tokio::sync::broadcast;
 
-use crate::services::{Broadcaster, SharedBroadcaster};
+use crate::error::AppError;
+use crate::services::{database, Broadcaster, SharedBroadcaster};
 use crate::state::PresentationState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -31,9 +33,14 @@ pub fn run() {
                 std::sync::Arc::new(Broadcaster::new(handle.clone(), ws_tx.clone()));
             app.manage(broadcaster.clone());
 
-            if let Err(err) = crate::services::database::init_database(&handle) {
+            let conn = database::open(&handle).or_else(|err| -> Result<Connection, AppError> {
                 tracing::warn!(error = %err, "banco SQLite indisponível; seguindo sem persistência");
-            }
+                let conn = Connection::open_in_memory()
+                    .map_err(|e| AppError::Storage(e.to_string()))?;
+                database::migrate(&conn)?;
+                Ok(conn)
+            })?;
+            app.manage(database::Db(std::sync::Mutex::new(conn)));
 
             let server_state = crate::server::ServerState {
                 broadcaster,
