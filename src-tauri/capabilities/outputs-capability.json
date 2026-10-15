@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "outputs-capability",
+  "description": "Capability for the dynamically created public/stage output windows",
+  "windows": ["output-*"],
+  "permissions": ["core:default", "core:event:default", "core:window:default"]
+}

@@ -1,0 +1,36 @@
+[package]
+name = "open-presenter"
+version = "0.1.0"
+description = "Software desktop open source e leve para apresentação em igrejas e eventos"
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "open_presenter_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.4", features = [] }
+tauri-plugin-dialog = "2.8.3"
+tauri-plugin-fs = "2.7.1"
+tauri-plugin-opener = "2.7.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+axum = { version = "0.8.9", features = ["ws"] }
+tokio = { version = "1.53.3", features = ["full"] }
+tower-http = { version = "0.7.1", features = ["cors"] }
+rust-embed = "8.12.0"
+mime_guess = "2.0.4"
+futures-util = "0.3.34"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+thiserror = "2.0.21"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+local-ip-address = "0.6.13"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
