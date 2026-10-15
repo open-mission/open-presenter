@@ -153,6 +153,7 @@ services/setlists.service.rs  ler/gravar documento + juntar títulos/artistas p/
 - Ordem de implementação (sugestão: schema+tipos → songs CRUD → editor → projeção → setlist → menubar/shadcn → import Holyrics → busca online) e granularidade dos commits.
 - Layout fino dos componentes, nomes exatos de comandos/assinaturas, textos de UI.
 - Estados vazios/erro, confirmações de exclusão, atalhos de teclado (se sobrar espaço).
+- Comportamento de borda: música excluída referenciada por setlist ("removida" na lista, mantendo o resto), `nextItemId` órfão (item-alvo removido — limpar ou ignorar), Editar em item "removida", momento de exibição do botão "Ir para [próxima]", import de arquivo vazio/inválido.
 - Fixtures dos testes dos parsers.
 
 ## 8. Riscos conhecidos
