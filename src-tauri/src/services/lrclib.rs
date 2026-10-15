@@ -8,6 +8,12 @@ const USER_AGENT: &str = "Open Presenter/0.1.0";
 const MENSAGEM_REDE: &str = "falha ao consultar o LRCLIB — verifique a conexão";
 const MENSAGEM_RESPOSTA: &str = "resposta inválida do LRCLIB";
 const MENSAGEM_NAO_ENCONTRADA: &str = "letra não encontrada no LRCLIB";
+const MENSAGEM_LIMITE: &str =
+    "o LRCLIB limitou as consultas — aguarde alguns segundos e tente de novo";
+const MENSAGEM_INDISPONIVEL: &str =
+    "o LRCLIB está indisponível no momento — tente de novo em instantes";
+const RETRY_MAX_SEGUNDOS: u64 = 3;
+const RETRY_PADRAO_SEGUNDOS: u64 = 1;
 
 #[derive(Deserialize)]
 struct SearchItem {
@@ -117,19 +123,68 @@ async fn get(
     path: &str,
     query: &[(&str, &str)],
 ) -> Result<reqwest::Response, AppError> {
+    let response = enviar(client, path, query).await?;
+    if response.status() != reqwest::StatusCode::TOO_MANY_REQUESTS {
+        return Ok(response);
+    }
+    let header = response
+        .headers()
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|value| value.to_str().ok());
+    match espera_retry(header) {
+        None => Ok(response),
+        Some(espera) => {
+            tracing::warn!(?espera, "LRCLIB limitou as consultas; tentando novamente");
+            tokio::time::sleep(espera).await;
+            enviar(client, path, query).await
+        }
+    }
+}
+
+async fn enviar(
+    client: &reqwest::Client,
+    path: &str,
+    query: &[(&str, &str)],
+) -> Result<reqwest::Response, AppError> {
     client
         .get(format!("{BASE_URL}{path}"))
         .query(query)
         .send()
         .await
-        .map_err(|_| erro_rede())
+        .map_err(|err| {
+            tracing::warn!(error = %err, "falha de rede ao consultar o LRCLIB");
+            erro_rede()
+        })
+}
+
+fn espera_retry(header: Option<&str>) -> Option<std::time::Duration> {
+    let Some(valor) = header.map(str::trim) else {
+        return Some(std::time::Duration::from_secs(RETRY_PADRAO_SEGUNDOS));
+    };
+    match valor.parse::<u64>() {
+        Ok(segundos) if segundos > RETRY_MAX_SEGUNDOS => None,
+        Ok(segundos) => Some(std::time::Duration::from_secs(segundos)),
+        Err(_) => Some(std::time::Duration::from_secs(RETRY_PADRAO_SEGUNDOS)),
+    }
 }
 
 fn sucesso(response: reqwest::Response) -> Result<reqwest::Response, AppError> {
-    if response.status().is_success() {
+    let status = response.status();
+    if status.is_success() {
         Ok(response)
     } else {
-        Err(erro_rede())
+        Err(erro_status(status))
+    }
+}
+
+fn erro_status(status: reqwest::StatusCode) -> AppError {
+    tracing::warn!(%status, "LRCLIB respondeu com erro");
+    if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        AppError::Network(MENSAGEM_LIMITE.into())
+    } else if status.is_server_error() {
+        AppError::Network(MENSAGEM_INDISPONIVEL.into())
+    } else {
+        erro_rede()
     }
 }
 
@@ -178,5 +233,29 @@ mod tests {
         assert_eq!(sections.len(), 2);
         assert_eq!(sections[0].section_type, None);
         assert!(parse_get_payload(r#"{"trackName":"T"}"#).is_err());
+    }
+
+    #[test]
+    fn erro_status_mapeia_limite_indisponivel_e_rede() {
+        let limite = erro_status(reqwest::StatusCode::TOO_MANY_REQUESTS).to_string();
+        assert!(limite.contains("limitou as consultas"), "mensagem: {limite}");
+        let indisponivel = erro_status(reqwest::StatusCode::SERVICE_UNAVAILABLE).to_string();
+        assert!(
+            indisponivel.contains("indisponível"),
+            "mensagem: {indisponivel}"
+        );
+        let rede = erro_status(reqwest::StatusCode::FORBIDDEN).to_string();
+        assert!(rede.contains(MENSAGEM_REDE), "mensagem: {rede}");
+    }
+
+    #[test]
+    fn espera_retry_respeita_header_dentro_do_limite() {
+        let espera = std::time::Duration::from_secs;
+        assert_eq!(espera_retry(None), Some(espera(1)));
+        assert_eq!(espera_retry(Some("2")), Some(espera(2)));
+        assert_eq!(espera_retry(Some(" 3 ")), Some(espera(3)));
+        assert_eq!(espera_retry(Some("0")), Some(espera(0)));
+        assert_eq!(espera_retry(Some("60")), None);
+        assert_eq!(espera_retry(Some("abc")), Some(espera(1)));
     }
 }
