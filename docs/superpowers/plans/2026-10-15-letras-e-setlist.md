@@ -214,10 +214,13 @@ fn busca_por_trecho_de_letra() {
 fn busca_trata_curingas_like_como_texto_literal() {
     let conn = open_in_memory();
     save(&conn, &Song { id: "s1".into(), title: "100%".into(), artist: "".into(),
-        sections: vec![SongSection { section_type: None, lines: vec![format!("a_b c%d")] }] }).unwrap();
-    assert_eq!(list(&conn, Some("%")).unwrap().len(), 1);   // só a literal
-    assert_eq!(list(&conn, Some("_")).unwrap().len(), 1);
+        sections: vec![SongSection { section_type: None, lines: vec!["a_b c%d".into()] }] }).unwrap();
+    save(&conn, &Song { id: "s2".into(), title: "Outra".into(), artist: "".into(),
+        sections: vec![SongSection { section_type: None, lines: vec!["sem curinga".into()] }] }).unwrap();
+    assert_eq!(list(&conn, Some("%")).unwrap().len(), 1);   // sem escape, casaria 2
+    assert_eq!(list(&conn, Some("_")).unwrap().len(), 1);   // sem escape, casaria 2
     assert_eq!(list(&conn, Some("%d")).unwrap().len(), 1);
+    assert_eq!(list(&conn, Some("curinga")).unwrap().len(), 1);
 }
 
 #[test]
