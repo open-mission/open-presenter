@@ -16,6 +16,8 @@ pub struct SlideContent {
     pub title: String,
     pub lines: Vec<String>,
     pub notes: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -43,6 +45,8 @@ pub struct LiveSlide {
     pub cleared: bool,
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "nextUp")]
+    pub next_up: Option<SlideContent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,6 +98,131 @@ pub struct WsEnvelope {
     pub channel: String,
     pub payload: serde_json::Value,
     pub version: u8,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "kebab-case")]
+pub enum SectionType {
+    Verse,
+    PreChorus,
+    Chorus,
+    Bridge,
+    Intro,
+    Outro,
+    Instrumental,
+    Tag,
+    Ending,
+}
+
+impl SectionType {
+    pub fn from_label(label: &str) -> Option<Self> {
+        let normalized = label.trim().to_lowercase();
+        let key = normalized
+            .trim_end_matches(|c: char| c.is_ascii_digit())
+            .trim_end();
+        match key {
+            "verso" => Some(SectionType::Verse),
+            "refrão" | "refrao" => Some(SectionType::Chorus),
+            "pré-refrão" | "pre-refrao" => Some(SectionType::PreChorus),
+            "ponte" => Some(SectionType::Bridge),
+            "introdução" | "introducao" | "intro" => Some(SectionType::Intro),
+            "final" => Some(SectionType::Outro),
+            "instrumental" => Some(SectionType::Instrumental),
+            "tag" => Some(SectionType::Tag),
+            "encerramento" => Some(SectionType::Ending),
+            _ => None,
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            SectionType::Verse => "verse",
+            SectionType::PreChorus => "pre-chorus",
+            SectionType::Chorus => "chorus",
+            SectionType::Bridge => "bridge",
+            SectionType::Intro => "intro",
+            SectionType::Outro => "outro",
+            SectionType::Instrumental => "instrumental",
+            SectionType::Tag => "tag",
+            SectionType::Ending => "ending",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SongSection {
+    pub section_type: Option<SectionType>,
+    pub lines: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Song {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    pub sections: Vec<SongSection>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SongSummary {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct EventItem {
+    pub id: String,
+    pub song_id: String,
+    pub next_item_id: Option<String>,
+    pub song: Option<SongSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EventPart {
+    pub id: String,
+    pub title: String,
+    pub items: Vec<EventItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceEvent {
+    pub id: String,
+    pub title: String,
+    pub event_date: String,
+    pub parts: Vec<EventPart>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct EventSummary {
+    pub id: String,
+    pub title: String,
+    pub event_date: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OnlineLyricHit {
+    pub track_name: String,
+    pub artist_name: String,
+    pub album_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ImportSkip {
+    pub title: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ImportReport {
+    pub imported: Vec<String>,
+    pub skipped: Vec<ImportSkip>,
+    pub errors: Vec<String>,
 }
 
 pub const EVENT_SLIDE: &str = "presentation://slide";

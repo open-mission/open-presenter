@@ -2,4 +2,8 @@ pub mod presentation;
 pub mod types;
 
 pub use presentation::PresentationState;
-pub use types::{LiveSlide, MonitorInfo, OutputTarget, WsEnvelope};
+pub use types::{
+    EventItem, EventPart, EventSummary, ImportReport, ImportSkip, LiveSlide, MonitorInfo,
+    OnlineLyricHit, OutputTarget, SectionType, ServiceEvent, Song, SongSection, SongSummary,
+    WsEnvelope,
+};

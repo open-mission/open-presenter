@@ -6,6 +6,7 @@ export interface SlideContent {
   title: string;
   lines: string[];
   notes?: string;
+  section?: string;
 }
 
 export type BackgroundKind = "color" | "image" | "video" | "css" | "isf";
@@ -22,6 +23,7 @@ export interface LiveSlide {
   blackout: boolean;
   cleared: boolean;
   updatedAt: string;
+  nextUp?: SlideContent;
 }
 
 export interface MonitorInfo {
@@ -59,4 +61,76 @@ export interface SyncEnvelope<T> {
   channel: string;
   payload: T;
   version: 1;
+}
+
+export type SectionType =
+  | "verse"
+  | "pre-chorus"
+  | "chorus"
+  | "bridge"
+  | "intro"
+  | "outro"
+  | "instrumental"
+  | "tag"
+  | "ending";
+
+export interface SongSection {
+  sectionType: SectionType | null;
+  lines: string[];
+}
+
+export interface Song {
+  id: string;
+  title: string;
+  artist: string;
+  sections: SongSection[];
+}
+
+export interface SongSummary {
+  id: string;
+  title: string;
+  artist: string;
+}
+
+export interface EventItem {
+  id: string;
+  songId: string;
+  nextItemId: string | null;
+  song: SongSummary | null;
+}
+
+export interface EventPart {
+  id: string;
+  title: string;
+  items: EventItem[];
+}
+
+export interface ServiceEvent {
+  id: string;
+  title: string;
+  eventDate: string;
+  parts: EventPart[];
+}
+
+export interface EventSummary {
+  id: string;
+  title: string;
+  eventDate: string;
+}
+
+export interface OnlineLyricHit {
+  trackName: string;
+  artistName: string;
+  albumName: string | null;
+}
+
+export interface ImportSkip {
+  title: string;
+  reason: string;
+}
+
+export interface ImportReport {
+  imported: string[];
+  skipped: ImportSkip[];
+  errors: string[];
 }
