@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ImportReportDialog } from "./ImportReportDialog";
+import { OnlineLyricsDialog } from "./OnlineLyricsDialog";
 import { SongEditorDialog } from "./SongEditorDialog";
 import { useSongsStore } from "./store";
 
@@ -21,6 +22,7 @@ export function SongsPanel() {
   const load = useSongsStore((s) => s.load);
   const startNewSong = useSongsStore((s) => s.startNewSong);
   const editSong = useSongsStore((s) => s.editSong);
+  const openOnlineSearch = useSongsStore((s) => s.openOnlineSearch);
 
   useEffect(() => {
     load();
@@ -43,7 +45,7 @@ export function SongsPanel() {
               <Button size="sm" onClick={startNewSong}>
                 Nova música
               </Button>
-              <Button size="sm" variant="outline" disabled>
+              <Button size="sm" variant="outline" onClick={openOnlineSearch}>
                 Buscar na internet
               </Button>
             </div>
@@ -85,6 +87,7 @@ export function SongsPanel() {
       </Card>
       <SongEditorDialog />
       <ImportReportDialog />
+      <OnlineLyricsDialog />
     </>
   );
 }
