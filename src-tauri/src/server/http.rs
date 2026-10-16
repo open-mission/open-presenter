@@ -41,7 +41,7 @@ pub fn router(state: ServerState) -> Router {
         .route(WS_PATH, get(ws_handler))
         .route("/health", get(health_handler))
         .route("/api/live", get(live_handler))
-        .route("/theme-media/*path", get(theme_media_handler))
+        .route("/theme-media/{*path}", get(theme_media_handler))
         .fallback(static_handler)
         .with_state(Arc::new(state))
         .layer(cors)
