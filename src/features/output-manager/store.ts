@@ -175,7 +175,13 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
     await get().setMode(target, "off");
   },
   setPort: async (port) => {
-    set({ server: await setServerPort(port) });
+    try {
+      set({ server: await setServerPort(port) });
+    } catch (e) {
+      const s = await getServerStatus();
+      if (s) set({ server: s });
+      throw e;
+    }
   },
   stopLocalServer: async () => {
     set({ server: await stopServer() });
