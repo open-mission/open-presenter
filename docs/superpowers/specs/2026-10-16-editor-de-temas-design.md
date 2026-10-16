@@ -22,7 +22,8 @@ Janela dedicada "Editor de Temas", título do tema ao centro, estado "Salvo" + m
 | NOME | `id` |
 | X/Y/L/A, px/% | `x`, `y`, `css` (`left/top/width/height` com unidade) |
 | ALINHAR À TELA, SCALE, MARGEM | DERIVADO (calcula `css`, não persiste; decisão minha) |
-| Conteúdo, `{·}` | `text` (+ lista de variáveis por asset em `SAMPLES`) |
+| Conteúdo, `{·}` | `text` (+ lista de variáveis por asset em `samples.ts`) |
+| Fonte/TAM/PESO/ALT.LIN/ESPAÇ/Cor/H/V/Case/Ajuste | `css` (`font-family/size/weight/line-height/letter-spacing/color/text-align/justify-content/text-transform/white-space`) — Auto-escala OMITIDO V1 (renderer não implementa; prop morta seria enganosa) |
 | Fonte/TAM/PESO/ALT.LIN/ESPAÇ/Cor/H/V/Case/Ajuste/Auto-escala | `css` (`font-family/size/weight/line-height/letter-spacing/color/text-align/justify-content/text-transform/white-space/textFit/autoScale`) |
 | EFEITOS | `css.textShadow` (+ presets Sombra/Contorno/Brilho; decisão minha) |
 | PREENCHIMENTO | `fill` + `background`/`url` (sólido/imagem; vídeo/web V2) |
@@ -58,6 +59,11 @@ Usuário abre galeria → "Editar" num tema → janela do editor com canvas + ca
 
 ## 6. Aberto ao builder
 
+Faixa estreita à direita do `AdminView` (4ª coluna) com miniaturas dos temas (mesmo `ThemeRenderer` + amostras da galeria, chaveado pelo kind ao vivo).
+- Duplo-clique: vincula o tema ao kind público ao vivo (`setBinding("public", liveKind ?? "lyric", guid)`) — o telão troca na hora, pois `PublicView` resolve o tema a cada render.
+- Botão direito: menu de contexto próprio (sem dep nova) com **Editar** (abre `openThemeEditor(guid)` / `window.open` no web), **Aplicar** (= duplo-clique) e **Remover** (confirmação em dois cliques).
+- Colapsável (toggle persistido em localStorage); `load()` no mount; estado vazio com texto curto.
+
 Componentes internos (hooks, subpastas), e estética exata dos painéis (seguir shadcn/dark do app). Contrato de rota IPC já existe (`saveTheme`); novo comando Tauri `open_theme_editor` segue o padrão de `open_output_window`, com semântica focar-existente (uma janela de editor por sessão; abrir outro tema carrega o guid nela).
 
 ## 7. Respostas da revisão técnica (consolidadas)
@@ -67,3 +73,10 @@ Componentes internos (hooks, subpastas), e estética exata dos painéis (seguir 
 - **Ciclo de vida:** título editável no topbar do editor; criar/duplicar/excluir ficam na galeria. Menu ⋮ do editor: "Duplicar tema" (V2).
 - **Mídia (imagem/vídeo/fundo):** upload copiado para app-data `theme-media/<guid>/arquivo`; referência persistida como `media://<guid>/arquivo` e resolvida no render para `http://<host>:5050/theme-media/…` (mesmo padrão do `/thumbnails/` existente; funciona offline e no navegador externo). Novo comando Rust `save_theme_media` (detalhes no plano).
 - **ANIMAÇÃO / TIMER / auto-escala / tipos Web-QR:** exigem extensão de schema (Rust+TS+renderer) — **confirmado V2** pelo usuário em 2026-10-16. V1 = texto, formas, imagem, vídeo, fundo e visibilidade por tipo.
+
+## 8. Trilho de temas (quick-switch, estilo Holyrics)
+
+Faixa estreita à direita do `AdminView` (4ª coluna) com miniaturas dos temas (mesmo `ThemeRenderer` + amostras da galeria, chaveado pelo kind ao vivo).
+- Duplo-clique: vincula o tema ao kind público ao vivo (`setBinding("public", liveKind ?? "lyric", guid)`) — o telão troca na hora, pois `PublicView` resolve o tema a cada render.
+- Botão direito: menu de contexto próprio (sem dep nova) com **Editar** (abre `openThemeEditor(guid)` / `window.open` no web), **Aplicar** (= duplo-clique) e **Remover** (confirmação em dois cliques).
+- Colapsável (toggle persistido em localStorage); `load()` no mount; estado vazio com texto curto.
