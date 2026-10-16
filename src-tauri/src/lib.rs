@@ -141,6 +141,10 @@ pub fn run() {
             commands::songs::fetch_online_lyrics,
             commands::songs::parse_lyrics,
             commands::songs::lyrics_to_text,
+            commands::themes::list_themes,
+            commands::themes::get_theme,
+            commands::themes::save_theme,
+            commands::themes::delete_theme,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o Open Presenter");

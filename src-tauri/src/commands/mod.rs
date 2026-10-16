@@ -1,6 +1,7 @@
 pub mod presentation;
 pub mod setlists;
 pub mod songs;
+pub mod themes;
 
 pub use presentation::{
     close_output_window, get_live_slide, get_server_host, go_live, list_monitors,
@@ -11,3 +12,4 @@ pub use songs::{
     delete_song, fetch_online_lyrics, get_song, import_holyrics, list_songs, save_song,
     search_lyrics_online,
 };
+pub use themes::{delete_theme, get_theme, list_themes, save_theme};

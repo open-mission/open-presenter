@@ -7,5 +7,6 @@ pub mod lrclib;
 pub mod lyrics;
 pub mod setlists;
 pub mod songs;
+pub mod themes;
 
 pub use broadcaster::{Broadcaster, SharedBroadcaster};

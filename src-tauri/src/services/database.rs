@@ -5,9 +5,9 @@ use tauri::{AppHandle, Manager};
 
 use crate::error::AppError;
 
-pub const SCHEMA_VERSION: i64 = 2;
+pub const SCHEMA_VERSION: i64 = 3;
 
-const SCHEMA_V2: &str = "
+const SCHEMA_V3: &str = "
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS songs (
     id TEXT PRIMARY KEY,
@@ -35,6 +35,13 @@ CREATE TABLE IF NOT EXISTS service_events (
     event_date TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     setlist_json TEXT NOT NULL DEFAULT '{\"parts\":[]}'
+);
+CREATE TABLE IF NOT EXISTS themes (
+    guid TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    definition TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 ";
 
@@ -87,7 +94,7 @@ pub fn migrate(conn: &Connection) -> Result<(), AppError> {
         DROP TABLE IF EXISTS songs;",
     )
     .map_err(storage_error)?;
-    conn.execute_batch(SCHEMA_V2).map_err(storage_error)?;
+    conn.execute_batch(SCHEMA_V3).map_err(storage_error)?;
     conn.execute("DELETE FROM schema_version", [])
         .map_err(storage_error)?;
     conn.execute(
@@ -120,12 +127,12 @@ mod tests {
     fn migrate_cria_schema_v2_e_marca_versao() {
         let conn = open_in_memory();
         let v: i64 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 2);
+        assert_eq!(v, 3);
         let tabelas: Vec<String> = conn
             .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
             .unwrap()
             .query_map([], |r| r.get(0)).unwrap().collect::<Result<_, _>>().unwrap();
-        for esperada in ["songs", "song_sections", "song_lyrics", "service_events"] {
+        for esperada in ["songs", "song_sections", "song_lyrics", "service_events", "themes"] {
             assert!(tabelas.contains(&esperada.to_string()), "faltou {esperada}");
         }
     }
@@ -136,7 +143,7 @@ mod tests {
         migrate(&conn).unwrap();
         migrate(&conn).unwrap();
         let v: i64 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 2);
+        assert_eq!(v, 3);
     }
 
     #[test]

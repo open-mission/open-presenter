@@ -6,6 +6,7 @@ import type {
   OnlineLyricHit,
   OutputTarget,
   ServiceEvent,
+  SlideTheme,
   Song,
   SongSection,
   SongSummary,
@@ -117,4 +118,20 @@ export async function saveEvent(event: ServiceEvent): Promise<void> {
 
 export async function deleteEvent(id: string): Promise<void> {
   await invokeStrict("delete_event", { id });
+}
+
+export async function listThemes(): Promise<SlideTheme[]> {
+  return invokeStrict<SlideTheme[]>("list_themes");
+}
+
+export async function getTheme(guid: string): Promise<SlideTheme | null> {
+  return invokeStrict<SlideTheme | null>("get_theme", { guid });
+}
+
+export async function saveTheme(theme: SlideTheme): Promise<void> {
+  await invokeStrict("save_theme", { theme });
+}
+
+export async function deleteTheme(guid: string): Promise<void> {
+  await invokeStrict("delete_theme", { guid });
 }
