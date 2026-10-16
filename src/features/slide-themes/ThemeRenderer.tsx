@@ -3,6 +3,24 @@ import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
 import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
 import { renderTemplate } from "./themeTemplate";
 
+const BACKGROUND_KEYS = new Set([
+  "background",
+  "backgroundColor",
+  "backgroundImage",
+  "backgroundSize",
+  "backgroundPosition",
+  "backgroundRepeat",
+  "backgroundAttachment",
+  "backgroundClip",
+  "backgroundOrigin",
+]);
+
+function currentHost(): string {
+  return typeof window !== "undefined" && window.location.hostname
+    ? window.location.hostname
+    : "localhost";
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -34,6 +52,47 @@ function resolveUrlValue(value: string, host: string): string {
   const resolved = resolveThemeMediaUrl(match[2], host);
   if (!resolved || resolved === match[2]) return value;
   return value.replace(match[2], resolved);
+}
+
+/**
+ * Estilo do contêiner do tema. Com `withBackground` desligado, os atributos de
+ * fundo são removidos: o fundo passa a ser desenhado em tela cheia por
+ * `themeBackgroundStyle` (ScaledStage), sem duplicar o gradiente no palco 16:9.
+ */
+export function themeContainerStyle(
+  theme: SlideTheme,
+  withBackground: boolean,
+): CSSProperties {
+  const host = currentHost();
+  const style: Record<string, string> = {};
+  for (const [key, value] of Object.entries(theme.css)) {
+    if (!withBackground && BACKGROUND_KEYS.has(key)) continue;
+    style[key] = value;
+  }
+  if (
+    withBackground &&
+    typeof theme.css.background === "string" &&
+    theme.css.background.includes("url(")
+  ) {
+    style.background = resolveUrlValue(theme.css.background, host);
+  }
+  return style as CSSProperties;
+}
+
+/**
+ * Fundo do tema para preencher a superfície inteira (cover). Assim uma saída
+ * que não seja 16:9 não fica com barras pretas: o fundo cobre tudo e apenas o
+ * conteúdo permanece na área segura 16:9.
+ */
+export function themeBackgroundStyle(theme: SlideTheme): CSSProperties {
+  const raw = theme.css.background;
+  if (typeof raw !== "string" || raw.trim() === "") return {};
+  return {
+    background: resolveUrlValue(raw, currentHost()),
+    backgroundSize: "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+  };
 }
 
 function ThemeElementView({
@@ -112,10 +171,12 @@ export function ThemeRenderer({
   theme,
   asset,
   props,
+  withBackground = true,
 }: {
   theme: SlideTheme;
   asset: ThemeAsset;
   props: Record<string, string>;
+  withBackground?: boolean;
 }) {
   const elements = theme.elements.filter(
     (element) =>
@@ -124,19 +185,7 @@ export function ThemeRenderer({
         element.assetTypeVisibility.length === 0 ||
         element.assetTypeVisibility.includes(asset)),
   );
-  const host =
-    typeof window !== "undefined" && window.location.hostname
-      ? window.location.hostname
-      : "localhost";
-  const containerCss = theme.css as CSSProperties;
-  const containerStyle: CSSProperties =
-    typeof theme.css.background === "string" &&
-    theme.css.background.includes("url(")
-      ? {
-          ...containerCss,
-          background: resolveUrlValue(theme.css.background, host),
-        }
-      : containerCss;
+  const containerStyle = themeContainerStyle(theme, withBackground);
 
   return (
     <div
