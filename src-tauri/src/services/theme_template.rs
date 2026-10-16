@@ -2,11 +2,13 @@ use std::collections::HashMap;
 
 pub fn render_template(template: &str, props: &HashMap<String, String>) -> String {
     let mut out = template.to_string();
-    for (k, v) in props {
+    let mut chaves: Vec<&String> = props.keys().collect();
+    chaves.sort();
+    for k in chaves {
         if k.starts_with("__") {
             continue;
         }
-        out = out.replace(&format!("{{{k}}}"), v);
+        out = out.replace(&format!("{{{k}}}"), &props[k]);
     }
     limpar_restantes(&out)
 }
@@ -164,6 +166,12 @@ mod tests {
         assert_eq!(p.get("versiculo").map(String::as_str), Some("1"));
         assert_eq!(p.get("versao").map(String::as_str), Some("ACF"));
         assert_eq!(p.get("nextVerse").map(String::as_str), Some("Next"));
+    }
+
+    #[test]
+    fn valor_com_chave_em_cascata_ordem_classificada_resulta_x() {
+        let p = props(&[("a", "{b}"), ("b", "x")]);
+        assert_eq!(render_template("{a}", &p), "x");
     }
 
     #[test]
