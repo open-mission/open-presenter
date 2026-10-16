@@ -244,6 +244,7 @@ pub struct ImportReport {
 
 pub const EVENT_SLIDE: &str = "presentation://slide";
 pub const EVENT_STAGE_MESSAGE: &str = "stage://message";
+pub const EVENT_TIMER: &str = "stage://timer";
 pub const EVENT_OUTPUTS: &str = "outputs://changed";
 pub const EVENT_THEMES: &str = "presentation://themes";
 pub const EVENT_THEMES_CHANGED: &str = "themes://changed";
@@ -377,4 +378,60 @@ pub struct LiveThemes {
     pub public: Option<SlideTheme>,
     #[serde(default)]
     pub stage: Option<SlideTheme>,
+}
+
+/// Cronômetro do palco. Fonte da verdade no Rust: todas as saídas e o painel
+/// de controle espelham este estado via `stage://timer`. Os instantes são
+/// milissegundos Unix; cada cliente calcula o visor como
+/// `elapsed + (running ? now - started_at : 0)`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StageTimer {
+    pub running: bool,
+    pub elapsed_secs: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at_millis: Option<u64>,
+}
+
+impl StageTimer {
+    pub fn start_at(&mut self, now_millis: u64) {
+        if !self.running {
+            self.running = true;
+            self.started_at_millis = Some(now_millis);
+        }
+    }
+
+    pub fn pause_at(&mut self, now_millis: u64) {
+        if self.running {
+            if let Some(started) = self.started_at_millis {
+                self.elapsed_secs += now_millis.saturating_sub(started) / 1000;
+            }
+            self.running = false;
+            self.started_at_millis = None;
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.running = false;
+        self.elapsed_secs = 0;
+        self.started_at_millis = None;
+    }
+
+    pub fn elapsed_at(&self, now_millis: u64) -> u64 {
+        self.elapsed_secs
+            + if self.running {
+                self.started_at_millis
+                    .map(|s| now_millis.saturating_sub(s) / 1000)
+                    .unwrap_or(0)
+            } else {
+                0
+            }
+    }
+}
+
+pub fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }

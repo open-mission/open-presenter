@@ -1,24 +1,27 @@
 import { useEffect } from "react";
-import { kindToAsset } from "@/core/types";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { usePresentationStore } from "@/features/presentation/store";
 import { StageAlerts } from "@/features/stage-display/StageAlerts";
 import { StageClock } from "@/features/stage-display/StageClock";
 import { useStageConfigStore } from "@/features/stage-display/configStore";
-import { ScaledStage } from "@/features/slide-themes/ScaledStage";
+import { useStageTimerSync } from "@/features/stage-display/useStageTimerSync";
+import { themeBackgroundStyle } from "@/features/slide-themes/ThemeRenderer";
 import { useLiveThemesStore } from "@/features/slide-themes/liveThemesStore";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
-import { buildProps } from "@/features/slide-themes/themeTemplate";
 
 export default function StageView() {
   usePresentationSync("stage");
+  useStageTimerSync();
   const live = usePresentationStore((s) => s.live);
   const nextUp = usePresentationStore((s) => s.live.nextUp);
   const { fontSize, theme, showNextUp } = useStageConfigStore();
   const loadThemes = useSlideThemesStore((s) => s.load);
   const broadcastTheme = useLiveThemesStore((s) => s.themes.stage);
   const localStageTheme = useSlideThemesStore((s) => s.resolveStageTheme());
+  // O palco sempre mostra o retorno (relógio, letra, próxima estrofe).
+  // O tema do palco entra apenas como plano de fundo, separado do telão.
   const stageTheme = broadcastTheme ?? localStageTheme;
+  const backgroundStyle = stageTheme ? themeBackgroundStyle(stageTheme) : {};
 
   useEffect(() => {
     void loadThemes();
@@ -38,32 +41,8 @@ export default function StageView() {
       ? "bg-stone-950 text-amber-100"
       : "bg-black text-white";
 
-  const asset = kindToAsset(live.content.kind);
-
-  if (stageTheme && asset && !live.blackout && !live.cleared) {
-    const props = {
-      ...buildProps(live.content.kind, live.content, live.nextUp),
-      "HH:MM": new Date().toLocaleTimeString("pt-BR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-    return (
-      <div className={`relative min-h-full ${themeClass}`}>
-        <ScaledStage theme={stageTheme} asset={asset} props={props} />
-        <div className="relative z-10 flex min-h-full flex-col p-8">
-          <div className="flex justify-center w-full">
-            <StageClock />
-          </div>
-
-          <StageAlerts />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className={`flex min-h-full flex-col justify-between p-8 text-center ${themeClass}`}>
+    <div className={`relative flex min-h-full flex-col justify-between p-8 text-center ${themeClass}`} style={backgroundStyle}>
       <div className="flex justify-center w-full">
         <StageClock />
       </div>

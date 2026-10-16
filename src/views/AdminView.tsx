@@ -11,6 +11,7 @@ import { ThemeRail } from "@/features/slide-themes/ThemeRail";
 import { useLiveThemesPublisher, useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { useOutputsSync } from "@/features/output-manager/useOutputsSync";
 import { useOutputManagerStore } from "@/features/output-manager/store";
+import { useStageTimerSync } from "@/features/stage-display/useStageTimerSync";
 import { SongEditorDialog } from "@/features/songs/SongEditorDialog";
 import { useSetlistStore } from "@/features/events-setlists/store";
 import { useNativeMenu } from "@/core/ipc/useNativeMenu";
@@ -18,6 +19,7 @@ import { useNativeMenu } from "@/core/ipc/useNativeMenu";
 export default function AdminView() {
   usePresentationSync("admin");
   useOutputsSync();
+  useStageTimerSync();
   useNativeMenu();
   useThemesSync();
   useLiveThemesPublisher();

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::broadcast;
 
-use crate::state::{types::EVENT_SLIDE, LiveSlide, LiveThemes, PresentationState};
+use crate::state::{types::EVENT_SLIDE, LiveSlide, LiveThemes, PresentationState, StageTimer};
 
 #[derive(Debug, Clone)]
 pub struct Broadcaster {
@@ -54,6 +54,23 @@ impl Broadcaster {
 
     pub fn current_themes(&self) -> LiveThemes {
         self.app.state::<PresentationState>().themes()
+    }
+
+    pub fn publish_timer(&self, timer: &StageTimer) {
+        let _ = self.app.emit(crate::state::types::EVENT_TIMER, timer);
+
+        if let Ok(payload) = serde_json::to_value(timer) {
+            let envelope = serde_json::json!({
+                "channel": crate::state::types::EVENT_TIMER,
+                "payload": payload,
+                "version": 1,
+            });
+            let _ = self.ws_tx.send(envelope.to_string());
+        }
+    }
+
+    pub fn current_timer(&self) -> StageTimer {
+        self.app.state::<PresentationState>().timer()
     }
 }
 

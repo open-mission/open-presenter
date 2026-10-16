@@ -13,6 +13,7 @@ export const TAURI_EVENTS = {
   slide: "presentation://slide",
   outputs: "outputs://changed",
   stageMessage: "stage://message",
+  timer: "stage://timer",
   themes: "presentation://themes",
   themesChanged: "themes://changed",
 } as const;

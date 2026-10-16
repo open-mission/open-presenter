@@ -192,6 +192,15 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>, client_id: St
         let _ = sender.send(Message::Text(text.into())).await;
     }
 
+    let timer_snapshot = serde_json::to_string(&serde_json::json!({
+        "channel": crate::state::types::EVENT_TIMER,
+        "payload": state.broadcaster.current_timer(),
+        "version": 1,
+    }));
+    if let Ok(text) = timer_snapshot {
+        let _ = sender.send(Message::Text(text.into())).await;
+    }
+
     let send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
             if sender.send(Message::Text(msg.into())).await.is_err() {
