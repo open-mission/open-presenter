@@ -6,6 +6,7 @@ import { SetlistSidebar } from "@/features/events-setlists/SetlistSidebar";
 import { SongSlidesColumn } from "@/features/events-setlists/SongSlidesColumn";
 import { LivePreview } from "@/features/presentation/LivePreview";
 import { ThemeRail } from "@/features/slide-themes/ThemeRail";
+import { useLiveThemesPublisher, useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { SongEditorDialog } from "@/features/songs/SongEditorDialog";
 import { useSetlistStore } from "@/features/events-setlists/store";
 import { useNativeMenu } from "@/core/ipc/useNativeMenu";
@@ -13,6 +14,8 @@ import { useNativeMenu } from "@/core/ipc/useNativeMenu";
 export default function AdminView() {
   usePresentationSync();
   useNativeMenu();
+  useThemesSync();
+  useLiveThemesPublisher();
   const loadSetlists = useSetlistStore((s) => s.load);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);

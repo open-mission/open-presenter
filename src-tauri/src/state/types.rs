@@ -245,6 +245,8 @@ pub struct ImportReport {
 pub const EVENT_SLIDE: &str = "presentation://slide";
 pub const EVENT_STAGE_MESSAGE: &str = "stage://message";
 pub const EVENT_OUTPUTS: &str = "outputs://changed";
+pub const EVENT_THEMES: &str = "presentation://themes";
+pub const EVENT_THEMES_CHANGED: &str = "themes://changed";
 
 pub const OUTPUT_HTTP_PORT: u16 = 5050;
 pub const WS_PATH: &str = "/ws";
@@ -298,4 +300,15 @@ pub struct ThemeBinding {
     pub asset: String,
     #[serde(rename = "themeGuid")]
     pub theme_guid: String,
+}
+
+/// Temas já resolvidos para as saídas. O operador (admin) decide qual tema
+/// cada saída usa; aqui guardamos o resultado para que clientes nativos e web
+/// rendam exatamente o mesmo tema, sem depender de localStorage ou IPC.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LiveThemes {
+    #[serde(default)]
+    pub public: Option<SlideTheme>,
+    #[serde(default)]
+    pub stage: Option<SlideTheme>,
 }
