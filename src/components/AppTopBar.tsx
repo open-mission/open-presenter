@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { outputHttpUrl } from "@/core/config/app";
 import type { OutputMode } from "@/core/types";
+import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { usePreferencesStore } from "@/features/preferences/store";
 import { usePresentationStore } from "@/features/presentation/store";
@@ -45,13 +46,18 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
   const stageRuntime = useOutputManagerStore((s) => s.runtime.stage);
   const host = useOutputManagerStore((s) => s.host);
   const port = useOutputManagerStore((s) => s.server.port);
+  const serverRunning = useOutputManagerStore((s) => s.server.running);
 
-  const publicActive =
-    publicConfig.mode !== "off" &&
-    (publicConfig.mode === "web" || publicRuntime.open);
-  const stageActive =
-    stageConfig.mode !== "off" &&
-    (stageConfig.mode === "web" || stageRuntime.open);
+  const publicActive = isOutputActive(
+    publicConfig.mode,
+    publicRuntime.open,
+    serverRunning,
+  );
+  const stageActive = isOutputActive(
+    stageConfig.mode,
+    stageRuntime.open,
+    serverRunning,
+  );
 
   const publicTitle = statusTitle(
     "Público",

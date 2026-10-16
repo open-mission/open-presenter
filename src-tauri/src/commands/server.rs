@@ -48,6 +48,28 @@ pub async fn get_server_status(
     Ok(lock(&control)?.status())
 }
 
+fn swap_with_listener(
+    control: &State<'_, Mutex<ServerControl>>,
+    port: u16,
+    listener: tokio::net::TcpListener,
+) -> Result<ServerStatus, AppError> {
+    let state = {
+        let mut guard = lock(control)?;
+        guard.stop();
+        guard.port = port;
+        guard.state.clone()
+    };
+    let Some(state) = state else {
+        return Err(AppError::Storage("estado do servidor ausente".into()));
+    };
+    tracing::info!(port, "servidor de saídas escutando");
+    let handle = spawn_with_listener(state, listener);
+    let mut guard = lock(control)?;
+    guard.handle = Some(handle);
+    guard.running = true;
+    Ok(guard.status())
+}
+
 #[tauri::command]
 pub async fn set_server_port(
     db: State<'_, Db>,
@@ -56,6 +78,11 @@ pub async fn set_server_port(
 ) -> Result<ServerStatus, AppError> {
     if port < 1024 {
         return Err(AppError::Network("porta fora do intervalo 1024–65535".into()));
+    }
+    if port != lock(&control)?.port {
+        let listener = bind(port).await.map_err(AppError::Network)?;
+        db.with_conn(|conn| settings::set_setting(conn, SERVER_PORT_KEY, &port.to_string()))?;
+        return swap_with_listener(&control, port, listener);
     }
     db.with_conn(|conn| settings::set_setting(conn, SERVER_PORT_KEY, &port.to_string()))?;
     start_locked(&control, port).await
