@@ -1,11 +1,15 @@
 import type {
+  ConnectedClient,
   EventSummary,
   ImportReport,
   LiveSlide,
   LiveThemes,
   MonitorInfo,
   OnlineLyricHit,
+  OutputConfig,
+  OutputRuntime,
   OutputTarget,
+  ServerStatus,
   ServiceEvent,
   SlideTheme,
   Song,
@@ -21,14 +25,33 @@ export async function listMonitors(): Promise<MonitorInfo[]> {
 export async function openOutputWindow(
   target: OutputTarget,
   monitorId: string | null,
+  monitorLabel?: string | null,
 ): Promise<void> {
-  await invokeCommand("open_output_window", { target, monitorId });
+  await invokeCommand("open_output_window", {
+    target,
+    monitorId,
+    monitorLabel: monitorLabel ?? null,
+  });
 }
 
 export async function closeOutputWindow(
   target: OutputTarget,
 ): Promise<void> {
   await invokeCommand("close_output_window", { target });
+}
+
+export async function getOutputConfig(
+  target: OutputTarget,
+): Promise<OutputConfig | null> {
+  return invokeCommand<OutputConfig>("get_output_config", { target });
+}
+
+export async function setOutputConfig(config: OutputConfig): Promise<void> {
+  await invokeCommand("set_output_config", { config });
+}
+
+export async function getOutputsState(): Promise<OutputRuntime[]> {
+  return (await invokeCommand<OutputRuntime[]>("get_outputs_state")) ?? [];
 }
 
 export async function openPreferencesWindow(): Promise<void> {
@@ -65,6 +88,26 @@ export async function fetchLiveThemes(): Promise<LiveThemes | null> {
 
 export async function fetchServerHost(): Promise<string> {
   return (await invokeCommand<string>("get_server_host")) ?? "localhost";
+}
+
+export async function getServerStatus(): Promise<ServerStatus | null> {
+  return invokeCommand<ServerStatus>("get_server_status");
+}
+
+export async function setServerPort(port: number): Promise<ServerStatus> {
+  return invokeStrict<ServerStatus>("set_server_port", { port });
+}
+
+export async function stopServer(): Promise<ServerStatus> {
+  return invokeStrict<ServerStatus>("stop_server");
+}
+
+export async function startServer(): Promise<ServerStatus> {
+  return invokeStrict<ServerStatus>("start_server");
+}
+
+export async function getConnectedClients(): Promise<ConnectedClient[]> {
+  return (await invokeCommand<ConnectedClient[]>("get_connected_clients")) ?? [];
 }
 
 export async function listSongs(query?: string): Promise<SongSummary[]> {

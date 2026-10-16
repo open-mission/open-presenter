@@ -8,6 +8,8 @@ import {
   Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { outputHttpUrl } from "@/core/config/app";
+import type { OutputMode } from "@/core/types";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { usePreferencesStore } from "@/features/preferences/store";
 import { usePresentationStore } from "@/features/presentation/store";
@@ -17,13 +19,54 @@ interface AppTopBarProps {
   onToggleSidebar(): void;
 }
 
+function statusTitle(
+  label: string,
+  mode: OutputMode,
+  monitorLabel: string | null,
+  url: string,
+  active: boolean,
+): string {
+  if (!active) return "Clique para gerenciar Saídas (telas)";
+  const modeLabel =
+    mode === "native" ? "Nativa" : mode === "web" ? "Web" : "Ambas";
+  const detail =
+    mode === "web"
+      ? url
+      : `${monitorLabel ?? "monitor automático"}${mode === "both" ? ` · ${url}` : ""}`;
+  return `${label} ativo — ${modeLabel} (${detail})`;
+}
+
 export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
   const live = usePresentationStore((s) => s.live);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
-  const outputs = useOutputManagerStore((s) => s.outputs);
+  const publicConfig = useOutputManagerStore((s) => s.configs.public);
+  const stageConfig = useOutputManagerStore((s) => s.configs.stage);
+  const publicRuntime = useOutputManagerStore((s) => s.runtime.public);
+  const stageRuntime = useOutputManagerStore((s) => s.runtime.stage);
+  const host = useOutputManagerStore((s) => s.host);
+  const port = useOutputManagerStore((s) => s.server.port);
 
-  const publicActive = outputs.public.mode !== "off";
-  const stageActive = outputs.stage.mode !== "off";
+  const publicActive =
+    publicConfig.mode !== "off" &&
+    (publicConfig.mode === "web" || publicRuntime.open);
+  const stageActive =
+    stageConfig.mode !== "off" &&
+    (stageConfig.mode === "web" || stageRuntime.open);
+
+  const publicTitle = statusTitle(
+    "Público",
+    publicConfig.mode,
+    publicConfig.monitorLabel,
+    outputHttpUrl(host, port, "/public"),
+    publicActive,
+  );
+  const stageTitle = statusTitle(
+    "Palco",
+    stageConfig.mode,
+    stageConfig.monitorLabel,
+    outputHttpUrl(host, port, "/stage"),
+    stageActive,
+  );
 
   // Global shortcuts for quick projection actions (F: Background, C: Clear Text, B: Blackout)
   useEffect(() => {
@@ -83,7 +126,7 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
           <div
             className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors"
             onClick={() => openPreferences("outputs")}
-            title="Clique para gerenciar Saídas (telas)"
+            title={publicTitle}
           >
             <span
               className={`size-2 rounded-full ${
@@ -99,7 +142,7 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
           <div
             className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors"
             onClick={() => openPreferences("outputs")}
-            title="Clique para gerenciar Saídas (telas)"
+            title={stageTitle}
           >
             <span
               className={`size-2 rounded-full ${

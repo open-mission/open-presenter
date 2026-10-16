@@ -19,6 +19,7 @@ import { isTauri } from "@/core/ipc/tauri";
 import { closePreferencesWindow } from "@/core/ipc/commands";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
+import { useOutputsSync } from "@/features/output-manager/useOutputsSync";
 
 interface NavItemConfig {
   id: PreferencesTab;
@@ -65,6 +66,7 @@ export default function PreferencesView() {
   const setTab = usePreferencesStore((s) => s.setTab);
   const ensureSeeded = useSlideThemesStore((s) => s.ensureSeeded);
   useThemesSync();
+  useOutputsSync();
 
   // Seeds de temas na abertura da janela (best-effort).
   useEffect(() => {

@@ -24,7 +24,8 @@ import type { LiveSlide } from "@/core/types";
 export function LivePreview() {
   const live = usePresentationStore((s) => s.live);
   const preview = usePresentationStore((s) => s.preview);
-  const outputs = useOutputManagerStore((s) => s.outputs);
+  const stageConfig = useOutputManagerStore((s) => s.configs.stage);
+  const stageRuntime = useOutputManagerStore((s) => s.runtime.stage);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
   const loadThemes = useSlideThemesStore((s) => s.load);
   const previewTheme = useSlideThemesStore((s) =>
@@ -38,7 +39,9 @@ export function LivePreview() {
     void loadThemes();
   }, [loadThemes]);
 
-  const stageConfigured = outputs.stage.mode !== "off";
+  const stageActive =
+    stageConfig.mode !== "off" &&
+    (stageConfig.mode === "web" || stageRuntime.open);
 
   // Build synthetic LiveSlide for Preview monitor
   const previewSlide: LiveSlide | null = preview
@@ -258,7 +261,7 @@ export function LivePreview() {
       </div>
 
       {/* Screen 3: Stage (Tela de Retorno) - Conditionally shown */}
-      {stageConfigured && (
+      {stageActive && (
         <div className="flex flex-col gap-2 rounded-xl border border-sky-500/30 bg-card p-3 shadow-xs">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
@@ -275,9 +278,9 @@ export function LivePreview() {
               onClick={() => openPreferences("stage")}
               title="Clique para configurar a Tela de Retorno"
             >
-              {outputs.stage.mode === "native"
+              {stageConfig.mode === "native"
                 ? "Nativo"
-                : outputs.stage.mode === "web"
+                : stageConfig.mode === "web"
                 ? "Web"
                 : "Nativo + Web"}
             </Badge>

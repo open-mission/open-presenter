@@ -10,7 +10,7 @@ use tokio::sync::broadcast;
 
 use crate::error::AppError;
 use crate::services::{database, Broadcaster, SharedBroadcaster};
-use crate::state::PresentationState;
+use crate::state::{OutputsState, PresentationState};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::Emitter;
 
@@ -28,6 +28,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(PresentationState::default())
+        .manage(OutputsState::default())
         .setup(|app| {
             let prefs_item = MenuItemBuilder::with_id("preferences", "Preferências…")
                 .accelerator("CmdOrCtrl+,")
@@ -108,16 +109,60 @@ pub fn run() {
                 database::migrate(&conn)?;
                 Ok(conn)
             })?;
+            let port = crate::commands::server::parse_port(
+                conn.query_row(
+                    "SELECT value FROM settings WHERE key = 'server.port'",
+                    [],
+                    |r| r.get::<_, String>(0),
+                )
+                .ok(),
+            );
             app.manage(database::Db(std::sync::Mutex::new(conn)));
 
             let media_dir = crate::services::theme_media::media_base_dir(&handle)
                 .unwrap_or_else(|_| std::path::PathBuf::from("theme-media"));
+            let clients: crate::server::Clients = std::sync::Arc::new(
+                std::sync::Mutex::new(std::collections::HashMap::new()),
+            );
             let server_state = crate::server::ServerState {
                 broadcaster,
                 ws_tx,
                 media_dir,
+                clients: clients.clone(),
             };
-            tauri::async_runtime::spawn(crate::server::serve(server_state));
+            app.manage(clients);
+            app.manage(std::sync::Mutex::new(
+                crate::server::ServerControl::stopped(port, server_state),
+            ));
+            let server_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                use tauri::Manager;
+                let control = server_handle.state::<std::sync::Mutex<crate::server::ServerControl>>();
+                let state = control
+                    .lock()
+                    .ok()
+                    .and_then(|guard| guard.state.clone());
+                let Some(state) = state else {
+                    return;
+                };
+                match crate::server::bind(port).await {
+                    Ok(listener) => {
+                        tracing::info!(port, "servidor de saídas escutando");
+                        let handle =
+                            crate::server::spawn_with_listener(state, listener);
+                        if let Ok(mut guard) = control.lock() {
+                            guard.handle = Some(handle);
+                            guard.running = true;
+                        }
+                    }
+                    Err(err) => {
+                        tracing::error!(
+                            %err,
+                            "porta do servidor de saídas indisponível; seguindo sem servidor local"
+                        );
+                    }
+                }
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -127,6 +172,14 @@ pub fn run() {
             commands::presentation::open_preferences_window,
             commands::presentation::close_preferences_window,
             commands::presentation::open_theme_editor,
+            commands::outputs::get_output_config,
+            commands::outputs::set_output_config,
+            commands::outputs::get_outputs_state,
+            commands::server::get_server_status,
+            commands::server::set_server_port,
+            commands::server::stop_server,
+            commands::server::start_server,
+            commands::server::get_connected_clients,
             commands::presentation::go_live,
             commands::presentation::set_blackout,
             commands::presentation::get_live_slide,

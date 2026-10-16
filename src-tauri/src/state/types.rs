@@ -64,7 +64,7 @@ pub struct MonitorInfo {
     pub scale_factor: f64,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum OutputTarget {
     Public,
@@ -247,9 +247,75 @@ pub const EVENT_STAGE_MESSAGE: &str = "stage://message";
 pub const EVENT_OUTPUTS: &str = "outputs://changed";
 pub const EVENT_THEMES: &str = "presentation://themes";
 pub const EVENT_THEMES_CHANGED: &str = "themes://changed";
+pub const EVENT_CLIENT_HELLO: &str = "client://hello";
 
 pub const OUTPUT_HTTP_PORT: u16 = 5050;
 pub const WS_PATH: &str = "/ws";
+
+/// Estado do servidor local de saídas, espelhado no frontend (`ServerStatus`).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerStatus {
+    pub running: bool,
+    pub port: u16,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum OutputMode {
+    #[default]
+    Off,
+    Native,
+    Web,
+    Both,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputConfig {
+    pub target: OutputTarget,
+    pub mode: OutputMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub monitor_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub monitor_label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+impl OutputConfig {
+    pub fn off(target: OutputTarget) -> Self {
+        Self {
+            target,
+            mode: OutputMode::Off,
+            monitor_id: None,
+            monitor_label: None,
+            url: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputRuntime {
+    pub target: OutputTarget,
+    pub open: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub monitor_id: Option<String>,
+}
+
+/// Navegador web conectado ao servidor local (`GET /ws`).
+/// O `output` é anunciado pelo próprio cliente via `client://hello`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectedClient {
+    pub id: String,
+    pub ip: String,
+    pub output: Option<OutputTarget>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_agent: Option<String>,
+    pub connected_at: u64,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]

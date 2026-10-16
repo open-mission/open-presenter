@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
+import { openOutputWindow } from "@/core/ipc/commands";
+import type { OutputTarget } from "@/core/types";
 import { AppTopBar } from "@/components/AppTopBar";
 import { PreferencesDialog } from "@/features/preferences/PreferencesDialog";
 import { SetlistSidebar } from "@/features/events-setlists/SetlistSidebar";
@@ -7,22 +9,43 @@ import { SongSlidesColumn } from "@/features/events-setlists/SongSlidesColumn";
 import { LivePreview } from "@/features/presentation/LivePreview";
 import { ThemeRail } from "@/features/slide-themes/ThemeRail";
 import { useLiveThemesPublisher, useThemesSync } from "@/features/slide-themes/useThemeSync";
+import { useOutputsSync } from "@/features/output-manager/useOutputsSync";
+import { useOutputManagerStore } from "@/features/output-manager/store";
 import { SongEditorDialog } from "@/features/songs/SongEditorDialog";
 import { useSetlistStore } from "@/features/events-setlists/store";
 import { useNativeMenu } from "@/core/ipc/useNativeMenu";
 
 export default function AdminView() {
-  usePresentationSync();
+  usePresentationSync("admin");
+  useOutputsSync();
   useNativeMenu();
   useThemesSync();
   useLiveThemesPublisher();
   const loadSetlists = useSetlistStore((s) => s.load);
+  const outputsLoaded = useOutputManagerStore((s) => s.loaded);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     void loadSetlists();
   }, [loadSetlists]);
+
+  useEffect(() => {
+    if (!outputsLoaded) return;
+    const { configs, monitors, runtime } = useOutputManagerStore.getState();
+    for (const target of ["public", "stage"] as const satisfies OutputTarget[]) {
+      const config = configs[target];
+      if (config.mode !== "native" && config.mode !== "both") continue;
+      if (runtime[target]?.open) continue;
+      if (
+        config.monitorId &&
+        !monitors.some((m) => m.id === config.monitorId)
+      ) {
+        continue;
+      }
+      void openOutputWindow(target, config.monitorId, config.monitorLabel);
+    }
+  }, [outputsLoaded]);
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground transition-colors">

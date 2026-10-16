@@ -1,12 +1,16 @@
-import { TAURI_EVENTS, outputWsUrl } from "../config/app";
+import { TAURI_EVENTS, WS_PATH } from "../config/app";
 import { isTauri, listenCommand } from "../ipc/tauri";
+
+export const CLIENT_HELLO = "client://hello";
+
+export type SyncOutput = "public" | "stage" | "admin";
 
 export type SyncHandler<T> = (payload: T) => void;
 
 type UnknownHandler = (payload: unknown) => void;
 
 interface SyncBus {
-  init(): Promise<void>;
+  init(output?: SyncOutput): Promise<void>;
   subscribe<T>(channel: string, handler: SyncHandler<T>): () => void;
   publish<T>(channel: string, payload: T): void;
 }
@@ -15,6 +19,7 @@ function createSyncBus(): SyncBus {
   const handlers = new Map<string, Set<UnknownHandler>>();
   let socket: WebSocket | null = null;
   let initialized = false;
+  let helloOutput: SyncOutput | null = null;
 
   function dispatch(channel: string, payload: unknown): void {
     const set = handlers.get(channel);
@@ -24,8 +29,25 @@ function createSyncBus(): SyncBus {
     }
   }
 
-  async function init(): Promise<void> {
-    if (initialized) return;
+  function announce(): void {
+    if (!helloOutput || !socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    socket.send(
+      JSON.stringify({
+        channel: CLIENT_HELLO,
+        payload: { output: helloOutput },
+        version: 1,
+      }),
+    );
+  }
+
+  async function init(output?: SyncOutput): Promise<void> {
+    if (output) helloOutput = output;
+    if (initialized) {
+      announce();
+      return;
+    }
     initialized = true;
 
     if (isTauri()) {
@@ -35,11 +57,15 @@ function createSyncBus(): SyncBus {
       await listenCommand<unknown>(TAURI_EVENTS.stageMessage, (payload) =>
         dispatch(TAURI_EVENTS.stageMessage, payload),
       );
+      await listenCommand<unknown>(TAURI_EVENTS.themes, (payload) =>
+        dispatch(TAURI_EVENTS.themes, payload),
+      );
       return;
     }
 
-    const host = window.location.hostname || "localhost";
-    socket = new WebSocket(outputWsUrl(host));
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    socket = new WebSocket(`${proto}://${window.location.host}${WS_PATH}`);
+    socket.addEventListener("open", announce);
     socket.addEventListener("message", (event) => {
       try {
         const envelope = JSON.parse(String(event.data)) as {

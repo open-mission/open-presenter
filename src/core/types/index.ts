@@ -45,7 +45,27 @@ export interface OutputConfig {
   target: OutputTarget;
   mode: OutputMode;
   monitorId: string | null;
+  monitorLabel: string | null;
   url: string | null;
+}
+
+export interface OutputRuntime {
+  target: OutputTarget;
+  open: boolean;
+  monitorId: string | null;
+}
+
+export interface ServerStatus {
+  running: boolean;
+  port: number;
+}
+
+export interface ConnectedClient {
+  id: string;
+  ip: string;
+  output: OutputTarget | null;
+  userAgent: string | null;
+  connectedAt: number;
 }
 
 export type StageAlertLevel = "info" | "warning" | "urgent";
