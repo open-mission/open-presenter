@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Copy, Pencil, PenLine, Plus, Trash2 } from "lucide-react";
 import type {
   OutputTarget,
   SlideKind,
@@ -27,6 +27,8 @@ import {
 import { ThemeRenderer } from "@/features/slide-themes/ThemeRenderer";
 import { SAMPLES } from "@/features/slide-themes/samples";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { isTauri } from "@/core/ipc/tauri";
+import { openThemeEditor } from "@/core/ipc/commands";
 
 interface BindingRow {
   target: OutputTarget;
@@ -119,6 +121,14 @@ export function ThemesTab() {
       });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Falha ao duplicar tema");
+    }
+  }
+
+  function handleEdit(theme: SlideTheme) {
+    if (isTauri()) {
+      void openThemeEditor(theme.guid);
+    } else {
+      window.open(`/#/theme-editor?guid=${theme.guid}`, "_blank");
     }
   }
 
@@ -309,6 +319,15 @@ export function ThemesTab() {
                   </div>
                 )}
                 <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Editar ${theme.title}`}
+                    onClick={() => handleEdit(theme)}
+                  >
+                    <PenLine className="size-3.5" />
+                    Editar
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"

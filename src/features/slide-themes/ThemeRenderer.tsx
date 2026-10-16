@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
+import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
 import { renderTemplate } from "./themeTemplate";
 
 function escapeHtml(value: string): string {
@@ -27,6 +28,14 @@ function elementStyle(element: ThemeElement): CSSProperties {
   return style;
 }
 
+function resolveUrlValue(value: string, host: string): string {
+  const match = value.match(/url\(\s*(['"]?)(.*?)\1\s*\)/);
+  if (!match) return value;
+  const resolved = resolveThemeMediaUrl(match[2], host);
+  if (!resolved || resolved === match[2]) return value;
+  return value.replace(match[2], resolved);
+}
+
 function ThemeElementView({
   element,
   props,
@@ -45,6 +54,11 @@ function ThemeElementView({
   if (element.type === "RECTANGLE" && element.fill === "web" && !mediaSrc) {
     return null;
   }
+  const host =
+    typeof window !== "undefined" && window.location.hostname
+      ? window.location.hostname
+      : "localhost";
+  const resolvedSrc = resolveThemeMediaUrl(mediaSrc, host) ?? mediaSrc;
   const style = elementStyle(element);
   switch (element.type) {
     case "TEXT":
@@ -57,11 +71,11 @@ function ThemeElementView({
         />
       );
     case "IMAGE":
-      return <img src={mediaSrc} alt="" style={style} />;
+      return <img src={resolvedSrc} alt="" style={style} />;
     case "VIDEO":
       return (
         <video
-          src={mediaSrc}
+          src={resolvedSrc}
           autoPlay
           muted
           loop
@@ -70,10 +84,24 @@ function ThemeElementView({
         />
       );
     case "RECTANGLE":
+      if (element.fill === "web") {
+        return (
+          <div
+            style={{
+              ...style,
+              backgroundImage: `url("${resolvedSrc}")`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            }}
+          />
+        );
+      }
       return (
         <div
           style={
-            element.fill ? { ...style, background: element.fill } : style
+            element.fill
+              ? { ...style, background: resolveUrlValue(element.fill, host) }
+              : style
           }
         />
       );
@@ -96,12 +124,25 @@ export function ThemeRenderer({
         element.assetTypeVisibility.length === 0 ||
         element.assetTypeVisibility.includes(asset)),
   );
+  const host =
+    typeof window !== "undefined" && window.location.hostname
+      ? window.location.hostname
+      : "localhost";
+  const containerCss = theme.css as CSSProperties;
+  const containerStyle: CSSProperties =
+    typeof theme.css.background === "string" &&
+    theme.css.background.includes("url(")
+      ? {
+          ...containerCss,
+          background: resolveUrlValue(theme.css.background, host),
+        }
+      : containerCss;
 
   return (
     <div
       id="theme"
       className="absolute inset-0 h-full w-full overflow-hidden"
-      style={theme.css as CSSProperties}
+      style={containerStyle}
     >
       {elements.map((element) => (
         <ThemeElementView key={element.id} element={element} props={props} />
