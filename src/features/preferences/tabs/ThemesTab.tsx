@@ -76,9 +76,6 @@ const BINDING_ROWS: BindingRow[] = [
   { target: "public", asset: "lyric", label: "Telão · Letra (música)" },
   { target: "public", asset: "scripture", label: "Telão · Bíblia" },
   { target: "public", asset: "custom", label: "Telão · Texto" },
-  { target: "stage", asset: "lyric", label: "Palco · Letra (música)" },
-  { target: "stage", asset: "scripture", label: "Palco · Bíblia" },
-  { target: "stage", asset: "custom", label: "Palco · Texto" },
 ];
 
 function bindingLabel(target: OutputTarget, asset: SlideKind): string {
@@ -125,6 +122,7 @@ export function ThemesTab() {
   const save = useSlideThemesStore((s) => s.save);
   const remove = useSlideThemesStore((s) => s.remove);
   const setBinding = useSlideThemesStore((s) => s.setBinding);
+  const clearBinding = useSlideThemesStore((s) => s.clearBinding);
   const setStageTheme = useSlideThemesStore((s) => s.setStageTheme);
 
   const [sampleAsset, setSampleAsset] = useState<ThemeAsset>("music");
@@ -197,7 +195,7 @@ export function ThemesTab() {
         </h3>
         <p className="text-sm text-muted-foreground">
           Galeria de temas do telão e do retorno de palco. Vincule um tema a
-          cada tipo de conteúdo e saída.
+          cada tipo de conteúdo do telão e escolha o tema do retorno.
         </p>
       </div>
 
@@ -206,7 +204,7 @@ export function ThemesTab() {
       {/* Bindings */}
       <div className="flex flex-col gap-3">
         <label className="text-xs font-semibold text-foreground">
-          Vinculação por saída e tipo
+          Vinculação por tipo (telão)
         </label>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {BINDING_ROWS.map((row) => {
@@ -219,13 +217,18 @@ export function ThemesTab() {
                   {row.label}
                 </span>
                 <Select
-                  value={current ?? ""}
-                  onValueChange={(guid) => setBinding(row.target, row.asset, guid)}
+                  value={current ?? "none"}
+                  onValueChange={(value) =>
+                    value === "none"
+                      ? clearBinding(row.target, row.asset)
+                      : setBinding(row.target, row.asset, value)
+                  }
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Selecione um tema" />
                   </SelectTrigger>
                   <SelectContent position="popper">
+                    <SelectItem value="none">Nenhum</SelectItem>
                     {themes.map((theme) => (
                       <SelectItem key={theme.guid} value={theme.guid}>
                         {theme.title}

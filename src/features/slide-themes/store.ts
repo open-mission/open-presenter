@@ -69,6 +69,7 @@ interface SlideThemesState {
   save(theme: SlideTheme): Promise<void>;
   remove(guid: string): Promise<void>;
   setBinding(target: OutputTarget, asset: SlideKind, guid: string): void;
+  clearBinding(target: OutputTarget, asset: SlideKind): void;
   setStageTheme(guid: string | null): void;
   resolveTheme(target: OutputTarget, kind: SlideKind): SlideTheme | null;
   resolveStageTheme(): SlideTheme | null;
@@ -131,6 +132,16 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
         ...s.bindings.filter((b) => bindingKey(b.target, b.asset) !== key),
         { target, asset, themeGuid: guid },
       ];
+      persistBindings(bindings);
+      return { bindings };
+    });
+  },
+  clearBinding: (target, asset) => {
+    const key = bindingKey(target, asset);
+    set((s) => {
+      const bindings = s.bindings.filter(
+        (b) => bindingKey(b.target, b.asset) !== key,
+      );
       persistBindings(bindings);
       return { bindings };
     });

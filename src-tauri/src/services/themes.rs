@@ -18,11 +18,9 @@ pub fn list_themes(conn: &Connection) -> Result<Vec<SlideTheme>, AppError> {
     let temas = stmt
         .query_map([], |row| row.get::<_, String>(0))
         .map_err(storage_error)?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(storage_error)?
-        .into_iter()
-        .map(decode)
-        .collect::<Result<Vec<_>, _>>()?;
+        .filter_map(|row| row.map_err(storage_error).ok())
+        .filter_map(|definition| decode(definition).ok())
+        .collect::<Vec<_>>();
     Ok(temas)
 }
 
@@ -132,5 +130,19 @@ mod tests {
     fn get_inexistente_none() {
         let conn = open_in_memory();
         assert!(get_theme(&conn, "nao-existe").unwrap().is_none());
+    }
+
+    #[test]
+    fn list_ignora_linha_corrompida() {
+        let conn = open_in_memory();
+        save_theme(&conn, &tema("g1", "Valido")).unwrap();
+        conn.execute(
+            "INSERT INTO themes (guid, title, definition) VALUES (?1, ?2, ?3)",
+            params!["corrompido", "Corrompido", "{json invalido"],
+        )
+        .unwrap();
+        let temas = list_themes(&conn).unwrap();
+        assert_eq!(temas.len(), 1);
+        assert_eq!(temas[0].guid, "g1");
     }
 }
