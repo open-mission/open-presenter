@@ -23,8 +23,13 @@ export async function listMonitors(): Promise<MonitorInfo[]> {
 export async function openOutputWindow(
   target: OutputTarget,
   monitorId: string | null,
+  monitorLabel?: string | null,
 ): Promise<void> {
-  await invokeCommand("open_output_window", { target, monitorId });
+  await invokeCommand("open_output_window", {
+    target,
+    monitorId,
+    monitorLabel: monitorLabel ?? null,
+  });
 }
 
 export async function closeOutputWindow(

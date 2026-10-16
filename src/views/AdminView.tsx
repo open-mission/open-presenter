@@ -43,7 +43,7 @@ export default function AdminView() {
       ) {
         continue;
       }
-      void openOutputWindow(target, config.monitorId);
+      void openOutputWindow(target, config.monitorId, config.monitorLabel);
     }
   }, [outputsLoaded]);
 

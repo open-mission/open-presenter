@@ -41,6 +41,7 @@ interface OutputManagerState {
   monitors: MonitorInfo[];
   host: string;
   loaded: boolean;
+  lastMode: Record<OutputTarget, Exclude<OutputMode, "off">>;
   setMonitors(monitors: MonitorInfo[]): void;
   setHost(host: string): void;
   applyRuntime(runtime: OutputRuntime[]): void;
@@ -56,6 +57,7 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
   monitors: [],
   host: "localhost",
   loaded: false,
+  lastMode: { public: "native", stage: "native" },
   setMonitors: (monitors) => set({ monitors }),
   setHost: (host) => set({ host }),
   applyRuntime: (list) =>
@@ -88,15 +90,21 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
           monitorId: item.monitorId ?? null,
         };
       }
+      const configs = {
+        public: publicConfig ?? s.configs.public,
+        stage: stageConfig ?? s.configs.stage,
+      };
+      const lastMode = { ...s.lastMode };
+      for (const t of ["public", "stage"] as const) {
+        if (configs[t].mode !== "off") lastMode[t] = configs[t].mode;
+      }
       return {
-        configs: {
-          public: publicConfig ?? s.configs.public,
-          stage: stageConfig ?? s.configs.stage,
-        },
+        configs,
         runtime,
         monitors: monitors ?? s.monitors,
         host: host ?? s.host,
         loaded: true,
+        lastMode,
       };
     });
   },
@@ -109,9 +117,13 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
       url: mode === "off" ? null : outputHttpUrl(host, webPathFor(target)),
     };
     await setOutputConfig(next);
-    set((s) => ({ configs: { ...s.configs, [target]: next } }));
+    set((s) => ({
+      configs: { ...s.configs, [target]: next },
+      lastMode:
+        mode === "off" ? s.lastMode : { ...s.lastMode, [target]: mode },
+    }));
     if (mode === "native" || mode === "both") {
-      await openOutputWindow(target, next.monitorId);
+      await openOutputWindow(target, next.monitorId, next.monitorLabel);
     } else {
       await closeOutputWindow(target);
     }
@@ -128,16 +140,15 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
     set((s) => ({ configs: { ...s.configs, [target]: next } }));
     if (runtime[target]?.open) {
       await closeOutputWindow(target);
-      await openOutputWindow(target, monitorId);
+      await openOutputWindow(target, monitorId, next.monitorLabel);
     }
   },
   toggle: async (target) => {
-    const { configs, runtime } = get();
-    if (runtime[target]?.open) {
+    const { configs, runtime, lastMode } = get();
+    if (configs[target].mode !== "off" || runtime[target]?.open) {
       await get().setMode(target, "off");
       return;
     }
-    const saved = configs[target].mode;
-    await get().setMode(target, saved === "off" ? "native" : saved);
+    await get().setMode(target, lastMode[target]);
   },
 }));

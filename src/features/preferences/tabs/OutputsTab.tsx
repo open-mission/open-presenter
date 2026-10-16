@@ -4,23 +4,36 @@ import {
   Copy,
   ExternalLink,
   Laptop,
+  Layers,
   Monitor,
   MonitorUp,
+  Palette,
+  Power,
   PowerOff,
   Projector,
   Radio,
   RefreshCw,
+  TriangleAlert,
   Tv,
 } from "lucide-react";
 import { outputHttpUrl } from "@/core/config/app";
-import {
-  fetchServerHost,
-  listMonitors,
-} from "@/core/ipc/commands";
 import type { MonitorInfo, OutputMode, OutputTarget } from "@/core/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useOutputManagerStore } from "@/features/output-manager/store";
+import { useSlideThemesStore } from "@/features/slide-themes/store";
+
+const TARGET_LABEL: Record<OutputTarget, string> = {
+  public: "Projeção Pública",
+  stage: "Retorno de Palco",
+};
+
+const MODE_OPTIONS: { id: OutputMode; label: string; icon: typeof PowerOff }[] = [
+  { id: "off", label: "Desligada", icon: PowerOff },
+  { id: "native", label: "Nativa", icon: MonitorUp },
+  { id: "web", label: "Web", icon: Radio },
+  { id: "both", label: "Ambas", icon: Layers },
+];
 
 interface TargetCardProps {
   target: OutputTarget;
@@ -39,23 +52,50 @@ function TargetCard({
   webPath,
   monitors,
 }: TargetCardProps) {
-  const configs = useOutputManagerStore((s) => s.configs);
+  const config = useOutputManagerStore((s) => s.configs[target]);
+  const live = useOutputManagerStore((s) => s.runtime[target]);
   const host = useOutputManagerStore((s) => s.host);
   const setMode = useOutputManagerStore((s) => s.setMode);
   const setMonitor = useOutputManagerStore((s) => s.setMonitor);
-  const output = configs[target];
+  const toggle = useOutputManagerStore((s) => s.toggle);
+  const themeName = useSlideThemesStore((s) => {
+    if (target === "stage") {
+      const guid = s.stageThemeGuid;
+      return s.themes.find((t) => t.guid === guid)?.title ?? null;
+    }
+    const binding =
+      s.bindings.find((b) => b.target === "public" && b.asset === "lyric") ??
+      s.bindings.find((b) => b.target === "public");
+    if (!binding) return null;
+    return s.themes.find((t) => t.guid === binding.themeGuid)?.title ?? null;
+  });
 
   const [copied, setCopied] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const currentUrl = outputHttpUrl(host, webPath);
+  const powered = config.mode !== "off";
+  const active = config.mode === "web" || (powered && live.open);
+  const savedMissing =
+    config.monitorId !== null &&
+    !monitors.some((m) => m.id === config.monitorId);
 
   async function handleModeChange(mode: OutputMode) {
-    setLoading(true);
+    if (mode === config.mode) return;
+    setBusy(true);
     try {
       await setMode(target, mode);
     } finally {
-      setLoading(false);
+      setBusy(false);
+    }
+  }
+
+  async function handleToggle() {
+    setBusy(true);
+    try {
+      await toggle(target);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -72,9 +112,6 @@ function TargetCard({
   function handleOpenUrl() {
     window.open(currentUrl, "_blank");
   }
-
-  const isNative = output.mode === "native" || output.mode === "both";
-  const isOff = output.mode === "off";
 
   return (
     <div className="flex flex-col rounded-xl border border-border/80 bg-card p-5 shadow-2xs">
@@ -98,20 +135,30 @@ function TargetCard({
           </div>
         </div>
 
-        {/* Status Pill */}
-        <div className="flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs">
-          <span
-            className={`size-2 rounded-full ${
-              isOff
-                ? "bg-zinc-400"
-                : isNative
-                  ? "bg-emerald-500 animate-pulse"
-                  : "bg-sky-500 animate-pulse"
-            }`}
-          />
-          <span className="font-medium capitalize text-[11px] text-foreground">
-            {isOff ? "Desativada" : isNative ? "Janela Nativa" : "Saída Web"}
-          </span>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Real-state pill */}
+          <div className="flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs">
+            <span
+              className={`size-2 rounded-full ${
+                active ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"
+              }`}
+            />
+            <span className="font-medium capitalize text-[11px] text-foreground">
+              {active ? "Ativa" : "Desligada"}
+            </span>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant={powered ? "secondary" : "default"}
+            className="h-7 gap-1.5 text-xs"
+            onClick={() => void handleToggle()}
+            disabled={busy}
+            title={powered ? "Desligar saída" : "Ligar saída no último modo usado"}
+          >
+            <Power className="size-3.5" />
+            {powered ? "Desligar" : "Ligar"}
+          </Button>
         </div>
       </div>
 
@@ -120,68 +167,60 @@ function TargetCard({
         <label className="text-xs font-medium text-foreground">
           Modo de Operação
         </label>
-        <div className="grid grid-cols-3 gap-1.5 rounded-lg border border-border/80 bg-muted/40 p-1">
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => void handleModeChange("off")}
-            className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-              isOff
-                ? "bg-background text-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <PowerOff className="size-3.5" />
-            Desligada
-          </button>
-
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => void handleModeChange("native")}
-            className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-              isNative
-                ? "bg-background text-primary shadow-2xs font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <MonitorUp className="size-3.5" />
-            Janela Nativa
-          </button>
-
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => void handleModeChange("web")}
-            className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-              output.mode === "web"
-                ? "bg-background text-primary shadow-2xs font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Radio className="size-3.5" />
-            Apenas Web
-          </button>
+        <div className="grid grid-cols-4 gap-1.5 rounded-lg border border-border/80 bg-muted/40 p-1">
+          {MODE_OPTIONS.map((option) => {
+            const OptionIcon = option.icon;
+            const selected = config.mode === option.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                disabled={busy}
+                onClick={() => void handleModeChange(option.id)}
+                className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+                  selected
+                    ? "bg-background text-primary shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <OptionIcon className="size-3.5" />
+                {option.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Monitor Picker (When in native mode) */}
+      {/* Monitor Picker */}
       <div className="mt-4 flex flex-col gap-1.5">
         <label className="text-xs font-medium text-foreground">
           Monitor de Exibição Nativa
         </label>
         <select
           className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground shadow-2xs outline-none focus:ring-1 focus:ring-ring"
-          value={output.monitorId ?? ""}
+          value={config.monitorId ?? ""}
+          disabled={busy}
           onChange={(e) => handleMonitorSelect(e.target.value || null)}
         >
           <option value="">Detecção automática de monitor</option>
+          {savedMissing && (
+            <option value={config.monitorId ?? ""}>
+              {config.monitorLabel ?? config.monitorId} — não conectado
+            </option>
+          )}
           {monitors.map((m) => (
             <option key={m.id} value={m.id}>
               {m.name} ({m.width}×{m.height}) {m.isPrimary ? "• Principal" : ""}
             </option>
           ))}
         </select>
+        {savedMissing && (
+          <p className="flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-500">
+            <TriangleAlert className="size-3.5 shrink-0" />
+            Monitor salvo não conectado — a janela nativa não abre até
+            reconectar ou trocar de monitor.
+          </p>
+        )}
       </div>
 
       {/* Web URL & Share Bar */}
@@ -229,32 +268,40 @@ function TargetCard({
           </Button>
         </div>
       </div>
+
+      {/* Current theme (read-only) */}
+      <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+        <Palette className="size-3.5 shrink-0" />
+        <span className="font-medium">Tema atual:</span>
+        <span className="truncate text-foreground">
+          {themeName ?? "Nenhum tema ligado"}
+        </span>
+      </div>
     </div>
   );
 }
 
 export function OutputsTab() {
   const monitors = useOutputManagerStore((s) => s.monitors);
+  const runtime = useOutputManagerStore((s) => s.runtime);
   const host = useOutputManagerStore((s) => s.host);
-  const setMonitors = useOutputManagerStore((s) => s.setMonitors);
-  const setHost = useOutputManagerStore((s) => s.setHost);
+  const loaded = useOutputManagerStore((s) => s.loaded);
+  const load = useOutputManagerStore((s) => s.load);
 
   const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (!loaded) void load();
+  }, [loaded, load]);
 
   async function refreshHardware() {
     setRefreshing(true);
     try {
-      const [m, h] = await Promise.all([listMonitors(), fetchServerHost()]);
-      setMonitors(m);
-      setHost(h);
+      await load();
     } finally {
       setTimeout(() => setRefreshing(false), 400);
     }
   }
-
-  useEffect(() => {
-    void refreshHardware();
-  }, []);
 
   return (
     <div className="flex flex-col gap-6">
@@ -303,34 +350,48 @@ export function OutputsTab() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            {monitors.map((m, idx) => (
-              <div
-                key={m.id || idx}
-                className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/90 p-3 shadow-2xs"
-              >
-                <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
-                  <Monitor className="size-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="truncate font-semibold text-xs text-foreground">
-                      {m.name || `Monitor ${idx + 1}`}
+            {monitors.map((m, idx) => {
+              const users = (["public", "stage"] as const).filter(
+                (t) => runtime[t].monitorId === m.id,
+              );
+              return (
+                <div
+                  key={m.id || idx}
+                  className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/90 p-3 shadow-2xs"
+                >
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+                    <Monitor className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate font-semibold text-xs text-foreground">
+                        {m.name || `Monitor ${idx + 1}`}
+                      </p>
+                      {m.isPrimary && (
+                        <Badge
+                          variant="secondary"
+                          className="h-4 px-1 text-[9px] font-medium"
+                        >
+                          Principal
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {m.width} × {m.height} px
                     </p>
-                    {m.isPrimary && (
+                    {users.length > 0 && (
                       <Badge
-                        variant="secondary"
-                        className="h-4 px-1 text-[9px] font-medium"
+                        variant="outline"
+                        className="mt-1 h-4 px-1 text-[9px] font-medium text-emerald-600 dark:text-emerald-500"
                       >
-                        Principal
+                        em uso por{" "}
+                        {users.map((t) => TARGET_LABEL[t]).join(" e ")}
                       </Badge>
                     )}
                   </div>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {m.width} × {m.height} px
-                  </p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
