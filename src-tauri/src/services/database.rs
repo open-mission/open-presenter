@@ -7,7 +7,7 @@ use crate::error::AppError;
 
 pub const SCHEMA_VERSION: i64 = 3;
 
-const SCHEMA_V3: &str = "
+const SCHEMA_V2: &str = "
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS songs (
     id TEXT PRIMARY KEY,
@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS service_events (
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     setlist_json TEXT NOT NULL DEFAULT '{\"parts\":[]}'
 );
+";
+
+const THEMES_DDL: &str = "
 CREATE TABLE IF NOT EXISTS themes (
     guid TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -86,15 +89,18 @@ pub fn migrate(conn: &Connection) -> Result<(), AppError> {
     if version >= SCHEMA_VERSION {
         return Ok(());
     }
-    conn.execute_batch(
-        "DROP TABLE IF EXISTS setlist_items;
-        DROP TABLE IF EXISTS song_lyrics;
-        DROP TABLE IF EXISTS song_sections;
-        DROP TABLE IF EXISTS service_events;
-        DROP TABLE IF EXISTS songs;",
-    )
-    .map_err(storage_error)?;
-    conn.execute_batch(SCHEMA_V3).map_err(storage_error)?;
+    if version < 2 {
+        conn.execute_batch(
+            "DROP TABLE IF EXISTS setlist_items;
+            DROP TABLE IF EXISTS song_lyrics;
+            DROP TABLE IF EXISTS song_sections;
+            DROP TABLE IF EXISTS service_events;
+            DROP TABLE IF EXISTS songs;",
+        )
+        .map_err(storage_error)?;
+        conn.execute_batch(SCHEMA_V2).map_err(storage_error)?;
+    }
+    conn.execute_batch(THEMES_DDL).map_err(storage_error)?;
     conn.execute("DELETE FROM schema_version", [])
         .map_err(storage_error)?;
     conn.execute(
@@ -124,7 +130,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn migrate_cria_schema_v2_e_marca_versao() {
+    fn migrate_cria_schema_v3_e_marca_versao() {
         let conn = open_in_memory();
         let v: i64 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
         assert_eq!(v, 3);
@@ -144,6 +150,56 @@ mod tests {
         migrate(&conn).unwrap();
         let v: i64 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
         assert_eq!(v, 3);
+    }
+
+    #[test]
+    fn migrate_v2_para_v3_preserva_dados() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(SCHEMA_V2).unwrap();
+        conn.execute("INSERT INTO schema_version (version) VALUES (2)", [])
+            .unwrap();
+        conn.execute(
+            "INSERT INTO songs (id, title, artist) VALUES ('s1', 'Titulo', 'Artista')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO song_sections (song_id, position, section_type) VALUES ('s1', 0, 'verse')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO song_lyrics (song_id, section_position, line_position, line)
+             VALUES ('s1', 0, 0, 'linha um')",
+            [],
+        )
+        .unwrap();
+        migrate(&conn).unwrap();
+        let titulo: String = conn
+            .query_row("SELECT title FROM songs WHERE id = 's1'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(titulo, "Titulo");
+        let linha: String = conn
+            .query_row(
+                "SELECT line FROM song_lyrics WHERE song_id = 's1'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(linha, "linha um");
+        let v: i64 = conn
+            .query_row("SELECT version FROM schema_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(v, 3);
+        let tem_temas: bool = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='themes'",
+                [],
+                |r| r.get::<_, i64>(0),
+            )
+            .unwrap()
+            == 1;
+        assert!(tem_temas);
     }
 
     #[test]
