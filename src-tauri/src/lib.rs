@@ -11,6 +11,8 @@ use tokio::sync::broadcast;
 use crate::error::AppError;
 use crate::services::{database, Broadcaster, SharedBroadcaster};
 use crate::state::PresentationState;
+use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
+use tauri::Emitter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -27,6 +29,72 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .manage(PresentationState::default())
         .setup(|app| {
+            let prefs_item = MenuItemBuilder::with_id("preferences", "Preferências…")
+                .accelerator("CmdOrCtrl+,")
+                .build(app)?;
+
+            let new_song_item = MenuItemBuilder::with_id("new-song", "Nova Música")
+                .accelerator("CmdOrCtrl+N")
+                .build(app)?;
+
+            let import_holyrics_item = MenuItemBuilder::with_id("import-holyrics", "Importar Músicas do Holyrics…")
+                .build(app)?;
+
+            let app_menu = SubmenuBuilder::new(app, "Open Presenter")
+                .about(None)
+                .separator()
+                .item(&prefs_item)
+                .separator()
+                .services()
+                .separator()
+                .hide()
+                .hide_others()
+                .show_all()
+                .separator()
+                .quit()
+                .build()?;
+
+            let file_menu = SubmenuBuilder::new(app, "Arquivo")
+                .item(&new_song_item)
+                .separator()
+                .item(&import_holyrics_item)
+                .separator()
+                .close_window()
+                .build()?;
+
+            let edit_menu = SubmenuBuilder::new(app, "Editar")
+                .undo()
+                .redo()
+                .separator()
+                .cut()
+                .copy()
+                .paste()
+                .select_all()
+                .separator()
+                .item(&prefs_item)
+                .build()?;
+
+            let menu = MenuBuilder::new(app)
+                .items(&[&app_menu, &file_menu, &edit_menu])
+                .build()?;
+
+            app.set_menu(menu)?;
+
+            app.on_menu_event(move |app_handle, event| {
+                match event.id().as_ref() {
+                    "preferences" => {
+                        let _ = crate::services::display_manager::open_preferences_window(app_handle);
+                        let _ = app_handle.emit("open-preferences", ());
+                    }
+                    "new-song" => {
+                        let _ = app_handle.emit("new-song", ());
+                    }
+                    "import-holyrics" => {
+                        let _ = app_handle.emit("import-holyrics", ());
+                    }
+                    _ => {}
+                }
+            });
             let handle = app.handle().clone();
             let (ws_tx, _) = broadcast::channel::<String>(64);
             let broadcaster: SharedBroadcaster =
@@ -53,6 +121,8 @@ pub fn run() {
             commands::presentation::list_monitors,
             commands::presentation::open_output_window,
             commands::presentation::close_output_window,
+            commands::presentation::open_preferences_window,
+            commands::presentation::close_preferences_window,
             commands::presentation::go_live,
             commands::presentation::set_blackout,
             commands::presentation::get_live_slide,

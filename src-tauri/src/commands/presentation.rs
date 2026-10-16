@@ -63,3 +63,13 @@ pub async fn get_server_host() -> Result<String, AppError> {
     let ip = local_ip_address::local_ip().map_err(|e| AppError::Network(e.to_string()))?;
     Ok(ip.to_string())
 }
+
+#[tauri::command]
+pub async fn open_preferences_window(app: tauri::AppHandle) -> Result<(), AppError> {
+    display_manager::open_preferences_window(&app)
+}
+
+#[tauri::command]
+pub async fn close_preferences_window(app: tauri::AppHandle) -> Result<(), AppError> {
+    display_manager::close_preferences_window(&app)
+}

@@ -106,3 +106,35 @@ pub fn close_output_window(app: &AppHandle, target: OutputTarget) -> Result<(), 
     }
     Ok(())
 }
+
+pub fn open_preferences_window(app: &AppHandle) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("preferences") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        window.set_focus().map_err(AppError::Tauri)?;
+        return Ok(());
+    }
+
+    let builder = WebviewWindowBuilder::new(
+        app,
+        "preferences",
+        WebviewUrl::App("/#/preferences".into()),
+    )
+    .title("Preferências — Open Presenter")
+    .inner_size(880.0, 640.0)
+    .min_inner_size(720.0, 520.0)
+    .resizable(true)
+    .center()
+    .focused(true)
+    .decorations(true);
+
+    builder.build().map_err(AppError::Tauri)?;
+    Ok(())
+}
+
+pub fn close_preferences_window(app: &AppHandle) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("preferences") {
+        window.close().map_err(AppError::Tauri)?;
+    }
+    Ok(())
+}

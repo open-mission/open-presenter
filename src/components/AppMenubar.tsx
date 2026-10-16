@@ -4,9 +4,11 @@ import {
   MenubarItem,
   MenubarMenu,
   MenubarSeparator,
+  MenubarShortcut,
   MenubarTrigger,
 } from "@/components/ui/menubar";
 import { useSongsStore } from "@/features/songs/store";
+import { usePreferencesStore } from "@/features/preferences/store";
 
 export function AppMenubar() {
   return (
@@ -22,6 +24,18 @@ export function AppMenubar() {
             onSelect={() => useSongsStore.getState().startHolyricsImport()}
           >
             Importar músicas do Holyrics…
+          </MenubarItem>
+        </MenubarContent>
+      </MenubarMenu>
+
+      <MenubarMenu>
+        <MenubarTrigger>Editar</MenubarTrigger>
+        <MenubarContent>
+          <MenubarItem
+            onSelect={() => usePreferencesStore.getState().openPreferences()}
+          >
+            Preferências…
+            <MenubarShortcut>⌘,</MenubarShortcut>
           </MenubarItem>
         </MenubarContent>
       </MenubarMenu>

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { publishSlide } from "@/core/ipc/commands";
+import { publishSlide, setBlackout as ipcSetBlackout } from "@/core/ipc/commands";
 import type { BackgroundLayer, LiveSlide, SlideContent } from "@/core/types";
 
 const EMPTY_SLIDE: LiveSlide = {
@@ -25,6 +25,9 @@ interface PresentationState {
   setCleared(cleared: boolean): void;
   publishLive(slide: SlideContent, nextUp: SlideContent | null): Promise<void>;
   clearLive(): Promise<void>;
+  toggleBlackout(): Promise<void>;
+  toggleClear(): Promise<void>;
+  showBackground(): Promise<void>;
 }
 
 export const usePresentationStore = create<PresentationState>((set, get) => ({
@@ -59,6 +62,45 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     };
     get().applyRemote(next);
     await publishSlide(next);
+  },
+  toggleBlackout: async () => {
+    const nextBlackout = !get().live.blackout;
+    const next: LiveSlide = {
+      ...get().live,
+      blackout: nextBlackout,
+      updatedAt: new Date().toISOString(),
+    };
+    get().applyRemote(next);
+    await publishSlide(next);
+    await ipcSetBlackout(nextBlackout);
+  },
+  toggleClear: async () => {
+    const nextCleared = !get().live.cleared;
+    const next: LiveSlide = {
+      ...get().live,
+      cleared: nextCleared,
+      blackout: false,
+      updatedAt: new Date().toISOString(),
+    };
+    get().applyRemote(next);
+    await publishSlide(next);
+    if (get().live.blackout) {
+      await ipcSetBlackout(false);
+    }
+  },
+  showBackground: async () => {
+    const isOnlyBg = get().live.cleared && !get().live.blackout;
+    const next: LiveSlide = {
+      ...get().live,
+      cleared: !isOnlyBg,
+      blackout: false,
+      updatedAt: new Date().toISOString(),
+    };
+    get().applyRemote(next);
+    await publishSlide(next);
+    if (get().live.blackout) {
+      await ipcSetBlackout(false);
+    }
   },
 }));
 

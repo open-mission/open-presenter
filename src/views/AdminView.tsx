@@ -1,40 +1,54 @@
+import { useEffect, useState } from "react";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
-import { AppMenubar } from "@/components/AppMenubar";
-import { OutputManagerPanel } from "@/features/output-manager/OutputManagerPanel";
-import { SetlistPanel } from "@/features/events-setlists/SetlistPanel";
-import { SongRunner } from "@/features/events-setlists/SongRunner";
-import { LiveControls } from "@/features/presentation/LiveControls";
+import { AppTopBar } from "@/components/AppTopBar";
+import { PreferencesDialog } from "@/features/preferences/PreferencesDialog";
+import { SetlistSidebar } from "@/features/events-setlists/SetlistSidebar";
+import { SongSlidesColumn } from "@/features/events-setlists/SongSlidesColumn";
 import { LivePreview } from "@/features/presentation/LivePreview";
-import { BackgroundPicker } from "@/features/media-shaders/BackgroundPicker";
-import { SongsPanel } from "@/features/songs/SongsPanel";
-import { ScripturesPanel } from "@/features/scriptures/ScripturesPanel";
+import { SongEditorDialog } from "@/features/songs/SongEditorDialog";
+import { useSetlistStore } from "@/features/events-setlists/store";
+import { useNativeMenu } from "@/core/ipc/useNativeMenu";
 
 export default function AdminView() {
   usePresentationSync();
+  useNativeMenu();
+  const loadSetlists = useSetlistStore((s) => s.load);
+
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    void loadSetlists();
+  }, [loadSetlists]);
 
   return (
-    <div className="min-h-full bg-zinc-950 text-zinc-100">
-      <header className="flex flex-col gap-3 border-b border-zinc-800 px-6 py-4">
-        <AppMenubar />
-        <div>
-          <h1 className="text-lg font-bold tracking-tight">Open Presenter</h1>
-          <p className="text-sm text-zinc-400">Painel do operador</p>
-        </div>
-      </header>
-      <main className="grid gap-4 p-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-4">
-          <LivePreview />
-          <LiveControls />
-          <SetlistPanel />
-          <SongRunner />
-        </div>
-        <div className="flex flex-col gap-4">
-          <OutputManagerPanel />
-          <BackgroundPicker />
-          <SongsPanel />
-          <ScripturesPanel />
-        </div>
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground transition-colors">
+      {/* Top Application Bar */}
+      <AppTopBar
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
+      />
+
+      {/* Main 3-Column Operator Workspace */}
+      <main className="flex flex-1 overflow-hidden">
+        {/* Column 1: Programação do Culto (Collapsible) */}
+        {sidebarOpen && <SetlistSidebar />}
+
+        {/* Column 2: Estrofes & Letras da Música Selecionada */}
+        <SongSlidesColumn />
+
+        {/* Column 3: Monitores de Preview (Um embaixo do outro) */}
+        <section className="flex flex-1 flex-col overflow-y-auto bg-muted/10 p-4">
+          <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
+            <LivePreview />
+          </div>
+        </section>
       </main>
+
+      {/* Preferences Modal Dialog (Native ⌘, shortcut or Edit > Preferences) */}
+      <PreferencesDialog />
+
+      {/* Song Editor Modal Dialog (Accessed via slide right-click / shortcut) */}
+      <SongEditorDialog />
     </div>
   );
 }

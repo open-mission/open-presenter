@@ -1,41 +1,249 @@
+import {
+  Eye,
+  Monitor,
+  Play,
+  Projector,
+  Radio,
+  Tv,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { useOutputManagerStore } from "@/features/output-manager/store";
+import { usePreferencesStore } from "@/features/preferences/store";
 import { usePresentationStore } from "./store";
+import { SlideCanvas } from "./SlideCanvas";
+import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
+import type { LiveSlide } from "@/core/types";
 
 export function LivePreview() {
   const live = usePresentationStore((s) => s.live);
+  const preview = usePresentationStore((s) => s.preview);
+  const outputs = useOutputManagerStore((s) => s.outputs);
+  const openPreferences = usePreferencesStore((s) => s.openPreferences);
+
+  const stageConfigured = outputs.stage.mode !== "off";
+
+  // Build synthetic LiveSlide for Preview monitor
+  const previewSlide: LiveSlide | null = preview
+    ? {
+        content: preview,
+        background: live.background,
+        blackout: false,
+        cleared: false,
+        updatedAt: live.updatedAt,
+      }
+    : null;
+
+  async function handlePresentPreview() {
+    if (!preview) return;
+    await usePresentationStore.getState().publishLive(preview, null);
+  }
+
+  // Determine if nothing is showing on the Live Public display
+  const isLiveEmpty =
+    (live.content.kind === "blank" && live.cleared) ||
+    (!live.blackout && live.cleared && live.background.kind === "color" && live.background.value === "#000000");
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between">
-        <CardTitle>Preview interno</CardTitle>
-        {live.cleared ? (
-          <Badge variant="secondary">Limpo</Badge>
-        ) : (
-          <Badge variant="live">No ar</Badge>
-        )}
-      </CardHeader>
-      <CardContent>
-        <div className="aspect-video w-full overflow-hidden rounded-lg bg-black">
-          {live.blackout || live.cleared ? (
-            <div className="flex h-full items-center justify-center bg-black text-zinc-600 text-sm">
-              {live.blackout ? "Blackout" : "Saída limpa"}
-            </div>
+    <div className="flex flex-col gap-4 w-full">
+      {/* Screen 1: Preview (Pré-visualização) */}
+      <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-xs">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Eye className="size-3.5 text-primary" />
+            <span className="font-semibold text-xs text-foreground">
+              Preview
+            </span>
+            <Badge
+              variant="secondary"
+              className="h-4 px-1.5 text-[9px] font-medium text-muted-foreground"
+            >
+              Prévia
+            </Badge>
+          </div>
+
+          {preview && (
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              className="h-6 gap-1 px-2 text-[10px] font-semibold shadow-2xs"
+              onClick={handlePresentPreview}
+              title="Apresentar este slide no telão ao vivo (Enter)"
+            >
+              <Play className="size-2.5 fill-current" />
+              Apresentar
+            </Button>
+          )}
+        </div>
+
+        {/* 16:9 Canvas */}
+        <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
+          {previewSlide ? (
+            <SlideCanvas slide={previewSlide} />
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-              <p className="text-xs uppercase tracking-widest text-zinc-400">
-                {live.content.title}
-                {live.content.section ? ` · ${live.content.section}` : ""}
+            <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground select-none">
+              <Eye className="size-6 text-muted-foreground/40" />
+              <p className="text-xs font-semibold text-foreground/80">
+                Prévia Vazia
               </p>
-              {live.content.lines.map((line) => (
-                <p key={line} className="text-2xl font-bold leading-snug">
-                  {line}
-                </p>
-              ))}
+              <p className="text-[10px] max-w-[200px] text-muted-foreground/80">
+                Clique em uma estrofe da música para carregar a prévia aqui.
+              </p>
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+
+        {/* Subtitle / Staged Info */}
+        <div className="flex h-5 items-center justify-between px-0.5 text-[10px] text-muted-foreground">
+          <span className="truncate">
+            {preview ? `${preview.title}${preview.section ? ` · ${preview.section}` : ""}` : "Aguardando seleção"}
+          </span>
+          {preview && (
+            <span className="tabular-nums font-mono text-[9px] text-primary shrink-0">
+              Pronto para projetar
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Screen 2: Ao Vivo (Telão do Público) */}
+      <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-xs">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Tv className="size-3.5 text-emerald-500" />
+            <span className="font-semibold text-xs text-foreground">
+              Ao Vivo
+            </span>
+            <span className="text-[10px] text-muted-foreground">(Telão)</span>
+          </div>
+
+          <div>
+            {live.blackout ? (
+              <Badge
+                variant="destructive"
+                className="h-4 gap-1 px-1.5 text-[9px] font-semibold animate-pulse"
+              >
+                Blackout
+              </Badge>
+            ) : live.cleared && !isLiveEmpty ? (
+              <Badge
+                variant="secondary"
+                className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-amber-500/15 text-amber-500 border-amber-500/30"
+              >
+                Fundo Ativo
+              </Badge>
+            ) : isLiveEmpty ? (
+              <Badge
+                variant="outline"
+                className="h-4 px-1.5 text-[9px] text-muted-foreground"
+              >
+                Telão Livre
+              </Badge>
+            ) : (
+              <Badge
+                variant="default"
+                className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-emerald-600 hover:bg-emerald-600 text-white animate-pulse"
+              >
+                <Radio className="size-2.5" />
+                No Ar
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {/* 16:9 Canvas or Placeholder */}
+        <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
+          {isLiveEmpty && !live.blackout ? (
+            /* Placeholder Ao Vivo quando não há nada transmitindo */
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center select-none bg-zinc-950">
+              <div className="flex size-10 items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-500">
+                <Projector className="size-5" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-zinc-300">
+                  Placeholder Ao Vivo
+                </p>
+                <p className="mt-0.5 text-[10px] text-zinc-500">
+                  Telão desocupado · Nenhum conteúdo ao vivo
+                </p>
+              </div>
+            </div>
+          ) : (
+            <SlideCanvas slide={live} />
+          )}
+
+          {/* Blackout overlay badge indicator if blackout is active */}
+          {live.blackout && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+              <Badge variant="destructive" className="text-xs px-2.5 py-1 font-semibold animate-pulse">
+                Tela Preta (Blackout)
+              </Badge>
+            </div>
+          )}
+        </div>
+
+        {/* Subtitle / Live Output Info */}
+        <div className="flex h-5 items-center justify-between px-0.5 text-[10px] text-muted-foreground">
+          <span className="truncate">
+            {live.blackout
+              ? "Saída escurecida"
+              : live.cleared
+              ? "Plano de fundo em exibição (sem texto)"
+              : live.content.title}
+          </span>
+          {live.nextUp && !live.blackout && !live.cleared && (
+            <span className="truncate max-w-[140px] text-[9px] opacity-75">
+              Próx: {live.nextUp.lines[0] || live.nextUp.title}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Screen 3: Stage (Tela de Retorno) - Conditionally shown */}
+      {stageConfigured && (
+        <div className="flex flex-col gap-2 rounded-xl border border-sky-500/30 bg-card p-3 shadow-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Monitor className="size-3.5 text-sky-500" />
+              <span className="font-semibold text-xs text-foreground">
+                Stage
+              </span>
+              <span className="text-[10px] text-muted-foreground">(Retorno)</span>
+            </div>
+
+            <Badge
+              variant="secondary"
+              className="h-4 px-1.5 text-[9px] font-semibold bg-sky-500/15 text-sky-500 border-sky-500/30 cursor-pointer"
+              onClick={() => openPreferences("stage")}
+              title="Clique para configurar a Tela de Retorno"
+            >
+              {outputs.stage.mode === "native"
+                ? "Nativo"
+                : outputs.stage.mode === "web"
+                ? "Web"
+                : "Nativo + Web"}
+            </Badge>
+          </div>
+
+          {/* 16:9 Mini Stage Canvas */}
+          <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-black shadow-inner">
+            <StageMiniPreview />
+          </div>
+
+          {/* Subtitle */}
+          <div className="flex h-5 items-center justify-between px-0.5 text-[10px] text-muted-foreground">
+            <span className="truncate">Retorno dos músicos no palco</span>
+            <button
+              type="button"
+              onClick={() => openPreferences("stage")}
+              className="text-[9px] text-sky-500 hover:underline"
+            >
+              Configurar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

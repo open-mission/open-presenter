@@ -37,9 +37,16 @@ interface SetlistState {
   renamePart(partId: string, title: string): void;
   removePart(partId: string): void;
   movePart(partId: string, dir: -1 | 1): void;
+  reorderParts(sourceIndex: number, targetIndex: number): void;
   addSong(partId: string, song: SongSummary): void;
   removeItem(itemId: string): void;
   moveItem(itemId: string, dir: -1 | 1): void;
+  reorderItem(
+    sourcePartId: string,
+    sourceIndex: number,
+    targetPartId: string,
+    targetIndex: number,
+  ): void;
   setNextItem(itemId: string, nextItemId: string | null): void;
   save(): Promise<void>;
   selectItem(itemId: string | null): void;
@@ -219,6 +226,24 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       return { event: { ...event, parts }, dirty: true };
     }),
 
+  reorderParts: (sourceIndex, targetIndex) =>
+    set((state) => {
+      const { event } = state;
+      if (!event || sourceIndex === targetIndex) return {};
+      if (
+        sourceIndex < 0 ||
+        sourceIndex >= event.parts.length ||
+        targetIndex < 0 ||
+        targetIndex >= event.parts.length
+      ) {
+        return {};
+      }
+      const parts = [...event.parts];
+      const [removed] = parts.splice(sourceIndex, 1);
+      parts.splice(targetIndex, 0, removed);
+      return { event: { ...event, parts }, dirty: true };
+    }),
+
   addSong: (partId, song) =>
     set((state) => {
       const { event } = state;
@@ -282,6 +307,24 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
         return { event: { ...event, parts }, dirty: true };
       }
       return {};
+    }),
+
+  reorderItem: (sourcePartId, sourceIndex, targetPartId, targetIndex) =>
+    set((state) => {
+      const { event } = state;
+      if (!event) return {};
+      const parts = event.parts.map((p) => ({ ...p, items: [...p.items] }));
+      const srcPart = parts.find((p) => p.id === sourcePartId);
+      const dstPart = parts.find((p) => p.id === targetPartId);
+      if (!srcPart || !dstPart) return {};
+      if (sourceIndex < 0 || sourceIndex >= srcPart.items.length) return {};
+
+      const [item] = srcPart.items.splice(sourceIndex, 1);
+      if (!item) return {};
+
+      const safeTarget = Math.max(0, Math.min(dstPart.items.length, targetIndex));
+      dstPart.items.splice(safeTarget, 0, item);
+      return { event: { ...event, parts }, dirty: true };
     }),
 
   setNextItem: (itemId, nextItemId) =>

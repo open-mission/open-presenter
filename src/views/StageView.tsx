@@ -2,42 +2,64 @@ import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { usePresentationStore } from "@/features/presentation/store";
 import { StageAlerts } from "@/features/stage-display/StageAlerts";
 import { StageClock } from "@/features/stage-display/StageClock";
+import { useStageConfigStore } from "@/features/stage-display/configStore";
 
 export default function StageView() {
   usePresentationSync();
   const live = usePresentationStore((s) => s.live);
   const nextUp = usePresentationStore((s) => s.live.nextUp);
+  const { fontSize, theme, showNextUp } = useStageConfigStore();
+
+  const fontClass =
+    fontSize === "normal"
+      ? "text-3xl"
+      : fontSize === "xlarge"
+      ? "text-6xl md:text-7xl font-extrabold"
+      : "text-5xl font-bold";
+
+  const themeClass =
+    theme === "high-contrast"
+      ? "bg-black text-amber-300"
+      : theme === "warm"
+      ? "bg-stone-950 text-amber-100"
+      : "bg-black text-white";
 
   return (
-    <div className="flex min-h-full flex-col gap-6 bg-black p-6 text-white">
-      <StageClock />
+    <div className={`flex min-h-full flex-col justify-between p-8 text-center ${themeClass}`}>
+      <div className="flex justify-center w-full">
+        <StageClock />
+      </div>
+
       <StageAlerts />
-      <section className="flex-1">
-        <p className="text-xs uppercase tracking-widest text-zinc-400">
-          {live.blackout || live.cleared ? "Saída" : live.content.title}
-        </p>
+
+      <section className="flex flex-1 flex-col items-center justify-center my-auto py-6 text-center">
         {live.blackout || live.cleared ? (
-          <p className="mt-2 text-5xl font-bold text-zinc-600">
+          <p className={`font-bold opacity-30 text-center ${fontClass}`}>
             {live.blackout ? "Blackout" : "—"}
           </p>
         ) : (
-          live.content.lines.map((line) => (
-            <p key={line} className="mt-2 text-5xl font-bold leading-tight">
-              {line}
-            </p>
-          ))
+          <div className="flex flex-col items-center justify-center gap-3 text-center max-w-5xl mx-auto w-full">
+            {live.content.lines.map((line) => (
+              <p key={line} className={`leading-tight text-center ${fontClass}`}>
+                {line}
+              </p>
+            ))}
+          </div>
         )}
       </section>
-      {nextUp && (
-        <section className="border-t border-zinc-800 pt-4">
-          <p className="text-xs uppercase tracking-widest text-zinc-400">
+
+      {showNextUp && nextUp && (
+        <section className="border-t border-white/10 pt-4 text-center flex flex-col items-center justify-center">
+          <p className="text-xs uppercase tracking-widest opacity-60">
             Próximo · {nextUp.title}
           </p>
-          {nextUp.lines.map((line) => (
-            <p key={line} className="mt-1 text-2xl text-zinc-300">
-              {line}
-            </p>
-          ))}
+          <div className="mt-1 flex flex-col items-center gap-1">
+            {nextUp.lines.map((line) => (
+              <p key={line} className="text-2xl opacity-80 text-center">
+                {line}
+              </p>
+            ))}
+          </div>
         </section>
       )}
     </div>

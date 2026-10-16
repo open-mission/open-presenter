@@ -29,6 +29,14 @@ export async function closeOutputWindow(
   await invokeCommand("close_output_window", { target });
 }
 
+export async function openPreferencesWindow(): Promise<void> {
+  await invokeCommand("open_preferences_window");
+}
+
+export async function closePreferencesWindow(): Promise<void> {
+  await invokeCommand("close_preferences_window");
+}
+
 export async function publishSlide(slide: LiveSlide): Promise<void> {
   await invokeCommand("go_live", { slide });
 }

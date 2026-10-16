@@ -5,34 +5,47 @@ import { BackgroundRenderer } from "../media-shaders/BackgroundRenderer";
 export function SlideCanvas({
   slide,
   lineClassName,
+  showTitle = false,
 }: {
   slide: LiveSlide;
   lineClassName?: string;
+  showTitle?: boolean;
 }) {
-  if (slide.blackout || slide.cleared) {
+  if (slide.blackout) {
     return <div className="h-full w-full bg-black" />;
   }
 
+  // Omit song title and section on public lyrics projection (only show reference for scriptures or explicit showTitle)
+  const isScripture = slide.content.kind === "scripture";
+  const shouldRenderTitle = (showTitle || isScripture) && slide.content.title.trim().length > 0;
+
   return (
-    <div className="relative h-full w-full overflow-hidden bg-black">
+    <div className="relative h-full w-full overflow-hidden bg-black [container-type:inline-size]">
       <BackgroundRenderer background={slide.background} />
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-[4%] text-center">
-        <p className="text-[2vw] font-medium uppercase tracking-[0.3em] text-white/60">
-          {slide.content.title}
-          {slide.content.section ? ` · ${slide.content.section}` : ""}
-        </p>
-        {slide.content.lines.map((line) => (
-          <p
-            key={line}
-            className={cn(
-              "text-[4.5vw] font-bold leading-tight text-white [text-shadow:0_2px_24px_rgba(0,0,0,0.9)]",
-              lineClassName,
-            )}
-          >
-            {line}
-          </p>
-        ))}
-      </div>
+      {!slide.cleared && slide.content.kind !== "blank" && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-[4cqw] text-center">
+          {shouldRenderTitle && (
+            <p className="text-[2.2cqw] font-semibold uppercase tracking-[0.25em] text-white/70 mb-[1.5cqw]">
+              {slide.content.title}
+              {slide.content.section ? ` · ${slide.content.section}` : ""}
+            </p>
+          )}
+
+          <div className="flex flex-col items-center justify-center gap-[1.2cqw] max-w-[92%]">
+            {slide.content.lines.map((line) => (
+              <p
+                key={line}
+                className={cn(
+                  "text-[4.6cqw] font-bold leading-[1.24] text-white [text-shadow:0_0.25cqw_2.5cqw_rgba(0,0,0,0.95)]",
+                  lineClassName,
+                )}
+              >
+                {line}
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

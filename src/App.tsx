@@ -1,5 +1,6 @@
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import AdminView from "./views/AdminView";
+import PreferencesView from "./views/PreferencesView";
 import PublicView from "./views/PublicView";
 import StageView from "./views/StageView";
 
@@ -9,6 +10,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<AdminView />} />
         <Route path="/admin" element={<AdminView />} />
+        <Route path="/preferences" element={<PreferencesView />} />
         <Route path="/public" element={<PublicView />} />
         <Route path="/stage" element={<StageView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
