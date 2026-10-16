@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
   Eye,
   Monitor,
@@ -8,10 +9,15 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { kindToAsset } from "@/core/types";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { usePreferencesStore } from "@/features/preferences/store";
+import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { buildProps } from "@/features/slide-themes/themeTemplate";
+import { ThemeRenderer } from "@/features/slide-themes/ThemeRenderer";
 import { usePresentationStore } from "./store";
 import { SlideCanvas } from "./SlideCanvas";
+import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import type { LiveSlide } from "@/core/types";
 
@@ -20,6 +26,17 @@ export function LivePreview() {
   const preview = usePresentationStore((s) => s.preview);
   const outputs = useOutputManagerStore((s) => s.outputs);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
+  const loadThemes = useSlideThemesStore((s) => s.load);
+  const previewTheme = useSlideThemesStore((s) =>
+    preview ? s.resolveTheme("public", preview.kind) : null,
+  );
+  const liveTheme = useSlideThemesStore((s) =>
+    s.resolveTheme("public", live.content.kind),
+  );
+
+  useEffect(() => {
+    void loadThemes();
+  }, [loadThemes]);
 
   const stageConfigured = outputs.stage.mode !== "off";
 
@@ -80,7 +97,28 @@ export function LivePreview() {
         {/* 16:9 Canvas */}
         <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
           {previewSlide ? (
-            <SlideCanvas slide={previewSlide} />
+            (() => {
+              const asset = kindToAsset(previewSlide.content.kind);
+              if (previewTheme && asset) {
+                return (
+                  <>
+                    <BackgroundRenderer
+                      background={previewSlide.background}
+                    />
+                    <ThemeRenderer
+                      theme={previewTheme}
+                      asset={asset}
+                      props={buildProps(
+                        previewSlide.content.kind,
+                        previewSlide.content,
+                        null,
+                      )}
+                    />
+                  </>
+                );
+              }
+              return <SlideCanvas slide={previewSlide} />;
+            })()
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground select-none">
               <Eye className="size-6 text-muted-foreground/40" />
@@ -169,6 +207,25 @@ export function LivePreview() {
                 </p>
               </div>
             </div>
+          ) : liveTheme &&
+            kindToAsset(live.content.kind) &&
+            !live.blackout &&
+            !live.cleared &&
+            live.content.kind !== "blank" ? (
+            <>
+              <BackgroundRenderer background={live.background} />
+              <ThemeRenderer
+                theme={liveTheme}
+                asset={
+                  kindToAsset(live.content.kind) ?? "music"
+                }
+                props={buildProps(
+                  live.content.kind,
+                  live.content,
+                  live.nextUp,
+                )}
+              />
+            </>
           ) : (
             <SlideCanvas slide={live} />
           )}
