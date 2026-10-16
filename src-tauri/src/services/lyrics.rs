@@ -271,7 +271,10 @@ mod tests {
 
     #[test]
     fn linhas_com_prefixos_reservados_somem_ao_salvar() {
-        let sections = parse_sections("//comentário\n##hashtag\nresto");
-        assert_eq!(sections, blocks(vec![(None, vec!["resto"])]));
+        let salvo = sections_to_text(&blocks(vec![(
+            None,
+            vec!["//comentário", "##hashtag", "resto"],
+        )]));
+        assert_eq!(parse_sections(&salvo), blocks(vec![(None, vec!["resto"])]));
     }
 }

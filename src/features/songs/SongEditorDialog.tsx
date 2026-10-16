@@ -176,7 +176,7 @@ export function SongEditorDialog() {
               <Textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder={"Uma linha por verso…\n\n##(Refrão)\n\nDeixe uma linha em branco entre os blocos"}
+                placeholder={"Uma linha por verso…\n\n## Refrão\n\nDeixe uma linha em branco entre os blocos"}
                 className="max-h-[50vh] min-h-56"
                 disabled={!textReady}
               />
