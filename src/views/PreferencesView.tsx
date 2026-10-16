@@ -7,11 +7,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import { usePreferencesStore } from "@/features/preferences/store";
-import type { PreferencesTab } from "@/features/preferences/types";
+import type { OutputsSection, PreferencesTab } from "@/features/preferences/types";
 import { AppearanceTab } from "@/features/preferences/tabs/AppearanceTab";
 import { GeneralTab } from "@/features/preferences/tabs/GeneralTab";
 import { OutputsTab } from "@/features/preferences/tabs/OutputsTab";
-import { StageTab } from "@/features/preferences/tabs/StageTab";
 import { ThemesTab } from "@/features/preferences/tabs/ThemesTab";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -37,15 +36,9 @@ const NAV_ITEMS: NavItemConfig[] = [
   },
   {
     id: "outputs",
-    label: "Saídas (telas)",
-    breadcrumb: "Saídas (telas)",
+    label: "Saídas",
+    breadcrumb: "Saídas",
     icon: Monitor,
-  },
-  {
-    id: "stage",
-    label: "Tela de Retorno",
-    breadcrumb: "Tela de Retorno (Stage)",
-    icon: SlidersHorizontal,
   },
   {
     id: "themes",
@@ -64,6 +57,7 @@ const NAV_ITEMS: NavItemConfig[] = [
 export default function PreferencesView() {
   const activeTab = usePreferencesStore((s) => s.activeTab);
   const setTab = usePreferencesStore((s) => s.setTab);
+  const setOutputsSection = usePreferencesStore((s) => s.setOutputsSection);
   const ensureSeeded = useSlideThemesStore((s) => s.ensureSeeded);
   useThemesSync();
   useOutputsSync();
@@ -79,6 +73,15 @@ export default function PreferencesView() {
     if (saved && NAV_ITEMS.some((n) => n.id === saved)) {
       setTab(saved);
     }
+    const savedSection = localStorage.getItem(
+      "open_presenter_outputs_section",
+    ) as OutputsSection | null;
+    if (
+      savedSection &&
+      (["public", "stage", "server", "devices"] as const).includes(savedSection)
+    ) {
+      setOutputsSection(savedSection);
+    }
 
     function handleStorage(e: StorageEvent) {
       if (e.key === "open_presenter_pref_tab" && e.newValue) {
@@ -86,11 +89,20 @@ export default function PreferencesView() {
           setTab(e.newValue as PreferencesTab);
         }
       }
+      if (e.key === "open_presenter_outputs_section" && e.newValue) {
+        if (
+          (["public", "stage", "server", "devices"] as const).includes(
+            e.newValue as OutputsSection,
+          )
+        ) {
+          setOutputsSection(e.newValue as OutputsSection);
+        }
+      }
     }
 
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
-  }, [setTab]);
+  }, [setTab, setOutputsSection]);
 
   // Close window on Escape key
   useEffect(() => {
@@ -147,7 +159,7 @@ export default function PreferencesView() {
       </aside>
 
       {/* Right Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden bg-background">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
         {/* Header Bar */}
         <div className="flex h-12 items-center justify-between border-b border-border/60 px-6">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -179,11 +191,10 @@ export default function PreferencesView() {
         </div>
 
         {/* Content Body */}
-        <ScrollArea className="flex-1 p-6">
-          <div className="max-w-3xl pb-8">
+        <ScrollArea className="min-h-0 min-w-0 flex-1 p-6">
+          <div className="mx-auto w-full max-w-3xl pb-8">
             {activeTab === "appearance" && <AppearanceTab />}
             {activeTab === "outputs" && <OutputsTab />}
-            {activeTab === "stage" && <StageTab />}
             {activeTab === "themes" && <ThemesTab />}
             {activeTab === "general" && <GeneralTab />}
           </div>

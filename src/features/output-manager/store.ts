@@ -66,6 +66,7 @@ interface OutputManagerState {
   applyServer(server: ServerStatus): void;
   load(): Promise<void>;
   refreshRuntime(): Promise<void>;
+  refreshConfigsAndServer(): Promise<void>;
   setMode(target: OutputTarget, mode: OutputMode): Promise<void>;
   setMonitor(target: OutputTarget, monitorId: string | null): Promise<void>;
   toggle(target: OutputTarget): Promise<void>;
@@ -144,6 +145,28 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
   refreshRuntime: async () => {
     const state = await getOutputsState();
     get().applyRuntime(state);
+  },
+  refreshConfigsAndServer: async () => {
+    const [publicConfig, stageConfig, server] = await Promise.all([
+      getOutputConfig("public"),
+      getOutputConfig("stage"),
+      getServerStatus(),
+    ]);
+    set((s) => {
+      const configs = {
+        public: normalizeConfig(publicConfig) ?? s.configs.public,
+        stage: normalizeConfig(stageConfig) ?? s.configs.stage,
+      };
+      const lastMode = { ...s.lastMode };
+      for (const t of ["public", "stage"] as const) {
+        if (configs[t].mode !== "off") lastMode[t] = configs[t].mode;
+      }
+      return {
+        configs,
+        lastMode,
+        server: server ?? s.server,
+      };
+    });
   },
   setMode: async (target, mode) => {
     const { configs, host, server } = get();

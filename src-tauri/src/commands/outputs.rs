@@ -1,10 +1,10 @@
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::AppError;
 use crate::services::database::Db;
 use crate::services::settings;
 use crate::state::outputs::OutputsState;
-use crate::state::types::{OutputConfig, OutputRuntime, OutputTarget};
+use crate::state::types::{OutputConfig, OutputRuntime, OutputTarget, EVENT_OUTPUTS};
 
 fn config_key(target: OutputTarget) -> &'static str {
     match target {
@@ -34,7 +34,9 @@ pub fn set_output_config(
     let json = serde_json::to_string(&config).map_err(|e| AppError::Storage(e.to_string()))?;
     let target = config.target;
     db.with_conn(|conn| settings::set_setting(conn, config_key(target), &json))?;
-    app.state::<OutputsState>().set_config(target, config);
+    let outputs = app.state::<OutputsState>();
+    outputs.set_config(target, config);
+    let _ = app.emit(EVENT_OUTPUTS, outputs.snapshot());
     Ok(())
 }
 

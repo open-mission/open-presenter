@@ -1,22 +1,15 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
-  Check,
   Clock,
-  Copy,
-  ExternalLink,
   Megaphone,
   Monitor,
   Send,
   Smartphone,
   Type,
-  Wifi,
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { outputHttpUrl } from "@/core/config/app";
-import { fetchServerHost } from "@/core/ipc/commands";
-import { useOutputManagerStore } from "@/features/output-manager/store";
 import { useStageDisplayStore } from "@/features/stage-display/store";
 import {
   type StageFontSize,
@@ -27,10 +20,6 @@ import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import type { StageAlertLevel, StageMessage } from "@/core/types";
 
 export function StageTab() {
-  const host = useOutputManagerStore((s) => s.host);
-  const port = useOutputManagerStore((s) => s.server.port);
-  const setHost = useOutputManagerStore((s) => s.setHost);
-  const stageOutput = useOutputManagerStore((s) => s.configs.stage);
 
   const {
     showClock,
@@ -47,29 +36,8 @@ export function StageTab() {
   const pushMessage = useStageDisplayStore((s) => s.pushMessage);
   const dismissMessage = useStageDisplayStore((s) => s.dismissMessage);
 
-  const [copied, setCopied] = useState(false);
   const [alertText, setAlertText] = useState("");
   const [alertLevel, setAlertLevel] = useState<StageAlertLevel>("info");
-
-  useEffect(() => {
-    if (host === null) {
-      void fetchServerHost()
-        .then((h) => setHost(h))
-        .catch(() => setHost("localhost"));
-    }
-  }, [host, setHost]);
-
-  const stageUrl = outputHttpUrl(host, port, "/stage");
-
-  function handleCopy() {
-    void navigator.clipboard.writeText(stageUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  function handleOpenBrowser() {
-    window.open(stageUrl, "_blank");
-  }
 
   function handleSendAlert(e: React.FormEvent) {
     e.preventDefault();
@@ -88,82 +56,10 @@ export function StageTab() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Title & Overview */}
-      <div>
-        <h3 className="text-base font-semibold tracking-tight text-foreground">
-          Tela de Retorno (Stage Display)
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          Configure a página web e monitor de palco para os músicos, ministros e equipe acompanharem a letra e tempo ao vivo.
-        </p>
-      </div>
-
       {/* Grid: Settings on Left, Live Preview on Right */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left Column: Configuration Controls (7 cols) */}
         <div className="flex flex-col gap-5 lg:col-span-7">
-          {/* Card 1: Web Access & Connectivity */}
-          <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Wifi className="size-4 text-sky-500" />
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-foreground">
-                  Acesso Web (Tablets & Celulares)
-                </h4>
-              </div>
-              <Badge
-                variant={stageOutput.mode !== "off" ? "default" : "secondary"}
-                className={`h-4 text-[9px] font-semibold ${
-                  stageOutput.mode !== "off"
-                    ? "bg-sky-500 hover:bg-sky-600 text-white"
-                    : ""
-                }`}
-              >
-                {stageOutput.mode !== "off" ? "Servidor Ativo" : "Modo Web Disponível"}
-              </Badge>
-            </div>
-
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Músicos e equipe podem abrir o endereço abaixo em qualquer navegador (iPad, Android, iPhone, TV) na mesma rede Wi-Fi.
-            </p>
-
-            {/* URL Display Box */}
-            <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-muted/40 p-1.5 pl-3">
-              <span className="flex-1 select-all font-mono text-xs text-foreground truncate">
-                {stageUrl}
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-7 gap-1.5 px-2.5 text-xs shrink-0"
-                onClick={handleCopy}
-              >
-                {copied ? (
-                  <>
-                    <Check className="size-3 text-emerald-500" />
-                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">Copiado!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="size-3 text-muted-foreground" />
-                    <span>Copiar</span>
-                  </>
-                )}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="h-7 gap-1.5 px-2.5 text-xs shrink-0"
-                onClick={handleOpenBrowser}
-              >
-                <ExternalLink className="size-3" />
-                <span>Abrir</span>
-              </Button>
-            </div>
-          </div>
-
           {/* Card 2: Relógio e Cronômetro */}
           <div className="flex flex-col gap-3.5 rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
             <div className="flex items-center gap-2">

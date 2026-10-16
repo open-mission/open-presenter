@@ -1,12 +1,13 @@
 use std::sync::Mutex;
 
-use tauri::State;
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::AppError;
 use crate::server::{bind, spawn_with_listener, Clients, ServerControl};
 use crate::services::database::Db;
 use crate::services::settings;
-use crate::state::types::{ConnectedClient, ServerStatus, OUTPUT_HTTP_PORT};
+use crate::state::outputs::OutputsState;
+use crate::state::types::{ConnectedClient, ServerStatus, EVENT_OUTPUTS, OUTPUT_HTTP_PORT};
 
 pub const SERVER_PORT_KEY: &str = "server.port";
 
@@ -20,6 +21,11 @@ fn lock<'a>(control: &'a State<'_, Mutex<ServerControl>>) -> Result<std::sync::M
     control
         .lock()
         .map_err(|_| AppError::Storage("servidor indisponível".into()))
+}
+
+fn emit_outputs(app: &AppHandle) {
+    let snapshot = app.state::<OutputsState>().snapshot();
+    let _ = app.emit(EVENT_OUTPUTS, snapshot);
 }
 
 async fn start_locked(control: &State<'_, Mutex<ServerControl>>, port: u16) -> Result<ServerStatus, AppError> {
@@ -72,6 +78,7 @@ fn swap_with_listener(
 
 #[tauri::command]
 pub async fn set_server_port(
+    app: AppHandle,
     db: State<'_, Db>,
     control: State<'_, Mutex<ServerControl>>,
     port: u16,
@@ -82,27 +89,38 @@ pub async fn set_server_port(
     if port != lock(&control)?.port {
         let listener = bind(port).await.map_err(AppError::Network)?;
         db.with_conn(|conn| settings::set_setting(conn, SERVER_PORT_KEY, &port.to_string()))?;
-        return swap_with_listener(&control, port, listener);
+        let status = swap_with_listener(&control, port, listener)?;
+        emit_outputs(&app);
+        return Ok(status);
     }
     db.with_conn(|conn| settings::set_setting(conn, SERVER_PORT_KEY, &port.to_string()))?;
-    start_locked(&control, port).await
+    let status = start_locked(&control, port).await?;
+    emit_outputs(&app);
+    Ok(status)
 }
 
 #[tauri::command]
 pub async fn stop_server(
+    app: AppHandle,
     control: State<'_, Mutex<ServerControl>>,
 ) -> Result<ServerStatus, AppError> {
     let mut guard = lock(&control)?;
     guard.stop();
-    Ok(guard.status())
+    let status = guard.status();
+    drop(guard);
+    emit_outputs(&app);
+    Ok(status)
 }
 
 #[tauri::command]
 pub async fn start_server(
+    app: AppHandle,
     control: State<'_, Mutex<ServerControl>>,
 ) -> Result<ServerStatus, AppError> {
     let port = lock(&control)?.port;
-    start_locked(&control, port).await
+    let status = start_locked(&control, port).await?;
+    emit_outputs(&app);
+    Ok(status)
 }
 
 #[tauri::command]

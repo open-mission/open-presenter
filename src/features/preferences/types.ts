@@ -1,9 +1,10 @@
 export type PreferencesTab =
   | "appearance"
   | "outputs"
-  | "stage"
   | "themes"
   | "general";
+
+export type OutputsSection = "public" | "stage" | "server" | "devices";
 
 export interface TabDefinition {
   id: PreferencesTab;
