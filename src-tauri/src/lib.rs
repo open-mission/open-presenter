@@ -123,6 +123,7 @@ pub fn run() {
             commands::presentation::close_output_window,
             commands::presentation::open_preferences_window,
             commands::presentation::close_preferences_window,
+            commands::presentation::open_theme_editor,
             commands::presentation::go_live,
             commands::presentation::set_blackout,
             commands::presentation::get_live_slide,

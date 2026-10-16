@@ -38,6 +38,10 @@ export async function closePreferencesWindow(): Promise<void> {
   await invokeCommand("close_preferences_window");
 }
 
+export async function openThemeEditor(guid?: string): Promise<void> {
+  await invokeCommand("open_theme_editor", { guid: guid ?? null });
+}
+
 export async function publishSlide(slide: LiveSlide): Promise<void> {
   await invokeCommand("go_live", { slide });
 }

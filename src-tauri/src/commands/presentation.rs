@@ -73,3 +73,11 @@ pub async fn open_preferences_window(app: tauri::AppHandle) -> Result<(), AppErr
 pub async fn close_preferences_window(app: tauri::AppHandle) -> Result<(), AppError> {
     display_manager::close_preferences_window(&app)
 }
+
+#[tauri::command]
+pub async fn open_theme_editor(
+    app: tauri::AppHandle,
+    guid: Option<String>,
+) -> Result<(), AppError> {
+    display_manager::open_theme_editor_window(&app, guid)
+}

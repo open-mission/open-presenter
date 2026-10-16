@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Manager, Monitor, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, Monitor, WebviewUrl, WebviewWindowBuilder};
 
 use crate::error::AppError;
 use crate::state::types::OutputTarget;
@@ -136,5 +136,31 @@ pub fn close_preferences_window(app: &AppHandle) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window("preferences") {
         window.close().map_err(AppError::Tauri)?;
     }
+    Ok(())
+}
+
+pub fn open_theme_editor_window(app: &AppHandle, guid: Option<String>) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("theme-editor") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        window.set_focus().map_err(AppError::Tauri)?;
+        let _ = window.emit("theme-editor://open", guid);
+        return Ok(());
+    }
+
+    let route = format!(
+        "/#/theme-editor?guid={}",
+        guid.as_deref().unwrap_or("")
+    );
+    let builder = WebviewWindowBuilder::new(app, "theme-editor", WebviewUrl::App(route.into()))
+        .title("Editor de Temas — Open Presenter")
+        .inner_size(1280.0, 800.0)
+        .min_inner_size(1024.0, 640.0)
+        .resizable(true)
+        .center()
+        .focused(true)
+        .decorations(true);
+
+    builder.build().map_err(AppError::Tauri)?;
     Ok(())
 }
