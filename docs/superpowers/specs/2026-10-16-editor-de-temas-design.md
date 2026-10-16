@@ -30,7 +30,7 @@ Janela dedicada "Editor de Temas", título do tema ao centro, estado "Salvo" + m
 | APARÊNCIA opacidade/borda | `css.opacity`, `css.border`/`borderRadius` |
 | ANIMAÇÃO | `enterAnim`/`exitAnim` (select: Nenhuma/BLUR/…; timeline V2) |
 | TIMER Visibilidade | `timerVisibility` (Sempre/Acima/Abaixo) + `timerThresholdSec` |
-| VISIBILIDADE | `assetTypeVisibility[]` (music/bible/slidePresentation/image/video/presentation) |
+| VISIBILIDADE | `assetTypeVisibility[]` (music/bible/text) |
 | CSS AVANÇADO | `css` cru (adicionar/remover pares) |
 | FUNDO PADRÃO | `theme.css.background` (cor/gradiente/URL imagem; vídeo V2) |
 | Camadas: visível/lock/excluir/reordenar | `visible`, `locked`, ordem do array = ordem de pintura, `remove` |
