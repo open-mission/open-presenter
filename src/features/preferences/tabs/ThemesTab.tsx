@@ -1,177 +1,445 @@
-import { Check, Sparkles } from "lucide-react";
-import type { BackgroundLayer } from "@/core/types";
+import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
+import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import type {
+  OutputTarget,
+  SlideKind,
+  SlideTheme,
+  ThemeAsset,
+} from "@/core/types";
 import { Badge } from "@/components/ui/badge";
-import { useMediaShadersStore } from "@/features/media-shaders/store";
-import { usePresentationStore } from "@/features/presentation/store";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ThemeRenderer } from "@/features/slide-themes/ThemeRenderer";
+import { useSlideThemesStore } from "@/features/slide-themes/store";
 
-interface ThemeMeta {
-  title: string;
-  category: string;
-  previewStyle: React.CSSProperties;
-}
-
-const PRESET_METAS: Record<string, ThemeMeta> = {
-  "bg-black": {
-    title: "Preto Puro",
-    category: "Cor Sólida",
-    previewStyle: { backgroundColor: "#000000" },
-  },
-  "bg-sunset": {
-    title: "Pôr do Sol Cósmico",
-    category: "Gradiente Radial",
-    previewStyle: {
-      background:
-        "radial-gradient(circle at 50% 120%, #7c2d12 0%, #1c0a00 55%, #000000 100%)",
+const SAMPLES: Record<ThemeAsset, { label: string; props: Record<string, string> }> = {
+  music: {
+    label: "Música",
+    props: {
+      titulo: "Santo, Santo, Santo",
+      artista: "Hinário",
+      letra: "Santo, santo, santo\nDeus Todo-Poderoso",
+      nextVerse: "Digno de louvor",
+      secao: "Refrão",
+      currentIndex: "0",
+      totalCount: "3",
+      "HH:MM": "10:30",
     },
   },
-  "bg-night": {
-    title: "Noite Profunda",
-    category: "Gradiente Radial",
-    previewStyle: {
-      background:
-        "radial-gradient(circle at 50% 0%, #1e3a8a 0%, #020617 60%, #000000 100%)",
+  bible: {
+    label: "Bíblia",
+    props: {
+      titulo: "João 1:1",
+      verso: "No princípio era o Verbo, e o Verbo estava com Deus",
+      livro: "João",
+      capitulo: "1",
+      versiculo: "1",
+      versao: "ACF",
+      nextVerse: "",
+      "HH:MM": "10:30",
     },
   },
-  "bg-isf-demo": {
-    title: "Plasma Dinâmico",
-    category: "Shader ISF (Animado)",
-    previewStyle: {
-      background: "linear-gradient(120deg, #0f172a, #4c1d95, #0ea5e9, #0f172a)",
-      backgroundSize: "200% 200%",
+  text: {
+    label: "Texto",
+    props: {
+      titulo: "Aviso",
+      texto: "Culto de domingo às 19h",
+      currentIndex: "0",
+      totalCount: "1",
+      "HH:MM": "10:30",
     },
   },
 };
 
-export function ThemesTab() {
-  const presets = useMediaShadersStore((s) => s.presets);
-  const current = useMediaShadersStore((s) => s.current);
-  const setCurrent = useMediaShadersStore((s) => s.setCurrent);
-  const setLiveBackground = usePresentationStore((s) => s.setBackground);
+interface BindingRow {
+  target: OutputTarget;
+  asset: SlideKind;
+  label: string;
+}
 
-  function handleSelectTheme(preset: BackgroundLayer) {
-    setCurrent(preset);
-    setLiveBackground(preset);
+const BINDING_ROWS: BindingRow[] = [
+  { target: "public", asset: "lyric", label: "Telão · Letra (música)" },
+  { target: "public", asset: "scripture", label: "Telão · Bíblia" },
+  { target: "public", asset: "custom", label: "Telão · Texto" },
+  { target: "stage", asset: "lyric", label: "Palco · Letra (música)" },
+  { target: "stage", asset: "scripture", label: "Palco · Bíblia" },
+  { target: "stage", asset: "custom", label: "Palco · Texto" },
+];
+
+function bindingLabel(target: OutputTarget, asset: SlideKind): string {
+  return (
+    BINDING_ROWS.find((r) => r.target === target && r.asset === asset)?.label ??
+    `${target} · ${asset}`
+  );
+}
+
+function newBlankTheme(title: string): SlideTheme {
+  return {
+    guid: crypto.randomUUID(),
+    title,
+    css: { background: "#000000" },
+    elements: [
+      {
+        id: "letra",
+        type: "TEXT",
+        x: 10,
+        y: 30,
+        visible: true,
+        locked: false,
+        css: {
+          top: "30%",
+          left: "10%",
+          width: "80%",
+          textAlign: "center",
+          fontSize: "56px",
+          fontWeight: "700",
+          lineHeight: "1.25",
+          color: "#ffffff",
+        },
+        text: "{letra}",
+      },
+    ],
+  };
+}
+
+export function ThemesTab() {
+  const themes = useSlideThemesStore((s) => s.themes);
+  const bindings = useSlideThemesStore((s) => s.bindings);
+  const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
+  const ensureSeeded = useSlideThemesStore((s) => s.ensureSeeded);
+  const save = useSlideThemesStore((s) => s.save);
+  const remove = useSlideThemesStore((s) => s.remove);
+  const setBinding = useSlideThemesStore((s) => s.setBinding);
+  const setStageTheme = useSlideThemesStore((s) => s.setStageTheme);
+
+  const [sampleAsset, setSampleAsset] = useState<ThemeAsset>("music");
+  const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<SlideTheme | null>(null);
+  const [renaming, setRenaming] = useState<SlideTheme | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
+
+  useEffect(() => {
+    ensureSeeded().catch((e: unknown) =>
+      setError(e instanceof Error ? e.message : "Falha ao carregar temas"),
+    );
+  }, [ensureSeeded]);
+
+  async function handleCreate() {
+    setError(null);
+    try {
+      await save(newBlankTheme(`Novo tema ${themes.length + 1}`));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Falha ao criar tema");
+    }
   }
 
-  const currentMeta = PRESET_METAS[current.id] || {
-    title: current.id,
-    category: current.kind,
-    previewStyle:
-      current.kind === "color"
-        ? { backgroundColor: current.value }
-        : current.kind === "css"
-          ? { background: current.value }
-          : {},
-  };
+  async function handleDuplicate(theme: SlideTheme) {
+    setError(null);
+    try {
+      await save({
+        ...theme,
+        guid: crypto.randomUUID(),
+        title: `${theme.title} (cópia)`,
+        elements: theme.elements.map((el) => ({ ...el, css: { ...el.css } })),
+      });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Falha ao duplicar tema");
+    }
+  }
+
+  async function handleDelete() {
+    if (confirmDelete === null) return;
+    setError(null);
+    try {
+      await remove(confirmDelete.guid);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Falha ao excluir tema");
+    }
+    setConfirmDelete(null);
+  }
+
+  async function handleRename() {
+    if (renaming === null) return;
+    const title = renameTitle.trim();
+    if (title === "") return;
+    setError(null);
+    try {
+      await save({ ...renaming, title });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Falha ao renomear tema");
+    }
+    setRenaming(null);
+  }
+
+  const sample = SAMPLES[sampleAsset];
 
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
       <div>
         <h3 className="text-base font-semibold tracking-tight text-foreground">
-          Temas (Fundos de Projeção)
+          Temas de Slide
         </h3>
         <p className="text-sm text-muted-foreground">
-          Selecione o plano de fundo padrão aplicado à projeção ao vivo de letras, músicas e bíblia.
+          Galeria de temas do telão e do retorno de palco. Vincule um tema a
+          cada tipo de conteúdo e saída.
         </p>
       </div>
 
-      {/* Live Preview Box with Sample Slide */}
-      <div className="flex flex-col gap-2 rounded-xl border border-border/80 bg-muted/30 p-4">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-foreground">
-            Pré-visualização do Tema Ao Vivo
-          </span>
-          <Badge variant="outline" className="text-[10px] text-primary">
-            {currentMeta.title} · {currentMeta.category}
-          </Badge>
-        </div>
+      {error !== null && <p className="text-sm text-destructive">{error}</p>}
 
-        <div
-          className="relative flex h-36 w-full items-center justify-center overflow-hidden rounded-lg border border-border shadow-inner"
-          style={currentMeta.previewStyle}
-        >
-          {current.kind === "isf" && (
-            <div className="isf-fallback absolute inset-0 opacity-80" />
-          )}
-          <div className="relative z-10 max-w-md px-6 text-center text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
-            <p className="text-xs font-medium uppercase tracking-widest text-zinc-300">
-              Santo, Santo, Santo
-            </p>
-            <p className="mt-1 font-bold text-lg leading-snug">
-              Deus Todo-Poderoso, digno de louvor
-            </p>
-          </div>
+      {/* Bindings */}
+      <div className="flex flex-col gap-3">
+        <label className="text-xs font-semibold text-foreground">
+          Vinculação por saída e tipo
+        </label>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {BINDING_ROWS.map((row) => {
+            const current = bindings.find(
+              (b) => b.target === row.target && b.asset === row.asset,
+            )?.themeGuid;
+            return (
+              <div key={`${row.target}:${row.asset}`} className="flex flex-col gap-1">
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  {row.label}
+                </span>
+                <Select
+                  value={current ?? ""}
+                  onValueChange={(guid) => setBinding(row.target, row.asset, guid)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione um tema" />
+                  </SelectTrigger>
+                  <SelectContent position="popper">
+                    {themes.map((theme) => (
+                      <SelectItem key={theme.guid} value={theme.guid}>
+                        {theme.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          })}
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-[11px] font-medium text-muted-foreground">
+            Tema de retorno (palco)
+          </span>
+          <Select
+            value={stageThemeGuid ?? "none"}
+            onValueChange={(value) =>
+              setStageTheme(value === "none" ? null : value)
+            }
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Padrão (sem tema)" />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              <SelectItem value="none">Padrão (sem tema)</SelectItem>
+              {themes.map((theme) => (
+                <SelectItem key={theme.guid} value={theme.guid}>
+                  {theme.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      {/* Preset Gallery */}
-      <div className="flex flex-col gap-3">
+      {/* Gallery header */}
+      <div className="flex items-center justify-between gap-2">
         <label className="text-xs font-semibold text-foreground">
-          Galeria de Temas Disponíveis
+          Galeria de temas
         </label>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {presets.map((preset) => {
-            const isSelected = current.id === preset.id;
-            const meta = PRESET_METAS[preset.id] || {
-              title: preset.id.replace("bg-", ""),
-              category: preset.kind,
-              previewStyle:
-                preset.kind === "color"
-                  ? { backgroundColor: preset.value }
-                  : { background: preset.value },
-            };
+        <div className="flex items-center gap-2">
+          <Select
+            value={sampleAsset}
+            onValueChange={(value) => setSampleAsset(value as ThemeAsset)}
+          >
+            <SelectTrigger size="sm" className="w-32">
+              <SelectValue placeholder="Amostra" />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              {(Object.keys(SAMPLES) as ThemeAsset[]).map((asset) => (
+                <SelectItem key={asset} value={asset}>
+                  {SAMPLES[asset].label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="sm" onClick={() => void handleCreate()}>
+            <Plus className="size-3.5" />
+            Novo tema
+          </Button>
+        </div>
+      </div>
 
+      {/* Gallery */}
+      {themes.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Nenhum tema encontrado. Crie um novo tema para começar.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {themes.map((theme) => {
+            const usedBy = bindings
+              .filter((b) => b.themeGuid === theme.guid)
+              .map((b) => bindingLabel(b.target, b.asset));
+            const isStage = stageThemeGuid === theme.guid;
             return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => handleSelectTheme(preset)}
-                className={`group relative flex items-center gap-3.5 rounded-xl border p-3 text-left transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                  isSelected
-                    ? "border-primary bg-primary/5 ring-1 ring-primary shadow-2xs"
-                    : "border-border bg-card/60 hover:border-zinc-400 hover:bg-accent/40 dark:hover:border-zinc-700"
-                }`}
+              <div
+                key={theme.guid}
+                className="flex flex-col gap-2 rounded-xl border border-border bg-card/60 p-3"
               >
-                {/* Visual Thumbnail */}
                 <div
-                  className="relative size-14 shrink-0 overflow-hidden rounded-lg border border-border shadow-xs"
-                  style={meta.previewStyle}
+                  className="relative h-44 w-full overflow-hidden rounded-lg border border-border"
+                  style={theme.css as CSSProperties}
                 >
-                  {preset.kind === "isf" && (
-                    <div className="isf-fallback absolute inset-0" />
+                  <div className="absolute inset-0" style={{ zoom: 0.45 }}>
+                    <ThemeRenderer
+                      theme={theme}
+                      asset={sampleAsset}
+                      props={sample.props}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <p className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
+                    {theme.title}
+                  </p>
+                  {isStage && (
+                    <Badge variant="outline" className="text-[9px]">
+                      Retorno
+                    </Badge>
                   )}
                 </div>
-
-                {/* Metadata */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate font-semibold text-xs text-foreground">
-                      {meta.title}
-                    </p>
-                    {isSelected && (
+                {usedBy.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {usedBy.map((label) => (
                       <Badge
+                        key={label}
                         variant="default"
                         className="h-4 gap-1 px-1.5 text-[9px] font-semibold"
                       >
                         <Check className="size-2.5" />
-                        Ao Vivo
+                        {label}
                       </Badge>
-                    )}
+                    ))}
                   </div>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {meta.category}
-                  </p>
+                )}
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Renomear ${theme.title}`}
+                    onClick={() => {
+                      setRenaming(theme);
+                      setRenameTitle(theme.title);
+                    }}
+                  >
+                    <Pencil className="size-3.5" />
+                    Renomear
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Duplicar ${theme.title}`}
+                    onClick={() => void handleDuplicate(theme)}
+                  >
+                    <Copy className="size-3.5" />
+                    Duplicar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Excluir ${theme.title}`}
+                    onClick={() => setConfirmDelete(theme)}
+                  >
+                    <Trash2 className="size-3.5" />
+                    Excluir
+                  </Button>
                 </div>
-
-                <div className="shrink-0 text-muted-foreground/40 group-hover:text-muted-foreground">
-                  <Sparkles className="size-4" />
-                </div>
-              </button>
+              </div>
             );
           })}
         </div>
-      </div>
+      )}
+
+      {/* Delete confirm */}
+      <Dialog
+        open={confirmDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDelete(null);
+        }}
+      >
+        <DialogContent aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Excluir tema</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Excluir “{confirmDelete?.title}”? As vinculações que usam este tema
+            serão removidas.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={() => void handleDelete()}>
+              Excluir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename */}
+      <Dialog
+        open={renaming !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenaming(null);
+        }}
+      >
+        <DialogContent aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>Renomear tema</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameTitle}
+            placeholder="Título do tema"
+            aria-label="Título do tema"
+            onChange={(e) => setRenameTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleRename();
+            }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenaming(null)}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={renameTitle.trim() === ""}
+              onClick={() => void handleRename()}
+            >
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
