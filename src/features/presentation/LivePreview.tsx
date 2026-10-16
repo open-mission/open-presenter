@@ -279,7 +279,7 @@ export function LivePreview() {
             <Badge
               variant="secondary"
               className="h-4 px-1.5 text-[9px] font-semibold bg-sky-500/15 text-sky-500 border-sky-500/30 cursor-pointer"
-              onClick={() => openPreferences("stage")}
+              onClick={() => openPreferences("outputs", "stage")}
               title="Clique para configurar a Tela de Retorno"
             >
               {stageConfig.mode === "native"
@@ -300,7 +300,7 @@ export function LivePreview() {
             <span className="truncate">Retorno dos músicos no palco</span>
             <button
               type="button"
-              onClick={() => openPreferences("stage")}
+              onClick={() => openPreferences("outputs", "stage")}
               className="text-[9px] text-sky-500 hover:underline"
             >
               Configurar

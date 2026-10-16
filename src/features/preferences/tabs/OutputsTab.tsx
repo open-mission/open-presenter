@@ -30,10 +30,14 @@ import type {
 } from "@/core/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getConnectedClients } from "@/core/ipc/commands";
 import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
+import { usePreferencesStore } from "@/features/preferences/store";
+import type { OutputsSection } from "@/features/preferences/types";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { StageTab } from "./StageTab";
 
 const TARGET_LABEL: Record<OutputTarget, string> = {
   public: "Projeção Pública",
@@ -243,7 +247,7 @@ function TargetCard({
       </div>
 
       {/* Web URL & Share Bar */}
-      <div className="mt-4 flex flex-col gap-1.5 rounded-lg border border-border/60 bg-muted/20 p-3">
+      <div className="mt-4 flex min-w-0 flex-col gap-1.5 rounded-lg border border-border/60 bg-muted/20 p-3">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-medium text-muted-foreground">
             Endereço Web Local (OBS / Celulares / Tablets)
@@ -252,13 +256,13 @@ function TargetCard({
             porta {port}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <div
-            className={`flex h-8 flex-1 items-center rounded-md border border-input bg-background/80 px-2.5 font-mono text-xs text-foreground select-all ${
+            className={`flex h-8 min-w-0 flex-1 items-center rounded-md border border-input bg-background/80 px-2.5 font-mono text-xs text-foreground select-all ${
               serverRunning ? "" : "opacity-50"
             }`}
           >
-            <span className="truncate">{currentUrl}</span>
+            <span className="min-w-0 truncate">{currentUrl}</span>
           </div>
           <Button
             type="button"
@@ -450,42 +454,44 @@ function ServerSection() {
         </p>
       )}
 
-      <div className={`flex flex-col gap-1.5 ${server.running ? "" : "opacity-50"}`}>
+      <div className={`flex min-w-0 flex-col gap-2 ${server.running ? "" : "opacity-50"}`}>
         {[
           { label: "Projeção pública", url: publicUrl },
           { label: "Retorno de palco", url: stageUrl },
         ].map((item) => (
-          <div key={item.url} className="flex items-center gap-2">
-            <span className="w-32 shrink-0 text-[11px] font-medium text-muted-foreground">
+          <div key={item.url} className="flex min-w-0 flex-col gap-1">
+            <span className="text-[11px] font-medium text-muted-foreground">
               {item.label}
             </span>
-            <div className="flex h-8 flex-1 items-center rounded-md border border-input bg-background/80 px-2.5 font-mono text-xs text-foreground select-all">
-              <span className="truncate">{item.url}</span>
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="flex h-8 min-w-0 flex-1 items-center rounded-md border border-input bg-background/80 px-2.5 font-mono text-xs text-foreground select-all">
+                <span className="min-w-0 truncate">{item.url}</span>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
+                disabled={!server.running}
+                onClick={() => void navigator.clipboard.writeText(item.url)}
+                title={server.running ? "Copiar endereço" : "Servidor local parado"}
+              >
+                <Copy className="size-3.5" />
+                Copiar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
+                disabled={!server.running}
+                onClick={() => window.open(item.url, "_blank")}
+                title={server.running ? "Abrir no navegador" : "Servidor local parado"}
+              >
+                <ExternalLink className="size-3.5" />
+                Abrir
+              </Button>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5 px-2.5 text-xs"
-              disabled={!server.running}
-              onClick={() => void navigator.clipboard.writeText(item.url)}
-              title={server.running ? "Copiar endereço" : "Servidor local parado"}
-            >
-              <Copy className="size-3.5" />
-              Copiar
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="h-8 gap-1.5 px-2.5 text-xs"
-              disabled={!server.running}
-              onClick={() => window.open(item.url, "_blank")}
-              title={server.running ? "Abrir no navegador" : "Servidor local parado"}
-            >
-              <ExternalLink className="size-3.5" />
-              Abrir
-            </Button>
           </div>
         ))}
       </div>
@@ -651,6 +657,8 @@ export function OutputsTab() {
   const loaded = useOutputManagerStore((s) => s.loaded);
   const load = useOutputManagerStore((s) => s.load);
   const refreshRuntime = useOutputManagerStore((s) => s.refreshRuntime);
+  const section = usePreferencesStore((s) => s.outputsSection);
+  const setSection = usePreferencesStore((s) => s.setOutputsSection);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -761,30 +769,64 @@ export function OutputsTab() {
         )}
       </div>
 
-      {/* Target Output Cards Grid */}
-      <div className="flex flex-col gap-4">
-        <ServerSection />
+      {/* Telas em abas internas */}
+      <Tabs
+        value={section}
+        onValueChange={(v) => setSection(v as OutputsSection)}
+        className="flex flex-col gap-4"
+      >
+        <TabsList>
+          <TabsTrigger value="public">
+            <Tv />
+            Projeção Pública
+          </TabsTrigger>
+          <TabsTrigger value="stage">
+            <Projector />
+            Retorno de Palco
+          </TabsTrigger>
+          <TabsTrigger value="server">
+            <Server />
+            Servidor
+          </TabsTrigger>
+          <TabsTrigger value="devices">
+            <Smartphone />
+            Dispositivos
+          </TabsTrigger>
+        </TabsList>
 
-        <TargetCard
-          target="public"
-          title="Projeção Pública (Telão)"
-          subtitle="Saída principal enviada aos projetores com slides, bíblia e fundos animados."
-          icon={Tv}
-          webPath="/public"
-          monitors={monitors}
-        />
+        <TabsContent value="public">
+          <TargetCard
+            target="public"
+            title="Projeção Pública (Telão)"
+            subtitle="Saída principal enviada aos projetores com slides, bíblia e fundos animados."
+            icon={Tv}
+            webPath="/public"
+            monitors={monitors}
+          />
+        </TabsContent>
 
-        <TargetCard
-          target="stage"
-          title="Retorno de Palco (Stage Display)"
-          subtitle="Saída para a banda e pastores com relógio, próximo slide e alertas de ministração."
-          icon={Projector}
-          webPath="/stage"
-          monitors={monitors}
-        />
+        <TabsContent value="stage">
+          <div className="flex flex-col gap-4">
+            <TargetCard
+              target="stage"
+              title="Retorno de Palco (Stage Display)"
+              subtitle="Saída para a banda e pastores com relógio, próximo slide e alertas de ministração."
+              icon={Projector}
+              webPath="/stage"
+              monitors={monitors}
+            />
+            <StageTab />
+          </div>
+        </TabsContent>
 
-        <DevicesSection />
-      </div>
+        <TabsContent value="server">
+          <ServerSection />
+        </TabsContent>
+
+        <TabsContent value="devices">
+          <DevicesSection />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

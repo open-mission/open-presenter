@@ -16,7 +16,9 @@ export function useOutputsSync(): void {
       if (disposed) return;
       const apply = (list: OutputRuntime[]) => {
         if (disposed) return;
-        useOutputManagerStore.getState().applyRuntime(list);
+        const store = useOutputManagerStore.getState();
+        store.applyRuntime(list);
+        void store.refreshConfigsAndServer();
       };
       unsubSync = syncBus.subscribe<OutputRuntime[]>(
         TAURI_EVENTS.outputs,

@@ -12,7 +12,6 @@ import type { PreferencesTab } from "./types";
 import { AppearanceTab } from "./tabs/AppearanceTab";
 import { GeneralTab } from "./tabs/GeneralTab";
 import { OutputsTab } from "./tabs/OutputsTab";
-import { StageTab } from "./tabs/StageTab";
 import { ThemesTab } from "./tabs/ThemesTab";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { listenCommand } from "@/core/ipc/tauri";
@@ -34,15 +33,9 @@ const NAV_ITEMS: NavItemConfig[] = [
   },
   {
     id: "outputs",
-    label: "Saídas (telas)",
-    breadcrumb: "Saídas (telas)",
+    label: "Saídas",
+    breadcrumb: "Saídas",
     icon: Monitor,
-  },
-  {
-    id: "stage",
-    label: "Tela de Retorno",
-    breadcrumb: "Tela de Retorno (Stage)",
-    icon: SlidersHorizontal,
   },
   {
     id: "themes",
@@ -167,7 +160,7 @@ export function PreferencesDialog() {
         </aside>
 
         {/* Right Content Area */}
-        <div className="flex flex-1 flex-col overflow-hidden bg-background">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background">
           {/* Header Bar */}
           <div className="flex h-14 items-center justify-between border-b border-border/60 px-6">
             {/* Breadcrumb */}
@@ -191,11 +184,10 @@ export function PreferencesDialog() {
           </div>
 
           {/* Content Body */}
-          <ScrollArea className="flex-1 p-6">
-            <div className="max-w-3xl pb-6">
+          <ScrollArea className="min-h-0 min-w-0 flex-1 p-6">
+            <div className="mx-auto w-full max-w-3xl pb-6">
               {activeTab === "appearance" && <AppearanceTab />}
               {activeTab === "outputs" && <OutputsTab />}
-              {activeTab === "stage" && <StageTab />}
               {activeTab === "themes" && <ThemesTab />}
               {activeTab === "general" && <GeneralTab />}
             </div>
