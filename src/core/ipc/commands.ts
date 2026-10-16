@@ -8,6 +8,7 @@ import type {
   OutputConfig,
   OutputRuntime,
   OutputTarget,
+  ServerStatus,
   ServiceEvent,
   SlideTheme,
   Song,
@@ -86,6 +87,22 @@ export async function fetchLiveThemes(): Promise<LiveThemes | null> {
 
 export async function fetchServerHost(): Promise<string> {
   return (await invokeCommand<string>("get_server_host")) ?? "localhost";
+}
+
+export async function getServerStatus(): Promise<ServerStatus | null> {
+  return invokeCommand<ServerStatus>("get_server_status");
+}
+
+export async function setServerPort(port: number): Promise<ServerStatus> {
+  return invokeStrict<ServerStatus>("set_server_port", { port });
+}
+
+export async function stopServer(): Promise<ServerStatus> {
+  return invokeStrict<ServerStatus>("stop_server");
+}
+
+export async function startServer(): Promise<ServerStatus> {
+  return invokeStrict<ServerStatus>("start_server");
 }
 
 export async function listSongs(query?: string): Promise<SongSummary[]> {

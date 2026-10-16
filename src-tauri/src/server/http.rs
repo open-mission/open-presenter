@@ -16,13 +16,47 @@ use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::services::SharedBroadcaster;
-use crate::state::types::{OUTPUT_HTTP_PORT, WS_PATH};
+use crate::state::types::{ServerStatus, WS_PATH};
 
 #[derive(Debug, Clone)]
 pub struct ServerState {
     pub broadcaster: SharedBroadcaster,
     pub ws_tx: broadcast::Sender<String>,
     pub media_dir: PathBuf,
+}
+
+/// Controle de ciclo de vida do servidor local de saídas.
+/// Guardado como `Mutex<ServerControl>` no estado gerenciado do Tauri.
+pub struct ServerControl {
+    pub port: u16,
+    pub running: bool,
+    pub handle: Option<tokio::task::JoinHandle<()>>,
+    pub state: Option<ServerState>,
+}
+
+impl ServerControl {
+    pub fn stopped(port: u16, state: ServerState) -> Self {
+        Self {
+            port,
+            running: false,
+            handle: None,
+            state: Some(state),
+        }
+    }
+
+    pub fn status(&self) -> ServerStatus {
+        ServerStatus {
+            running: self.running,
+            port: self.port,
+        }
+    }
+
+    pub fn stop(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            handle.abort();
+        }
+        self.running = false;
+    }
 }
 
 use rust_embed::RustEmbed;
@@ -157,15 +191,21 @@ async fn static_handler(uri: axum::http::Uri) -> impl IntoResponse {
         .into_response()
 }
 
-pub async fn serve(state: ServerState) {
+pub async fn bind(port: u16) -> Result<tokio::net::TcpListener, String> {
+    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], port));
+    tokio::net::TcpListener::bind(addr)
+        .await
+        .map_err(|err| format!("porta {port} indisponível ({err})"))
+}
+
+pub fn spawn_with_listener(
+    state: ServerState,
+    listener: tokio::net::TcpListener,
+) -> tokio::task::JoinHandle<()> {
     let app = router(state);
-    let addr = std::net::SocketAddr::from(([0, 0, 0, 0], OUTPUT_HTTP_PORT));
-    tracing::info!(port = OUTPUT_HTTP_PORT, "servidor de saídas escutando");
-    if let Ok(listener) = tokio::net::TcpListener::bind(addr).await {
+    tokio::spawn(async move {
         if let Err(err) = axum::serve(listener, app).await {
             tracing::error!(error = %err, "servidor de saídas encerrou com erro");
         }
-    } else {
-        tracing::error!(port = OUTPUT_HTTP_PORT, "porta do servidor de saídas indisponível");
-    }
+    })
 }

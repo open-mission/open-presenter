@@ -1,13 +1,17 @@
 import { create } from "zustand";
-import { outputHttpUrl } from "@/core/config/app";
+import { OUTPUT_HTTP_PORT, outputHttpUrl } from "@/core/config/app";
 import {
   closeOutputWindow,
   fetchServerHost,
   getOutputConfig,
   getOutputsState,
+  getServerStatus,
   listMonitors,
   openOutputWindow,
   setOutputConfig,
+  setServerPort,
+  startServer,
+  stopServer,
 } from "@/core/ipc/commands";
 import type {
   MonitorInfo,
@@ -15,6 +19,7 @@ import type {
   OutputMode,
   OutputRuntime,
   OutputTarget,
+  ServerStatus,
 } from "@/core/types";
 
 function webPathFor(target: OutputTarget): "/public" | "/stage" {
@@ -40,15 +45,21 @@ interface OutputManagerState {
   runtime: Record<OutputTarget, OutputRuntime>;
   monitors: MonitorInfo[];
   host: string;
+  server: ServerStatus;
   loaded: boolean;
   lastMode: Record<OutputTarget, Exclude<OutputMode, "off">>;
   setMonitors(monitors: MonitorInfo[]): void;
   setHost(host: string): void;
   applyRuntime(runtime: OutputRuntime[]): void;
+  applyServer(server: ServerStatus): void;
   load(): Promise<void>;
   setMode(target: OutputTarget, mode: OutputMode): Promise<void>;
   setMonitor(target: OutputTarget, monitorId: string | null): Promise<void>;
   toggle(target: OutputTarget): Promise<void>;
+  setPort(port: number): Promise<void>;
+  stopLocalServer(): Promise<void>;
+  startLocalServer(): Promise<void>;
+  restartLocalServer(): Promise<void>;
 }
 
 export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
@@ -56,10 +67,12 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
   runtime: { public: offRuntime("public"), stage: offRuntime("stage") },
   monitors: [],
   host: "localhost",
+  server: { running: true, port: OUTPUT_HTTP_PORT },
   loaded: false,
   lastMode: { public: "native", stage: "native" },
   setMonitors: (monitors) => set({ monitors }),
   setHost: (host) => set({ host }),
+  applyServer: (server) => set({ server }),
   applyRuntime: (list) =>
     set((s) => {
       const runtime = { ...s.runtime };
@@ -73,14 +86,20 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
       return { runtime };
     }),
   load: async () => {
-    const [host, monitors, publicConfig, stageConfig, state] =
+    const [host, monitors, publicConfig, stageConfig, state, server] =
       await Promise.all([
         fetchServerHost(),
         listMonitors(),
         getOutputConfig("public"),
         getOutputConfig("stage"),
         getOutputsState(),
+        getServerStatus(),
       ]);
+    const webPort =
+      server?.port ??
+      (typeof window !== "undefined" && window.location.port
+        ? Number(window.location.port) || OUTPUT_HTTP_PORT
+        : OUTPUT_HTTP_PORT);
     set((s) => {
       const runtime = { ...s.runtime };
       for (const item of state) {
@@ -103,18 +122,19 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
         runtime,
         monitors: monitors ?? s.monitors,
         host: host ?? s.host,
+        server: server ?? { running: true, port: webPort },
         loaded: true,
         lastMode,
       };
     });
   },
   setMode: async (target, mode) => {
-    const { configs, host } = get();
+    const { configs, host, server } = get();
     const next: OutputConfig = {
       ...configs[target],
       target,
       mode,
-      url: mode === "off" ? null : outputHttpUrl(host, webPathFor(target)),
+      url: mode === "off" ? null : outputHttpUrl(host, server.port, webPathFor(target)),
     };
     await setOutputConfig(next);
     set((s) => ({
@@ -153,5 +173,18 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
       return;
     }
     await get().setMode(target, "off");
+  },
+  setPort: async (port) => {
+    set({ server: await setServerPort(port) });
+  },
+  stopLocalServer: async () => {
+    set({ server: await stopServer() });
+  },
+  startLocalServer: async () => {
+    set({ server: await startServer() });
+  },
+  restartLocalServer: async () => {
+    await get().stopLocalServer();
+    await get().startLocalServer();
   },
 }));

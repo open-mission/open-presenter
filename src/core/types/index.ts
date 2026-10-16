@@ -55,6 +55,11 @@ export interface OutputRuntime {
   monitorId: string | null;
 }
 
+export interface ServerStatus {
+  running: boolean;
+  port: number;
+}
+
 export type StageAlertLevel = "info" | "warning" | "urgent";
 
 export interface StageMessage {

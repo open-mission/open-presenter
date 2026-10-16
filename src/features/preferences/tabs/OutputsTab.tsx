@@ -8,11 +8,15 @@ import {
   Monitor,
   MonitorUp,
   Palette,
+  Play,
   Power,
   PowerOff,
   Projector,
   Radio,
   RefreshCw,
+  RotateCcw,
+  Server,
+  Square,
   TriangleAlert,
   Tv,
 } from "lucide-react";
@@ -55,6 +59,8 @@ function TargetCard({
   const config = useOutputManagerStore((s) => s.configs[target]);
   const live = useOutputManagerStore((s) => s.runtime[target]);
   const host = useOutputManagerStore((s) => s.host);
+  const port = useOutputManagerStore((s) => s.server.port);
+  const serverRunning = useOutputManagerStore((s) => s.server.running);
   const setMode = useOutputManagerStore((s) => s.setMode);
   const setMonitor = useOutputManagerStore((s) => s.setMonitor);
   const toggle = useOutputManagerStore((s) => s.toggle);
@@ -73,7 +79,7 @@ function TargetCard({
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const currentUrl = outputHttpUrl(host, webPath);
+  const currentUrl = outputHttpUrl(host, port, webPath);
   const powered = config.mode !== "off";
   const active =
     powered && (config.mode === "web" || live.open);
@@ -237,11 +243,15 @@ function TargetCard({
             Endereço Web Local (OBS / Celulares / Tablets)
           </span>
           <span className="font-mono text-[10px] text-muted-foreground">
-            porta 5050
+            porta {port}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex h-8 flex-1 items-center rounded-md border border-input bg-background/80 px-2.5 font-mono text-xs text-foreground select-all">
+          <div
+            className={`flex h-8 flex-1 items-center rounded-md border border-input bg-background/80 px-2.5 font-mono text-xs text-foreground select-all ${
+              serverRunning ? "" : "opacity-50"
+            }`}
+          >
             <span className="truncate">{currentUrl}</span>
           </div>
           <Button
@@ -250,6 +260,8 @@ function TargetCard({
             variant="outline"
             className="h-8 gap-1.5 px-2.5 text-xs"
             onClick={handleCopyUrl}
+            disabled={!serverRunning}
+            title={serverRunning ? "Copiar endereço" : "Servidor local parado"}
           >
             {copied ? (
               <>
@@ -269,6 +281,8 @@ function TargetCard({
             variant="secondary"
             className="h-8 gap-1.5 px-2.5 text-xs"
             onClick={handleOpenUrl}
+            disabled={!serverRunning}
+            title={serverRunning ? "Abrir no navegador" : "Servidor local parado"}
           >
             <ExternalLink className="size-3.5" />
             Abrir
@@ -288,10 +302,196 @@ function TargetCard({
   );
 }
 
+function ServerSection() {
+  const host = useOutputManagerStore((s) => s.host);
+  const server = useOutputManagerStore((s) => s.server);
+  const setPort = useOutputManagerStore((s) => s.setPort);
+  const stopLocalServer = useOutputManagerStore((s) => s.stopLocalServer);
+  const startLocalServer = useOutputManagerStore((s) => s.startLocalServer);
+  const restartLocalServer = useOutputManagerStore((s) => s.restartLocalServer);
+
+  const [portInput, setPortInput] = useState(String(server.port));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPortInput(String(server.port));
+  }, [server.port]);
+
+  const publicUrl = outputHttpUrl(host, server.port, "/public");
+  const stageUrl = outputHttpUrl(host, server.port, "/stage");
+
+  async function run(action: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleApplyPort() {
+    const port = Number(portInput);
+    if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+      setError("Porta inválida — use um número entre 1024 e 65535.");
+      return;
+    }
+    void run(() => setPort(port));
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-card p-5 shadow-2xs">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Server className="size-5" />
+          </div>
+          <div>
+            <h4 className="font-semibold text-sm text-foreground">Servidor local</h4>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Serve as saídas web (OBS, celulares, tablets) na rede local.
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs">
+          <span
+            className={`size-2 rounded-full ${
+              server.running ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"
+            }`}
+          />
+          <span className="font-medium capitalize text-[11px] text-foreground">
+            {server.running ? `Ativo · ${host}:${server.port}` : "Parado"}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-foreground" htmlFor="server-port">
+            Porta
+          </label>
+          <input
+            id="server-port"
+            type="number"
+            min={1024}
+            max={65535}
+            value={portInput}
+            disabled={busy}
+            onChange={(e) => setPortInput(e.target.value)}
+            className="h-8 w-28 rounded-md border border-input bg-background px-2.5 font-mono text-xs text-foreground shadow-2xs outline-none focus:ring-1 focus:ring-ring"
+          />
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="h-8 gap-1.5 text-xs"
+          onClick={handleApplyPort}
+          disabled={busy}
+          title="Salvar a porta e reiniciar o servidor"
+        >
+          <Check className="size-3.5" />
+          Aplicar porta
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1.5 text-xs"
+          onClick={() => void run(() => restartLocalServer())}
+          disabled={busy || !server.running}
+          title="Reiniciar o servidor local"
+        >
+          <RotateCcw className={`size-3.5 ${busy ? "animate-spin" : ""}`} />
+          Reiniciar
+        </Button>
+        {server.running ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => void run(() => stopLocalServer())}
+            disabled={busy}
+            title="Parar o servidor local"
+          >
+            <Square className="size-3.5" />
+            Parar
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => void run(() => startLocalServer())}
+            disabled={busy}
+            title="Iniciar o servidor local"
+          >
+            <Play className="size-3.5" />
+            Iniciar
+          </Button>
+        )}
+      </div>
+
+      {error && (
+        <p className="flex items-center gap-1.5 text-[11px] text-red-600 dark:text-red-500">
+          <TriangleAlert className="size-3.5 shrink-0" />
+          {error}
+        </p>
+      )}
+
+      <div className={`flex flex-col gap-1.5 ${server.running ? "" : "opacity-50"}`}>
+        {[
+          { label: "Projeção pública", url: publicUrl },
+          { label: "Retorno de palco", url: stageUrl },
+        ].map((item) => (
+          <div key={item.url} className="flex items-center gap-2">
+            <span className="w-32 shrink-0 text-[11px] font-medium text-muted-foreground">
+              {item.label}
+            </span>
+            <div className="flex h-8 flex-1 items-center rounded-md border border-input bg-background/80 px-2.5 font-mono text-xs text-foreground select-all">
+              <span className="truncate">{item.url}</span>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 px-2.5 text-xs"
+              disabled={!server.running}
+              onClick={() => void navigator.clipboard.writeText(item.url)}
+              title={server.running ? "Copiar endereço" : "Servidor local parado"}
+            >
+              <Copy className="size-3.5" />
+              Copiar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-8 gap-1.5 px-2.5 text-xs"
+              disabled={!server.running}
+              onClick={() => window.open(item.url, "_blank")}
+              title={server.running ? "Abrir no navegador" : "Servidor local parado"}
+            >
+              <ExternalLink className="size-3.5" />
+              Abrir
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function OutputsTab() {
   const monitors = useOutputManagerStore((s) => s.monitors);
   const runtime = useOutputManagerStore((s) => s.runtime);
   const host = useOutputManagerStore((s) => s.host);
+  const port = useOutputManagerStore((s) => s.server.port);
   const loaded = useOutputManagerStore((s) => s.loaded);
   const load = useOutputManagerStore((s) => s.load);
 
@@ -344,7 +544,7 @@ export function OutputsTab() {
             Monitores Físicos Detectados ({monitors.length})
           </span>
           <span className="text-[11px] text-muted-foreground">
-            Servidor Local: <code className="font-mono">{host}:5050</code>
+            Servidor Local: <code className="font-mono">{host}:{port}</code>
           </span>
         </div>
 
@@ -405,6 +605,8 @@ export function OutputsTab() {
 
       {/* Target Output Cards Grid */}
       <div className="flex flex-col gap-4">
+        <ServerSection />
+
         <TargetCard
           target="public"
           title="Projeção Pública (Telão)"

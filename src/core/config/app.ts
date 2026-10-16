@@ -17,10 +17,10 @@ export const TAURI_EVENTS = {
   themesChanged: "themes://changed",
 } as const;
 
-export function outputHttpUrl(host: string, path: "/public" | "/stage"): string {
-  return `http://${host}:${OUTPUT_HTTP_PORT}/#${path}`;
+export function outputHttpUrl(host: string, port: number, path: "/public" | "/stage"): string {
+  return `http://${host}:${port}/#${path}`;
 }
 
-export function outputWsUrl(host: string): string {
-  return `ws://${host}:${OUTPUT_HTTP_PORT}${WS_PATH}`;
+export function outputWsUrl(host: string, port: number): string {
+  return `ws://${host}:${port}${WS_PATH}`;
 }

@@ -28,6 +28,7 @@ import type { StageAlertLevel, StageMessage } from "@/core/types";
 
 export function StageTab() {
   const host = useOutputManagerStore((s) => s.host);
+  const port = useOutputManagerStore((s) => s.server.port);
   const setHost = useOutputManagerStore((s) => s.setHost);
   const stageOutput = useOutputManagerStore((s) => s.configs.stage);
 
@@ -58,7 +59,7 @@ export function StageTab() {
     }
   }, [host, setHost]);
 
-  const stageUrl = outputHttpUrl(host, "/stage");
+  const stageUrl = outputHttpUrl(host, port, "/stage");
 
   function handleCopy() {
     void navigator.clipboard.writeText(stageUrl);

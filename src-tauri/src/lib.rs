@@ -109,6 +109,14 @@ pub fn run() {
                 database::migrate(&conn)?;
                 Ok(conn)
             })?;
+            let port = crate::commands::server::parse_port(
+                conn.query_row(
+                    "SELECT value FROM settings WHERE key = 'server.port'",
+                    [],
+                    |r| r.get::<_, String>(0),
+                )
+                .ok(),
+            );
             app.manage(database::Db(std::sync::Mutex::new(conn)));
 
             let media_dir = crate::services::theme_media::media_base_dir(&handle)
@@ -118,7 +126,38 @@ pub fn run() {
                 ws_tx,
                 media_dir,
             };
-            tauri::async_runtime::spawn(crate::server::serve(server_state));
+            app.manage(std::sync::Mutex::new(
+                crate::server::ServerControl::stopped(port, server_state),
+            ));
+            let server_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                use tauri::Manager;
+                let control = server_handle.state::<std::sync::Mutex<crate::server::ServerControl>>();
+                let state = control
+                    .lock()
+                    .ok()
+                    .and_then(|guard| guard.state.clone());
+                let Some(state) = state else {
+                    return;
+                };
+                match crate::server::bind(port).await {
+                    Ok(listener) => {
+                        tracing::info!(port, "servidor de saídas escutando");
+                        let handle =
+                            crate::server::spawn_with_listener(state, listener);
+                        if let Ok(mut guard) = control.lock() {
+                            guard.handle = Some(handle);
+                            guard.running = true;
+                        }
+                    }
+                    Err(err) => {
+                        tracing::error!(
+                            %err,
+                            "porta do servidor de saídas indisponível; seguindo sem servidor local"
+                        );
+                    }
+                }
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -131,6 +170,10 @@ pub fn run() {
             commands::outputs::get_output_config,
             commands::outputs::set_output_config,
             commands::outputs::get_outputs_state,
+            commands::server::get_server_status,
+            commands::server::set_server_port,
+            commands::server::stop_server,
+            commands::server::start_server,
             commands::presentation::go_live,
             commands::presentation::set_blackout,
             commands::presentation::get_live_slide,

@@ -1,3 +1,3 @@
 pub mod http;
 
-pub use http::{router, serve, ServerState};
+pub use http::{bind, router, spawn_with_listener, ServerControl, ServerState};

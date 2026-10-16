@@ -44,6 +44,7 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
   const publicRuntime = useOutputManagerStore((s) => s.runtime.public);
   const stageRuntime = useOutputManagerStore((s) => s.runtime.stage);
   const host = useOutputManagerStore((s) => s.host);
+  const port = useOutputManagerStore((s) => s.server.port);
 
   const publicActive =
     publicConfig.mode !== "off" &&
@@ -56,14 +57,14 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
     "Público",
     publicConfig.mode,
     publicConfig.monitorLabel,
-    outputHttpUrl(host, "/public"),
+    outputHttpUrl(host, port, "/public"),
     publicActive,
   );
   const stageTitle = statusTitle(
     "Palco",
     stageConfig.mode,
     stageConfig.monitorLabel,
-    outputHttpUrl(host, "/stage"),
+    outputHttpUrl(host, port, "/stage"),
     stageActive,
   );
 

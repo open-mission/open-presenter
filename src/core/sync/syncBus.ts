@@ -1,4 +1,4 @@
-import { TAURI_EVENTS, outputWsUrl } from "../config/app";
+import { TAURI_EVENTS, WS_PATH } from "../config/app";
 import { isTauri, listenCommand } from "../ipc/tauri";
 
 export type SyncHandler<T> = (payload: T) => void;
@@ -41,8 +41,8 @@ function createSyncBus(): SyncBus {
       return;
     }
 
-    const host = window.location.hostname || "localhost";
-    socket = new WebSocket(outputWsUrl(host));
+    const proto = window.location.protocol === "https:" ? "wss" : "ws";
+    socket = new WebSocket(`${proto}://${window.location.host}${WS_PATH}`);
     socket.addEventListener("message", (event) => {
       try {
         const envelope = JSON.parse(String(event.data)) as {
