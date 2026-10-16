@@ -25,46 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ThemeRenderer } from "@/features/slide-themes/ThemeRenderer";
+import { SAMPLES } from "@/features/slide-themes/samples";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
-
-const SAMPLES: Record<ThemeAsset, { label: string; props: Record<string, string> }> = {
-  music: {
-    label: "Música",
-    props: {
-      titulo: "Santo, Santo, Santo",
-      artista: "Hinário",
-      letra: "Santo, santo, santo\nDeus Todo-Poderoso",
-      nextVerse: "Digno de louvor",
-      secao: "Refrão",
-      currentIndex: "0",
-      totalCount: "3",
-      "HH:MM": "10:30",
-    },
-  },
-  bible: {
-    label: "Bíblia",
-    props: {
-      titulo: "João 1:1",
-      verso: "No princípio era o Verbo, e o Verbo estava com Deus",
-      livro: "João",
-      capitulo: "1",
-      versiculo: "1",
-      versao: "ACF",
-      nextVerse: "",
-      "HH:MM": "10:30",
-    },
-  },
-  text: {
-    label: "Texto",
-    props: {
-      titulo: "Aviso",
-      texto: "Culto de domingo às 19h",
-      currentIndex: "0",
-      totalCount: "1",
-      "HH:MM": "10:30",
-    },
-  },
-};
 
 interface BindingRow {
   target: OutputTarget;
