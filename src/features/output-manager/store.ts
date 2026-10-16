@@ -22,6 +22,8 @@ import type {
   ServerStatus,
 } from "@/core/types";
 
+import { isOutputActive } from "./outputActive";
+
 function webPathFor(target: OutputTarget): "/public" | "/stage" {
   return target === "public" ? "/public" : "/stage";
 }
@@ -179,10 +181,13 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
     }
   },
   toggle: async (target) => {
-    const { configs, runtime, lastMode } = get();
+    const { configs, runtime, server, lastMode } = get();
     const mode = configs[target].mode;
-    const active =
-      mode !== "off" && (mode === "web" || runtime[target]?.open === true);
+    const active = isOutputActive(
+      mode,
+      runtime[target]?.open === true,
+      server.running,
+    );
     if (!active) {
       await get().setMode(target, mode === "off" ? lastMode[target] : mode);
       return;

@@ -10,6 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { kindToAsset } from "@/core/types";
+import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { usePreferencesStore } from "@/features/preferences/store";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
@@ -26,6 +27,7 @@ export function LivePreview() {
   const preview = usePresentationStore((s) => s.preview);
   const stageConfig = useOutputManagerStore((s) => s.configs.stage);
   const stageRuntime = useOutputManagerStore((s) => s.runtime.stage);
+  const serverRunning = useOutputManagerStore((s) => s.server.running);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
   const loadThemes = useSlideThemesStore((s) => s.load);
   const previewTheme = useSlideThemesStore((s) =>
@@ -39,9 +41,11 @@ export function LivePreview() {
     void loadThemes();
   }, [loadThemes]);
 
-  const stageActive =
-    stageConfig.mode !== "off" &&
-    (stageConfig.mode === "web" || stageRuntime.open);
+  const stageActive = isOutputActive(
+    stageConfig.mode,
+    stageRuntime.open,
+    serverRunning,
+  );
 
   // Build synthetic LiveSlide for Preview monitor
   const previewSlide: LiveSlide | null = preview

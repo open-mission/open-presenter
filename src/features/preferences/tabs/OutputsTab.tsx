@@ -31,6 +31,7 @@ import type {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getConnectedClients } from "@/core/ipc/commands";
+import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 
@@ -87,9 +88,7 @@ function TargetCard({
   const [busy, setBusy] = useState(false);
 
   const currentUrl = outputHttpUrl(host, port, webPath);
-  const powered = config.mode !== "off";
-  const active =
-    powered && (config.mode === "web" || live.open);
+  const active = isOutputActive(config.mode, live.open, serverRunning);
   const savedMissing =
     config.monitorId !== null &&
     !monitors.some((m) => m.id === config.monitorId);
