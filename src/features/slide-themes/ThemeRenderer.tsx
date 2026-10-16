@@ -34,6 +34,17 @@ function ThemeElementView({
   element: ThemeElement;
   props: Record<string, string>;
 }) {
+  // `slide`/`nextSlide` keyword mapping is future work — skip unmapped media for now.
+  const mediaSrc = (element.src ?? element.url ?? "").trim();
+  if (
+    (element.type === "IMAGE" || element.type === "VIDEO") &&
+    (mediaSrc === "" || mediaSrc === "slide" || mediaSrc === "nextSlide")
+  ) {
+    return null;
+  }
+  if (element.type === "RECTANGLE" && element.fill === "web" && !mediaSrc) {
+    return null;
+  }
   const style = elementStyle(element);
   switch (element.type) {
     case "TEXT":
@@ -46,13 +57,11 @@ function ThemeElementView({
         />
       );
     case "IMAGE":
-      return (
-        <img src={element.src ?? element.url ?? ""} alt="" style={style} />
-      );
+      return <img src={mediaSrc} alt="" style={style} />;
     case "VIDEO":
       return (
         <video
-          src={element.src ?? element.url ?? ""}
+          src={mediaSrc}
           autoPlay
           muted
           loop
