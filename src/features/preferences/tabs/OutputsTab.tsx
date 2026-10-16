@@ -16,14 +16,21 @@ import {
   RefreshCw,
   RotateCcw,
   Server,
+  Smartphone,
   Square,
   TriangleAlert,
   Tv,
 } from "lucide-react";
 import { outputHttpUrl } from "@/core/config/app";
-import type { MonitorInfo, OutputMode, OutputTarget } from "@/core/types";
+import type {
+  ConnectedClient,
+  MonitorInfo,
+  OutputMode,
+  OutputTarget,
+} from "@/core/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getConnectedClients } from "@/core/ipc/commands";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 
@@ -487,6 +494,151 @@ function ServerSection() {
   );
 }
 
+function formatClientTime(epochSecs: number): string {
+  const date = new Date(epochSecs * 1000);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function DevicesSection() {
+  const runtime = useOutputManagerStore((s) => s.runtime);
+  const configs = useOutputManagerStore((s) => s.configs);
+  const monitors = useOutputManagerStore((s) => s.monitors);
+  const [clients, setClients] = useState<ConnectedClient[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    let disposed = false;
+    async function load(): Promise<void> {
+      const list = await getConnectedClients();
+      if (!disposed) setClients(list);
+    }
+    void load();
+    const timer = setInterval(() => void load(), 5000);
+    return () => {
+      disposed = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  async function handleRefresh(): Promise<void> {
+    setRefreshing(true);
+    try {
+      setClients(await getConnectedClients());
+    } finally {
+      setTimeout(() => setRefreshing(false), 400);
+    }
+  }
+
+  const nativeOpen = (["public", "stage"] as const).filter(
+    (t) => runtime[t]?.open,
+  );
+  const empty = nativeOpen.length === 0 && clients.length === 0;
+
+  function monitorLabel(target: OutputTarget): string {
+    const id = runtime[target]?.monitorId;
+    return (
+      monitors.find((m) => m.id === id)?.name ??
+      configs[target].monitorLabel ??
+      "Detecção automática"
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-card p-5 shadow-2xs">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Smartphone className="size-5" />
+          </div>
+          <div>
+            <h4 className="font-semibold text-sm text-foreground">
+              Dispositivos conectados
+            </h4>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Janelas nativas abertas e navegadores web ligados às saídas.
+            </p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 shrink-0 gap-1.5 text-xs"
+          onClick={() => void handleRefresh()}
+          disabled={refreshing}
+          title="Atualizar lista de dispositivos"
+        >
+          <RefreshCw
+            className={`size-3.5 ${refreshing ? "animate-spin text-primary" : ""}`}
+          />
+          Atualizar
+        </Button>
+      </div>
+
+      {empty ? (
+        <div className="flex items-center gap-3 rounded-lg border border-dashed border-border bg-background/50 p-3 text-xs text-muted-foreground">
+          <Smartphone className="size-4 shrink-0 text-muted-foreground" />
+          <span>
+            Nenhum dispositivo conectado. Abra uma saída web em um celular,
+            tablet ou OBS para vê-lo aqui.
+          </span>
+        </div>
+      ) : (
+        <table className="w-full text-left text-xs">
+          <thead>
+            <tr className="border-b border-border/60 text-[11px] uppercase tracking-wide text-muted-foreground">
+              <th className="py-2 pr-2 font-medium">Dispositivo</th>
+              <th className="py-2 pr-2 font-medium">Saída</th>
+              <th className="py-2 font-medium">Detalhes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {nativeOpen.map((t) => (
+              <tr
+                key={`native-${t}`}
+                className="border-b border-border/40 last:border-0"
+              >
+                <td className="py-2 pr-2">
+                  <span className="flex items-center gap-1.5 font-medium text-foreground">
+                    <Monitor className="size-3.5 shrink-0 text-muted-foreground" />
+                    Janela nativa
+                  </span>
+                </td>
+                <td className="py-2 pr-2 text-foreground">{TARGET_LABEL[t]}</td>
+                <td className="py-2 text-muted-foreground">
+                  {monitorLabel(t)}
+                </td>
+              </tr>
+            ))}
+            {clients.map((c) => (
+              <tr key={c.id} className="border-b border-border/40 last:border-0">
+                <td className="py-2 pr-2">
+                  <span className="flex items-center gap-1.5 font-medium text-foreground">
+                    <Smartphone className="size-3.5 shrink-0 text-muted-foreground" />
+                    <span className="font-mono">{c.ip}</span>
+                  </span>
+                </td>
+                <td className="py-2 pr-2 text-foreground">
+                  {c.output ? TARGET_LABEL[c.output] : "—"}
+                </td>
+                <td className="py-2 text-muted-foreground">
+                  {formatClientTime(c.connectedAt)}
+                  {c.userAgent ? ` · ${c.userAgent}` : ""}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 export function OutputsTab() {
   const monitors = useOutputManagerStore((s) => s.monitors);
   const runtime = useOutputManagerStore((s) => s.runtime);
@@ -624,6 +776,8 @@ export function OutputsTab() {
           webPath="/stage"
           monitors={monitors}
         />
+
+        <DevicesSection />
       </div>
     </div>
   );

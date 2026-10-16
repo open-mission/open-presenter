@@ -1,12 +1,16 @@
+use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::path::{Component, PathBuf};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Path, State,
+        ConnectInfo, Path, State,
     },
-    http::{header, StatusCode},
+    http::{header, HeaderMap, StatusCode},
     response::{Html, IntoResponse},
     routing::get,
     Router,
@@ -16,13 +20,27 @@ use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
 
 use crate::services::SharedBroadcaster;
-use crate::state::types::{ServerStatus, WS_PATH};
+use crate::state::types::{
+    ConnectedClient, OutputTarget, ServerStatus, WsEnvelope, EVENT_CLIENT_HELLO, WS_PATH,
+};
+
+/// Navegadores conectados ao `/ws`, por id de conexão.
+pub type Clients = Arc<Mutex<HashMap<String, ConnectedClient>>>;
+
+static CLIENT_SEQ: AtomicU64 = AtomicU64::new(1);
+
+#[derive(serde::Deserialize)]
+struct HelloPayload {
+    #[serde(default)]
+    output: Option<OutputTarget>,
+}
 
 #[derive(Debug, Clone)]
 pub struct ServerState {
     pub broadcaster: SharedBroadcaster,
     pub ws_tx: broadcast::Sender<String>,
     pub media_dir: PathBuf,
+    pub clients: Clients,
 }
 
 /// Controle de ciclo de vida do servidor local de saídas.
@@ -123,12 +141,36 @@ async fn theme_media_handler(
 
 async fn ws_handler(
     ws: WebSocketUpgrade,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     State(state): State<Arc<ServerState>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, state))
+    let user_agent = headers
+        .get(header::USER_AGENT)
+        .and_then(|value| value.to_str().ok())
+        .map(|ua| ua.chars().take(48).collect::<String>())
+        .filter(|ua| !ua.is_empty());
+    let connected_at = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let id = format!("ws-{}", CLIENT_SEQ.fetch_add(1, Ordering::Relaxed));
+    if let Ok(mut clients) = state.clients.lock() {
+        clients.insert(
+            id.clone(),
+            ConnectedClient {
+                id: id.clone(),
+                ip: addr.ip().to_string(),
+                output: None,
+                user_agent,
+                connected_at,
+            },
+        );
+    }
+    ws.on_upgrade(move |socket| handle_socket(socket, state, id))
 }
 
-async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
+async fn handle_socket(socket: WebSocket, state: Arc<ServerState>, client_id: String) {
     let (mut sender, mut receiver) = socket.split();
     let mut rx = state.ws_tx.subscribe();
 
@@ -158,8 +200,28 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
         }
     });
 
-    while receiver.next().await.is_some() {}
+    while let Some(Ok(msg)) = receiver.next().await {
+        if let Message::Text(text) = msg {
+            let Ok(envelope) = serde_json::from_str::<WsEnvelope>(text.as_str()) else {
+                continue;
+            };
+            if envelope.channel != EVENT_CLIENT_HELLO {
+                continue;
+            }
+            let Ok(hello) = serde_json::from_value::<HelloPayload>(envelope.payload) else {
+                continue;
+            };
+            if let Ok(mut clients) = state.clients.lock() {
+                if let Some(client) = clients.get_mut(&client_id) {
+                    client.output = hello.output;
+                }
+            }
+        }
+    }
     send_task.abort();
+    if let Ok(mut clients) = state.clients.lock() {
+        clients.remove(&client_id);
+    }
 }
 
 async fn static_handler(uri: axum::http::Uri) -> impl IntoResponse {
@@ -202,7 +264,7 @@ pub fn spawn_with_listener(
     state: ServerState,
     listener: tokio::net::TcpListener,
 ) -> tokio::task::JoinHandle<()> {
-    let app = router(state);
+    let app = router(state).into_make_service_with_connect_info::<SocketAddr>();
     tokio::spawn(async move {
         if let Err(err) = axum::serve(listener, app).await {
             tracing::error!(error = %err, "servidor de saídas encerrou com erro");

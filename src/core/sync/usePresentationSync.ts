@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { TAURI_EVENTS } from "../config/app";
 import { fetchLiveSlide, fetchLiveThemes } from "../ipc/commands";
 import type { LiveSlide, LiveThemes, StageMessage } from "../types";
-import { syncBus } from "./syncBus";
+import { syncBus, type SyncOutput } from "./syncBus";
 import { usePresentationStore } from "../../features/presentation/store";
 import { useStageDisplayStore } from "../../features/stage-display/store";
 import { useLiveThemesStore } from "../../features/slide-themes/liveThemesStore";
 
-export function usePresentationSync(): boolean {
+export function usePresentationSync(output?: SyncOutput): boolean {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -15,7 +15,7 @@ export function usePresentationSync(): boolean {
     const cleanups: Array<() => void> = [];
 
     async function wire(): Promise<void> {
-      await syncBus.init();
+      await syncBus.init(output);
       if (disposed) return;
 
       cleanups.push(
@@ -48,7 +48,7 @@ export function usePresentationSync(): boolean {
       disposed = true;
       for (const cleanup of cleanups) cleanup();
     };
-  }, []);
+  }, [output]);
 
   return ready;
 }

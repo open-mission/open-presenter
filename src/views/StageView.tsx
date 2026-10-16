@@ -11,7 +11,7 @@ import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 
 export default function StageView() {
-  usePresentationSync();
+  usePresentationSync("stage");
   const live = usePresentationStore((s) => s.live);
   const nextUp = usePresentationStore((s) => s.live.nextUp);
   const { fontSize, theme, showNextUp } = useStageConfigStore();

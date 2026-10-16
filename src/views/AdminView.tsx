@@ -16,7 +16,7 @@ import { useSetlistStore } from "@/features/events-setlists/store";
 import { useNativeMenu } from "@/core/ipc/useNativeMenu";
 
 export default function AdminView() {
-  usePresentationSync();
+  usePresentationSync("admin");
   useOutputsSync();
   useNativeMenu();
   useThemesSync();

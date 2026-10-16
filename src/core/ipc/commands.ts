@@ -1,4 +1,5 @@
 import type {
+  ConnectedClient,
   EventSummary,
   ImportReport,
   LiveSlide,
@@ -103,6 +104,10 @@ export async function stopServer(): Promise<ServerStatus> {
 
 export async function startServer(): Promise<ServerStatus> {
   return invokeStrict<ServerStatus>("start_server");
+}
+
+export async function getConnectedClients(): Promise<ConnectedClient[]> {
+  return (await invokeCommand<ConnectedClient[]>("get_connected_clients")) ?? [];
 }
 
 export async function listSongs(query?: string): Promise<SongSummary[]> {

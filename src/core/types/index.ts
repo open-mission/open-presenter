@@ -60,6 +60,14 @@ export interface ServerStatus {
   port: number;
 }
 
+export interface ConnectedClient {
+  id: string;
+  ip: string;
+  output: OutputTarget | null;
+  userAgent: string | null;
+  connectedAt: number;
+}
+
 export type StageAlertLevel = "info" | "warning" | "urgent";
 
 export interface StageMessage {

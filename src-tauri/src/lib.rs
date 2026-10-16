@@ -121,11 +121,16 @@ pub fn run() {
 
             let media_dir = crate::services::theme_media::media_base_dir(&handle)
                 .unwrap_or_else(|_| std::path::PathBuf::from("theme-media"));
+            let clients: crate::server::Clients = std::sync::Arc::new(
+                std::sync::Mutex::new(std::collections::HashMap::new()),
+            );
             let server_state = crate::server::ServerState {
                 broadcaster,
                 ws_tx,
                 media_dir,
+                clients: clients.clone(),
             };
+            app.manage(clients);
             app.manage(std::sync::Mutex::new(
                 crate::server::ServerControl::stopped(port, server_state),
             ));
@@ -174,6 +179,7 @@ pub fn run() {
             commands::server::set_server_port,
             commands::server::stop_server,
             commands::server::start_server,
+            commands::server::get_connected_clients,
             commands::presentation::go_live,
             commands::presentation::set_blackout,
             commands::presentation::get_live_slide,

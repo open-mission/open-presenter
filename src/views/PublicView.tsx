@@ -10,7 +10,7 @@ import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 
 export default function PublicView() {
-  usePresentationSync();
+  usePresentationSync("public");
   const live = usePresentationStore((s) => s.live);
   const loadThemes = useSlideThemesStore((s) => s.load);
   const broadcastTheme = useLiveThemesStore((s) => s.themes.public);
