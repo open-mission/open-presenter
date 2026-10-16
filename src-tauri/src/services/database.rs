@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::error::AppError;
 
-pub const SCHEMA_VERSION: i64 = 3;
+pub const SCHEMA_VERSION: i64 = 4;
 
 const SCHEMA_V2: &str = "
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
@@ -45,6 +45,13 @@ CREATE TABLE IF NOT EXISTS themes (
     definition TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+";
+
+const SETTINGS_DDL: &str = "
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
 );
 ";
 
@@ -101,6 +108,7 @@ pub fn migrate(conn: &Connection) -> Result<(), AppError> {
         conn.execute_batch(SCHEMA_V2).map_err(storage_error)?;
     }
     conn.execute_batch(THEMES_DDL).map_err(storage_error)?;
+    conn.execute_batch(SETTINGS_DDL).map_err(storage_error)?;
     conn.execute("DELETE FROM schema_version", [])
         .map_err(storage_error)?;
     conn.execute(
@@ -130,17 +138,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn migrate_cria_schema_v3_e_marca_versao() {
+    fn migrate_cria_schema_v4_e_marca_versao() {
         let conn = open_in_memory();
         let v: i64 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 3);
+        assert_eq!(v, 4);
         let tabelas: Vec<String> = conn
             .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
             .unwrap()
             .query_map([], |r| r.get(0)).unwrap().collect::<Result<_, _>>().unwrap();
-        for esperada in ["songs", "song_sections", "song_lyrics", "service_events", "themes"] {
+        for esperada in ["songs", "song_sections", "song_lyrics", "service_events", "themes", "settings"] {
             assert!(tabelas.contains(&esperada.to_string()), "faltou {esperada}");
         }
+    }
+
+    #[test]
+    fn settings_roundtrip() {
+        use crate::services::settings;
+        let conn = open_in_memory();
+        assert_eq!(settings::get_setting(&conn, "outputs.public").unwrap(), None);
+        settings::set_setting(&conn, "outputs.public", "{\"mode\":\"off\"}").unwrap();
+        assert_eq!(
+            settings::get_setting(&conn, "outputs.public").unwrap(),
+            Some("{\"mode\":\"off\"}".to_string())
+        );
+        settings::set_setting(&conn, "outputs.public", "{\"mode\":\"native\"}").unwrap();
+        assert_eq!(
+            settings::get_setting(&conn, "outputs.public").unwrap(),
+            Some("{\"mode\":\"native\"}".to_string())
+        );
     }
 
     #[test]
@@ -149,7 +174,7 @@ mod tests {
         migrate(&conn).unwrap();
         migrate(&conn).unwrap();
         let v: i64 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 3);
+        assert_eq!(v, 4);
     }
 
     #[test]
@@ -190,7 +215,7 @@ mod tests {
         let v: i64 = conn
             .query_row("SELECT version FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(v, 3);
+        assert_eq!(v, 4);
         let tem_temas: bool = conn
             .query_row(
                 "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='themes'",

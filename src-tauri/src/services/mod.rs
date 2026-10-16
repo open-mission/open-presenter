@@ -6,6 +6,7 @@ pub mod import;
 pub mod lrclib;
 pub mod lyrics;
 pub mod setlists;
+pub mod settings;
 pub mod songs;
 pub mod theme_template;
 pub mod theme_media;

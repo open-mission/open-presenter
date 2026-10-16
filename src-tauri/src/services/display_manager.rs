@@ -1,7 +1,8 @@
 use tauri::{AppHandle, Emitter, Manager, Monitor, WebviewUrl, WebviewWindowBuilder};
 
 use crate::error::AppError;
-use crate::state::types::OutputTarget;
+use crate::state::outputs::OutputsState;
+use crate::state::types::{OutputTarget, EVENT_OUTPUTS};
 use crate::state::MonitorInfo;
 
 fn to_info(monitor: &Monitor, index: usize, is_primary: bool) -> MonitorInfo {
@@ -47,14 +48,28 @@ pub async fn open_output_window(
     app: AppHandle,
     target: OutputTarget,
     monitor_id: Option<String>,
+    monitor_label: Option<String>,
 ) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window(target.label()) {
         window.set_focus().map_err(AppError::Tauri)?;
+        let state = app.state::<OutputsState>();
+        let current = state
+            .snapshot()
+            .into_iter()
+            .find(|r| r.target == target)
+            .and_then(|r| r.monitor_id);
+        state.set_open(target, true, monitor_id.or(current));
+        let _ = app.emit(EVENT_OUTPUTS, state.snapshot());
         return Ok(());
     }
 
     let monitors = app.available_monitors().map_err(AppError::Tauri)?;
-    let chosen = pick_monitor(&monitors, monitor_id.as_deref());
+    let chosen = pick_monitor(&monitors, monitor_id.as_deref(), monitor_label.as_deref());
+    let resolved_id: Option<String> = chosen
+        .as_ref()
+        .map(|(index, _)| format!("monitor-{index}"))
+        .or(monitor_id.clone());
+    let chosen_monitor = chosen.map(|(_, monitor)| monitor);
 
     let mut builder = WebviewWindowBuilder::new(&app, target.label(), WebviewUrl::App(target.route().into()))
         .title(target.title())
@@ -64,7 +79,7 @@ pub async fn open_output_window(
         .focused(false)
         .visible(true);
 
-    if let Some(monitor) = chosen {
+    if let Some(monitor) = chosen_monitor {
         let position = monitor.position();
         let size = monitor.size();
         builder = builder
@@ -76,25 +91,43 @@ pub async fn open_output_window(
     }
 
     builder.build().map_err(AppError::Tauri)?;
+    let state = app.state::<OutputsState>();
+    state.set_open(target, true, resolved_id);
+    let _ = app.emit(EVENT_OUTPUTS, state.snapshot());
     Ok(())
 }
 
-fn pick_monitor(monitors: &[Monitor], monitor_id: Option<&str>) -> Option<Monitor> {
-    let Some(wanted) = monitor_id else {
-        return first_non_primary(monitors).or_else(|| monitors.first().cloned());
-    };
-    monitors
-        .iter()
-        .enumerate()
-        .find(|(index, _)| format!("monitor-{index}") == wanted)
-        .map(|(_, m)| m.clone())
-        .or_else(|| first_non_primary(monitors))
-        .or_else(|| monitors.first().cloned())
+fn pick_monitor(
+    monitors: &[Monitor],
+    monitor_id: Option<&str>,
+    monitor_label: Option<&str>,
+) -> Option<(usize, Monitor)> {
+    if let Some(wanted) = monitor_id {
+        let by_id = monitors
+            .iter()
+            .enumerate()
+            .find(|(index, _)| format!("monitor-{index}") == wanted)
+            .map(|(index, monitor)| (index, monitor.clone()));
+        if by_id.is_some() {
+            return by_id;
+        }
+    }
+    if let Some(label) = monitor_label {
+        let by_label = monitors
+            .iter()
+            .enumerate()
+            .find(|(_, monitor)| monitor.name().is_some_and(|name| name == label))
+            .map(|(index, monitor)| (index, monitor.clone()));
+        if by_label.is_some() {
+            return by_label;
+        }
+    }
+    first_non_primary(monitors).or_else(|| monitors.first().cloned().map(|m| (0, m)))
 }
 
-fn first_non_primary(monitors: &[Monitor]) -> Option<Monitor> {
+fn first_non_primary(monitors: &[Monitor]) -> Option<(usize, Monitor)> {
     if monitors.len() > 1 {
-        monitors.get(1).cloned()
+        monitors.get(1).cloned().map(|m| (1, m))
     } else {
         None
     }
@@ -104,7 +137,28 @@ pub fn close_output_window(app: &AppHandle, target: OutputTarget) -> Result<(), 
     if let Some(window) = app.get_webview_window(target.label()) {
         window.close().map_err(AppError::Tauri)?;
     }
+    let state = app.state::<OutputsState>();
+    state.set_open(target, false, None);
+    let _ = app.emit(EVENT_OUTPUTS, state.snapshot());
     Ok(())
+}
+
+/// Reconcilia o `open` com as janelas reais: cobre fechamentos pelo ✕ do SO,
+/// que não passam por `close_output_window` (sem `on_window_event` no
+/// `WebviewWindowBuilder` do Tauri 2.12). Emite `EVENT_OUTPUTS` se corrigir algo.
+pub fn reconcile_open_state(app: &AppHandle) -> bool {
+    let state = app.state::<OutputsState>();
+    let mut fixed = false;
+    for runtime in state.snapshot() {
+        if runtime.open && app.get_webview_window(runtime.target.label()).is_none() {
+            state.set_open(runtime.target, false, None);
+            fixed = true;
+        }
+    }
+    if fixed {
+        let _ = app.emit(EVENT_OUTPUTS, state.snapshot());
+    }
+    fixed
 }
 
 pub fn open_preferences_window(app: &AppHandle) -> Result<(), AppError> {

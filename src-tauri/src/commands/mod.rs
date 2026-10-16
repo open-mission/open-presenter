@@ -1,3 +1,4 @@
+pub mod outputs;
 pub mod presentation;
 pub mod setlists;
 pub mod songs;

@@ -15,8 +15,9 @@ pub async fn open_output_window(
     app: tauri::AppHandle,
     target: OutputTarget,
     monitor_id: Option<String>,
+    monitor_label: Option<String>,
 ) -> Result<(), AppError> {
-    display_manager::open_output_window(app, target, monitor_id).await
+    display_manager::open_output_window(app, target, monitor_id, monitor_label).await
 }
 
 #[tauri::command]

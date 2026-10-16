@@ -10,7 +10,7 @@ use tokio::sync::broadcast;
 
 use crate::error::AppError;
 use crate::services::{database, Broadcaster, SharedBroadcaster};
-use crate::state::PresentationState;
+use crate::state::{OutputsState, PresentationState};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::Emitter;
 
@@ -28,6 +28,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .manage(PresentationState::default())
+        .manage(OutputsState::default())
         .setup(|app| {
             let prefs_item = MenuItemBuilder::with_id("preferences", "Preferências…")
                 .accelerator("CmdOrCtrl+,")
@@ -127,6 +128,9 @@ pub fn run() {
             commands::presentation::open_preferences_window,
             commands::presentation::close_preferences_window,
             commands::presentation::open_theme_editor,
+            commands::outputs::get_output_config,
+            commands::outputs::set_output_config,
+            commands::outputs::get_outputs_state,
             commands::presentation::go_live,
             commands::presentation::set_blackout,
             commands::presentation::get_live_slide,
