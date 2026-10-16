@@ -40,6 +40,16 @@ function offRuntime(target: OutputTarget): OutputRuntime {
   return { target, open: false, monitorId: null };
 }
 
+function normalizeConfig(cfg: OutputConfig | null): OutputConfig | null {
+  if (!cfg) return null;
+  return {
+    ...cfg,
+    monitorId: cfg.monitorId ?? null,
+    monitorLabel: cfg.monitorLabel ?? null,
+    url: cfg.url ?? null,
+  };
+}
+
 interface OutputManagerState {
   configs: Record<OutputTarget, OutputConfig>;
   runtime: Record<OutputTarget, OutputRuntime>;
@@ -110,8 +120,8 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
         };
       }
       const configs = {
-        public: publicConfig ?? s.configs.public,
-        stage: stageConfig ?? s.configs.stage,
+        public: normalizeConfig(publicConfig) ?? s.configs.public,
+        stage: normalizeConfig(stageConfig) ?? s.configs.stage,
       };
       const lastMode = { ...s.lastMode };
       for (const t of ["public", "stage"] as const) {
