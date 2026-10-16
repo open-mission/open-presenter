@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { SlideTheme, ThemeAsset } from "@/core/types";
 import { cn } from "@/core/lib/utils";
-import { ThemeRenderer } from "./ThemeRenderer";
+import { ThemeRenderer, themeBackgroundStyle } from "./ThemeRenderer";
 
 export const LOGICAL_W = 1920;
 export const LOGICAL_H = 1080;
@@ -13,6 +13,9 @@ export const LOGICAL_H = 1080;
  * Os temas usam medidas absolutas (fontes, posições e margens em px). Sem
  * esse palco fixo, cada superfície interpretaria os px no tamanho do próprio
  * contêiner — texto desproporcional e margens fora de lugar.
+ *
+ * O fundo do tema é desenhado em tela cheia (cover), fora do palco 16:9, para
+ * que saídas que não sejam 16:9 não fiquem com barras pretas.
  */
 export function ScaledStage({
   theme,
@@ -50,6 +53,7 @@ export function ScaledStage({
       ref={wrapRef}
       className={cn("absolute inset-0 overflow-hidden", className)}
     >
+      <div className="absolute inset-0" style={themeBackgroundStyle(theme)} />
       {scale > 0 && (
         <div
           className="absolute top-1/2 left-1/2"
@@ -59,7 +63,12 @@ export function ScaledStage({
             transform: `translate(-50%, -50%) scale(${scale})`,
           }}
         >
-          <ThemeRenderer theme={theme} asset={asset} props={props} />
+          <ThemeRenderer
+            theme={theme}
+            asset={asset}
+            props={props}
+            withBackground={false}
+          />
         </div>
       )}
     </div>
