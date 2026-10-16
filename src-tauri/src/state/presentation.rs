@@ -24,6 +24,7 @@ pub struct PresentationState {
     live: Arc<RwLock<LiveSlide>>,
     themes: Arc<RwLock<LiveThemes>>,
     timer: Arc<RwLock<StageTimer>>,
+    wallpaper: Arc<RwLock<Option<String>>>,
 }
 
 impl Default for PresentationState {
@@ -32,6 +33,7 @@ impl Default for PresentationState {
             live: Arc::new(RwLock::new(blank_slide())),
             themes: Arc::new(RwLock::new(LiveThemes::default())),
             timer: Arc::new(RwLock::new(StageTimer::default())),
+            wallpaper: Arc::new(RwLock::new(None)),
         }
     }
 }
@@ -85,6 +87,16 @@ impl PresentationState {
     pub fn timer_reset(&self) {
         if let Ok(mut guard) = self.timer.write() {
             guard.reset();
+        }
+    }
+
+    pub fn wallpaper(&self) -> Option<String> {
+        self.wallpaper.read().ok().and_then(|w| w.clone())
+    }
+
+    pub fn set_wallpaper(&self, wallpaper: Option<String>) {
+        if let Ok(mut guard) = self.wallpaper.write() {
+            *guard = wallpaper;
         }
     }
 }

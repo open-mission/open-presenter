@@ -33,11 +33,25 @@ pub fn set_output_config(
 ) -> Result<(), AppError> {
     let json = serde_json::to_string(&config).map_err(|e| AppError::Storage(e.to_string()))?;
     let target = config.target;
+    let wallpaper = config.wallpaper.clone();
     db.with_conn(|conn| settings::set_setting(conn, config_key(target), &json))?;
     let outputs = app.state::<OutputsState>();
     outputs.set_config(target, config);
     let _ = app.emit(EVENT_OUTPUTS, outputs.snapshot());
+
+    if target == OutputTarget::Public {
+        if let Some(broadcaster) = app.try_state::<crate::services::broadcaster::SharedBroadcaster>() {
+            broadcaster.publish_wallpaper(wallpaper);
+        }
+    }
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_public_wallpaper(
+    broadcaster: State<'_, crate::services::broadcaster::SharedBroadcaster>,
+) -> Result<Option<String>, AppError> {
+    Ok(broadcaster.current_wallpaper())
 }
 
 #[tauri::command]

@@ -63,6 +63,9 @@ function createSyncBus(): SyncBus {
       await listenCommand<unknown>(TAURI_EVENTS.timer, (payload) =>
         dispatch(TAURI_EVENTS.timer, payload),
       );
+      await listenCommand<unknown>(TAURI_EVENTS.wallpaper, (payload) =>
+        dispatch(TAURI_EVENTS.wallpaper, payload),
+      );
       return;
     }
 

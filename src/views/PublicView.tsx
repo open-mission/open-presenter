@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { kindToAsset } from "@/core/types";
+import { kindToAsset, type BackgroundLayer } from "@/core/types";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { usePresentationStore } from "@/features/presentation/store";
 import { SlideCanvas } from "@/features/presentation/SlideCanvas";
@@ -8,10 +8,15 @@ import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { useLiveThemesStore } from "@/features/slide-themes/liveThemesStore";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
+import { useWallpaperSync } from "@/features/presentation/useWallpaperSync";
+import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
+import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
 
 export default function PublicView() {
   usePresentationSync("public");
+  useWallpaperSync();
   const live = usePresentationStore((s) => s.live);
+  const wallpaper = useWallpaperStore((s) => s.wallpaper);
   const loadThemes = useSlideThemesStore((s) => s.load);
   const broadcastTheme = useLiveThemesStore((s) => s.themes.public);
   const localTheme = useSlideThemesStore((s) =>
@@ -23,15 +28,39 @@ export default function PublicView() {
     void loadThemes();
   }, [loadThemes]);
 
+  if (live.blackout) {
+    return <div className="h-full w-full bg-black" />;
+  }
+
+  const isPresenting = !live.cleared && live.content.kind !== "blank";
+
+  if (!isPresenting) {
+    if (wallpaper) {
+      const host = window.location.hostname || "localhost";
+      const resolved = resolveThemeMediaUrl(wallpaper, host) ?? wallpaper;
+      const isColor = resolved.startsWith("#") || resolved.startsWith("rgb");
+      const isVideo = resolved.endsWith(".mp4");
+      const bg: BackgroundLayer = {
+        id: "wallpaper",
+        kind: isColor ? "color" : isVideo ? "video" : "image",
+        value: resolved,
+      };
+      return (
+        <div className="relative h-full w-full overflow-hidden bg-black">
+          <BackgroundRenderer background={bg} />
+        </div>
+      );
+    }
+    return (
+      <div className="h-full w-full bg-black">
+        <SlideCanvas slide={live} />
+      </div>
+    );
+  }
+
   const asset = kindToAsset(live.content.kind);
 
-  if (
-    !theme ||
-    !asset ||
-    live.blackout ||
-    live.cleared ||
-    live.content.kind === "blank"
-  ) {
+  if (!theme || !asset) {
     return (
       <div className="h-full w-full bg-black">
         <SlideCanvas slide={live} />

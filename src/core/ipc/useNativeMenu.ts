@@ -2,10 +2,13 @@ import { useEffect } from "react";
 import { listenCommand } from "@/core/ipc/tauri";
 import { usePreferencesStore } from "@/features/preferences/store";
 import { useSongsStore } from "@/features/songs/store";
+import { usePresentationStore } from "@/features/presentation/store";
+import { useSetlistStore } from "@/features/events-setlists/store";
 
 export function useNativeMenu() {
   useEffect(() => {
     let unlistenNewSong: (() => void) | null = null;
+    let unlistenSearchOnline: (() => void) | null = null;
     let unlistenImport: (() => void) | null = null;
     let unlistenPrefs: (() => void) | null = null;
 
@@ -14,6 +17,12 @@ export function useNativeMenu() {
       useSongsStore.getState().startNewSong();
     }).then((fn) => {
       unlistenNewSong = fn;
+    });
+
+    void listenCommand("search-online-lyrics", () => {
+      useSongsStore.getState().openOnlineSearch();
+    }).then((fn) => {
+      unlistenSearchOnline = fn;
     });
 
     void listenCommand("import-holyrics", () => {
@@ -30,9 +39,47 @@ export function useNativeMenu() {
 
     // Keyboard shortcut fallback for browser & desktop environments
     function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        useSongsStore.getState().openOnlineSearch();
+        return;
+      }
+
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
         useSongsStore.getState().startNewSong();
+        return;
+      }
+
+      if (e.key === "Escape") {
+        const target = e.target as HTMLElement | null;
+        if (
+          target?.tagName === "INPUT" ||
+          target?.tagName === "TEXTAREA" ||
+          target?.isContentEditable
+        ) {
+          return;
+        }
+
+        const hasOpenDialog = Boolean(
+          document.querySelector(
+            '[role="dialog"], [role="alertdialog"], [data-slot="dialog-content"]'
+          )
+        );
+        if (hasOpenDialog) {
+          return;
+        }
+
+        const live = usePresentationStore.getState().live;
+        const isPresenting =
+          !live.cleared && !live.blackout && live.content.kind !== "blank";
+        const runnerIndex = useSetlistStore.getState().runnerIndex;
+
+        if (isPresenting || runnerIndex !== null) {
+          e.preventDefault();
+          void usePresentationStore.getState().clearLive();
+          useSetlistStore.setState({ runnerIndex: null });
+        }
       }
     }
 
@@ -40,6 +87,7 @@ export function useNativeMenu() {
 
     return () => {
       unlistenNewSong?.();
+      unlistenSearchOnline?.();
       unlistenImport?.();
       unlistenPrefs?.();
       window.removeEventListener("keydown", handleKeyDown);

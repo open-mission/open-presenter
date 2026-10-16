@@ -248,6 +248,7 @@ pub const EVENT_TIMER: &str = "stage://timer";
 pub const EVENT_OUTPUTS: &str = "outputs://changed";
 pub const EVENT_THEMES: &str = "presentation://themes";
 pub const EVENT_THEMES_CHANGED: &str = "themes://changed";
+pub const EVENT_WALLPAPER: &str = "presentation://wallpaper";
 pub const EVENT_CLIENT_HELLO: &str = "client://hello";
 
 pub const OUTPUT_HTTP_PORT: u16 = 5050;
@@ -282,6 +283,8 @@ pub struct OutputConfig {
     pub monitor_label: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wallpaper: Option<String>,
 }
 
 impl OutputConfig {
@@ -292,6 +295,7 @@ impl OutputConfig {
             monitor_id: None,
             monitor_label: None,
             url: None,
+            wallpaper: None,
         }
     }
 }

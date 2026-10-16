@@ -16,6 +16,7 @@ export const TAURI_EVENTS = {
   timer: "stage://timer",
   themes: "presentation://themes",
   themesChanged: "themes://changed",
+  wallpaper: "presentation://wallpaper",
 } as const;
 
 export function outputHttpUrl(host: string, port: number, path: "/public" | "/stage"): string {

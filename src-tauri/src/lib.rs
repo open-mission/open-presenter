@@ -38,6 +38,10 @@ pub fn run() {
                 .accelerator("CmdOrCtrl+N")
                 .build(app)?;
 
+            let search_online_item = MenuItemBuilder::with_id("search-online-lyrics", "Buscar Música na Internet…")
+                .accelerator("CmdOrCtrl+Shift+F")
+                .build(app)?;
+
             let import_holyrics_item = MenuItemBuilder::with_id("import-holyrics", "Importar Músicas do Holyrics…")
                 .build(app)?;
 
@@ -55,8 +59,13 @@ pub fn run() {
                 .quit()
                 .build()?;
 
-            let file_menu = SubmenuBuilder::new(app, "Arquivo")
+            let novo_menu = SubmenuBuilder::new(app, "Novo")
                 .item(&new_song_item)
+                .item(&search_online_item)
+                .build()?;
+
+            let file_menu = SubmenuBuilder::new(app, "Arquivo")
+                .item(&novo_menu)
                 .separator()
                 .item(&import_holyrics_item)
                 .separator()
@@ -76,7 +85,7 @@ pub fn run() {
                 .build()?;
 
             let menu = MenuBuilder::new(app)
-                .items(&[&app_menu, &file_menu, &edit_menu])
+                .items(&[&app_menu, &file_menu, &novo_menu, &edit_menu])
                 .build()?;
 
             app.set_menu(menu)?;
@@ -89,6 +98,9 @@ pub fn run() {
                     }
                     "new-song" => {
                         let _ = app_handle.emit("new-song", ());
+                    }
+                    "search-online-lyrics" => {
+                        let _ = app_handle.emit("search-online-lyrics", ());
                     }
                     "import-holyrics" => {
                         let _ = app_handle.emit("import-holyrics", ());
@@ -117,6 +129,22 @@ pub fn run() {
                 )
                 .ok(),
             );
+
+            let public_cfg_raw: Option<String> = conn
+                .query_row(
+                    "SELECT value FROM settings WHERE key = 'outputs.public'",
+                    [],
+                    |r| r.get::<_, String>(0),
+                )
+                .ok();
+            if let Some(json) = public_cfg_raw {
+                if let Ok(cfg) = serde_json::from_str::<crate::state::types::OutputConfig>(&json) {
+                    if let Some(wp) = cfg.wallpaper {
+                        broadcaster.publish_wallpaper(Some(wp));
+                    }
+                }
+            }
+
             app.manage(database::Db(std::sync::Mutex::new(conn)));
 
             let media_dir = crate::services::theme_media::media_base_dir(&handle)
@@ -174,6 +202,7 @@ pub fn run() {
             commands::presentation::open_theme_editor,
             commands::outputs::get_output_config,
             commands::outputs::set_output_config,
+            commands::outputs::get_public_wallpaper,
             commands::outputs::get_outputs_state,
             commands::server::get_server_status,
             commands::server::set_server_port,

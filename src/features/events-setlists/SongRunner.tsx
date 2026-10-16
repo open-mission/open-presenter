@@ -99,7 +99,10 @@ export function SongRunner() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => void usePresentationStore.getState().clearLive()}
+                onClick={() => {
+                  void usePresentationStore.getState().clearLive();
+                  useSetlistStore.setState({ runnerIndex: null });
+                }}
               >
                 Limpar
               </Button>
