@@ -145,10 +145,13 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
   },
   toggle: async (target) => {
     const { configs, runtime, lastMode } = get();
-    if (configs[target].mode !== "off" || runtime[target]?.open) {
-      await get().setMode(target, "off");
+    const mode = configs[target].mode;
+    const active =
+      mode !== "off" && (mode === "web" || runtime[target]?.open === true);
+    if (!active) {
+      await get().setMode(target, mode === "off" ? lastMode[target] : mode);
       return;
     }
-    await get().setMode(target, lastMode[target]);
+    await get().setMode(target, "off");
   },
 }));

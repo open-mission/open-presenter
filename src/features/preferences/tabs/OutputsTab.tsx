@@ -75,7 +75,8 @@ function TargetCard({
 
   const currentUrl = outputHttpUrl(host, webPath);
   const powered = config.mode !== "off";
-  const active = config.mode === "web" || (powered && live.open);
+  const active =
+    powered && (config.mode === "web" || live.open);
   const savedMissing =
     config.monitorId !== null &&
     !monitors.some((m) => m.id === config.monitorId);
@@ -150,14 +151,20 @@ function TargetCard({
           <Button
             type="button"
             size="sm"
-            variant={powered ? "secondary" : "default"}
+            variant={active ? "secondary" : "default"}
             className="h-7 gap-1.5 text-xs"
             onClick={() => void handleToggle()}
             disabled={busy}
-            title={powered ? "Desligar saída" : "Ligar saída no último modo usado"}
+            title={
+              active
+                ? "Desligar saída"
+                : config.mode === "off"
+                  ? "Ligar saída no último modo usado"
+                  : "Reabrir janela nativa"
+            }
           >
             <Power className="size-3.5" />
-            {powered ? "Desligar" : "Ligar"}
+            {active ? "Desligar" : "Ligar"}
           </Button>
         </div>
       </div>
