@@ -121,15 +121,17 @@ impl SectionType {
             .trim_end_matches(|c: char| c.is_ascii_digit())
             .trim_end();
         match key {
-            "verso" => Some(SectionType::Verse),
-            "refrão" | "refrao" => Some(SectionType::Chorus),
-            "pré-refrão" | "pre-refrao" => Some(SectionType::PreChorus),
-            "ponte" => Some(SectionType::Bridge),
+            "verso" | "estrofe" | "verse" => Some(SectionType::Verse),
+            "refrão" | "refrao" | "coro" | "chorus" => Some(SectionType::Chorus),
+            "pré-refrão" | "pre-refrao" | "pre-refrão" | "pre-chorus" | "pre chorus" => {
+                Some(SectionType::PreChorus)
+            }
+            "ponte" | "bridge" => Some(SectionType::Bridge),
             "introdução" | "introducao" | "intro" => Some(SectionType::Intro),
-            "final" => Some(SectionType::Outro),
+            "final" | "outro" => Some(SectionType::Outro),
             "instrumental" => Some(SectionType::Instrumental),
             "tag" => Some(SectionType::Tag),
-            "encerramento" => Some(SectionType::Ending),
+            "encerramento" | "ending" => Some(SectionType::Ending),
             _ => None,
         }
     }
@@ -145,6 +147,20 @@ impl SectionType {
             SectionType::Instrumental => "instrumental",
             SectionType::Tag => "tag",
             SectionType::Ending => "ending",
+        }
+    }
+
+    pub const fn as_label(self) -> &'static str {
+        match self {
+            SectionType::Verse => "Verso",
+            SectionType::PreChorus => "Pré-refrão",
+            SectionType::Chorus => "Refrão",
+            SectionType::Bridge => "Ponte",
+            SectionType::Intro => "Introdução",
+            SectionType::Outro => "Final",
+            SectionType::Instrumental => "Instrumental",
+            SectionType::Tag => "Tag",
+            SectionType::Ending => "Encerramento",
         }
     }
 }

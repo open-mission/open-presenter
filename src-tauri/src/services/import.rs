@@ -4,7 +4,7 @@ use rusqlite::Connection;
 
 use crate::error::AppError;
 use crate::services::{holyrics, songs};
-use crate::state::{ImportReport, ImportSkip, SongSection};
+use crate::state::{ImportReport, ImportSkip};
 
 pub fn import_holyrics_file(conn: &Connection, path: &Path) -> Result<ImportReport, AppError> {
     let text = std::fs::read_to_string(path).map_err(|e| AppError::Storage(e.to_string()))?;
@@ -25,15 +25,7 @@ pub fn import_holyrics_file(conn: &Connection, path: &Path) -> Result<ImportRepo
             });
             continue;
         }
-        let sections: Vec<SongSection> = song
-            .sections
-            .into_iter()
-            .map(|section| SongSection {
-                section_type: section.section_type,
-                lines: section.lines,
-            })
-            .collect();
-        songs::insert_new(conn, &song.title, &song.artist, &sections)?;
+        songs::insert_new(conn, &song.title, &song.artist, &song.sections)?;
         report.imported.push(song.title);
     }
 

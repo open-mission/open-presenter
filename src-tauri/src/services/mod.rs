@@ -4,6 +4,7 @@ pub mod display_manager;
 pub mod holyrics;
 pub mod import;
 pub mod lrclib;
+pub mod lyrics;
 pub mod setlists;
 pub mod songs;
 

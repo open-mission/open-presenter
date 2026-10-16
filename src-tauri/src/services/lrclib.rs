@@ -1,6 +1,7 @@
 use serde::Deserialize;
 
 use crate::error::AppError;
+use crate::services::lyrics;
 use crate::state::{OnlineLyricHit, SongSection};
 
 const BASE_URL: &str = "https://lrclib.net/api";
@@ -61,30 +62,9 @@ pub fn parse_search_payload(body: &str) -> Result<Vec<OnlineLyricHit>, AppError>
         .collect())
 }
 
-pub fn split_plain_lyrics(plain: &str) -> Vec<Vec<String>> {
-    plain
-        .split("\n\n")
-        .map(|paragraph| {
-            paragraph
-                .split('\n')
-                .map(str::trim_end)
-                .filter(|line| !line.is_empty())
-                .map(str::to_string)
-                .collect::<Vec<_>>()
-        })
-        .filter(|lines| !lines.is_empty())
-        .collect()
-}
-
 pub fn parse_get_payload(body: &str) -> Result<(String, String, Vec<SongSection>), AppError> {
     let payload: GetPayload = serde_json::from_str(body).map_err(|_| erro_resposta())?;
-    let sections = split_plain_lyrics(&payload.plain_lyrics)
-        .into_iter()
-        .map(|lines| SongSection {
-            section_type: None,
-            lines,
-        })
-        .collect();
+    let sections = lyrics::parse_sections(&payload.plain_lyrics);
     Ok((
         payload.track_name,
         payload.artist_name.unwrap_or_default(),
@@ -212,14 +192,24 @@ mod tests {
     }
 
     #[test]
-    fn split_plain_lyrics_aguenta_linhas_em_branco_variadas() {
-        let sections = split_plain_lyrics("um\n\ndois\n\n\n\ntres  \nquatro\n");
+    fn parse_get_payload_aguenta_linhas_em_branco_variadas() {
+        let body = r#"{"trackName":"T","plainLyrics":"um\n\ndois\n\n\n\ntres  \nquatro\n"}"#;
+        let (_, _, sections) = parse_get_payload(body).unwrap();
         assert_eq!(
             sections,
             vec![
-                vec!["um".to_string()],
-                vec!["dois".to_string()],
-                vec!["tres".to_string(), "quatro".to_string()]
+                SongSection {
+                    section_type: None,
+                    lines: vec!["um".to_string()]
+                },
+                SongSection {
+                    section_type: None,
+                    lines: vec!["dois".to_string()]
+                },
+                SongSection {
+                    section_type: None,
+                    lines: vec!["tres".to_string(), "quatro".to_string()]
+                }
             ]
         );
     }

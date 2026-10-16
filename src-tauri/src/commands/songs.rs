@@ -4,8 +4,8 @@ use tauri::State;
 
 use crate::error::AppError;
 use crate::services::database::Db;
-use crate::services::{import, lrclib, songs};
-use crate::state::{ImportReport, OnlineLyricHit, Song, SongSummary};
+use crate::services::{import, lrclib, lyrics, songs};
+use crate::state::{ImportReport, OnlineLyricHit, Song, SongSection, SongSummary};
 
 #[tauri::command]
 pub fn list_songs(db: State<'_, Db>, query: Option<String>) -> Result<Vec<SongSummary>, AppError> {
@@ -52,4 +52,14 @@ pub async fn fetch_online_lyrics(
         artist,
         sections,
     })
+}
+
+#[tauri::command]
+pub fn parse_lyrics(text: String) -> Vec<SongSection> {
+    lyrics::parse_sections(&text)
+}
+
+#[tauri::command]
+pub fn lyrics_to_text(sections: Vec<SongSection>) -> String {
+    lyrics::sections_to_text(&sections)
 }

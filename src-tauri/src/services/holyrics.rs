@@ -3,22 +3,17 @@ use std::path::Path;
 use serde_json::Value;
 
 use crate::error::AppError;
-use crate::state::SectionType;
+use crate::services::lyrics;
+use crate::state::{SectionType, SongSection};
 
 const JSON_INVALIDO: &str = "arquivo JSON inválido";
 const FORMATO_NAO_SUPORTADO: &str = "formato não suportado — exporte JSON ou TXT";
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ParsedSection {
-    pub section_type: Option<SectionType>,
-    pub lines: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct ParsedSong {
     pub title: String,
     pub artist: String,
-    pub sections: Vec<ParsedSection>,
+    pub sections: Vec<SongSection>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,7 +23,7 @@ pub enum HolyricsFormat {
 }
 
 pub fn parse(text: &str, format: HolyricsFormat) -> Result<Vec<ParsedSong>, AppError> {
-    let normalized = normalize(text);
+    let normalized = lyrics::normalize(text);
     match format {
         HolyricsFormat::Json => parse_json(&normalized),
         HolyricsFormat::Txt => Ok(parse_txt(&normalized)),
@@ -50,28 +45,12 @@ pub fn format_from_path(path: &Path) -> Result<HolyricsFormat, AppError> {
     }
 }
 
-fn normalize(text: &str) -> String {
-    let text = text.strip_prefix('\u{FEFF}').unwrap_or(text);
-    text.replace("\r\n", "\n").replace('\r', "\n")
-}
-
 fn text_lines(text: &str) -> Vec<String> {
     text.split('\n')
         .map(str::trim)
         .filter(|line| !line.is_empty())
         .map(str::to_string)
         .collect()
-}
-
-fn split_paragraphs(text: &str) -> Vec<&str> {
-    let mut paragraphs = Vec::new();
-    let mut rest = text;
-    while let Some(index) = rest.find("\n\n") {
-        paragraphs.push(&rest[..index]);
-        rest = rest[index..].trim_start_matches('\n');
-    }
-    paragraphs.push(rest);
-    paragraphs
 }
 
 fn parse_json(text: &str) -> Result<Vec<ParsedSong>, AppError> {
@@ -114,7 +93,7 @@ fn parse_json(text: &str) -> Result<Vec<ParsedSong>, AppError> {
                     .map(text_lines)
                     .unwrap_or_default();
                 if !lines.is_empty() {
-                    sections.push(ParsedSection {
+                    sections.push(SongSection {
                         section_type,
                         lines,
                     });
@@ -127,15 +106,7 @@ fn parse_json(text: &str) -> Result<Vec<ParsedSong>, AppError> {
                 .and_then(|value| value.get("full_text"))
                 .and_then(Value::as_str)
             {
-                for paragraph in split_paragraphs(full_text) {
-                    let lines = text_lines(paragraph);
-                    if !lines.is_empty() {
-                        sections.push(ParsedSection {
-                            section_type: None,
-                            lines,
-                        });
-                    }
-                }
+                sections = lyrics::parse_sections(full_text);
             }
         }
 
@@ -174,26 +145,10 @@ fn is_separator(line: &str) -> bool {
 fn push_block(lines: &[&str], songs: &mut Vec<ParsedSong>) {
     let mut title = String::new();
     let mut artist = String::new();
-    let mut sections = Vec::new();
-    let mut current_lines: Vec<String> = Vec::new();
-    let mut current_label: Option<SectionType> = None;
-    let mut pending_label: Option<SectionType> = None;
+    let mut content: Vec<&str> = Vec::new();
 
     for line in lines {
         let trimmed = line.trim();
-        if trimmed.is_empty() {
-            flush_section(&mut sections, &mut current_lines, &mut current_label);
-            continue;
-        }
-        if trimmed.starts_with("//") {
-            continue;
-        }
-        if let Some(rest) = trimmed.strip_prefix("##(") {
-            flush_section(&mut sections, &mut current_lines, &mut current_label);
-            let label = rest.split(')').next().unwrap_or(rest);
-            pending_label = SectionType::from_label(label);
-            continue;
-        }
         if let Some(value) = header_value(trimmed, "título:") {
             title = value.trim().to_string();
             continue;
@@ -202,13 +157,10 @@ fn push_block(lines: &[&str], songs: &mut Vec<ParsedSong>) {
             artist = value.trim().to_string();
             continue;
         }
-        if current_lines.is_empty() {
-            current_label = pending_label.take();
-        }
-        current_lines.push(trimmed.to_string());
+        content.push(line);
     }
 
-    flush_section(&mut sections, &mut current_lines, &mut current_label);
+    let sections = lyrics::parse_sections(&content.join("\n"));
 
     if !title.is_empty() && !sections.is_empty() {
         songs.push(ParsedSong {
@@ -217,20 +169,6 @@ fn push_block(lines: &[&str], songs: &mut Vec<ParsedSong>) {
             sections,
         });
     }
-}
-
-fn flush_section(
-    sections: &mut Vec<ParsedSection>,
-    lines: &mut Vec<String>,
-    label: &mut Option<SectionType>,
-) {
-    if lines.is_empty() {
-        return;
-    }
-    sections.push(ParsedSection {
-        section_type: label.take(),
-        lines: std::mem::take(lines),
-    });
 }
 
 fn header_value<'a>(line: &'a str, prefix: &str) -> Option<&'a str> {

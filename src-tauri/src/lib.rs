@@ -69,6 +69,8 @@ pub fn run() {
             commands::songs::import_holyrics,
             commands::songs::search_lyrics_online,
             commands::songs::fetch_online_lyrics,
+            commands::songs::parse_lyrics,
+            commands::songs::lyrics_to_text,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o Open Presenter");
