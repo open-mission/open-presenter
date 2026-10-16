@@ -121,7 +121,7 @@ export function ThemesTab() {
   const themes = useSlideThemesStore((s) => s.themes);
   const bindings = useSlideThemesStore((s) => s.bindings);
   const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
-  const ensureSeeded = useSlideThemesStore((s) => s.ensureSeeded);
+  const load = useSlideThemesStore((s) => s.load);
   const save = useSlideThemesStore((s) => s.save);
   const remove = useSlideThemesStore((s) => s.remove);
   const setBinding = useSlideThemesStore((s) => s.setBinding);
@@ -134,10 +134,10 @@ export function ThemesTab() {
   const [renameTitle, setRenameTitle] = useState("");
 
   useEffect(() => {
-    ensureSeeded().catch((e: unknown) =>
+    load().catch((e: unknown) =>
       setError(e instanceof Error ? e.message : "Falha ao carregar temas"),
     );
-  }, [ensureSeeded]);
+  }, [load]);
 
   async function handleCreate() {
     setError(null);

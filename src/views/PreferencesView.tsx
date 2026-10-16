@@ -17,6 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { isTauri } from "@/core/ipc/tauri";
 import { closePreferencesWindow } from "@/core/ipc/commands";
+import { useSlideThemesStore } from "@/features/slide-themes/store";
 
 interface NavItemConfig {
   id: PreferencesTab;
@@ -61,6 +62,12 @@ const NAV_ITEMS: NavItemConfig[] = [
 export default function PreferencesView() {
   const activeTab = usePreferencesStore((s) => s.activeTab);
   const setTab = usePreferencesStore((s) => s.setTab);
+  const ensureSeeded = useSlideThemesStore((s) => s.ensureSeeded);
+
+  // Seeds de temas na abertura da janela (best-effort).
+  useEffect(() => {
+    void ensureSeeded().catch(() => {});
+  }, [ensureSeeded]);
 
   // Sync tab with localStorage on mount and across windows
   useEffect(() => {

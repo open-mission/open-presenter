@@ -16,6 +16,7 @@ import { StageTab } from "./tabs/StageTab";
 import { ThemesTab } from "./tabs/ThemesTab";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { listenCommand } from "@/core/ipc/tauri";
+import { useSlideThemesStore } from "@/features/slide-themes/store";
 
 interface NavItemConfig {
   id: PreferencesTab;
@@ -63,6 +64,12 @@ export function PreferencesDialog() {
   const setTab = usePreferencesStore((s) => s.setTab);
   const closePreferences = usePreferencesStore((s) => s.closePreferences);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
+  const ensureSeeded = useSlideThemesStore((s) => s.ensureSeeded);
+
+  // Seeds de temas no primeiro acesso às preferências (best-effort).
+  useEffect(() => {
+    if (isOpen) void ensureSeeded().catch(() => {});
+  }, [isOpen, ensureSeeded]);
 
   // Keyboard shortcut listener (Cmd+, / Ctrl+, to open, Esc to close)
   useEffect(() => {
