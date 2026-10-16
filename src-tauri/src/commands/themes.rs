@@ -24,3 +24,13 @@ pub fn save_theme(db: State<'_, Db>, theme: SlideTheme) -> Result<(), AppError> 
 pub fn delete_theme(db: State<'_, Db>, guid: String) -> Result<(), AppError> {
     db.with_conn(|conn| themes::delete_theme(conn, &guid))
 }
+
+#[tauri::command]
+pub fn save_theme_media(
+    app: tauri::AppHandle,
+    guid: String,
+    filename: String,
+    contents: Vec<u8>,
+) -> Result<String, AppError> {
+    crate::services::theme_media::save_media(&app, &guid, &filename, &contents)
+}

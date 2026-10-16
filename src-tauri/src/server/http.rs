@@ -1,9 +1,10 @@
+use std::path::{Component, PathBuf};
 use std::sync::Arc;
 
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        Path, State,
     },
     http::{header, StatusCode},
     response::{Html, IntoResponse},
@@ -21,6 +22,7 @@ use crate::state::types::{OUTPUT_HTTP_PORT, WS_PATH};
 pub struct ServerState {
     pub broadcaster: SharedBroadcaster,
     pub ws_tx: broadcast::Sender<String>,
+    pub media_dir: PathBuf,
 }
 
 use rust_embed::RustEmbed;
@@ -39,6 +41,7 @@ pub fn router(state: ServerState) -> Router {
         .route(WS_PATH, get(ws_handler))
         .route("/health", get(health_handler))
         .route("/api/live", get(live_handler))
+        .route("/theme-media/*path", get(theme_media_handler))
         .fallback(static_handler)
         .with_state(Arc::new(state))
         .layer(cors)
@@ -51,6 +54,37 @@ async fn health_handler() -> &'static str {
 async fn live_handler(State(state): State<Arc<ServerState>>) -> impl IntoResponse {
     let slide = state.broadcaster.current_slide();
     (StatusCode::OK, axum::Json(slide))
+}
+
+async fn theme_media_handler(
+    State(state): State<Arc<ServerState>>,
+    Path(path): Path<String>,
+) -> impl IntoResponse {
+    let relativo = PathBuf::from(&path);
+    if relativo
+        .components()
+        .any(|c| matches!(c, Component::ParentDir))
+    {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let arquivo = state.media_dir.join(&relativo);
+    if !arquivo.starts_with(&state.media_dir) {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    match tokio::fs::read(&arquivo).await {
+        Ok(bytes) => {
+            let mime = mime_guess::from_path(&arquivo).first_or_octet_stream();
+            match axum::http::Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, mime.as_ref())
+                .body(axum::body::Body::from(bytes))
+            {
+                Ok(response) => response.into_response(),
+                Err(_) => StatusCode::NOT_FOUND.into_response(),
+            }
+        }
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 async fn ws_handler(
