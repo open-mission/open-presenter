@@ -83,9 +83,6 @@ const ASSET_TYPES = [
   { value: "music", label: "Música" },
   { value: "bible", label: "Bíblia" },
   { value: "text", label: "Texto" },
-  { value: "image", label: "Imagem" },
-  { value: "video", label: "Vídeo" },
-  { value: "presentation", label: "Apresentação" },
 ];
 
 const BACKGROUND_PRESETS = [
@@ -914,7 +911,7 @@ function ThemeBackground({
           <input
             ref={fileRef}
             type="file"
-            accept=".png,.jpg,.jpeg,.webp,.mp4"
+            accept=".png,.jpg,.jpeg,.webp"
             className="hidden"
             aria-label="Enviar imagem de fundo"
             onChange={(e) => {
