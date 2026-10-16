@@ -24,10 +24,16 @@ impl OutputsState {
             .unwrap_or_else(|| OutputConfig::off(target))
     }
 
-    pub fn set_open(&self, target: OutputTarget, open: bool, monitor_id: Option<String>) {
+    pub fn set_open(&self, target: OutputTarget, open: bool, monitor_id: Option<String>) -> bool {
         if let Ok(mut guard) = self.open.lock() {
-            guard.insert(target, (open, monitor_id));
+            let next = (open, monitor_id);
+            if guard.get(&target) == Some(&next) {
+                return false;
+            }
+            guard.insert(target, next);
+            return true;
         }
+        false
     }
 
     pub fn snapshot(&self) -> Vec<OutputRuntime> {
@@ -79,5 +85,15 @@ mod tests {
             .expect("public no snapshot");
         assert!(!public.open);
         assert_eq!(public.monitor_id, None);
+    }
+
+    #[test]
+    fn set_open_retorna_changed_so_em_transicao() {
+        let state = OutputsState::default();
+        assert!(state.set_open(OutputTarget::Public, true, Some("monitor-1".to_string())));
+        assert!(!state.set_open(OutputTarget::Public, true, Some("monitor-1".to_string())));
+        assert!(state.set_open(OutputTarget::Public, true, Some("monitor-2".to_string())));
+        assert!(state.set_open(OutputTarget::Public, false, None));
+        assert!(!state.set_open(OutputTarget::Public, false, None));
     }
 }

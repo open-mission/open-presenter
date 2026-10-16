@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Emitter, Manager, Monitor, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, Monitor, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 use crate::error::AppError;
 use crate::state::outputs::OutputsState;
@@ -58,8 +58,9 @@ pub async fn open_output_window(
             .into_iter()
             .find(|r| r.target == target)
             .and_then(|r| r.monitor_id);
-        state.set_open(target, true, monitor_id.or(current));
-        let _ = app.emit(EVENT_OUTPUTS, state.snapshot());
+        if state.set_open(target, true, monitor_id.or(current)) {
+            let _ = app.emit(EVENT_OUTPUTS, state.snapshot());
+        }
         return Ok(());
     }
 
@@ -90,10 +91,20 @@ pub async fn open_output_window(
         builder = builder.fullscreen(true);
     }
 
-    builder.build().map_err(AppError::Tauri)?;
+    let window = builder.build().map_err(AppError::Tauri)?;
+    let watcher_app = app.clone();
+    window.on_window_event(move |event| {
+        if let WindowEvent::CloseRequested { .. } = event {
+            let state = watcher_app.state::<OutputsState>();
+            if state.set_open(target, false, None) {
+                let _ = watcher_app.emit(EVENT_OUTPUTS, state.snapshot());
+            }
+        }
+    });
     let state = app.state::<OutputsState>();
-    state.set_open(target, true, resolved_id);
-    let _ = app.emit(EVENT_OUTPUTS, state.snapshot());
+    if state.set_open(target, true, resolved_id) {
+        let _ = app.emit(EVENT_OUTPUTS, state.snapshot());
+    }
     Ok(())
 }
 
@@ -138,14 +149,15 @@ pub fn close_output_window(app: &AppHandle, target: OutputTarget) -> Result<(), 
         window.close().map_err(AppError::Tauri)?;
     }
     let state = app.state::<OutputsState>();
-    state.set_open(target, false, None);
-    let _ = app.emit(EVENT_OUTPUTS, state.snapshot());
+    if state.set_open(target, false, None) {
+        let _ = app.emit(EVENT_OUTPUTS, state.snapshot());
+    }
     Ok(())
 }
 
-/// Reconcilia o `open` com as janelas reais: cobre fechamentos pelo ✕ do SO,
-/// que não passam por `close_output_window` (sem `on_window_event` no
-/// `WebviewWindowBuilder` do Tauri 2.12). Emite `EVENT_OUTPUTS` se corrigir algo.
+/// Reconcilia o `open` com as janelas reais (rede de segurança além do
+/// `on_window_event(CloseRequested)` anexado na abertura). Emite
+/// `EVENT_OUTPUTS` se corrigir algo.
 pub fn reconcile_open_state(app: &AppHandle) -> bool {
     let state = app.state::<OutputsState>();
     let mut fixed = false;
