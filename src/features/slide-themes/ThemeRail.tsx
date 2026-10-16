@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
 import { Check, ChevronLeft, ChevronRight, Pencil, Trash2, Zap } from "lucide-react";
 import { kindToAsset } from "@/core/types";
 import { isTauri } from "@/core/ipc/tauri";
 import { openThemeEditor } from "@/core/ipc/commands";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSlideThemesStore } from "./store";
-import { ThemeRenderer } from "./ThemeRenderer";
+import { ScaledStage } from "./ScaledStage";
 import { SAMPLES } from "./samples";
 
 const RAIL_KEY = "open_presenter_theme_rail_open";
@@ -177,17 +176,12 @@ export function ThemeRail() {
                         : "border-border bg-card/60 hover:border-primary/50"
                     }`}
                   >
-                    <span
-                      className="relative block h-20 w-full overflow-hidden rounded-md"
-                      style={theme.css as CSSProperties}
-                    >
-                      <span className="absolute inset-0" style={{ zoom: 0.25 }}>
-                        <ThemeRenderer
-                          theme={theme}
-                          asset={asset}
-                          props={sample.props}
-                        />
-                      </span>
+                    <span className="relative block aspect-video w-full overflow-hidden rounded-md">
+                      <ScaledStage
+                        theme={theme}
+                        asset={asset}
+                        props={sample.props}
+                      />
                       {isLive && (
                         <span className="absolute top-1 left-1 flex items-center gap-0.5 rounded bg-primary px-1 py-px text-[9px] font-bold text-primary-foreground">
                           <Zap className="size-2.5" />

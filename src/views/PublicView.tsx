@@ -4,7 +4,7 @@ import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { usePresentationStore } from "@/features/presentation/store";
 import { SlideCanvas } from "@/features/presentation/SlideCanvas";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
-import { ThemeRenderer } from "@/features/slide-themes/ThemeRenderer";
+import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 
@@ -40,7 +40,7 @@ export default function PublicView() {
     <div className="h-full w-full bg-black">
       <div className="relative h-full w-full overflow-hidden bg-black">
         <BackgroundRenderer background={live.background} />
-        <ThemeRenderer
+        <ScaledStage
           theme={theme}
           asset={asset}
           props={buildProps(live.content.kind, live.content, live.nextUp)}

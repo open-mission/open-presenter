@@ -5,7 +5,7 @@ import { usePresentationStore } from "@/features/presentation/store";
 import { StageAlerts } from "@/features/stage-display/StageAlerts";
 import { StageClock } from "@/features/stage-display/StageClock";
 import { useStageConfigStore } from "@/features/stage-display/configStore";
-import { ThemeRenderer } from "@/features/slide-themes/ThemeRenderer";
+import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 
@@ -47,7 +47,7 @@ export default function StageView() {
     };
     return (
       <div className={`relative min-h-full ${themeClass}`}>
-        <ThemeRenderer theme={stageTheme} asset={asset} props={props} />
+        <ScaledStage theme={stageTheme} asset={asset} props={props} />
         <div className="relative z-10 flex min-h-full flex-col p-8">
           <div className="flex justify-center w-full">
             <StageClock />
