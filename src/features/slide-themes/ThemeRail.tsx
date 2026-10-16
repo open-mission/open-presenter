@@ -36,6 +36,7 @@ export function ThemeRail() {
   const [open, setOpen] = useState(readOpen);
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [confirmGuid, setConfirmGuid] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     void load();
@@ -96,7 +97,12 @@ export function ThemeRail() {
     }
     setConfirmGuid(null);
     setMenu(null);
-    await remove(guid);
+    setError(null);
+    try {
+      await remove(guid);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Falha ao excluir tema");
+    }
   }
 
   function closeMenu() {
@@ -141,6 +147,11 @@ export function ThemeRail() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
+        {error !== null && (
+          <p className="mb-2 text-xs text-destructive" role="alert">
+            {error}
+          </p>
+        )}
         {themes.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Nenhum tema. Crie um em Preferências &gt; Temas.

@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SAMPLES } from "@/features/slide-themes/samples";
+import { listenCommand } from "@/core/ipc/tauri";
 import { Canvas } from "@/features/theme-editor/Canvas";
 import { LayersPanel } from "@/features/theme-editor/LayersPanel";
 import { PropertiesPanel } from "@/features/theme-editor/PropertiesPanel";
@@ -82,6 +83,21 @@ export default function ThemeEditorView() {
   useEffect(() => {
     if (guid) void load(guid);
   }, [guid, load]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    void listenCommand<string | null>("theme-editor://open", (payload) => {
+      if (typeof payload === "string" && payload !== "") {
+        setSelectedId(null);
+        void load(payload);
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, [load]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {

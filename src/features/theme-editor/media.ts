@@ -8,3 +8,14 @@ export function resolveThemeMediaUrl(
   if (!match) return value;
   return `http://${host}:5050/theme-media/${match[1]}/${match[2]}`;
 }
+
+export function resolveCssMediaUrls(
+  value: string | undefined,
+  host: string,
+): string | undefined {
+  if (!value) return value;
+  return value.replace(
+    /media:\/\/([^/\s)'"]+)\/([^)\s'"]+)/g,
+    `http://${host}:5050/theme-media/$1/$2`,
+  );
+}

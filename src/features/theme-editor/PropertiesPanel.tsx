@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { saveThemeMedia } from "@/core/ipc/commands";
+import { resolveCssMediaUrls } from "./media";
 import { VARIABLE_KEYS } from "@/features/slide-themes/samples";
 import { alignToScreen } from "./geometry";
 import type { AlignEdge } from "./geometry";
@@ -173,6 +174,13 @@ export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
         <Input value={selected.id} disabled aria-label="Nome do elemento" />
       </Section>
       <LayoutSection el={selected} updateElement={updateElement} />
+      {(selected.type === "IMAGE" || selected.type === "VIDEO") && (
+        <ElementMediaSection
+          guid={draft.guid}
+          el={selected}
+          updateElement={updateElement}
+        />
+      )}
       {selected.type === "TEXT" && (
         <TextSection el={selected} updateElement={updateElement} />
       )}
@@ -828,6 +836,77 @@ function AdvancedCssSection({
   );
 }
 
+function ElementMediaSection({
+  guid,
+  el,
+  updateElement,
+}: {
+  guid: string;
+  el: ThemeElement;
+  updateElement: UpdateElement;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const isVideo = el.type === "VIDEO";
+
+  async function handleFile(file: File) {
+    setError(null);
+    setUploading(true);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const saved = await saveThemeMedia(
+        guid,
+        file.name,
+        Array.from(bytes),
+      );
+      if (!/^media:\/\/[^/]+\/.+$/.test(saved)) {
+        setError("Resposta inesperada do servidor de mídia.");
+        return;
+      }
+      updateElement(el.id, { src: saved });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falha ao enviar arquivo.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <Section title="ARQUIVO">
+      {(el.src ?? "") !== "" && (
+        <p
+          className="truncate px-1 font-mono text-[11px] text-muted-foreground"
+          title={el.src}
+        >
+          {el.src}
+        </p>
+      )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept={isVideo ? ".mp4" : ".png,.jpg,.jpeg,.webp"}
+        className="hidden"
+        aria-label={isVideo ? "Enviar vídeo" : "Enviar imagem"}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void handleFile(file);
+        }}
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={uploading}
+        onClick={() => fileRef.current?.click()}
+      >
+        {uploading ? "Enviando…" : "Arquivo…"}
+      </Button>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </Section>
+  );
+}
+
 function ThemeBackground({
   draft,
   updateCss,
@@ -854,13 +933,7 @@ function ThemeBackground({
         setError("Resposta inesperada do servidor de mídia.");
         return;
       }
-      const host =
-        typeof window !== "undefined" && window.location.hostname
-          ? window.location.hostname
-          : "localhost";
-      updateCss({
-        background: `url(http://${host}:5050/theme-media/${match[1]}/${match[2]})`,
-      });
+      updateCss({ background: `url(${saved})` });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Falha ao enviar imagem.");
     } finally {
@@ -868,12 +941,20 @@ function ThemeBackground({
     }
   }
 
+  const host =
+    typeof window !== "undefined" && window.location.hostname
+      ? window.location.hostname
+      : "localhost";
+
   return (
     <div className="flex flex-col gap-5">
       <Section title="FUNDO PADRÃO">
         <div
           className="h-16 w-full rounded-md border border-border"
-          style={{ background: draft.css.background ?? "#000000" }}
+          style={{
+            background:
+              resolveCssMediaUrls(draft.css.background, host) ?? "#000000",
+          }}
           aria-label="Prévia do fundo"
         />
         <Field label="Cor">
