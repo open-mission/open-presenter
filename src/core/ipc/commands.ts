@@ -5,6 +5,8 @@ import type {
   LiveThemes,
   MonitorInfo,
   OnlineLyricHit,
+  OutputConfig,
+  OutputRuntime,
   OutputTarget,
   ServiceEvent,
   SlideTheme,
@@ -29,6 +31,20 @@ export async function closeOutputWindow(
   target: OutputTarget,
 ): Promise<void> {
   await invokeCommand("close_output_window", { target });
+}
+
+export async function getOutputConfig(
+  target: OutputTarget,
+): Promise<OutputConfig | null> {
+  return invokeCommand<OutputConfig>("get_output_config", { target });
+}
+
+export async function setOutputConfig(config: OutputConfig): Promise<void> {
+  await invokeCommand("set_output_config", { config });
+}
+
+export async function getOutputsState(): Promise<OutputRuntime[]> {
+  return (await invokeCommand<OutputRuntime[]>("get_outputs_state")) ?? [];
 }
 
 export async function openPreferencesWindow(): Promise<void> {

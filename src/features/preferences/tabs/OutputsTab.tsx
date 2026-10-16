@@ -14,10 +14,8 @@ import {
 } from "lucide-react";
 import { outputHttpUrl } from "@/core/config/app";
 import {
-  closeOutputWindow,
   fetchServerHost,
   listMonitors,
-  openOutputWindow,
 } from "@/core/ipc/commands";
 import type { MonitorInfo, OutputMode, OutputTarget } from "@/core/types";
 import { Badge } from "@/components/ui/badge";
@@ -41,10 +39,11 @@ function TargetCard({
   webPath,
   monitors,
 }: TargetCardProps) {
-  const outputs = useOutputManagerStore((s) => s.outputs);
+  const configs = useOutputManagerStore((s) => s.configs);
   const host = useOutputManagerStore((s) => s.host);
-  const setOutput = useOutputManagerStore((s) => s.setOutput);
-  const output = outputs[target];
+  const setMode = useOutputManagerStore((s) => s.setMode);
+  const setMonitor = useOutputManagerStore((s) => s.setMonitor);
+  const output = configs[target];
 
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -54,29 +53,14 @@ function TargetCard({
   async function handleModeChange(mode: OutputMode) {
     setLoading(true);
     try {
-      if (mode === "off") {
-        await closeOutputWindow(target);
-      } else if (mode === "native" || mode === "both") {
-        await openOutputWindow(target, output.monitorId);
-      }
-      setOutput({
-        ...output,
-        mode,
-        url: mode === "off" ? null : currentUrl,
-      });
+      await setMode(target, mode);
     } finally {
       setLoading(false);
     }
   }
 
   function handleMonitorSelect(monitorId: string | null) {
-    setOutput({
-      ...output,
-      monitorId,
-    });
-    if (output.mode === "native" || output.mode === "both") {
-      void openOutputWindow(target, monitorId);
-    }
+    void setMonitor(target, monitorId);
   }
 
   function handleCopyUrl() {

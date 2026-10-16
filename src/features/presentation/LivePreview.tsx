@@ -24,7 +24,7 @@ import type { LiveSlide } from "@/core/types";
 export function LivePreview() {
   const live = usePresentationStore((s) => s.live);
   const preview = usePresentationStore((s) => s.preview);
-  const outputs = useOutputManagerStore((s) => s.outputs);
+  const outputs = useOutputManagerStore((s) => s.configs);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
   const loadThemes = useSlideThemesStore((s) => s.load);
   const previewTheme = useSlideThemesStore((s) =>

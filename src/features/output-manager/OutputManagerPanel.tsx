@@ -1,43 +1,19 @@
 import { useEffect } from "react";
 import { ExternalLink, MonitorUp, XCircle } from "lucide-react";
-import { outputHttpUrl } from "@/core/config/app";
-import {
-  closeOutputWindow,
-  fetchServerHost,
-  listMonitors,
-  openOutputWindow,
-} from "@/core/ipc/commands";
 import type { OutputMode, OutputTarget } from "@/core/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useOutputManagerStore } from "./store";
 
-function Row({
-  target,
-  title,
-  webPath,
-}: {
-  target: OutputTarget;
-  title: string;
-  webPath: "/public" | "/stage";
-}) {
-  const outputs = useOutputManagerStore((s) => s.outputs);
+function Row({ target, title }: { target: OutputTarget; title: string }) {
+  const configs = useOutputManagerStore((s) => s.configs);
   const monitors = useOutputManagerStore((s) => s.monitors);
-  const host = useOutputManagerStore((s) => s.host);
-  const setOutput = useOutputManagerStore((s) => s.setOutput);
-  const output = outputs[target];
+  const setMode = useOutputManagerStore((s) => s.setMode);
+  const setMonitor = useOutputManagerStore((s) => s.setMonitor);
+  const output = configs[target];
 
-  async function setMode(mode: OutputMode) {
-    if (mode === "off") {
-      await closeOutputWindow(target);
-    } else if (mode === "native" || mode === "both") {
-      await openOutputWindow(target, output.monitorId);
-    }
-    setOutput({
-      ...output,
-      mode,
-      url: mode === "off" ? null : outputHttpUrl(host, webPath),
-    });
+  async function handleMode(mode: OutputMode) {
+    await setMode(target, mode);
   }
 
   return (
@@ -49,9 +25,7 @@ function Row({
       <select
         className="h-9 rounded-md border border-zinc-700 bg-zinc-900 px-2 text-sm"
         value={output.monitorId ?? ""}
-        onChange={(e) =>
-          setOutput({ ...output, monitorId: e.target.value || null })
-        }
+        onChange={(e) => void setMonitor(target, e.target.value || null)}
       >
         <option value="">Monitor automático</option>
         {monitors.map((m) => (
@@ -61,15 +35,19 @@ function Row({
         ))}
       </select>
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => void setMode("native")}>
+        <Button size="sm" onClick={() => void handleMode("native")}>
           <MonitorUp size={14} />
           Nativa
         </Button>
-        <Button size="sm" variant="secondary" onClick={() => void setMode("web")}>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => void handleMode("web")}
+        >
           <ExternalLink size={14} />
           Web
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => void setMode("off")}>
+        <Button size="sm" variant="ghost" onClick={() => void handleMode("off")}>
           <XCircle size={14} />
           Off
         </Button>
@@ -89,13 +67,11 @@ function Row({
 }
 
 export function OutputManagerPanel() {
-  const setMonitors = useOutputManagerStore((s) => s.setMonitors);
-  const setHost = useOutputManagerStore((s) => s.setHost);
+  const load = useOutputManagerStore((s) => s.load);
 
   useEffect(() => {
-    void listMonitors().then(setMonitors);
-    void fetchServerHost().then(setHost);
-  }, [setHost, setMonitors]);
+    void load();
+  }, [load]);
 
   return (
     <Card>
@@ -103,8 +79,8 @@ export function OutputManagerPanel() {
         <CardTitle>Gerenciador de saídas</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <Row target="public" title="Tela pública / Projeção" webPath="/public" />
-        <Row target="stage" title="Retorno / Palco" webPath="/stage" />
+        <Row target="public" title="Tela pública / Projeção" />
+        <Row target="stage" title="Retorno / Palco" />
       </CardContent>
     </Card>
   );

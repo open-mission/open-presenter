@@ -20,7 +20,7 @@ interface AppTopBarProps {
 export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
   const live = usePresentationStore((s) => s.live);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
-  const outputs = useOutputManagerStore((s) => s.outputs);
+  const outputs = useOutputManagerStore((s) => s.configs);
 
   const publicActive = outputs.public.mode !== "off";
   const stageActive = outputs.stage.mode !== "off";

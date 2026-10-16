@@ -45,7 +45,14 @@ export interface OutputConfig {
   target: OutputTarget;
   mode: OutputMode;
   monitorId: string | null;
+  monitorLabel: string | null;
   url: string | null;
+}
+
+export interface OutputRuntime {
+  target: OutputTarget;
+  open: boolean;
+  monitorId: string | null;
 }
 
 export type StageAlertLevel = "info" | "warning" | "urgent";

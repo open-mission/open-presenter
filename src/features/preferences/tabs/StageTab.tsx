@@ -29,7 +29,7 @@ import type { StageAlertLevel, StageMessage } from "@/core/types";
 export function StageTab() {
   const host = useOutputManagerStore((s) => s.host);
   const setHost = useOutputManagerStore((s) => s.setHost);
-  const stageOutput = useOutputManagerStore((s) => s.outputs.stage);
+  const stageOutput = useOutputManagerStore((s) => s.configs.stage);
 
   const {
     showClock,
