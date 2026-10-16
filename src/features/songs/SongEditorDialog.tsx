@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -10,17 +9,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { SECTION_TYPES } from "@/core/config/lyrics";
-import type { SectionType, Song, SongSection } from "@/core/types";
+import { lyricsToText, parseLyrics } from "@/core/ipc/commands";
+import { buildSongSlides, type RunnerSlide } from "@/core/lib/lyrics";
+import type { Song, SongSection } from "@/core/types";
 import { useSongsStore } from "./store";
+
+const PREVIEW_DEBOUNCE_MS = 300;
+
+function previewSlides(sections: SongSection[]): RunnerSlide[] {
+  return buildSongSlides({ id: "preview", title: "", artist: "", sections });
+}
 
 export function SongEditorDialog() {
   const editorSong = useSongsStore((s) => s.editorSong);
@@ -29,6 +28,9 @@ export function SongEditorDialog() {
   const deleteSong = useSongsStore((s) => s.deleteSong);
 
   const [draft, setDraft] = useState<Song | null>(editorSong);
+  const [text, setText] = useState("");
+  const [textReady, setTextReady] = useState(false);
+  const [preview, setPreview] = useState<RunnerSlide[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -36,68 +38,62 @@ export function SongEditorDialog() {
     setDraft(editorSong);
     setConfirmDelete(false);
     setActionError(null);
+    setTextReady(false);
+    setPreview(editorSong === null ? [] : previewSlides(editorSong.sections));
+    if (editorSong === null) return;
+
+    let cancelled = false;
+    lyricsToText(editorSong.sections)
+      .then((lyrics) => {
+        if (cancelled) return;
+        setText(lyrics);
+        setTextReady(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setText("");
+        setActionError("Não foi possível carregar a letra da música.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [editorSong]);
+
+  useEffect(() => {
+    if (draft === null || !textReady) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      parseLyrics(text)
+        .then((sections) => {
+          if (!cancelled) setPreview(previewSlides(sections));
+        })
+        .catch(() => {});
+    }, PREVIEW_DEBOUNCE_MS);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [draft, text, textReady]);
 
   const updateDraft = (patch: Partial<Song>) =>
     setDraft((current) => (current === null ? current : { ...current, ...patch }));
 
-  const updateSection = (index: number, patch: Partial<SongSection>) =>
-    setDraft((current) =>
-      current === null
-        ? current
-        : {
-            ...current,
-            sections: current.sections.map((section, i) =>
-              i === index ? { ...section, ...patch } : section,
-            ),
-          },
-    );
-
-  const addSection = () =>
-    setDraft((current) =>
-      current === null
-        ? current
-        : {
-            ...current,
-            sections: [...current.sections, { sectionType: null, lines: [""] }],
-          },
-    );
-
-  const removeSection = (index: number) =>
-    setDraft((current) =>
-      current === null
-        ? current
-        : {
-            ...current,
-            sections: current.sections.filter((_, i) => i !== index),
-          },
-    );
-
-  const moveSection = (index: number, direction: -1 | 1) =>
-    setDraft((current) => {
-      if (current === null) return current;
-      const target = index + direction;
-      if (target < 0 || target >= current.sections.length) return current;
-      const sections = [...current.sections];
-      [sections[index], sections[target]] = [sections[target], sections[index]];
-      return { ...current, sections };
-    });
-
   const handleSave = async () => {
     if (draft === null || draft.title.trim() === "") return;
     setActionError(null);
+    let sections: SongSection[];
+    try {
+      sections = await parseLyrics(text);
+    } catch {
+      setActionError("Não foi possível interpretar a letra.");
+      return;
+    }
     const ok = await saveEditor({
-      ...draft,
+      id: draft.id,
       title: draft.title.trim(),
       artist: draft.artist.trim(),
-      sections: draft.sections.map((section) => ({
-        ...section,
-        lines: section.lines
-          .join("\n")
-          .split("\n")
-          .map((line) => line.trim())
-          .filter((line) => line !== ""),
-      })),
+      sections,
     });
     if (!ok) {
       setActionError(
@@ -151,78 +147,50 @@ export function SongEditorDialog() {
               />
             </label>
           </div>
-          <div className="flex flex-col gap-3">
-            <div className="flex max-h-[45vh] flex-col gap-2 overflow-y-auto pr-1">
-              {draft.sections.map((section, index) => (
-                <Card key={index} className="gap-3 py-3">
-                  <CardContent className="flex flex-col gap-2 px-3">
-                    <div className="flex items-center gap-2">
-                      <Select
-                        value={section.sectionType ?? "none"}
-                        onValueChange={(value) =>
-                          updateSection(index, {
-                            sectionType:
-                              value === "none" ? null : (value as SectionType),
-                          })
-                        }
-                      >
-                        <SelectTrigger className="w-40" size="sm">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent position="popper">
-                          <SelectItem value="none">Sem rótulo</SelectItem>
-                          {SECTION_TYPES.map((type) => (
-                            <SelectItem key={type.type} value={type.type}>
-                              {type.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <div className="ml-auto flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Mover bloco para cima"
-                          disabled={index === 0}
-                          onClick={() => moveSection(index, -1)}
-                        >
-                          <ArrowUp />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Mover bloco para baixo"
-                          disabled={index === draft.sections.length - 1}
-                          onClick={() => moveSection(index, 1)}
-                        >
-                          <ArrowDown />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Remover bloco"
-                          onClick={() => removeSection(index)}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </div>
-                    </div>
-                    <Textarea
-                      value={section.lines.join("\n")}
-                      onChange={(e) =>
-                        updateSection(index, { lines: e.target.value.split("\n") })
-                      }
-                      placeholder="Uma linha da letra por linha"
-                      className="min-h-24"
-                    />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            <Button variant="outline" onClick={addSection}>
-              ＋ bloco
-            </Button>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-muted-foreground">Letra</span>
+            <Textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={"Uma linha por verso…\n\n##(Refrão)\n\nDeixe uma linha em branco entre os blocos"}
+              className="min-h-56"
+              disabled={!textReady}
+            />
+            <p className="text-xs text-muted-foreground">
+              <code className="rounded bg-muted px-1 py-0.5 font-mono">
+                ##(Nome)
+              </code>{" "}
+              nomeia o bloco (ex.: Refrão, Verso 2) e uma linha em branco
+              separa os slides. Linhas iniciadas por{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono">//</code>{" "}
+              não aparecem no telão.
+            </p>
           </div>
+          {preview.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-sm text-muted-foreground">
+                Slides ({preview.length})
+              </span>
+              <div className="flex max-h-36 flex-col gap-1 overflow-y-auto pr-1">
+                {preview.map((item) => (
+                  <div
+                    key={item.index}
+                    className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-1"
+                  >
+                    <span className="w-5 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+                      {item.index + 1}
+                    </span>
+                    <Badge variant="secondary" className="shrink-0">
+                      {item.label ?? "Sem rótulo"}
+                    </Badge>
+                    <span className="truncate text-xs text-muted-foreground">
+                      {item.slide.lines.slice(0, 2).join(" · ")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {actionError !== null && (
             <p className="text-sm text-destructive">{actionError}</p>
           )}
@@ -237,7 +205,10 @@ export function SongEditorDialog() {
             <Button variant="outline" onClick={closeEditor}>
               Cancelar
             </Button>
-            <Button disabled={draft.title.trim() === ""} onClick={handleSave}>
+            <Button
+              disabled={draft.title.trim() === "" || !textReady}
+              onClick={handleSave}
+            >
               Salvar
             </Button>
           </DialogFooter>

@@ -7,6 +7,7 @@ import type {
   OutputTarget,
   ServiceEvent,
   Song,
+  SongSection,
   SongSummary,
 } from "../types";
 import { invokeCommand, invokeStrict } from "./tauri";
@@ -80,6 +81,14 @@ export async function fetchOnlineLyrics(
     trackName,
     artistName,
   });
+}
+
+export async function parseLyrics(text: string): Promise<SongSection[]> {
+  return invokeStrict<SongSection[]>("parse_lyrics", { text });
+}
+
+export async function lyricsToText(sections: SongSection[]): Promise<string> {
+  return invokeStrict<string>("lyrics_to_text", { sections });
 }
 
 export async function listEvents(): Promise<EventSummary[]> {
