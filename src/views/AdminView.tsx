@@ -13,6 +13,8 @@ import { useOutputsSync } from "@/features/output-manager/useOutputsSync";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { useStageTimerSync } from "@/features/stage-display/useStageTimerSync";
 import { SongEditorDialog } from "@/features/songs/SongEditorDialog";
+import { OnlineLyricsDialog } from "@/features/songs/OnlineLyricsDialog";
+import { ImportReportDialog } from "@/features/songs/ImportReportDialog";
 import { useSetlistStore } from "@/features/events-setlists/store";
 import { useNativeMenu } from "@/core/ipc/useNativeMenu";
 
@@ -81,6 +83,12 @@ export default function AdminView() {
 
       {/* Song Editor Modal Dialog (Accessed via slide right-click / shortcut) */}
       <SongEditorDialog />
+
+      {/* Online Lyrics Search Dialog (Accessed via menu Novo > Buscar música na internet / ⌘⇧F) */}
+      <OnlineLyricsDialog />
+
+      {/* Import Report Dialog (Holyrics import summary) */}
+      <ImportReportDialog />
     </div>
   );
 }

@@ -23,6 +23,7 @@ import type {
 } from "@/core/types";
 
 import { isOutputActive } from "./outputActive";
+import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
 
 function webPathFor(target: OutputTarget): "/public" | "/stage" {
   return target === "public" ? "/public" : "/stage";
@@ -49,6 +50,7 @@ function normalizeConfig(cfg: OutputConfig | null): OutputConfig | null {
     monitorId: cfg.monitorId ?? null,
     monitorLabel: cfg.monitorLabel ?? null,
     url: cfg.url ?? null,
+    wallpaper: cfg.wallpaper ?? null,
   };
 }
 
@@ -69,6 +71,7 @@ interface OutputManagerState {
   refreshConfigsAndServer(): Promise<void>;
   setMode(target: OutputTarget, mode: OutputMode): Promise<void>;
   setMonitor(target: OutputTarget, monitorId: string | null): Promise<void>;
+  setWallpaper(target: OutputTarget, wallpaper: string | null): Promise<void>;
   toggle(target: OutputTarget): Promise<void>;
   setPort(port: number): Promise<void>;
   stopLocalServer(): Promise<void>;
@@ -201,6 +204,18 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
     if (runtime[target]?.open) {
       await closeOutputWindow(target);
       await openOutputWindow(target, monitorId, next.monitorLabel);
+    }
+  },
+  setWallpaper: async (target, wallpaper) => {
+    const { configs } = get();
+    const next: OutputConfig = {
+      ...configs[target],
+      wallpaper,
+    };
+    await setOutputConfig(next);
+    set((s) => ({ configs: { ...s.configs, [target]: next } }));
+    if (target === "public") {
+      useWallpaperStore.getState().applyRemote(wallpaper);
     }
   },
   toggle: async (target) => {

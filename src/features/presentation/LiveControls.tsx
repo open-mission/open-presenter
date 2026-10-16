@@ -33,6 +33,7 @@ export function LiveControls() {
 
   async function clear() {
     await usePresentationStore.getState().clearLive();
+    useSetlistStore.setState({ runnerIndex: null });
   }
 
   return (

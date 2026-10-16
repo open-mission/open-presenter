@@ -72,6 +72,24 @@ impl Broadcaster {
     pub fn current_timer(&self) -> StageTimer {
         self.app.state::<PresentationState>().timer()
     }
+
+    pub fn publish_wallpaper(&self, wallpaper: Option<String>) {
+        let state = self.app.state::<PresentationState>();
+        state.set_wallpaper(wallpaper.clone());
+
+        let _ = self.app.emit(crate::state::types::EVENT_WALLPAPER, &wallpaper);
+
+        let envelope = serde_json::json!({
+            "channel": crate::state::types::EVENT_WALLPAPER,
+            "payload": wallpaper,
+            "version": 1,
+        });
+        let _ = self.ws_tx.send(envelope.to_string());
+    }
+
+    pub fn current_wallpaper(&self) -> Option<String> {
+        self.app.state::<PresentationState>().wallpaper()
+    }
 }
 
 pub type SharedBroadcaster = Arc<Broadcaster>;

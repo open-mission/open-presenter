@@ -86,7 +86,7 @@ export function SongSlidesColumn() {
     }
   }, [selectedItemId, song]);
 
-  // Keyboard navigation: ArrowUp, ArrowDown, and Enter
+  // Keyboard navigation: ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Enter and Escape
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement | null;
@@ -100,6 +100,79 @@ export function SongSlidesColumn() {
 
       if (slides.length === 0 || !item) return;
 
+      const live = usePresentationStore.getState().live;
+      const currentRunnerIdx = useSetlistStore.getState().runnerIndex;
+      const isPresentationActive =
+        currentRunnerIdx !== null &&
+        !live.cleared &&
+        !live.blackout &&
+        live.content.kind !== "blank";
+
+      if (e.key === "Escape") {
+        if (isPresentationActive || currentRunnerIdx !== null || !live.cleared) {
+          e.preventDefault();
+          void usePresentationStore.getState().clearLive();
+          useSetlistStore.setState({ runnerIndex: null });
+        }
+        return;
+      }
+
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (isPresentationActive && currentRunnerIdx !== null) {
+          if (currentRunnerIdx < slides.length - 1) {
+            const nextIdx = currentRunnerIdx + 1;
+            setPreviewIndex(nextIdx);
+            usePresentationStore.getState().setPreview(slides[nextIdx]?.slide ?? null);
+            void projectSection(item.id, nextIdx);
+            slideRefs.current[nextIdx]?.scrollIntoView({
+              block: "nearest",
+              behavior: "smooth",
+            });
+          }
+        } else {
+          setPreviewIndex((current) => {
+            const nextIdx =
+              current === null ? 0 : Math.min(slides.length - 1, current + 1);
+            usePresentationStore.getState().setPreview(slides[nextIdx]?.slide ?? null);
+            slideRefs.current[nextIdx]?.scrollIntoView({
+              block: "nearest",
+              behavior: "smooth",
+            });
+            return nextIdx;
+          });
+        }
+        return;
+      }
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (isPresentationActive && currentRunnerIdx !== null) {
+          if (currentRunnerIdx > 0) {
+            const prevIdx = currentRunnerIdx - 1;
+            setPreviewIndex(prevIdx);
+            usePresentationStore.getState().setPreview(slides[prevIdx]?.slide ?? null);
+            void projectSection(item.id, prevIdx);
+            slideRefs.current[prevIdx]?.scrollIntoView({
+              block: "nearest",
+              behavior: "smooth",
+            });
+          }
+        } else {
+          setPreviewIndex((current) => {
+            const prevIdx =
+              current === null ? 0 : Math.max(0, current - 1);
+            usePresentationStore.getState().setPreview(slides[prevIdx]?.slide ?? null);
+            slideRefs.current[prevIdx]?.scrollIntoView({
+              block: "nearest",
+              behavior: "smooth",
+            });
+            return prevIdx;
+          });
+        }
+        return;
+      }
+
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setPreviewIndex((current) => {
@@ -112,7 +185,10 @@ export function SongSlidesColumn() {
           });
           return nextIdx;
         });
-      } else if (e.key === "ArrowUp") {
+        return;
+      }
+
+      if (e.key === "ArrowUp") {
         e.preventDefault();
         setPreviewIndex((current) => {
           const prevIdx =
@@ -124,11 +200,19 @@ export function SongSlidesColumn() {
           });
           return prevIdx;
         });
-      } else if (e.key === "Enter") {
+        return;
+      }
+
+      if (e.key === "Enter") {
         if (previewIndex !== null) {
           e.preventDefault();
           void projectSection(item.id, previewIndex);
+          slideRefs.current[previewIndex]?.scrollIntoView({
+            block: "nearest",
+            behavior: "smooth",
+          });
         }
+        return;
       }
     }
 

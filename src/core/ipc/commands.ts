@@ -107,6 +107,10 @@ export async function fetchStageTimer(): Promise<StageTimer | null> {
   return invokeCommand<StageTimer>("get_stage_timer");
 }
 
+export async function fetchPublicWallpaper(): Promise<string | null> {
+  return invokeCommand<string | null>("get_public_wallpaper");
+}
+
 export async function getServerStatus(): Promise<ServerStatus | null> {
   return invokeCommand<ServerStatus>("get_server_status");
 }

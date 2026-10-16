@@ -1,19 +1,31 @@
 import { useEffect } from "react";
 import {
+  ChevronDown,
   EyeOff,
+  Globe,
   Image,
   Moon,
+  Music,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
   Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { outputHttpUrl } from "@/core/config/app";
 import type { OutputMode } from "@/core/types";
 import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { usePreferencesStore } from "@/features/preferences/store";
 import { usePresentationStore } from "@/features/presentation/store";
+import { useSongsStore } from "@/features/songs/store";
 
 interface AppTopBarProps {
   sidebarOpen: boolean;
@@ -106,7 +118,7 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
 
   return (
     <header className="flex h-14 w-full items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur-xs shrink-0">
-      {/* Left section: Sidebar toggle button */}
+      {/* Left section: Sidebar toggle button and Novo dropdown menu */}
       <div className="flex items-center gap-2">
         <Button
           type="button"
@@ -122,6 +134,39 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
             <PanelLeftOpen className="size-4" />
           )}
         </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 px-2.5 text-xs font-medium cursor-pointer"
+            >
+              <Plus className="size-3.5" />
+              <span>Novo</span>
+              <ChevronDown className="size-3 text-muted-foreground opacity-70" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => useSongsStore.getState().startNewSong()}
+            >
+              <Music className="size-4 mr-2" />
+              <span>Nova Música</span>
+              <DropdownMenuShortcut>⌘N</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => useSongsStore.getState().openOnlineSearch()}
+            >
+              <Globe className="size-4 mr-2" />
+              <span>Buscar música na internet…</span>
+              <DropdownMenuShortcut>⌘⇧F</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Right section: Output status indicators, quick blackout/clear, and settings */}

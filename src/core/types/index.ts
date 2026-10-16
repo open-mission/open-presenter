@@ -47,6 +47,7 @@ export interface OutputConfig {
   monitorId: string | null;
   monitorLabel: string | null;
   url: string | null;
+  wallpaper?: string | null;
 }
 
 export interface OutputRuntime {

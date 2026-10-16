@@ -3,6 +3,7 @@ import {
   Check,
   Copy,
   ExternalLink,
+  Image as ImageIcon,
   Laptop,
   Layers,
   Monitor,
@@ -18,8 +19,10 @@ import {
   Server,
   Smartphone,
   Square,
+  Trash2,
   TriangleAlert,
   Tv,
+  Upload,
 } from "lucide-react";
 import { outputHttpUrl } from "@/core/config/app";
 import type {
@@ -31,7 +34,8 @@ import type {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getConnectedClients } from "@/core/ipc/commands";
+import { getConnectedClients, saveThemeMedia } from "@/core/ipc/commands";
+import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
 import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { usePreferencesStore } from "@/features/preferences/store";
@@ -75,6 +79,7 @@ function TargetCard({
   const serverRunning = useOutputManagerStore((s) => s.server.running);
   const setMode = useOutputManagerStore((s) => s.setMode);
   const setMonitor = useOutputManagerStore((s) => s.setMonitor);
+  const setWallpaper = useOutputManagerStore((s) => s.setWallpaper);
   const toggle = useOutputManagerStore((s) => s.toggle);
   const themeName = useSlideThemesStore((s) => {
     if (target === "stage") {
@@ -90,6 +95,7 @@ function TargetCard({
 
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const currentUrl = outputHttpUrl(host, port, webPath);
   const active = isOutputActive(config.mode, live.open, serverRunning);
@@ -118,6 +124,22 @@ function TargetCard({
 
   function handleMonitorSelect(monitorId: string | null) {
     void setMonitor(target, monitorId);
+  }
+
+  async function handleWallpaperUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const saved = await saveThemeMedia("wallpapers", file.name, Array.from(bytes));
+      await setWallpaper(target, saved);
+    } catch (err) {
+      console.error("Falha ao salvar papel de parede:", err);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   }
 
   function handleCopyUrl() {
@@ -299,6 +321,78 @@ function TargetCard({
           </Button>
         </div>
       </div>
+
+      {/* Papel de Parede (Tela Desocupada / Sem Apresentação) */}
+      {target === "public" && (
+        <div className="mt-4 flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/20 p-3">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+              <ImageIcon className="size-3.5 text-primary" />
+              Papel de Parede (Tela Desocupada)
+            </label>
+            {config.wallpaper && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-[11px] text-destructive hover:bg-destructive/10"
+                onClick={() => void setWallpaper(target, null)}
+                title="Remover papel de parede"
+              >
+                <Trash2 className="size-3 mr-1" />
+                Remover
+              </Button>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Exibido na projeção pública quando nenhuma apresentação estiver ativa.
+          </p>
+
+          <div className="flex items-center gap-3 mt-1">
+            {config.wallpaper ? (
+              <div className="relative size-16 shrink-0 overflow-hidden rounded-md border border-border bg-black">
+                <img
+                  src={resolveThemeMediaUrl(config.wallpaper, host) ?? config.wallpaper}
+                  alt="Papel de parede"
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            ) : (
+              <div className="flex size-16 shrink-0 items-center justify-center rounded-md border border-dashed border-border/80 bg-muted/40 text-muted-foreground">
+                <ImageIcon className="size-6 opacity-40" />
+              </div>
+            )}
+
+            <div className="flex flex-1 flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <label className="cursor-pointer inline-flex">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleWallpaperUpload}
+                    disabled={uploading}
+                  />
+                  <span className="inline-flex items-center justify-center gap-1.5 rounded-md border border-input bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground shadow-2xs hover:bg-secondary/80">
+                    <Upload className="size-3.5" />
+                    {uploading ? "Salvando…" : config.wallpaper ? "Trocar Imagem" : "Escolher Imagem"}
+                  </span>
+                </label>
+                <span className="text-[10px] text-muted-foreground">
+                  PNG, JPG ou WEBP
+                </span>
+              </div>
+              <input
+                type="text"
+                placeholder="Ou informe uma URL / Cor (#000000)"
+                className="h-7 w-full rounded-md border border-input bg-background/80 px-2 text-xs font-mono text-foreground"
+                value={config.wallpaper ?? ""}
+                onChange={(e) => void setWallpaper(target, e.target.value.trim() || null)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Current theme (read-only) */}
       <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">

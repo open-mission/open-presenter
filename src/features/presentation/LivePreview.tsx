@@ -21,11 +21,15 @@ import { SlideCanvas } from "./SlideCanvas";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import { StageTimerControls } from "@/features/stage-display/StageTimerControls";
-import type { LiveSlide } from "@/core/types";
+import { useWallpaperStore } from "./wallpaperStore";
+import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
+import type { BackgroundLayer, LiveSlide } from "@/core/types";
 
 export function LivePreview() {
   const live = usePresentationStore((s) => s.live);
   const preview = usePresentationStore((s) => s.preview);
+  const wallpaper = useWallpaperStore((s) => s.wallpaper);
+  const host = useOutputManagerStore((s) => s.host);
   const stageConfig = useOutputManagerStore((s) => s.configs.stage);
   const stageRuntime = useOutputManagerStore((s) => s.runtime.stage);
   const serverRunning = useOutputManagerStore((s) => s.server.running);
@@ -201,20 +205,39 @@ export function LivePreview() {
         {/* 16:9 Canvas or Placeholder */}
         <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
           {isLiveEmpty && !live.blackout ? (
-            /* Placeholder Ao Vivo quando não há nada transmitindo */
-            <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center select-none bg-zinc-950">
-              <div className="flex size-10 items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-500">
-                <Projector className="size-5" />
+            wallpaper ? (
+              <div className="relative h-full w-full">
+                {(() => {
+                  const resolved = resolveThemeMediaUrl(wallpaper, host) ?? wallpaper;
+                  const isColor = resolved.startsWith("#") || resolved.startsWith("rgb");
+                  const isVideo = resolved.endsWith(".mp4");
+                  const bg: BackgroundLayer = {
+                    id: "wallpaper",
+                    kind: isColor ? "color" : isVideo ? "video" : "image",
+                    value: resolved,
+                  };
+                  return <BackgroundRenderer background={bg} />;
+                })()}
+                <div className="absolute bottom-2 left-2 rounded bg-black/70 px-2 py-0.5 text-[9px] font-medium text-zinc-300 backdrop-blur-xs border border-white/10">
+                  Papel de Parede Ativo
+                </div>
               </div>
-              <div>
-                <p className="text-xs font-semibold text-zinc-300">
-                  Placeholder Ao Vivo
-                </p>
-                <p className="mt-0.5 text-[10px] text-zinc-500">
-                  Telão desocupado · Nenhum conteúdo ao vivo
-                </p>
+            ) : (
+              /* Placeholder Ao Vivo quando não há nada transmitindo */
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center select-none bg-zinc-950">
+                <div className="flex size-10 items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-500">
+                  <Projector className="size-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-zinc-300">
+                    Placeholder Ao Vivo
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-zinc-500">
+                    Telão desocupado · Nenhum conteúdo ao vivo
+                  </p>
+                </div>
               </div>
-            </div>
+            )
           ) : liveTheme &&
             kindToAsset(live.content.kind) &&
             !live.blackout &&
@@ -253,6 +276,8 @@ export function LivePreview() {
           <span className="truncate">
             {live.blackout
               ? "Saída escurecida"
+              : isLiveEmpty && wallpaper
+              ? "Papel de parede em exibição (tela desocupada)"
               : live.cleared
               ? "Plano de fundo em exibição (sem texto)"
               : live.content.title}
