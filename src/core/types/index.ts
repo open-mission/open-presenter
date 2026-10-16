@@ -134,3 +134,48 @@ export interface ImportReport {
   skipped: ImportSkip[];
   errors: string[];
 }
+
+export type ThemeElementType = "TEXT" | "IMAGE" | "VIDEO" | "RECTANGLE";
+
+export type ThemeAsset = "music" | "bible" | "text";
+
+export interface ThemeElement {
+  id: string;
+  type: ThemeElementType;
+  x: number;
+  y: number;
+  visible: boolean;
+  locked: boolean;
+  css: Record<string, string>;
+  text?: string;
+  src?: string;
+  assetTypeVisibility?: string[];
+  fill?: string;
+  url?: string;
+}
+
+export interface SlideTheme {
+  guid: string;
+  title: string;
+  css: Record<string, string>;
+  elements: ThemeElement[];
+}
+
+export interface ThemeBinding {
+  target: OutputTarget;
+  asset: SlideKind;
+  themeGuid: string;
+}
+
+export function kindToAsset(kind: SlideKind): ThemeAsset | null {
+  switch (kind) {
+    case "lyric":
+      return "music";
+    case "scripture":
+      return "bible";
+    case "custom":
+      return "text";
+    case "blank":
+      return null;
+  }
+}

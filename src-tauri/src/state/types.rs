@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -247,3 +248,54 @@ pub const EVENT_OUTPUTS: &str = "outputs://changed";
 
 pub const OUTPUT_HTTP_PORT: u16 = 5050;
 pub const WS_PATH: &str = "/ws";
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ThemeElementType {
+    Text,
+    Image,
+    Video,
+    Rectangle,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeElement {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub element_type: ThemeElementType,
+    pub x: f64,
+    pub y: f64,
+    pub visible: bool,
+    pub locked: bool,
+    pub css: HashMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub src: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "assetTypeVisibility"
+    )]
+    pub asset_type_visibility: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlideTheme {
+    pub guid: String,
+    pub title: String,
+    pub css: HashMap<String, String>,
+    pub elements: Vec<ThemeElement>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeBinding {
+    pub target: OutputTarget,
+    pub asset: String,
+    #[serde(rename = "themeGuid")]
+    pub theme_guid: String,
+}
