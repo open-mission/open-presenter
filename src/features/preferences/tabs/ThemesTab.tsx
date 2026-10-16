@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
 import { Check, Copy, Pencil, PenLine, Plus, Trash2 } from "lucide-react";
 import type {
   OutputTarget,
@@ -24,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ThemeRenderer } from "@/features/slide-themes/ThemeRenderer";
+import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { SAMPLES } from "@/features/slide-themes/samples";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { isTauri } from "@/core/ipc/tauri";
@@ -282,17 +281,12 @@ export function ThemesTab() {
                 key={theme.guid}
                 className="flex flex-col gap-2 rounded-xl border border-border bg-card/60 p-3"
               >
-                <div
-                  className="relative h-44 w-full overflow-hidden rounded-lg border border-border"
-                  style={theme.css as CSSProperties}
-                >
-                  <div className="absolute inset-0" style={{ zoom: 0.45 }}>
-                    <ThemeRenderer
-                      theme={theme}
-                      asset={sampleAsset}
-                      props={sample.props}
-                    />
-                  </div>
+                <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border">
+                  <ScaledStage
+                    theme={theme}
+                    asset={sampleAsset}
+                    props={sample.props}
+                  />
                 </div>
                 <div className="flex items-center gap-2">
                   <p className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">

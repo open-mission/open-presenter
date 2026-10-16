@@ -14,7 +14,7 @@ import { useOutputManagerStore } from "@/features/output-manager/store";
 import { usePreferencesStore } from "@/features/preferences/store";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
-import { ThemeRenderer } from "@/features/slide-themes/ThemeRenderer";
+import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { usePresentationStore } from "./store";
 import { SlideCanvas } from "./SlideCanvas";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
@@ -105,7 +105,7 @@ export function LivePreview() {
                     <BackgroundRenderer
                       background={previewSlide.background}
                     />
-                    <ThemeRenderer
+                    <ScaledStage
                       theme={previewTheme}
                       asset={asset}
                       props={buildProps(
@@ -214,7 +214,7 @@ export function LivePreview() {
             live.content.kind !== "blank" ? (
             <>
               <BackgroundRenderer background={live.background} />
-              <ThemeRenderer
+              <ScaledStage
                 theme={liveTheme}
                 asset={
                   kindToAsset(live.content.kind) ?? "music"
