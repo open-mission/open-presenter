@@ -38,6 +38,10 @@ export async function closePreferencesWindow(): Promise<void> {
   await invokeCommand("close_preferences_window");
 }
 
+export async function openThemeEditor(guid?: string): Promise<void> {
+  await invokeCommand("open_theme_editor", { guid: guid ?? null });
+}
+
 export async function publishSlide(slide: LiveSlide): Promise<void> {
   await invokeCommand("go_live", { slide });
 }
@@ -134,4 +138,12 @@ export async function saveTheme(theme: SlideTheme): Promise<void> {
 
 export async function deleteTheme(guid: string): Promise<void> {
   await invokeStrict("delete_theme", { guid });
+}
+
+export async function saveThemeMedia(
+  guid: string,
+  filename: string,
+  contents: number[],
+): Promise<string> {
+  return invokeStrict<string>("save_theme_media", { guid, filename, contents });
 }

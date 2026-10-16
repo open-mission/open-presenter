@@ -110,9 +110,12 @@ pub fn run() {
             })?;
             app.manage(database::Db(std::sync::Mutex::new(conn)));
 
+            let media_dir = crate::services::theme_media::media_base_dir(&handle)
+                .unwrap_or_else(|_| std::path::PathBuf::from("theme-media"));
             let server_state = crate::server::ServerState {
                 broadcaster,
                 ws_tx,
+                media_dir,
             };
             tauri::async_runtime::spawn(crate::server::serve(server_state));
             Ok(())
@@ -123,6 +126,7 @@ pub fn run() {
             commands::presentation::close_output_window,
             commands::presentation::open_preferences_window,
             commands::presentation::close_preferences_window,
+            commands::presentation::open_theme_editor,
             commands::presentation::go_live,
             commands::presentation::set_blackout,
             commands::presentation::get_live_slide,
@@ -145,6 +149,7 @@ pub fn run() {
             commands::themes::get_theme,
             commands::themes::save_theme,
             commands::themes::delete_theme,
+            commands::themes::save_theme_media,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o Open Presenter");

@@ -5,6 +5,7 @@ import { PreferencesDialog } from "@/features/preferences/PreferencesDialog";
 import { SetlistSidebar } from "@/features/events-setlists/SetlistSidebar";
 import { SongSlidesColumn } from "@/features/events-setlists/SongSlidesColumn";
 import { LivePreview } from "@/features/presentation/LivePreview";
+import { ThemeRail } from "@/features/slide-themes/ThemeRail";
 import { SongEditorDialog } from "@/features/songs/SongEditorDialog";
 import { useSetlistStore } from "@/features/events-setlists/store";
 import { useNativeMenu } from "@/core/ipc/useNativeMenu";
@@ -42,6 +43,9 @@ export default function AdminView() {
             <LivePreview />
           </div>
         </section>
+
+        {/* Column 4: Trilho de Temas (quick-switch) */}
+        <ThemeRail />
       </main>
 
       {/* Preferences Modal Dialog (Native ⌘, shortcut or Edit > Preferences) */}

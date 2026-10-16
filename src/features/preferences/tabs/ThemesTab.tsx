@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
-import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Copy, Pencil, PenLine, Plus, Trash2 } from "lucide-react";
 import type {
   OutputTarget,
   SlideKind,
@@ -25,46 +25,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ThemeRenderer } from "@/features/slide-themes/ThemeRenderer";
+import { SAMPLES } from "@/features/slide-themes/samples";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
-
-const SAMPLES: Record<ThemeAsset, { label: string; props: Record<string, string> }> = {
-  music: {
-    label: "Música",
-    props: {
-      titulo: "Santo, Santo, Santo",
-      artista: "Hinário",
-      letra: "Santo, santo, santo\nDeus Todo-Poderoso",
-      nextVerse: "Digno de louvor",
-      secao: "Refrão",
-      currentIndex: "0",
-      totalCount: "3",
-      "HH:MM": "10:30",
-    },
-  },
-  bible: {
-    label: "Bíblia",
-    props: {
-      titulo: "João 1:1",
-      verso: "No princípio era o Verbo, e o Verbo estava com Deus",
-      livro: "João",
-      capitulo: "1",
-      versiculo: "1",
-      versao: "ACF",
-      nextVerse: "",
-      "HH:MM": "10:30",
-    },
-  },
-  text: {
-    label: "Texto",
-    props: {
-      titulo: "Aviso",
-      texto: "Culto de domingo às 19h",
-      currentIndex: "0",
-      totalCount: "1",
-      "HH:MM": "10:30",
-    },
-  },
-};
+import { isTauri } from "@/core/ipc/tauri";
+import { openThemeEditor } from "@/core/ipc/commands";
 
 interface BindingRow {
   target: OutputTarget;
@@ -157,6 +121,14 @@ export function ThemesTab() {
       });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Falha ao duplicar tema");
+    }
+  }
+
+  function handleEdit(theme: SlideTheme) {
+    if (isTauri()) {
+      void openThemeEditor(theme.guid);
+    } else {
+      window.open(`/#/theme-editor?guid=${theme.guid}`, "_blank");
     }
   }
 
@@ -347,6 +319,15 @@ export function ThemesTab() {
                   </div>
                 )}
                 <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Editar ${theme.title}`}
+                    onClick={() => handleEdit(theme)}
+                  >
+                    <PenLine className="size-3.5" />
+                    Editar
+                  </Button>
                   <Button
                     variant="ghost"
                     size="sm"
