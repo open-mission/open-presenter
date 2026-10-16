@@ -185,10 +185,7 @@ mod tests {
     #[test]
     fn normaliza_bom_crlf_espacos_e_linhas_em_branco_repetidas() {
         let sections = parse_sections("\u{FEFF}a  \r\n\r\n\r\n\r\n  b\t\r\n");
-        assert_eq!(
-            sections,
-            blocks(vec![(None, vec!["a"]), (None, vec!["b"])])
-        );
+        assert_eq!(sections, blocks(vec![(None, vec!["a"]), (None, vec!["b"])]));
     }
 
     #[test]
@@ -215,5 +212,66 @@ mod tests {
     fn serializacao_ignora_blocos_vazios() {
         let texto = sections_to_text(&blocks(vec![(None, vec![]), (None, vec!["x"])]));
         assert_eq!(texto, "x");
+    }
+
+    #[test]
+    fn rotulos_canonicos_reparseiam_para_o_mesmo_tipo() {
+        let todos = [
+            SectionType::Verse,
+            SectionType::PreChorus,
+            SectionType::Chorus,
+            SectionType::Bridge,
+            SectionType::Intro,
+            SectionType::Outro,
+            SectionType::Instrumental,
+            SectionType::Tag,
+            SectionType::Ending,
+        ];
+        for tipo in todos {
+            assert_eq!(
+                SectionType::from_label(tipo.as_label()),
+                Some(tipo),
+                "falhou para {:?}",
+                tipo.as_label()
+            );
+        }
+    }
+
+    #[test]
+    fn round_trip_cobre_todos_os_tipos() {
+        let original: Vec<SongSection> = [
+            SectionType::Verse,
+            SectionType::PreChorus,
+            SectionType::Chorus,
+            SectionType::Bridge,
+            SectionType::Intro,
+            SectionType::Outro,
+            SectionType::Instrumental,
+            SectionType::Tag,
+            SectionType::Ending,
+        ]
+        .into_iter()
+        .map(|section_type| SongSection {
+            section_type: Some(section_type),
+            lines: vec![format!("linha de {}", section_type.as_label())],
+        })
+        .collect();
+
+        assert_eq!(parse_sections(&sections_to_text(&original)), original);
+    }
+
+    #[test]
+    fn rotulo_permanece_apos_comentario_ou_linha_em_branco() {
+        let sections = parse_sections("##(Refrão)\n//comentário\n\nlinha");
+        assert_eq!(
+            sections,
+            blocks(vec![(Some(SectionType::Chorus), vec!["linha"])])
+        );
+    }
+
+    #[test]
+    fn linhas_com_prefixos_reservados_somem_ao_salvar() {
+        let sections = parse_sections("//comentário\n##hashtag\nresto");
+        assert_eq!(sections, blocks(vec![(None, vec!["resto"])]));
     }
 }

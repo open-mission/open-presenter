@@ -135,6 +135,7 @@ services/setlists.service.rs  ler/gravar documento + juntar títulos/artistas p/
 - **Menubar** em `AdminView` (painel do operador): **Arquivo ▸ Nova música / Importar músicas do Holyrics…** — escolha de arquivo via `plugin-dialog`, resultado num Dialog (importadas/puladas/erros).
 - **`core`**: tipos novos em `core/types` (Song, SongSection, SongLine, ServiceEvent, EventPart, OnlineLyricHit); wrappers em `core/ipc/commands.ts`; rótulos/cores das seções em `core/config/lyrics.ts`.
 - Comunicação entre features pelos canais sancionados: `events-setlists` lê o store de `songs` (catálogo) e o store de `presentation` (projeção).
+- **Atualização pós-implementação — formato do Holyrics no editor**: `SongEditorDialog.tsx` virou textarea única nesse formato: `## Nome` (ou `##(Nome)`) rotula o bloco, linha em branco separa slides (1 bloco = 1 tela) e linhas iniciadas por `//` são comentários ignorados. A conversão texto⇄blocos vive no Rust (`src-tauri/src/services/lyrics.rs`; comandos IPC `parse_lyrics`/`lyrics_to_text`) e é a mesma usada no import TXT/JSON e nas letras do LRCLIB. Sinônimos (`Coro`, `Estrofe`, `Verse`…) mapeiam para os 9 tipos; rótulo desconhecido deixa o bloco sem rótulo.
 
 ### 6.6 Shadcn (setup)
 

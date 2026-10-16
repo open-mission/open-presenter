@@ -17,8 +17,16 @@ import { useSongsStore } from "./store";
 
 const PREVIEW_DEBOUNCE_MS = 300;
 
+type EditorDraft = Pick<Song, "id" | "title" | "artist">;
+
 function previewSlides(sections: SongSection[]): RunnerSlide[] {
   return buildSongSlides({ id: "preview", title: "", artist: "", sections });
+}
+
+function hasContent(sections: SongSection[]): boolean {
+  return sections.some((section) =>
+    section.lines.some((line) => line.trim() !== ""),
+  );
 }
 
 export function SongEditorDialog() {
@@ -27,20 +35,33 @@ export function SongEditorDialog() {
   const saveEditor = useSongsStore((s) => s.saveEditor);
   const deleteSong = useSongsStore((s) => s.deleteSong);
 
-  const [draft, setDraft] = useState<Song | null>(editorSong);
+  const [draft, setDraft] = useState<EditorDraft | null>(null);
   const [text, setText] = useState("");
   const [textReady, setTextReady] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [preview, setPreview] = useState<RunnerSlide[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
-    setDraft(editorSong);
     setConfirmDelete(false);
     setActionError(null);
     setTextReady(false);
-    setPreview(editorSong === null ? [] : previewSlides(editorSong.sections));
-    if (editorSong === null) return;
+    setText("");
+    if (editorSong === null) {
+      setDraft(null);
+      setPreview([]);
+      return;
+    }
+
+    setDraft({
+      id: editorSong.id,
+      title: editorSong.title,
+      artist: editorSong.artist,
+    });
+    setPreview(
+      hasContent(editorSong.sections) ? previewSlides(editorSong.sections) : [],
+    );
 
     let cancelled = false;
     lyricsToText(editorSong.sections)
@@ -51,14 +72,13 @@ export function SongEditorDialog() {
       })
       .catch(() => {
         if (cancelled) return;
-        setText("");
         setActionError("Não foi possível carregar a letra da música.");
       });
 
     return () => {
       cancelled = true;
     };
-  }, [editorSong]);
+  }, [editorSong, reloadKey]);
 
   useEffect(() => {
     if (draft === null || !textReady) return;
@@ -76,7 +96,7 @@ export function SongEditorDialog() {
     };
   }, [draft, text, textReady]);
 
-  const updateDraft = (patch: Partial<Song>) =>
+  const updateDraft = (patch: Partial<EditorDraft>) =>
     setDraft((current) => (current === null ? current : { ...current, ...patch }));
 
   const handleSave = async () => {
@@ -125,7 +145,10 @@ export function SongEditorDialog() {
       }}
     >
       {draft && (
-        <DialogContent aria-describedby={undefined} className="sm:max-w-2xl">
+        <DialogContent
+          aria-describedby={undefined}
+          className="max-h-[85vh] overflow-y-auto sm:max-w-2xl"
+        >
           <DialogHeader>
             <DialogTitle>
               {draft.title !== "" ? "Editar música" : "Nova música"}
@@ -148,20 +171,26 @@ export function SongEditorDialog() {
             </label>
           </div>
           <div className="flex flex-col gap-1.5">
-            <span className="text-sm text-muted-foreground">Letra</span>
-            <Textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={"Uma linha por verso…\n\n##(Refrão)\n\nDeixe uma linha em branco entre os blocos"}
-              className="min-h-56"
-              disabled={!textReady}
-            />
+            <label className="flex flex-col gap-1.5">
+              <span className="text-sm text-muted-foreground">Letra</span>
+              <Textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={"Uma linha por verso…\n\n##(Refrão)\n\nDeixe uma linha em branco entre os blocos"}
+                className="max-h-[50vh] min-h-56"
+                disabled={!textReady}
+              />
+            </label>
             <p className="text-xs text-muted-foreground">
+              <code className="rounded bg-muted px-1 py-0.5 font-mono">
+                ## Nome
+              </code>{" "}
+              ou{" "}
               <code className="rounded bg-muted px-1 py-0.5 font-mono">
                 ##(Nome)
               </code>{" "}
-              nomeia o bloco (ex.: Refrão, Verso 2) e uma linha em branco
-              separa os slides. Linhas iniciadas por{" "}
+              nomeia o bloco (ex.: Refrão, Verso 2) e uma linha em branco separa
+              os slides. Linhas iniciadas por{" "}
               <code className="rounded bg-muted px-1 py-0.5 font-mono">//</code>{" "}
               não aparecem no telão.
             </p>
@@ -192,7 +221,18 @@ export function SongEditorDialog() {
             </div>
           )}
           {actionError !== null && (
-            <p className="text-sm text-destructive">{actionError}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm text-destructive">{actionError}</p>
+              {!textReady && editorSong !== null && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setReloadKey((key) => key + 1)}
+                >
+                  Tentar de novo
+                </Button>
+              )}
+            </div>
           )}
           <DialogFooter>
             <Button

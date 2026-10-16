@@ -206,6 +206,18 @@ mod tests {
     }
 
     #[test]
+    fn parseia_txt_com_rotulo_sem_parenteses() {
+        let songs = parse(
+            "Título: X\nArtista: Y\n\n## Refrão\nlinha",
+            HolyricsFormat::Txt,
+        )
+        .unwrap();
+        assert_eq!(songs[0].sections.len(), 1);
+        assert_eq!(songs[0].sections[0].section_type, Some(SectionType::Chorus));
+        assert_eq!(songs[0].sections[0].lines, vec!["linha"]);
+    }
+
+    #[test]
     fn parseia_json_paragraphs_e_mapeia_descricao_numerada() {
         let json = r#"[{"title":"T","artist":"A","lyrics":{"paragraphs":[
         {"description":"Verso 2","text":"linha um\nlinha dois\n"},{"description":"Refrão","text":"refrão"}]}}]"#;
