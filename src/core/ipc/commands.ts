@@ -15,6 +15,7 @@ import type {
   Song,
   SongSection,
   SongSummary,
+  StageTimer,
 } from "../types";
 import { invokeCommand, invokeStrict } from "./tauri";
 
@@ -88,6 +89,22 @@ export async function fetchLiveThemes(): Promise<LiveThemes | null> {
 
 export async function fetchServerHost(): Promise<string> {
   return (await invokeCommand<string>("get_server_host")) ?? "localhost";
+}
+
+export async function timerStart(): Promise<StageTimer | null> {
+  return invokeCommand<StageTimer>("timer_start");
+}
+
+export async function timerPause(): Promise<StageTimer | null> {
+  return invokeCommand<StageTimer>("timer_pause");
+}
+
+export async function timerReset(): Promise<StageTimer | null> {
+  return invokeCommand<StageTimer>("timer_reset");
+}
+
+export async function fetchStageTimer(): Promise<StageTimer | null> {
+  return invokeCommand<StageTimer>("get_stage_timer");
 }
 
 export async function getServerStatus(): Promise<ServerStatus | null> {

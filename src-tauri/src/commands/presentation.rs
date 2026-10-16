@@ -3,7 +3,7 @@ use tauri::State;
 use crate::error::AppError;
 use crate::services::display_manager;
 use crate::services::SharedBroadcaster;
-use crate::state::{LiveSlide, LiveThemes, MonitorInfo, OutputTarget};
+use crate::state::{LiveSlide, LiveThemes, MonitorInfo, OutputTarget, StageTimer};
 
 #[tauri::command]
 pub async fn list_monitors(app: tauri::AppHandle) -> Result<Vec<MonitorInfo>, AppError> {
@@ -73,6 +73,58 @@ pub async fn get_live_themes(
     broadcaster: State<'_, SharedBroadcaster>,
 ) -> Result<LiveThemes, AppError> {
     Ok(broadcaster.current_themes())
+}
+
+#[tauri::command]
+pub async fn timer_start(
+    app: tauri::AppHandle,
+    broadcaster: State<'_, SharedBroadcaster>,
+) -> Result<StageTimer, AppError> {
+    use crate::state::PresentationState;
+    use tauri::Manager;
+
+    let state = app.state::<PresentationState>();
+    state.timer_start();
+    let timer = state.timer();
+    broadcaster.publish_timer(&timer);
+    Ok(timer)
+}
+
+#[tauri::command]
+pub async fn timer_pause(
+    app: tauri::AppHandle,
+    broadcaster: State<'_, SharedBroadcaster>,
+) -> Result<StageTimer, AppError> {
+    use crate::state::PresentationState;
+    use tauri::Manager;
+
+    let state = app.state::<PresentationState>();
+    state.timer_pause();
+    let timer = state.timer();
+    broadcaster.publish_timer(&timer);
+    Ok(timer)
+}
+
+#[tauri::command]
+pub async fn timer_reset(
+    app: tauri::AppHandle,
+    broadcaster: State<'_, SharedBroadcaster>,
+) -> Result<StageTimer, AppError> {
+    use crate::state::PresentationState;
+    use tauri::Manager;
+
+    let state = app.state::<PresentationState>();
+    state.timer_reset();
+    let timer = state.timer();
+    broadcaster.publish_timer(&timer);
+    Ok(timer)
+}
+
+#[tauri::command]
+pub async fn get_stage_timer(
+    broadcaster: State<'_, SharedBroadcaster>,
+) -> Result<StageTimer, AppError> {
+    Ok(broadcaster.current_timer())
 }
 
 #[tauri::command]

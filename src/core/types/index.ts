@@ -77,6 +77,18 @@ export interface StageMessage {
   createdAt: string;
 }
 
+export interface StageTimer {
+  running: boolean;
+  elapsedSecs: number;
+  startedAtMillis?: number | null;
+}
+
+export function stageTimerElapsed(timer: StageTimer, nowMillis: number): number {
+  const base = Math.max(0, Math.floor(timer.elapsedSecs));
+  if (!timer.running || timer.startedAtMillis == null) return base;
+  return base + Math.max(0, Math.floor((nowMillis - timer.startedAtMillis) / 1000));
+}
+
 export interface SyncEnvelope<T> {
   channel: string;
   payload: T;

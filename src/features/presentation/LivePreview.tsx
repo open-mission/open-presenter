@@ -20,6 +20,7 @@ import { usePresentationStore } from "./store";
 import { SlideCanvas } from "./SlideCanvas";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
+import { StageTimerControls } from "@/features/stage-display/StageTimerControls";
 import type { LiveSlide } from "@/core/types";
 
 export function LivePreview() {
@@ -294,6 +295,9 @@ export function LivePreview() {
           <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-black shadow-inner">
             <StageMiniPreview />
           </div>
+
+          {/* Stage Stopwatch Controls (operator panel) */}
+          <StageTimerControls />
 
           {/* Subtitle */}
           <div className="flex h-5 items-center justify-between px-0.5 text-[10px] text-muted-foreground">
