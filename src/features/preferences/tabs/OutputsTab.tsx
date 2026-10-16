@@ -508,6 +508,7 @@ function DevicesSection() {
   const runtime = useOutputManagerStore((s) => s.runtime);
   const configs = useOutputManagerStore((s) => s.configs);
   const monitors = useOutputManagerStore((s) => s.monitors);
+  const refreshRuntime = useOutputManagerStore((s) => s.refreshRuntime);
   const [clients, setClients] = useState<ConnectedClient[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -528,7 +529,11 @@ function DevicesSection() {
   async function handleRefresh(): Promise<void> {
     setRefreshing(true);
     try {
-      setClients(await getConnectedClients());
+      const [clients] = await Promise.all([
+        getConnectedClients(),
+        refreshRuntime(),
+      ]);
+      setClients(clients);
     } finally {
       setTimeout(() => setRefreshing(false), 400);
     }
@@ -646,12 +651,14 @@ export function OutputsTab() {
   const port = useOutputManagerStore((s) => s.server.port);
   const loaded = useOutputManagerStore((s) => s.loaded);
   const load = useOutputManagerStore((s) => s.load);
+  const refreshRuntime = useOutputManagerStore((s) => s.refreshRuntime);
 
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (!loaded) void load();
-  }, [loaded, load]);
+    else void refreshRuntime();
+  }, [loaded, load, refreshRuntime]);
 
   async function refreshHardware() {
     setRefreshing(true);

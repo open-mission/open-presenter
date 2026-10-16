@@ -63,6 +63,7 @@ interface OutputManagerState {
   applyRuntime(runtime: OutputRuntime[]): void;
   applyServer(server: ServerStatus): void;
   load(): Promise<void>;
+  refreshRuntime(): Promise<void>;
   setMode(target: OutputTarget, mode: OutputMode): Promise<void>;
   setMonitor(target: OutputTarget, monitorId: string | null): Promise<void>;
   toggle(target: OutputTarget): Promise<void>;
@@ -137,6 +138,10 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
         lastMode,
       };
     });
+  },
+  refreshRuntime: async () => {
+    const state = await getOutputsState();
+    get().applyRuntime(state);
   },
   setMode: async (target, mode) => {
     const { configs, host, server } = get();
