@@ -94,8 +94,8 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
           stage: stageConfig ?? s.configs.stage,
         },
         runtime,
-        monitors,
-        host,
+        monitors: monitors ?? s.monitors,
+        host: host ?? s.host,
         loaded: true,
       };
     });
