@@ -1,14 +1,25 @@
+import { useEffect } from "react";
+import { kindToAsset } from "@/core/types";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { usePresentationStore } from "@/features/presentation/store";
 import { StageAlerts } from "@/features/stage-display/StageAlerts";
 import { StageClock } from "@/features/stage-display/StageClock";
 import { useStageConfigStore } from "@/features/stage-display/configStore";
+import { ThemeRenderer } from "@/features/slide-themes/ThemeRenderer";
+import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { buildProps } from "@/features/slide-themes/themeTemplate";
 
 export default function StageView() {
   usePresentationSync();
   const live = usePresentationStore((s) => s.live);
   const nextUp = usePresentationStore((s) => s.live.nextUp);
   const { fontSize, theme, showNextUp } = useStageConfigStore();
+  const loadThemes = useSlideThemesStore((s) => s.load);
+  const stageTheme = useSlideThemesStore((s) => s.resolveStageTheme());
+
+  useEffect(() => {
+    void loadThemes();
+  }, [loadThemes]);
 
   const fontClass =
     fontSize === "normal"
@@ -23,6 +34,30 @@ export default function StageView() {
       : theme === "warm"
       ? "bg-stone-950 text-amber-100"
       : "bg-black text-white";
+
+  const asset = kindToAsset(live.content.kind);
+
+  if (stageTheme && asset && !live.blackout && !live.cleared) {
+    const props = {
+      ...buildProps(live.content.kind, live.content, live.nextUp),
+      "HH:MM": new Date().toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+    return (
+      <div className={`relative min-h-full ${themeClass}`}>
+        <ThemeRenderer theme={stageTheme} asset={asset} props={props} />
+        <div className="relative z-10 flex min-h-full flex-col p-8">
+          <div className="flex justify-center w-full">
+            <StageClock />
+          </div>
+
+          <StageAlerts />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`flex min-h-full flex-col justify-between p-8 text-center ${themeClass}`}>
