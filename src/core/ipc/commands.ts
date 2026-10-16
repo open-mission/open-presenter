@@ -2,6 +2,7 @@ import type {
   EventSummary,
   ImportReport,
   LiveSlide,
+  LiveThemes,
   MonitorInfo,
   OnlineLyricHit,
   OutputTarget,
@@ -52,6 +53,14 @@ export async function setBlackout(blackout: boolean): Promise<void> {
 
 export async function fetchLiveSlide(): Promise<LiveSlide | null> {
   return invokeCommand<LiveSlide>("get_live_slide");
+}
+
+export async function setLiveThemes(themes: LiveThemes): Promise<void> {
+  await invokeCommand("set_live_themes", { themes });
+}
+
+export async function fetchLiveThemes(): Promise<LiveThemes | null> {
+  return invokeCommand<LiveThemes>("get_live_themes");
 }
 
 export async function fetchServerHost(): Promise<string> {

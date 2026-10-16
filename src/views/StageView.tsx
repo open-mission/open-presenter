@@ -6,6 +6,7 @@ import { StageAlerts } from "@/features/stage-display/StageAlerts";
 import { StageClock } from "@/features/stage-display/StageClock";
 import { useStageConfigStore } from "@/features/stage-display/configStore";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
+import { useLiveThemesStore } from "@/features/slide-themes/liveThemesStore";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 
@@ -15,7 +16,9 @@ export default function StageView() {
   const nextUp = usePresentationStore((s) => s.live.nextUp);
   const { fontSize, theme, showNextUp } = useStageConfigStore();
   const loadThemes = useSlideThemesStore((s) => s.load);
-  const stageTheme = useSlideThemesStore((s) => s.resolveStageTheme());
+  const broadcastTheme = useLiveThemesStore((s) => s.themes.stage);
+  const localStageTheme = useSlideThemesStore((s) => s.resolveStageTheme());
+  const stageTheme = broadcastTheme ?? localStageTheme;
 
   useEffect(() => {
     void loadThemes();

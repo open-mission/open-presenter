@@ -107,6 +107,15 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>) {
         let _ = sender.send(Message::Text(text.into())).await;
     }
 
+    let themes_snapshot = serde_json::to_string(&serde_json::json!({
+        "channel": crate::state::types::EVENT_THEMES,
+        "payload": state.broadcaster.current_themes(),
+        "version": 1,
+    }));
+    if let Ok(text) = themes_snapshot {
+        let _ = sender.send(Message::Text(text.into())).await;
+    }
+
     let send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
             if sender.send(Message::Text(msg.into())).await.is_err() {

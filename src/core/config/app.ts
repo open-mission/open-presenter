@@ -13,6 +13,8 @@ export const TAURI_EVENTS = {
   slide: "presentation://slide",
   outputs: "outputs://changed",
   stageMessage: "stage://message",
+  themes: "presentation://themes",
+  themesChanged: "themes://changed",
 } as const;
 
 export function outputHttpUrl(host: string, path: "/public" | "/stage"): string {
