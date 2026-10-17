@@ -136,6 +136,8 @@ export interface EventPart {
   id: string;
   title: string;
   items: EventItem[];
+  color?: string | null;
+  bgColor?: string | null;
 }
 
 export interface ServiceEvent {

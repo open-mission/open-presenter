@@ -18,7 +18,7 @@ interface PreferencesState {
 
 export const usePreferencesStore = create<PreferencesState>((set) => ({
   isOpen: false,
-  activeTab: "appearance",
+  activeTab: "general",
   outputsSection: "public",
   theme: getStoredTheme(),
   openPreferences: (tab, section) => {

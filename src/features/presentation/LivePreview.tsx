@@ -19,6 +19,7 @@ import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { usePresentationStore } from "./store";
 import { SlideCanvas } from "./SlideCanvas";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
+import { SlideTransition } from "./SlideTransition";
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import { StageTimerControls } from "@/features/stage-display/StageTimerControls";
 import { useWallpaperStore } from "./wallpaperStore";
@@ -235,27 +236,24 @@ export function LivePreview() {
                 </div>
               </div>
             )
-          ) : liveTheme &&
-            kindToAsset(live.content.kind) &&
-            !live.blackout &&
-            !live.cleared &&
-            live.content.kind !== "blank" ? (
-            <>
-              <BackgroundRenderer background={live.background} />
-              <ScaledStage
-                theme={liveTheme}
-                asset={
-                  kindToAsset(live.content.kind) ?? "music"
-                }
-                props={buildProps(
-                  live.content.kind,
-                  live.content,
-                  live.nextUp,
-                )}
-              />
-            </>
           ) : (
-            <SlideCanvas slide={live} />
+            <div className="relative h-full w-full">
+              <div
+                className="absolute inset-0 transition-opacity duration-300 ease-in-out"
+                style={{ opacity: live.cleared ? 0 : 1 }}
+              >
+                <BackgroundRenderer background={live.background} />
+              </div>
+              <div className="absolute inset-0">
+                <SlideTransition
+                  slide={live}
+                  theme={liveTheme}
+                  asset={kindToAsset(live.content.kind)}
+                  cleared={live.cleared}
+                  durationMs={300}
+                />
+              </div>
+            </div>
           )}
 
           {/* Blackout overlay badge indicator if blackout is active */}

@@ -26,10 +26,10 @@ interface NavItemConfig {
 
 const NAV_ITEMS: NavItemConfig[] = [
   {
-    id: "appearance",
-    label: "Aparência",
-    breadcrumb: "Aparência",
-    icon: Palette,
+    id: "general",
+    label: "Geral",
+    breadcrumb: "Geral & Atalhos",
+    icon: SlidersHorizontal,
   },
   {
     id: "outputs",
@@ -44,10 +44,10 @@ const NAV_ITEMS: NavItemConfig[] = [
     icon: Sparkles,
   },
   {
-    id: "general",
-    label: "Geral",
-    breadcrumb: "Geral & Atalhos",
-    icon: SlidersHorizontal,
+    id: "appearance",
+    label: "Aparência",
+    breadcrumb: "Aparência",
+    icon: Palette,
   },
 ];
 

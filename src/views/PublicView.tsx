@@ -2,12 +2,10 @@ import { useEffect } from "react";
 import { kindToAsset, type BackgroundLayer } from "@/core/types";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { usePresentationStore } from "@/features/presentation/store";
-import { SlideCanvas } from "@/features/presentation/SlideCanvas";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
-import { ScaledStage } from "@/features/slide-themes/ScaledStage";
+import { SlideTransition } from "@/features/presentation/SlideTransition";
 import { useLiveThemesStore } from "@/features/slide-themes/liveThemesStore";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
-import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { useWallpaperSync } from "@/features/presentation/useWallpaperSync";
 import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
 import { parseMediaWithFit } from "@/features/theme-editor/media";
@@ -28,55 +26,66 @@ export default function PublicView() {
     void loadThemes();
   }, [loadThemes]);
 
-  if (live.blackout) {
-    return <div className="h-full w-full bg-black" />;
-  }
-
-  const isPresenting = !live.cleared && live.content.kind !== "blank";
-
-  if (!isPresenting) {
-    if (wallpaper) {
-      const { url } = parseMediaWithFit(wallpaper);
-      const isColor = url.startsWith("#") || url.startsWith("rgb");
-      const isVideo = url.toLowerCase().endsWith(".mp4") || url.toLowerCase().endsWith(".webm");
-      const bg: BackgroundLayer = {
-        id: "wallpaper",
-        kind: isColor ? "color" : isVideo ? "video" : "image",
-        value: wallpaper,
-      };
-      return (
-        <div className="relative h-full w-full overflow-hidden bg-black">
-          <BackgroundRenderer background={bg} />
-        </div>
-      );
-    }
-    return (
-      <div className="h-full w-full bg-black">
-        <SlideCanvas slide={live} />
-      </div>
-    );
-  }
-
   const asset = kindToAsset(live.content.kind);
+  const isPresenting = live.content.kind !== "blank";
 
-  if (!theme || !asset) {
-    return (
-      <div className="h-full w-full bg-black">
-        <SlideCanvas slide={live} />
-      </div>
-    );
-  }
+  // Prepara o papel de parede se definido
+  const wallpaperBg: BackgroundLayer | null = wallpaper
+    ? (() => {
+        const { url } = parseMediaWithFit(wallpaper);
+        const isColor = url.startsWith("#") || url.startsWith("rgb");
+        const isVideo =
+          url.toLowerCase().endsWith(".mp4") ||
+          url.toLowerCase().endsWith(".webm");
+        return {
+          id: "wallpaper",
+          kind: isColor ? "color" : isVideo ? "video" : "image",
+          value: wallpaper,
+        };
+      })()
+    : null;
 
   return (
-    <div className="h-full w-full bg-black">
-      <div className="relative h-full w-full overflow-hidden bg-black">
-        <BackgroundRenderer background={live.background} />
-        <ScaledStage
-          theme={theme}
-          asset={asset}
-          props={buildProps(live.content.kind, live.content, live.nextUp)}
-        />
-      </div>
+    <div className="relative h-full w-full overflow-hidden bg-black select-none">
+      {/* Camada 0: Papel de Parede (Base) */}
+      {wallpaperBg && (
+        <div className="absolute inset-0 z-0">
+          <BackgroundRenderer background={wallpaperBg} />
+        </div>
+      )}
+
+      {/* Camada 1: Plano de Fundo do Slide / Tema (com fade suave de entrada e saída) */}
+      {isPresenting && (
+        <div
+          className="absolute inset-0 z-10 transition-opacity duration-300 ease-in-out"
+          style={{
+            opacity: live.cleared && wallpaperBg ? 0 : 1,
+          }}
+        >
+          <BackgroundRenderer background={live.background} />
+        </div>
+      )}
+
+      {/* Camada 2: Conteúdo dos Slides (com Cross-fade e Fade-in/out) */}
+      {isPresenting && (
+        <div className="absolute inset-0 z-20">
+          <SlideTransition
+            slide={live}
+            theme={theme}
+            asset={asset}
+            cleared={live.cleared}
+            durationMs={300}
+          />
+        </div>
+      )}
+
+      {/* Camada 3: Blackout Overlay (Fade para preto suave e seguro) */}
+      <div
+        className="absolute inset-0 z-30 bg-black pointer-events-none transition-opacity duration-300 ease-in-out"
+        style={{
+          opacity: live.blackout ? 1 : 0,
+        }}
+      />
     </div>
   );
 }

@@ -33,8 +33,12 @@ interface SetlistState {
   createEvent(title: string): Promise<void>;
   deleteEvent(id: string): Promise<void>;
   renameEvent(title: string): void;
-  addPart(title: string): string;
+  addPart(title?: string, style?: { color?: string | null; bgColor?: string | null }): string;
   renamePart(partId: string, title: string): void;
+  updatePartStyle(
+    partId: string,
+    style: { color?: string | null; bgColor?: string | null },
+  ): void;
   removePart(partId: string): void;
   movePart(partId: string, dir: -1 | 1): void;
   reorderParts(sourceIndex: number, targetIndex: number): void;
@@ -106,13 +110,7 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
           id,
           title: "Culto de Domingo",
           eventDate: today(),
-          parts: [
-            {
-              id: crypto.randomUUID(),
-              title: "Louvor",
-              items: [],
-            },
-          ],
+          parts: [],
         };
         await createEventCommand(defaultEvent);
         events = await listEvents();
@@ -208,11 +206,17 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       return { event: { ...event, title }, dirty: true };
     }),
 
-  addPart: (title) => {
+  addPart: (title = "", style) => {
     const { event } = get();
     if (event === null) return "";
     const id = crypto.randomUUID();
-    const part: EventPart = { id, title, items: [] };
+    const part: EventPart = {
+      id,
+      title,
+      items: [],
+      color: style?.color ?? null,
+      bgColor: style?.bgColor ?? null,
+    };
     set({ event: { ...event, parts: [...event.parts, part] }, dirty: true });
     return id;
   },
@@ -226,6 +230,28 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
           ...event,
           parts: event.parts.map((part) =>
             part.id === partId ? { ...part, title } : part,
+          ),
+        },
+        dirty: true,
+      };
+    }),
+
+  updatePartStyle: (partId, style) =>
+    set((state) => {
+      const { event } = state;
+      if (event === null) return {};
+      return {
+        event: {
+          ...event,
+          parts: event.parts.map((part) =>
+            part.id === partId
+              ? {
+                  ...part,
+                  color: style.color !== undefined ? style.color : part.color,
+                  bgColor:
+                    style.bgColor !== undefined ? style.bgColor : part.bgColor,
+                }
+              : part,
           ),
         },
         dirty: true,
@@ -288,13 +314,42 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
         nextItemId: null,
         song,
       };
+
+      // Se a programação não tiver nenhuma seção, cria uma seção sem título para adicionar diretamente
+      if (event.parts.length === 0) {
+        const newPart: EventPart = {
+          id: crypto.randomUUID(),
+          title: "",
+          items: [item],
+        };
+        return {
+          event: { ...event, parts: [newPart] },
+          dirty: true,
+        };
+      }
+
+      // Se a seção informada existe, adiciona nela
+      const targetExists = event.parts.some((p) => p.id === partId);
+      if (targetExists) {
+        return {
+          event: {
+            ...event,
+            parts: event.parts.map((part) =>
+              part.id === partId
+                ? { ...part, items: [...part.items, item] }
+                : part,
+            ),
+          },
+          dirty: true,
+        };
+      }
+
+      // Caso contrário, adiciona na primeira seção
       return {
         event: {
           ...event,
-          parts: event.parts.map((part) =>
-            part.id === partId
-              ? { ...part, items: [...part.items, item] }
-              : part,
+          parts: event.parts.map((part, idx) =>
+            idx === 0 ? { ...part, items: [...part.items, item] } : part,
           ),
         },
         dirty: true,

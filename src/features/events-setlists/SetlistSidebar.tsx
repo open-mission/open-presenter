@@ -5,12 +5,15 @@ import {
   Calendar,
   Check,
   ChevronDown,
+  ChevronRight,
   FolderPlus,
   GripVertical,
   MoreVertical,
   Music,
+  Palette,
   Pencil,
   Plus,
+  RotateCcw,
   Search,
   Trash2,
 } from "lucide-react";
@@ -37,9 +40,37 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { EventPart } from "@/core/types";
 import { useSongsStore } from "@/features/songs/store";
 import { useSetlistStore } from "./store";
 import { SongPickerDialog } from "./SongPickerDialog";
+
+const LABEL_COLOR_PRESETS = [
+  { label: "Padrão", value: "" },
+  { label: "Branco", value: "#ffffff" },
+  { label: "Cinza", value: "#9ca3af" },
+  { label: "Amarelo", value: "#eab308" },
+  { label: "Laranja", value: "#f97316" },
+  { label: "Vermelho", value: "#ef4444" },
+  { label: "Rosa", value: "#ec4899" },
+  { label: "Roxo", value: "#a855f7" },
+  { label: "Azul", value: "#3b82f6" },
+  { label: "Ciano", value: "#06b6d4" },
+  { label: "Esmeralda", value: "#10b981" },
+];
+
+const BG_COLOR_PRESETS = [
+  { label: "Transparente", value: "" },
+  { label: "Cinza Escuro", value: "#27272a" },
+  { label: "Grafite", value: "#1e293b" },
+  { label: "Azul Marinho", value: "#1e3a8a" },
+  { label: "Vinho", value: "#7f1d1d" },
+  { label: "Verde Escuro", value: "#14532d" },
+  { label: "Roxo Escuro", value: "#581c87" },
+  { label: "Âmbar Escuro", value: "#78350f" },
+  { label: "Petróleo", value: "#134e4a" },
+  { label: "Índigo", value: "#312e81" },
+];
 
 export function SetlistSidebar() {
   const events = useSetlistStore((s) => s.events);
@@ -51,6 +82,8 @@ export function SetlistSidebar() {
   const createEvent = useSetlistStore((s) => s.createEvent);
   const deleteEvent = useSetlistStore((s) => s.deleteEvent);
   const addPart = useSetlistStore((s) => s.addPart);
+  const renamePart = useSetlistStore((s) => s.renamePart);
+  const updatePartStyle = useSetlistStore((s) => s.updatePartStyle);
   const removePart = useSetlistStore((s) => s.removePart);
   const movePart = useSetlistStore((s) => s.movePart);
   const reorderParts = useSetlistStore((s) => s.reorderParts);
@@ -66,6 +99,54 @@ export function SetlistSidebar() {
   const [newPartTitle, setNewPartTitle] = useState("");
   const [newEventDialogOpen, setNewEventDialogOpen] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState("");
+
+  // Collapse, color and rename section states
+  const [collapsedParts, setCollapsedParts] = useState<Record<string, boolean>>({});
+  const [colorDialogPart, setColorDialogPart] = useState<EventPart | null>(null);
+  const [selectedLabelColor, setSelectedLabelColor] = useState("");
+  const [selectedBgColor, setSelectedBgColor] = useState("");
+  const [renameDialogPart, setRenameDialogPart] = useState<EventPart | null>(null);
+  const [renamePartTitle, setRenamePartTitle] = useState("");
+
+  function toggleCollapse(partId: string) {
+    setCollapsedParts((prev) => ({
+      ...prev,
+      [partId]: !prev[partId],
+    }));
+  }
+
+  function openColorDialog(part: EventPart) {
+    setColorDialogPart(part);
+    setSelectedLabelColor(part.color || "");
+    setSelectedBgColor(part.bgColor || "");
+  }
+
+  function handleSaveColors() {
+    if (!colorDialogPart) return;
+    updatePartStyle(colorDialogPart.id, {
+      color: selectedLabelColor.trim() || null,
+      bgColor: selectedBgColor.trim() || null,
+    });
+    setColorDialogPart(null);
+    void save();
+  }
+
+  function handleClearColors() {
+    setSelectedLabelColor("");
+    setSelectedBgColor("");
+  }
+
+  function openRenameDialog(part: EventPart) {
+    setRenameDialogPart(part);
+    setRenamePartTitle(part.title);
+  }
+
+  function handleSaveRename() {
+    if (!renameDialogPart || !renamePartTitle.trim()) return;
+    renamePart(renameDialogPart.id, renamePartTitle.trim());
+    setRenameDialogPart(null);
+    void save();
+  }
 
   // Drag and drop state
   const [draggedPartIndex, setDraggedPartIndex] = useState<number | null>(null);
@@ -164,11 +245,12 @@ export function SetlistSidebar() {
       return;
     }
     if (event.parts.length === 0) {
-      const newPartId = addPart("Louvor");
+      const newPartId = addPart("");
       setPickerPartId(newPartId);
       void save();
     } else {
-      setPickerPartId(event.parts[0].id);
+      const untitled = event.parts.find((p) => p.title.trim() === "");
+      setPickerPartId(untitled ? untitled.id : event.parts[0].id);
     }
   }
 
@@ -337,97 +419,153 @@ export function SetlistSidebar() {
 
                 if (needle && filteredItems.length === 0) return null;
 
+                const isUntitled = part.title.trim() === "";
+                if (isUntitled && part.items.length === 0) return null;
+
+                const isCollapsed = !isUntitled && Boolean(collapsedParts[part.id]);
+
                 return (
                   <div
                     key={part.id}
                     className="space-y-1.5 rounded-lg transition-all"
                   >
-                    {/* Part Section Header (Draggable for entire section moving) */}
-                    <div
-                      draggable={true}
-                      onDragStart={(e) => {
-                        e.stopPropagation();
-                        dragPartRef.current = partIdx;
-                        setDraggedPartIndex(partIdx);
-                        e.dataTransfer.effectAllowed = "move";
-                        e.dataTransfer.setData("text/plain", `part:${partIdx}`);
-                      }}
-                      onDragEnd={() => {
-                        dragPartRef.current = null;
-                        setDraggedPartIndex(null);
-                        setDragOverPartIndex(null);
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        e.dataTransfer.dropEffect = "move";
-                        if (dragPartRef.current !== null && dragPartRef.current !== partIdx) {
-                          setDragOverPartIndex(partIdx);
-                        }
-                      }}
-                      onDragLeave={() => {
-                        if (dragOverPartIndex === partIdx) {
+                    {/* Part Section Header (only for named sections) */}
+                    {!isUntitled && (
+                      <div
+                        draggable={true}
+                        onDragStart={(e) => {
+                          e.stopPropagation();
+                          dragPartRef.current = partIdx;
+                          setDraggedPartIndex(partIdx);
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", `part:${partIdx}`);
+                        }}
+                        onDragEnd={() => {
+                          dragPartRef.current = null;
+                          setDraggedPartIndex(null);
                           setDragOverPartIndex(null);
-                        }
-                      }}
-                      onDrop={(e) => {
-                        if (dragPartRef.current !== null) {
-                          handleDropOnPartHeader(e, partIdx);
-                        } else if (dragItemRef.current) {
-                          handleDropOnEmptyPart(e, part.id);
-                        }
-                      }}
-                      className={`group flex cursor-grab active:cursor-grabbing items-center justify-between rounded px-2 pt-1 pb-0.5 text-[11px] font-semibold tracking-wider text-muted-foreground uppercase hover:bg-muted/40 transition-colors ${
-                        draggedPartIndex === partIdx ? "opacity-35" : ""
-                      } ${
-                        dragOverPartIndex === partIdx ? "bg-primary/10 ring-2 ring-primary/40 rounded" : ""
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 truncate">
-                        <GripVertical className="size-3 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
-                        <span className="truncate">{part.title}</span>
-                      </div>
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          e.dataTransfer.dropEffect = "move";
+                          if (dragPartRef.current !== null && dragPartRef.current !== partIdx) {
+                            setDragOverPartIndex(partIdx);
+                          }
+                        }}
+                        onDragLeave={() => {
+                          if (dragOverPartIndex === partIdx) {
+                            setDragOverPartIndex(null);
+                          }
+                        }}
+                        onDrop={(e) => {
+                          if (dragPartRef.current !== null) {
+                            handleDropOnPartHeader(e, partIdx);
+                          } else if (dragItemRef.current) {
+                            handleDropOnEmptyPart(e, part.id);
+                          }
+                        }}
+                        style={{
+                          color: part.color || undefined,
+                          backgroundColor: part.bgColor || undefined,
+                        }}
+                        className={`group flex cursor-grab active:cursor-grabbing items-center justify-between text-[11px] font-semibold tracking-wider transition-colors select-none ${
+                          part.bgColor
+                            ? "rounded-md border border-white/15 px-2.5 py-1.5 shadow-2xs"
+                            : "rounded px-2 pt-1 pb-0.5 text-muted-foreground hover:bg-muted/40"
+                        } ${
+                          draggedPartIndex === partIdx ? "opacity-35" : ""
+                        } ${
+                          dragOverPartIndex === partIdx ? "bg-primary/10 ring-2 ring-primary/40 rounded" : ""
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 truncate flex-1 min-w-0 mr-1.5">
+                          <GripVertical className="size-3 text-muted-foreground/40 group-hover:text-muted-foreground transition-colors shrink-0" />
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleCollapse(part.id);
+                            }}
+                            className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors shrink-0 cursor-pointer"
+                            title={isCollapsed ? "Expandir seção" : "Colapsar seção"}
+                          >
+                            {isCollapsed ? (
+                              <ChevronRight className="size-3.5" />
+                            ) : (
+                              <ChevronDown className="size-3.5" />
+                            )}
+                          </button>
+                          <span
+                            className="truncate cursor-pointer hover:underline uppercase"
+                            onClick={() => toggleCollapse(part.id)}
+                          >
+                            {part.title}
+                          </span>
+                          {isCollapsed && (
+                            <span className="text-[10px] font-normal opacity-70 shrink-0 lowercase">
+                              ({filteredItems.length} {filteredItems.length === 1 ? "música" : "músicas"})
+                            </span>
+                          )}
+                        </div>
 
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          type="button"
-                          onClick={() => setPickerPartId(part.id)}
-                          className="rounded p-0.5 hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
-                          title="Adicionar música nesta seção"
-                        >
-                          <Plus className="size-3" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={partIdx === 0}
-                          onClick={() => movePart(part.id, -1)}
-                          className="rounded p-0.5 hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
-                          title="Mover seção para cima"
-                        >
-                          <ArrowUp className="size-3" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={partIdx === event.parts.length - 1}
-                          onClick={() => movePart(part.id, 1)}
-                          className="rounded p-0.5 hover:bg-muted text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
-                          title="Mover seção para baixo"
-                        >
-                          <ArrowDown className="size-3" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removePart(part.id)}
-                          className="rounded p-0.5 hover:bg-muted text-destructive hover:text-destructive cursor-pointer"
-                          title="Excluir seção"
-                        >
-                          <Trash2 className="size-3" />
-                        </button>
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setPickerPartId(part.id)}
+                            className="rounded p-1 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground cursor-pointer"
+                            title="Adicionar música nesta seção"
+                          >
+                            <Plus className="size-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openColorDialog(part)}
+                            className="rounded p-1 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground cursor-pointer"
+                            title="Personalizar cores (Label / Fundo)"
+                          >
+                            <Palette className="size-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openRenameDialog(part)}
+                            className="rounded p-1 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground cursor-pointer"
+                            title="Renomear seção"
+                          >
+                            <Pencil className="size-3" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={partIdx === 0}
+                            onClick={() => movePart(part.id, -1)}
+                            className="rounded p-1 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+                            title="Mover seção para cima"
+                          >
+                            <ArrowUp className="size-3" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={partIdx === event.parts.length - 1}
+                            onClick={() => movePart(part.id, 1)}
+                            className="rounded p-1 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+                            title="Mover seção para baixo"
+                          >
+                            <ArrowDown className="size-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removePart(part.id)}
+                            className="rounded p-1 hover:bg-black/10 dark:hover:bg-white/10 text-destructive hover:text-destructive cursor-pointer"
+                            title="Excluir seção"
+                          >
+                            <Trash2 className="size-3" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Empty section drop target */}
-                    {part.items.length === 0 && (
+                    {!isCollapsed && !isUntitled && part.items.length === 0 && (
                       <div
                         onDragOver={(e) => {
                           e.preventDefault();
@@ -441,8 +579,9 @@ export function SetlistSidebar() {
                       </div>
                     )}
 
-                    {/* Items in Part (Draggable + Right-Click Context Menu) */}
-                    <div className="space-y-1">
+                    {/* Items in Part (only when expanded) */}
+                    {!isCollapsed && (
+                      <div className="space-y-1">
                       {filteredItems.map((item, itemIdx) => {
                         const isSelected = selectedItemId === item.id;
                         const title = item.song?.title || "Música sem título";
@@ -645,9 +784,10 @@ export function SetlistSidebar() {
                         );
                       })}
                     </div>
-                  </div>
-                );
-              })
+                  )}
+                </div>
+              );
+            })
             )}
           </div>
         </ContextMenuTrigger>
@@ -775,6 +915,190 @@ export function SetlistSidebar() {
             </Button>
             <Button type="button" size="sm" onClick={handleCreateEvent}>
               Criar Culto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog for Customizing Part Colors */}
+      <Dialog
+        open={Boolean(colorDialogPart)}
+        onOpenChange={(open) => {
+          if (!open) setColorDialogPart(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Palette className="size-4 text-primary" />
+              <span>Personalizar Cores da Seção</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {colorDialogPart && (
+            <div className="space-y-4 py-2">
+              {/* Live Preview */}
+              <div className="space-y-1.5">
+                <span className="text-xs font-medium text-muted-foreground">Prévia do Cabeçalho</span>
+                <div
+                  className="flex items-center justify-between rounded-md border border-white/10 px-3 py-2 text-xs font-semibold tracking-wider transition-all shadow-2xs"
+                  style={{
+                    color: selectedLabelColor || undefined,
+                    backgroundColor: selectedBgColor || "transparent",
+                  }}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <ChevronDown className="size-3.5" />
+                    <span className="truncate uppercase">{colorDialogPart.title}</span>
+                  </div>
+                  <span className="text-[10px] font-normal opacity-70">3 músicas</span>
+                </div>
+              </div>
+
+              {/* Text / Label Color */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-foreground">Cor do Texto (Label)</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={selectedLabelColor || "#ffffff"}
+                      onChange={(e) => setSelectedLabelColor(e.target.value)}
+                      className="size-6 cursor-pointer rounded border border-border bg-transparent p-0"
+                      title="Escolher cor personalizada"
+                    />
+                    <span className="text-[11px] font-mono text-muted-foreground">
+                      {selectedLabelColor || "Padrão"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {LABEL_COLOR_PRESETS.map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setSelectedLabelColor(preset.value)}
+                      className={`h-6 rounded-md px-2 text-[10px] font-medium border transition-all cursor-pointer ${
+                        selectedLabelColor === preset.value
+                          ? "border-primary ring-1 ring-primary font-semibold"
+                          : "border-border/60 hover:border-border hover:bg-muted/60"
+                      }`}
+                      style={{
+                        color: preset.value || undefined,
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Background Color */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-foreground">Cor do Fundo</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={selectedBgColor || "#1e293b"}
+                      onChange={(e) => setSelectedBgColor(e.target.value)}
+                      className="size-6 cursor-pointer rounded border border-border bg-transparent p-0"
+                      title="Escolher cor personalizada"
+                    />
+                    <span className="text-[11px] font-mono text-muted-foreground">
+                      {selectedBgColor || "Transparente"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {BG_COLOR_PRESETS.map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setSelectedBgColor(preset.value)}
+                      className={`h-6 rounded-md px-2 text-[10px] font-medium border transition-all cursor-pointer flex items-center gap-1.5 ${
+                        selectedBgColor === preset.value
+                          ? "border-primary ring-1 ring-primary font-semibold"
+                          : "border-border/60 hover:border-border hover:bg-muted/60"
+                      }`}
+                    >
+                      {preset.value ? (
+                        <span
+                          className="size-2.5 rounded-full border border-white/20 shrink-0"
+                          style={{ backgroundColor: preset.value }}
+                        />
+                      ) : null}
+                      <span>{preset.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex items-center justify-between sm:justify-between">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleClearColors}
+              className="text-xs cursor-pointer text-muted-foreground hover:text-foreground"
+            >
+              <RotateCcw className="size-3 mr-1.5" />
+              Restaurar Padrão
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setColorDialogPart(null)}
+              >
+                Cancelar
+              </Button>
+              <Button type="button" size="sm" onClick={handleSaveColors}>
+                Salvar Cores
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog for Renaming Part */}
+      <Dialog
+        open={Boolean(renameDialogPart)}
+        onOpenChange={(open) => {
+          if (!open) setRenameDialogPart(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Renomear Seção</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <input
+              type="text"
+              value={renamePartTitle}
+              onChange={(e) => setRenamePartTitle(e.target.value)}
+              placeholder="Nome da seção..."
+              className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveRename();
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setRenameDialogPart(null)}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" size="sm" onClick={handleSaveRename}>
+              Salvar
             </Button>
           </DialogFooter>
         </DialogContent>
