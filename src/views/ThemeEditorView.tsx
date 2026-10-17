@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
+  Clock,
   Grid3x3,
   Image,
   Film,
@@ -201,6 +202,116 @@ export default function ThemeEditorView() {
     setSelectedId(el.id);
   }
 
+  function handleAddWidget(
+    widget: "hora" | "cronometro" | "timer" | "proximo" | "letra",
+  ) {
+    if (!draft) return;
+    const ids = draft.elements.map((el) => el.id);
+    let el: ThemeElement;
+    switch (widget) {
+      case "hora":
+        el = {
+          id: uniqueId("relogio", ids),
+          type: "TEXT",
+          x: 60,
+          y: 40,
+          visible: true,
+          locked: false,
+          css: {
+            ...baseCss(60, 40, 360, 70),
+            textAlign: "left",
+            fontSize: "44px",
+            fontWeight: "700",
+            color: "#fbbf24",
+          },
+          text: "{hora}",
+        };
+        break;
+      case "cronometro":
+        el = {
+          id: uniqueId("cronometro", ids),
+          type: "TEXT",
+          x: 1500,
+          y: 40,
+          visible: true,
+          locked: false,
+          css: {
+            ...baseCss(1500, 40, 360, 70),
+            textAlign: "right",
+            fontSize: "44px",
+            fontWeight: "700",
+            color: "#38bdf8",
+          },
+          text: "{cronometro}",
+        };
+        break;
+      case "timer":
+        el = {
+          id: uniqueId("timer", ids),
+          type: "TEXT",
+          x: 1500,
+          y: 120,
+          visible: true,
+          locked: false,
+          css: {
+            ...baseCss(1500, 120, 360, 70),
+            textAlign: "right",
+            fontSize: "44px",
+            fontWeight: "700",
+            color: "#f87171",
+          },
+          text: "{timer}",
+        };
+        break;
+      case "proximo":
+        el = {
+          id: uniqueId("proximo", ids),
+          type: "TEXT",
+          x: 120,
+          y: 840,
+          visible: true,
+          locked: false,
+          css: {
+            ...baseCss(120, 840, 1680, 180),
+            textAlign: "center",
+            fontSize: "32px",
+            fontWeight: "500",
+            lineHeight: "1.3",
+            color: "#94a3b8",
+            borderTopWidth: "1px",
+            borderTopColor: "rgba(255,255,255,0.15)",
+            borderTopStyle: "solid",
+            paddingTop: "16px",
+            autoShrink: "true",
+          },
+          text: "PRÓXIMO: {nextVerse}",
+        };
+        break;
+      case "letra":
+        el = {
+          id: uniqueId("letra", ids),
+          type: "TEXT",
+          x: 120,
+          y: 200,
+          visible: true,
+          locked: false,
+          css: {
+            ...baseCss(120, 200, 1680, 580),
+            textAlign: "center",
+            fontSize: "64px",
+            fontWeight: "700",
+            lineHeight: "1.25",
+            color: "#ffffff",
+            autoShrink: "true",
+          },
+          text: "{letra}",
+        };
+        break;
+    }
+    addElement(el);
+    setSelectedId(el.id);
+  }
+
   if (!guid || (!draft && error)) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background text-foreground">
@@ -310,6 +421,31 @@ export default function ThemeEditorView() {
           <Film className="size-3.5" />
           Vídeo
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm">
+              <Clock className="size-3.5" />
+              Widgets
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onSelect={() => handleAddWidget("hora")}>
+              Relógio ({`{hora}`})
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleAddWidget("cronometro")}>
+              Cronômetro ({`{cronometro}`})
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleAddWidget("timer")}>
+              Timer / Regressivo ({`{timer}`})
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleAddWidget("letra")}>
+              Slide Atual ({`{letra}`})
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleAddWidget("proximo")}>
+              Próximo Slide ({`{nextVerse}`})
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <div className="mx-1 h-5 w-px bg-border" />
         <Button
           variant={snap ? "secondary" : "ghost"}

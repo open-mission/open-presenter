@@ -459,6 +459,27 @@ function TextSection({
           </SelectContent>
         </Select>
       </div>
+      <div className="flex flex-wrap items-center gap-1 pt-0.5">
+        {[
+          { label: "Hora", key: "hora" },
+          { label: "Crono", key: "cronometro" },
+          { label: "Timer", key: "timer" },
+          { label: "Letra", key: "letra" },
+          { label: "Próximo", key: "nextVerse" },
+          { label: "1ª Frase", key: "nextFirstLine" },
+          { label: "Título", key: "titulo" },
+        ].map((v) => (
+          <button
+            key={v.key}
+            type="button"
+            onClick={() => insertVariable(v.key)}
+            className="rounded border border-border/80 bg-muted/40 px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+            title={`Inserir {${v.key}}`}
+          >
+            {`{${v.key}}`}
+          </button>
+        ))}
+      </div>
       <div className="flex gap-2">
         <Field label="Fonte">
           <Input
@@ -643,6 +664,53 @@ function TextSection({
             );
           })}
         </div>
+      </div>
+      <div className="flex flex-col gap-2 rounded-lg border border-border/70 bg-muted/20 p-2.5">
+        <span className="text-[11px] font-semibold text-foreground">
+          Ajuste Automático do Espaço
+        </span>
+        <label className="flex items-center justify-between cursor-pointer gap-2">
+          <div>
+            <span className="text-xs font-medium text-foreground">
+              Auto-shrink (diminuir texto longo)
+            </span>
+            <p className="text-[10px] text-muted-foreground">
+              Reduz proporcionalmente o texto se exceder a caixa para nunca vazar ou cortar
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            className="size-4 accent-primary rounded cursor-pointer"
+            checked={el.css.autoShrink === "true"}
+            onChange={(e) => {
+              const css = { ...el.css };
+              if (e.target.checked) css.autoShrink = "true";
+              else delete css.autoShrink;
+              updateElement(el.id, { css });
+            }}
+          />
+        </label>
+        <label className="flex items-center justify-between cursor-pointer gap-2">
+          <div>
+            <span className="text-xs font-medium text-foreground">
+              Auto-fit (preencher espaço)
+            </span>
+            <p className="text-[10px] text-muted-foreground">
+              Aumenta ou ajusta o texto para ocupar melhor o espaço disponível
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            className="size-4 accent-primary rounded cursor-pointer"
+            checked={el.css.autoFit === "true"}
+            onChange={(e) => {
+              const css = { ...el.css };
+              if (e.target.checked) css.autoFit = "true";
+              else delete css.autoFit;
+              updateElement(el.id, { css });
+            }}
+          />
+        </label>
       </div>
     </Section>
   );

@@ -158,8 +158,15 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
     return get().themes.find((t) => t.guid === binding.themeGuid) ?? null;
   },
   resolveStageTheme: () => {
-    const guid = get().stageThemeGuid;
-    if (!guid) return null;
-    return get().themes.find((t) => t.guid === guid) ?? null;
+    const guid = get().stageThemeGuid ?? DEFAULT_STAGE_THEME_GUID;
+    const found = get().themes.find((t) => t.guid === guid);
+    if (found) return found;
+    const fallback = get().themes.find(
+      (t) =>
+        t.title.toLowerCase().includes("retorno") ||
+        t.title.toLowerCase().includes("palco") ||
+        t.title.toLowerCase().includes("stage"),
+    );
+    return fallback ?? get().themes[0] ?? DEFAULT_STAGE_THEME;
   },
 }));

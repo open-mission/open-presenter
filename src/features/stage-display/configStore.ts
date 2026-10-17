@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 
 export type StageFontSize = "normal" | "large" | "xlarge";
 export type StageTheme = "classic" | "high-contrast" | "warm";
+export type NextSlideDisplay = "full" | "first-line";
 
 export interface StageConfig {
   showClock: boolean;
@@ -12,6 +13,8 @@ export interface StageConfig {
   showNextUp: boolean;
   fontSize: StageFontSize;
   theme: StageTheme;
+  nextSlideDisplay: NextSlideDisplay;
+  countdownMinutes: number;
 }
 
 interface StageConfigState extends StageConfig {
@@ -27,6 +30,8 @@ export const DEFAULT_STAGE_CONFIG: StageConfig = {
   showNextUp: true,
   fontSize: "large",
   theme: "classic",
+  nextSlideDisplay: "first-line",
+  countdownMinutes: 0,
 };
 
 export const useStageConfigStore = create<StageConfigState>()(

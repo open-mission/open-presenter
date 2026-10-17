@@ -5,16 +5,24 @@ export const SAMPLES: Record<
   { label: string; props: Record<string, string> }
 > = {
   music: {
-    label: "Música",
+    label: "Música / Palco",
     props: {
       titulo: "Santo, Santo, Santo",
       artista: "Hinário",
       letra: "Santo, santo, santo\nDeus Todo-Poderoso",
       nextVerse: "Digno de louvor",
+      nextFirstLine: "Digno de louvor",
+      nextFull: "Digno de louvor\nPara sempre amém",
       secao: "Refrão",
       currentIndex: "0",
       totalCount: "3",
+      hora: "10:30",
       "HH:MM": "10:30",
+      clock: "10:30",
+      cronometro: "04:15",
+      crono: "04:15",
+      timer: "15:00",
+      regressivo: "15:00",
     },
   },
   bible: {
@@ -27,7 +35,10 @@ export const SAMPLES: Record<
       versiculo: "1",
       versao: "ACF",
       nextVerse: "",
+      hora: "10:30",
       "HH:MM": "10:30",
+      cronometro: "04:15",
+      timer: "15:00",
     },
   },
   text: {
@@ -37,7 +48,10 @@ export const SAMPLES: Record<
       texto: "Culto de domingo às 19h",
       currentIndex: "0",
       totalCount: "1",
+      hora: "10:30",
       "HH:MM": "10:30",
+      cronometro: "04:15",
+      timer: "15:00",
     },
   },
 };
@@ -48,10 +62,15 @@ export const VARIABLE_KEYS: Record<ThemeAsset, string[]> = {
     "artista",
     "letra",
     "nextVerse",
+    "nextFirstLine",
+    "nextFull",
     "secao",
     "currentIndex",
     "totalCount",
+    "hora",
     "HH:MM",
+    "cronometro",
+    "timer",
   ],
   bible: [
     "titulo",
@@ -61,9 +80,21 @@ export const VARIABLE_KEYS: Record<ThemeAsset, string[]> = {
     "versiculo",
     "versao",
     "nextVerse",
+    "hora",
     "HH:MM",
+    "cronometro",
+    "timer",
   ],
-  text: ["titulo", "texto", "currentIndex", "totalCount", "HH:MM"],
+  text: [
+    "titulo",
+    "texto",
+    "currentIndex",
+    "totalCount",
+    "hora",
+    "HH:MM",
+    "cronometro",
+    "timer",
+  ],
 };
 
 export const SAMPLE_ASSETS: ThemeAsset[] = ["music", "bible", "text"];

@@ -1,4 +1,6 @@
-import type { SlideContent, SlideKind } from "@/core/types";
+import type { SlideContent, SlideKind, StageTimer } from "@/core/types";
+import { stageTimerElapsed } from "@/core/types";
+import { formatElapsed } from "@/core/lib/format";
 
 export function renderTemplate(
   template: string,
@@ -74,4 +76,95 @@ export function buildProps(
     case "blank":
       return { titulo: content.title };
   }
+}
+
+export function buildStageProps(options: {
+  content: SlideContent;
+  nextUp?: SlideContent | null;
+  nowMs: number;
+  timer: StageTimer;
+  clock24h?: boolean;
+  showSeconds?: boolean;
+  nextSlideDisplay?: "full" | "first-line";
+  countdownMinutes?: number;
+  blackout?: boolean;
+  cleared?: boolean;
+}): Record<string, string> {
+  const {
+    content,
+    nextUp,
+    nowMs,
+    timer,
+    clock24h = true,
+    showSeconds = false,
+    nextSlideDisplay = "first-line",
+    countdownMinutes = 0,
+    blackout = false,
+    cleared = false,
+  } = options;
+
+  const date = new Date(nowMs);
+  const hora = date.toLocaleTimeString("pt-BR", {
+    hour12: !clock24h,
+    hour: "2-digit",
+    minute: "2-digit",
+    ...(showSeconds ? { second: "2-digit" } : {}),
+  });
+  const horaComSegundos = date.toLocaleTimeString("pt-BR", {
+    hour12: !clock24h,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const hhmm = date.toLocaleTimeString("pt-BR", {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const elapsedSecs = stageTimerElapsed(timer, nowMs);
+  const cronometro = formatElapsed(elapsedSecs);
+
+  let timerFormatted = cronometro;
+  if (countdownMinutes > 0) {
+    const totalSecs = countdownMinutes * 60;
+    const remaining = Math.max(0, totalSecs - elapsedSecs);
+    timerFormatted = formatElapsed(remaining);
+  }
+
+  const nextFull = nextUp ? nextUp.lines.join("\n") : "";
+  const nextFirstLine =
+    nextUp && nextUp.lines.length > 0 ? (nextUp.lines[0] ?? "") : "";
+  const nextVerse = nextSlideDisplay === "full" ? nextFull : nextFirstLine;
+  const nextTitle = nextUp?.title ?? "";
+
+  let letra = content.lines.join("\n");
+  if (blackout) {
+    letra = "[BLACKOUT]";
+  } else if (cleared) {
+    letra = "";
+  }
+
+  return {
+    titulo: blackout || cleared ? "" : content.title,
+    artista: "",
+    secao: blackout || cleared ? "" : (content.section ?? ""),
+    letra,
+    texto: letra,
+    verso: letra,
+    nextVerse,
+    nextFirstLine,
+    nextFull,
+    nextTitle,
+    hora,
+    "HH:MM": hhmm,
+    clock: hora,
+    horaComSegundos,
+    cronometro,
+    crono: cronometro,
+    stopwatch: cronometro,
+    timer: timerFormatted,
+    regressivo: timerFormatted,
+    countdown: timerFormatted,
+  };
 }
