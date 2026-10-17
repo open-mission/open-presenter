@@ -10,6 +10,7 @@ import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useWallpaperSync } from "@/features/presentation/useWallpaperSync";
 import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
 import { parseMediaWithFit } from "@/features/theme-editor/media";
+import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 
 export default function PublicView() {
   usePresentationSync("public");
@@ -53,14 +54,23 @@ export default function PublicView() {
       (live.background.value && live.background.value !== "#000000");
 
     if (isCustomLiveBg) {
+      if (live.background.kind === "isf" || isIsfBackground(live.background.value)) {
+        return {
+          id: live.background.id,
+          kind: "isf",
+          value: live.background.value,
+        };
+      }
       return live.background;
     }
 
     if (theme?.css.background && theme.css.background.trim() !== "") {
+      const bg = theme.css.background.trim();
+      const isISF = isIsfBackground(bg);
       return {
         id: `theme-bg-${theme.guid}`,
-        kind: "css",
-        value: theme.css.background,
+        kind: isISF ? "isf" : "css",
+        value: bg,
       };
     }
 

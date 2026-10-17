@@ -20,6 +20,7 @@ import { usePresentationStore } from "./store";
 import { SlideCanvas } from "./SlideCanvas";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
 import { PersistentBackground } from "@/features/media-shaders/PersistentBackground";
+import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 import { SlideTransition } from "./SlideTransition";
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import { StageTimerControls } from "@/features/stage-display/StageTimerControls";
@@ -49,14 +50,23 @@ export function LivePreview() {
       (live.background.value && live.background.value !== "#000000");
 
     if (isCustomLiveBg) {
+      if (live.background.kind === "isf" || isIsfBackground(live.background.value)) {
+        return {
+          id: live.background.id,
+          kind: "isf",
+          value: live.background.value,
+        };
+      }
       return live.background;
     }
 
     if (liveTheme?.css.background && liveTheme.css.background.trim() !== "") {
+      const bg = liveTheme.css.background.trim();
+      const isISF = isIsfBackground(bg);
       return {
         id: `theme-bg-${liveTheme.guid}`,
-        kind: "css",
-        value: liveTheme.css.background,
+        kind: isISF ? "isf" : "css",
+        value: bg,
       };
     }
 

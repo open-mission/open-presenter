@@ -47,7 +47,9 @@ import { FontPicker } from "./FontPicker";
 import { SymbolsPicker } from "./SymbolsPicker";
 import { CssCodeEditor } from "./CssCodeEditor";
 import { GradientBuilder } from "./GradientBuilder";
-import { ShaderCanvas, SHADER_PRESETS } from "@/features/media-shaders/ShaderCanvas";
+import { ShaderCanvas } from "@/features/media-shaders/ShaderCanvas";
+import { isIsfBackground } from "@/features/media-shaders/isfEngine";
+import { ISFShaderControls } from "@/features/media-shaders/ISFShaderControls";
 import { cn } from "@/core/lib/utils";
 
 const FONT_WEIGHTS = [
@@ -925,11 +927,13 @@ function ThemeBackground({
         <div
           className="h-20 w-full rounded-lg border border-border shadow-inner overflow-hidden relative"
           style={{
-            background: resolveCssMediaUrls(draft.css.background) ?? "#000000",
+            background: isIsfBackground(currentBg)
+              ? undefined
+              : (resolveCssMediaUrls(draft.css.background) ?? "#000000"),
           }}
         >
-          {currentBg.startsWith("isf:") && (
-            <ShaderCanvas shader={currentBg.replace("isf:", "")} />
+          {isIsfBackground(currentBg) && (
+            <ShaderCanvas shader={currentBg} />
           )}
         </div>
 
@@ -971,29 +975,10 @@ function ThemeBackground({
 
           {/* Aba Shaders / ISF Animados */}
           <TabsContent value="shader" className="pt-2 flex flex-col gap-2">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              Shaders WebGL / ISF em Tempo Real
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              {SHADER_PRESETS.map((sh) => (
-                <button
-                  key={sh.id}
-                  type="button"
-                  onClick={() => updateCss({ background: `isf:${sh.id}` })}
-                  className={cn(
-                    "flex flex-col gap-1.5 rounded-lg border p-2 text-left transition-all cursor-pointer overflow-hidden",
-                    currentBg === `isf:${sh.id}`
-                      ? "border-primary bg-primary/10 shadow-2xs font-semibold"
-                      : "border-border/60 hover:bg-muted/50",
-                  )}
-                >
-                  <div className="h-12 w-full rounded border border-white/10 overflow-hidden relative">
-                    <ShaderCanvas shader={sh.id} />
-                  </div>
-                  <span className="text-xs truncate">{sh.name}</span>
-                </button>
-              ))}
-            </div>
+            <ISFShaderControls
+              value={currentBg}
+              onChange={(newBg) => updateCss({ background: newBg })}
+            />
           </TabsContent>
 
           {/* Aba Imagem / Mídia */}

@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
 import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
+import { isIsfBackground } from "@/features/media-shaders/isfEngine";
+import { ShaderCanvas } from "@/features/media-shaders/ShaderCanvas";
 import { renderTemplate } from "./themeTemplate";
 
 const BACKGROUND_KEYS = new Set([
@@ -47,6 +49,7 @@ function elementStyle(element: ThemeElement): CSSProperties {
 }
 
 function resolveUrlValue(value: string, host: string): string {
+  if (isIsfBackground(value)) return "";
   const match = value.match(/url\(\s*(['"]?)(.*?)\1\s*\)/);
   if (!match) return value;
   const resolved = resolveThemeMediaUrl(match[2], host);
@@ -71,10 +74,15 @@ export function themeContainerStyle(
   }
   if (
     withBackground &&
-    typeof theme.css.background === "string" &&
-    theme.css.background.includes("url(")
+    typeof theme.css.background === "string"
   ) {
-    style.background = resolveUrlValue(theme.css.background, host);
+    if (isIsfBackground(theme.css.background)) {
+      delete style.background;
+      delete style.backgroundColor;
+      delete style.backgroundImage;
+    } else if (theme.css.background.includes("url(")) {
+      style.background = resolveUrlValue(theme.css.background, host);
+    }
   }
   return style as CSSProperties;
 }
@@ -86,7 +94,7 @@ export function themeContainerStyle(
  */
 export function themeBackgroundStyle(theme: SlideTheme): CSSProperties {
   const raw = theme.css.background;
-  if (typeof raw !== "string" || raw.trim() === "") return {};
+  if (typeof raw !== "string" || raw.trim() === "" || isIsfBackground(raw)) return {};
   return {
     background: resolveUrlValue(raw, currentHost()),
     backgroundSize: "cover",
@@ -273,6 +281,7 @@ export function ThemeRenderer({
         element.assetTypeVisibility.includes(asset)),
   );
   const containerStyle = themeContainerStyle(theme, withBackground);
+  const isShaderBg = withBackground && isIsfBackground(theme.css.background);
 
   return (
     <div
@@ -280,6 +289,11 @@ export function ThemeRenderer({
       className="absolute inset-0 h-full w-full overflow-hidden"
       style={containerStyle}
     >
+      {isShaderBg && (
+        <div className="absolute inset-0 pointer-events-none">
+          <ShaderCanvas shader={theme.css.background} />
+        </div>
+      )}
       {elements.map((element) => (
         <ThemeElementView key={element.id} element={element} props={props} />
       ))}

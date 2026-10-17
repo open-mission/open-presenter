@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { SlideTheme, ThemeAsset } from "@/core/types";
 import { cn } from "@/core/lib/utils";
+import { isIsfBackground } from "@/features/media-shaders/isfEngine";
+import { ShaderCanvas } from "@/features/media-shaders/ShaderCanvas";
 import { ThemeRenderer, themeBackgroundStyle } from "./ThemeRenderer";
 
 export const LOGICAL_W = 1920;
@@ -56,7 +58,11 @@ export function ScaledStage({
       className={cn("absolute inset-0 overflow-hidden", className)}
     >
       {showBackground && (
-        <div className="absolute inset-0" style={themeBackgroundStyle(theme)} />
+        <div className="absolute inset-0 overflow-hidden" style={themeBackgroundStyle(theme)}>
+          {isIsfBackground(theme.css.background) && (
+            <ShaderCanvas shader={theme.css.background} />
+          )}
+        </div>
       )}
       {scale > 0 && (
         <div

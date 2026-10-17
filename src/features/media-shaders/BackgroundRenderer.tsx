@@ -51,6 +51,16 @@ export function BackgroundRenderer({
   }
 
   if (background.kind === "css") {
+    if (
+      background.value.startsWith("isf:") ||
+      (background.value.includes("/*{") && background.value.includes("void main"))
+    ) {
+      return (
+        <div className={cn("absolute inset-0 overflow-hidden", className)}>
+          <ShaderCanvas shader={background.value} />
+        </div>
+      );
+    }
     const resolved = resolveCssMediaUrls(background.value, host, port) ?? background.value;
     return (
       <div
