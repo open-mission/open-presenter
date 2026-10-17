@@ -15,15 +15,20 @@ pub fn sanitize_filename(name: &str) -> Result<String, AppError> {
     if name.contains('/') || name.contains('\\') || name.contains("..") {
         return Err(AppError::Storage("nome de arquivo inválido".into()));
     }
-    let normalizado = name.replace(' ', "_");
-    if normalizado.is_empty()
-        || !normalizado
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-')
-    {
+    let safe: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if safe.is_empty() || safe.chars().all(|c| c == '.' || c == '_') {
         return Err(AppError::Storage("nome de arquivo inválido".into()));
     }
-    Ok(normalizado)
+    Ok(safe)
 }
 
 fn base_media_dir(app: &AppHandle) -> Result<PathBuf, AppError> {

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { listenCommand } from "@/core/ipc/tauri";
+import { isTauri, listenCommand } from "@/core/ipc/tauri";
+import { openShortcutsWindow } from "@/core/ipc/commands";
 import { usePreferencesStore } from "@/features/preferences/store";
 import { useSongsStore } from "@/features/songs/store";
 import { usePresentationStore } from "@/features/presentation/store";
@@ -11,6 +12,15 @@ export function useNativeMenu() {
     let unlistenSearchOnline: (() => void) | null = null;
     let unlistenImport: (() => void) | null = null;
     let unlistenPrefs: (() => void) | null = null;
+    let unlistenShortcuts: (() => void) | null = null;
+
+    function handleOpenShortcuts() {
+      if (isTauri()) {
+        void openShortcutsWindow();
+      } else {
+        window.open("/#/shortcuts", "_blank", "width=700,height=580");
+      }
+    }
 
     // Listen to native menu items from Tauri (macOS/desktop)
     void listenCommand("new-song", () => {
@@ -37,8 +47,20 @@ export function useNativeMenu() {
       unlistenPrefs = fn;
     });
 
+    void listenCommand("open-shortcuts", () => {
+      handleOpenShortcuts();
+    }).then((fn) => {
+      unlistenShortcuts = fn;
+    });
+
     // Keyboard shortcut fallback for browser & desktop environments
     function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "/" || e.key === "?")) {
+        e.preventDefault();
+        handleOpenShortcuts();
+        return;
+      }
+
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
         e.preventDefault();
         useSongsStore.getState().openOnlineSearch();
@@ -90,6 +112,7 @@ export function useNativeMenu() {
       unlistenSearchOnline?.();
       unlistenImport?.();
       unlistenPrefs?.();
+      unlistenShortcuts?.();
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);

@@ -68,10 +68,10 @@ export function LivePreview() {
     await usePresentationStore.getState().publishLive(preview, null);
   }
 
+  const port = useOutputManagerStore((s) => s.server.port);
+
   // Determine if nothing is showing on the Live Public display
-  const isLiveEmpty =
-    (live.content.kind === "blank" && live.cleared) ||
-    (!live.blackout && live.cleared && live.background.kind === "color" && live.background.value === "#000000");
+  const isLiveEmpty = live.cleared || live.content.kind === "blank";
 
   return (
     <div className="flex flex-col gap-4 w-full">
@@ -208,7 +208,7 @@ export function LivePreview() {
             wallpaper ? (
               <div className="relative h-full w-full">
                 {(() => {
-                  const resolved = resolveThemeMediaUrl(wallpaper, host) ?? wallpaper;
+                  const resolved = resolveThemeMediaUrl(wallpaper, host, port) ?? wallpaper;
                   const isColor = resolved.startsWith("#") || resolved.startsWith("rgb");
                   const isVideo = resolved.endsWith(".mp4");
                   const bg: BackgroundLayer = {

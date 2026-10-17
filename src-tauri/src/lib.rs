@@ -72,20 +72,16 @@ pub fn run() {
                 .close_window()
                 .build()?;
 
-            let edit_menu = SubmenuBuilder::new(app, "Editar")
-                .undo()
-                .redo()
-                .separator()
-                .cut()
-                .copy()
-                .paste()
-                .select_all()
-                .separator()
-                .item(&prefs_item)
+            let shortcuts_item = MenuItemBuilder::with_id("shortcuts", "Atalhos de Teclado…")
+                .accelerator("CmdOrCtrl+/")
+                .build(app)?;
+
+            let help_menu = SubmenuBuilder::new(app, "Help")
+                .item(&shortcuts_item)
                 .build()?;
 
             let menu = MenuBuilder::new(app)
-                .items(&[&app_menu, &file_menu, &novo_menu, &edit_menu])
+                .items(&[&app_menu, &file_menu, &novo_menu, &help_menu])
                 .build()?;
 
             app.set_menu(menu)?;
@@ -95,6 +91,10 @@ pub fn run() {
                     "preferences" => {
                         let _ = crate::services::display_manager::open_preferences_window(app_handle);
                         let _ = app_handle.emit("open-preferences", ());
+                    }
+                    "shortcuts" => {
+                        let _ = crate::services::display_manager::open_shortcuts_window(app_handle);
+                        let _ = app_handle.emit("open-shortcuts", ());
                     }
                     "new-song" => {
                         let _ = app_handle.emit("new-song", ());
@@ -199,6 +199,8 @@ pub fn run() {
             commands::presentation::close_output_window,
             commands::presentation::open_preferences_window,
             commands::presentation::close_preferences_window,
+            commands::presentation::open_shortcuts_window,
+            commands::presentation::close_shortcuts_window,
             commands::presentation::open_theme_editor,
             commands::outputs::get_output_config,
             commands::outputs::set_output_config,

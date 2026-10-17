@@ -150,3 +150,14 @@ pub async fn open_theme_editor(
 ) -> Result<(), AppError> {
     display_manager::open_theme_editor_window(&app, guid)
 }
+
+#[tauri::command]
+pub async fn open_shortcuts_window(app: tauri::AppHandle) -> Result<(), AppError> {
+    display_manager::open_shortcuts_window(&app)
+}
+
+#[tauri::command]
+pub async fn close_shortcuts_window(app: tauri::AppHandle) -> Result<(), AppError> {
+    display_manager::close_shortcuts_window(&app)
+}
+

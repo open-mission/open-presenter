@@ -132,10 +132,19 @@ function TargetCard({
     setUploading(true);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
-      const saved = await saveThemeMedia("wallpapers", file.name, Array.from(bytes));
+      const ext = file.name.split(".").pop()?.toLowerCase() || "png";
+      const safeName = `wallpaper_${Date.now()}.${ext}`;
+      const saved = await saveThemeMedia("wallpapers", safeName, Array.from(bytes));
       await setWallpaper(target, saved);
     } catch (err) {
-      console.error("Falha ao salvar papel de parede:", err);
+      console.warn("Falha ao salvar via saveThemeMedia, aplicando data URL:", err);
+      const reader = new FileReader();
+      reader.onload = async () => {
+        if (typeof reader.result === "string") {
+          await setWallpaper(target, reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -148,8 +157,13 @@ function TargetCard({
     setTimeout(() => setCopied(false), 2000);
   }
 
-  function handleOpenUrl() {
-    window.open(currentUrl, "_blank");
+  async function handleOpenUrl() {
+    try {
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      await openUrl(currentUrl);
+    } catch {
+      window.open(currentUrl, "_blank");
+    }
   }
 
   return (
@@ -278,47 +292,53 @@ function TargetCard({
             porta {port}
           </span>
         </div>
-        <div className="flex min-w-0 items-center gap-2">
-          <div
-            className={`flex h-8 min-w-0 flex-1 items-center rounded-md border border-input bg-background/80 px-2.5 font-mono text-xs text-foreground select-all ${
-              serverRunning ? "" : "opacity-50"
-            }`}
-          >
-            <span className="min-w-0 truncate">{currentUrl}</span>
+        {/* Input Group do Shadcn UI para URL Web */}
+        <div
+          className={`flex min-w-0 items-center rounded-md border border-input bg-background/80 shadow-2xs focus-within:ring-1 focus-within:ring-ring ${
+            serverRunning ? "" : "opacity-50"
+          }`}
+        >
+          <input
+            type="text"
+            readOnly
+            value={currentUrl}
+            className="h-8 min-w-0 flex-1 bg-transparent px-2.5 font-mono text-xs text-foreground outline-none select-all"
+          />
+          <div className="flex shrink-0 items-center gap-1 border-l border-border/60 px-1 py-1 bg-muted/20">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-6 gap-1 px-2 text-xs font-medium cursor-pointer"
+              onClick={handleCopyUrl}
+              disabled={!serverRunning}
+              title={serverRunning ? "Copiar endereço" : "Servidor local parado"}
+            >
+              {copied ? (
+                <>
+                  <Check className="size-3 text-emerald-500" />
+                  <span>Copiado!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="size-3" />
+                  <span>Copiar</span>
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-6 gap-1 px-2 text-xs font-medium cursor-pointer"
+              onClick={() => void handleOpenUrl()}
+              disabled={!serverRunning}
+              title={serverRunning ? "Abrir no navegador" : "Servidor local parado"}
+            >
+              <ExternalLink className="size-3" />
+              <span>Abrir</span>
+            </Button>
           </div>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="h-8 gap-1.5 px-2.5 text-xs"
-            onClick={handleCopyUrl}
-            disabled={!serverRunning}
-            title={serverRunning ? "Copiar endereço" : "Servidor local parado"}
-          >
-            {copied ? (
-              <>
-                <Check className="size-3.5 text-emerald-500" />
-                Copiado!
-              </>
-            ) : (
-              <>
-                <Copy className="size-3.5" />
-                Copiar
-              </>
-            )}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="h-8 gap-1.5 px-2.5 text-xs"
-            onClick={handleOpenUrl}
-            disabled={!serverRunning}
-            title={serverRunning ? "Abrir no navegador" : "Servidor local parado"}
-          >
-            <ExternalLink className="size-3.5" />
-            Abrir
-          </Button>
         </div>
       </div>
 
@@ -352,7 +372,7 @@ function TargetCard({
             {config.wallpaper ? (
               <div className="relative size-16 shrink-0 overflow-hidden rounded-md border border-border bg-black">
                 <img
-                  src={resolveThemeMediaUrl(config.wallpaper, host) ?? config.wallpaper}
+                  src={resolveThemeMediaUrl(config.wallpaper, host, port) ?? config.wallpaper}
                   alt="Papel de parede"
                   className="h-full w-full object-cover"
                 />
@@ -424,6 +444,17 @@ function ServerSection() {
 
   const publicUrl = outputHttpUrl(host, server.port, "/public");
   const stageUrl = outputHttpUrl(host, server.port, "/stage");
+
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+
+  async function handleOpenUrl(url: string) {
+    try {
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      await openUrl(url);
+    } catch {
+      window.open(url, "_blank");
+    }
+  }
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -548,46 +579,67 @@ function ServerSection() {
         </p>
       )}
 
-      <div className={`flex min-w-0 flex-col gap-2 ${server.running ? "" : "opacity-50"}`}>
+      <div className={`flex min-w-0 flex-col gap-2.5 ${server.running ? "" : "opacity-50"}`}>
         {[
           { label: "Projeção pública", url: publicUrl },
           { label: "Retorno de palco", url: stageUrl },
-        ].map((item) => (
-          <div key={item.url} className="flex min-w-0 flex-col gap-1">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              {item.label}
-            </span>
-            <div className="flex min-w-0 items-center gap-2">
-              <div className="flex h-8 min-w-0 flex-1 items-center rounded-md border border-input bg-background/80 px-2.5 font-mono text-xs text-foreground select-all">
-                <span className="min-w-0 truncate">{item.url}</span>
+        ].map((item) => {
+          const isCopied = copiedUrl === item.url;
+          return (
+            <div key={item.url} className="flex min-w-0 flex-col gap-1">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                {item.label}
+              </span>
+              <div className="flex min-w-0 items-center rounded-md border border-input bg-background/80 shadow-2xs focus-within:ring-1 focus-within:ring-ring">
+                <input
+                  type="text"
+                  readOnly
+                  value={item.url}
+                  className="h-8 min-w-0 flex-1 bg-transparent px-2.5 font-mono text-xs text-foreground outline-none select-all"
+                />
+                <div className="flex shrink-0 items-center gap-1 border-l border-border/60 px-1 py-1 bg-muted/20">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 gap-1 px-2 text-xs font-medium cursor-pointer"
+                    disabled={!server.running}
+                    onClick={() => {
+                      void navigator.clipboard.writeText(item.url);
+                      setCopiedUrl(item.url);
+                      setTimeout(() => setCopiedUrl(null), 2000);
+                    }}
+                    title={server.running ? "Copiar endereço" : "Servidor local parado"}
+                  >
+                    {isCopied ? (
+                      <>
+                        <Check className="size-3 text-emerald-500" />
+                        <span>Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="size-3" />
+                        <span>Copiar</span>
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="h-6 gap-1 px-2 text-xs font-medium cursor-pointer"
+                    disabled={!server.running}
+                    onClick={() => void handleOpenUrl(item.url)}
+                    title={server.running ? "Abrir no navegador" : "Servidor local parado"}
+                  >
+                    <ExternalLink className="size-3" />
+                    <span>Abrir</span>
+                  </Button>
+                </div>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
-                disabled={!server.running}
-                onClick={() => void navigator.clipboard.writeText(item.url)}
-                title={server.running ? "Copiar endereço" : "Servidor local parado"}
-              >
-                <Copy className="size-3.5" />
-                Copiar
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
-                disabled={!server.running}
-                onClick={() => window.open(item.url, "_blank")}
-                title={server.running ? "Abrir no navegador" : "Servidor local parado"}
-              >
-                <ExternalLink className="size-3.5" />
-                Abrir
-              </Button>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -847,13 +899,17 @@ export function OutputsTab() {
                       {m.width} × {m.height} px
                     </p>
                     {users.length > 0 && (
-                      <Badge
-                        variant="outline"
-                        className="mt-1 h-4 px-1 text-[9px] font-medium text-emerald-600 dark:text-emerald-500"
-                      >
-                        em uso por{" "}
-                        {users.map((t) => TARGET_LABEL[t]).join(" e ")}
-                      </Badge>
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {users.map((t) => (
+                          <Badge
+                            key={t}
+                            variant="outline"
+                            className="h-auto py-0.5 px-1.5 text-[9px] font-medium leading-tight text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
+                          >
+                            Em uso: {TARGET_LABEL[t]}
+                          </Badge>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>

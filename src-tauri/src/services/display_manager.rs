@@ -205,6 +205,38 @@ pub fn close_preferences_window(app: &AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
+pub fn open_shortcuts_window(app: &AppHandle) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("shortcuts") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        window.set_focus().map_err(AppError::Tauri)?;
+        return Ok(());
+    }
+
+    let builder = WebviewWindowBuilder::new(
+        app,
+        "shortcuts",
+        WebviewUrl::App("/#/shortcuts".into()),
+    )
+    .title("Atalhos de Teclado — Open Presenter")
+    .inner_size(700.0, 580.0)
+    .min_inner_size(540.0, 420.0)
+    .resizable(true)
+    .center()
+    .focused(true)
+    .decorations(true);
+
+    builder.build().map_err(AppError::Tauri)?;
+    Ok(())
+}
+
+pub fn close_shortcuts_window(app: &AppHandle) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("shortcuts") {
+        window.close().map_err(AppError::Tauri)?;
+    }
+    Ok(())
+}
+
 pub fn open_theme_editor_window(app: &AppHandle, guid: Option<String>) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window("theme-editor") {
         let _ = window.unminimize();

@@ -37,7 +37,8 @@ export default function PublicView() {
   if (!isPresenting) {
     if (wallpaper) {
       const host = window.location.hostname || "localhost";
-      const resolved = resolveThemeMediaUrl(wallpaper, host) ?? wallpaper;
+      const port = window.location.port ? Number(window.location.port) : 5050;
+      const resolved = resolveThemeMediaUrl(wallpaper, host, port) ?? wallpaper;
       const isColor = resolved.startsWith("#") || resolved.startsWith("rgb");
       const isVideo = resolved.endsWith(".mp4");
       const bg: BackgroundLayer = {

@@ -112,7 +112,8 @@ async fn theme_media_handler(
     State(state): State<Arc<ServerState>>,
     Path(path): Path<String>,
 ) -> impl IntoResponse {
-    let relativo = PathBuf::from(&path);
+    let clean = path.trim_start_matches('/');
+    let relativo = PathBuf::from(clean);
     if relativo
         .components()
         .any(|c| matches!(c, Component::ParentDir))

@@ -33,7 +33,7 @@ interface SetlistState {
   createEvent(title: string): Promise<void>;
   deleteEvent(id: string): Promise<void>;
   renameEvent(title: string): void;
-  addPart(title: string): void;
+  addPart(title: string): string;
   renamePart(partId: string, title: string): void;
   removePart(partId: string): void;
   movePart(partId: string, dir: -1 | 1): void;
@@ -97,8 +97,43 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
 
   load: async () => {
     try {
-      const events = await listEvents();
+      let events = await listEvents();
+
+      // Se não houver nenhuma programação, cria um temporário/padrão
+      if (events.length === 0) {
+        const id = crypto.randomUUID();
+        const defaultEvent: ServiceEvent = {
+          id,
+          title: "Culto de Domingo",
+          eventDate: today(),
+          parts: [
+            {
+              id: crypto.randomUUID(),
+              title: "Louvor",
+              items: [],
+            },
+          ],
+        };
+        await createEventCommand(defaultEvent);
+        events = await listEvents();
+        set({
+          events,
+          event: defaultEvent,
+          activeEventId: id,
+          dirty: false,
+          selectedItemId: null,
+          error: null,
+        });
+        return;
+      }
+
       set({ events, error: null });
+
+      const currentActiveId = get().activeEventId;
+      // Se houver apenas 1 evento ou se o evento ativo não existir mais, seleciona como padrão
+      if (events.length === 1 || !currentActiveId || !events.some((e) => e.id === currentActiveId)) {
+        await get().selectEvent(events[0].id);
+      }
     } catch (err) {
       set({ error: errorMessage(err) });
     }
@@ -157,15 +192,13 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       set({ error: errorMessage(err) });
       return;
     }
+    set({
+      activeEventId: null,
+      event: null,
+      dirty: false,
+      selectedItemId: null,
+    });
     await get().load();
-    if (get().activeEventId === id) {
-      set({
-        activeEventId: null,
-        event: null,
-        dirty: false,
-        selectedItemId: null,
-      });
-    }
   },
 
   renameEvent: (title) =>
@@ -175,13 +208,14 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       return { event: { ...event, title }, dirty: true };
     }),
 
-  addPart: (title) =>
-    set((state) => {
-      const { event } = state;
-      if (event === null) return {};
-      const part: EventPart = { id: crypto.randomUUID(), title, items: [] };
-      return { event: { ...event, parts: [...event.parts, part] }, dirty: true };
-    }),
+  addPart: (title) => {
+    const { event } = get();
+    if (event === null) return "";
+    const id = crypto.randomUUID();
+    const part: EventPart = { id, title, items: [] };
+    set({ event: { ...event, parts: [...event.parts, part] }, dirty: true });
+    return id;
+  },
 
   renamePart: (partId, title) =>
     set((state) => {

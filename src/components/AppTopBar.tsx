@@ -3,6 +3,7 @@ import {
   ChevronDown,
   EyeOff,
   Globe,
+  HelpCircle,
   Image,
   Moon,
   Music,
@@ -20,6 +21,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { outputHttpUrl } from "@/core/config/app";
+import { openShortcutsWindow } from "@/core/ipc/commands";
+import { isTauri } from "@/core/ipc/tauri";
 import type { OutputMode } from "@/core/types";
 import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
@@ -272,6 +275,27 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
           <Settings className="size-3.5" />
           <kbd className="hidden rounded bg-muted px-1 py-0.2 font-mono text-[9px] text-muted-foreground sm:inline-block">
             ⌘,
+          </kbd>
+        </Button>
+
+        {/* Shortcuts Window Trigger */}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 gap-1.5 px-2 text-xs"
+          onClick={() => {
+            if (isTauri()) {
+              void openShortcutsWindow();
+            } else {
+              window.open("/#/shortcuts", "_blank", "width=700,height=580");
+            }
+          }}
+          title="Atalhos de Teclado (⌘/)"
+        >
+          <HelpCircle className="size-3.5" />
+          <kbd className="hidden rounded bg-muted px-1 py-0.2 font-mono text-[9px] text-muted-foreground sm:inline-block">
+            ⌘/
           </kbd>
         </Button>
       </div>

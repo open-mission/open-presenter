@@ -134,6 +134,9 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
       for (const t of ["public", "stage"] as const) {
         if (configs[t].mode !== "off") lastMode[t] = configs[t].mode;
       }
+      if (configs.public?.wallpaper !== undefined) {
+        useWallpaperStore.getState().applyRemote(configs.public.wallpaper);
+      }
       return {
         configs,
         runtime,
@@ -163,6 +166,9 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
       const lastMode = { ...s.lastMode };
       for (const t of ["public", "stage"] as const) {
         if (configs[t].mode !== "off") lastMode[t] = configs[t].mode;
+      }
+      if (configs.public?.wallpaper !== undefined) {
+        useWallpaperStore.getState().applyRemote(configs.public.wallpaper);
       }
       return {
         configs,
