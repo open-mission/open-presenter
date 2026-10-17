@@ -41,6 +41,15 @@ pub fn lyric_props(
     total: usize,
 ) -> HashMap<String, String> {
     HashMap::from([
+        ("title".into(), title.into()),
+        ("artist".into(), artist.into()),
+        ("lyrics".into(), text.into()),
+        ("next_verse".into(), next_verse.into()),
+        ("next_up".into(), next_verse.into()),
+        ("section".into(), section.into()),
+        ("current_slide".into(), index.to_string()),
+        ("total_slides".into(), total.to_string()),
+        // Legacy pt-BR
         ("titulo".into(), title.into()),
         ("artista".into(), artist.into()),
         ("letra".into(), text.into()),
@@ -61,6 +70,14 @@ pub fn scripture_props(
     next_verse: &str,
 ) -> HashMap<String, String> {
     HashMap::from([
+        ("title".into(), title.into()),
+        ("verse".into(), text.into()),
+        ("book".into(), book.into()),
+        ("chapter".into(), chapter.into()),
+        ("verse_number".into(), verse.into()),
+        ("version".into(), version.into()),
+        ("next_verse".into(), next_verse.into()),
+        // Legacy pt-BR
         ("titulo".into(), title.into()),
         ("verso".into(), text.into()),
         ("livro".into(), book.into()),
@@ -78,6 +95,12 @@ pub fn custom_props(
     total: usize,
 ) -> HashMap<String, String> {
     HashMap::from([
+        ("title".into(), title.into()),
+        ("text".into(), text.into()),
+        ("content".into(), text.into()),
+        ("current_slide".into(), index.to_string()),
+        ("total_slides".into(), total.to_string()),
+        // Legacy pt-BR
         ("titulo".into(), title.into()),
         ("texto".into(), text.into()),
         ("currentIndex".into(), index.to_string()),

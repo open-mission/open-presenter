@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -8,10 +8,13 @@ import {
   Film,
   Frame,
   Menu,
+  Pencil,
   Redo,
   Square,
   Type,
   Undo,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import type { ThemeAsset, ThemeElement } from "@/core/types";
 import { Button } from "@/components/ui/button";
@@ -23,6 +26,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -31,9 +41,14 @@ import {
 } from "@/components/ui/select";
 import { SAMPLES } from "@/features/slide-themes/samples";
 import { listenCommand } from "@/core/ipc/tauri";
-import { Canvas } from "@/features/theme-editor/Canvas";
+import {
+  Canvas,
+  RESOLUTION_PRESETS,
+  type CanvasResolution,
+} from "@/features/theme-editor/Canvas";
 import { LayersPanel } from "@/features/theme-editor/LayersPanel";
 import { PropertiesPanel } from "@/features/theme-editor/PropertiesPanel";
+import { SymbolsPicker } from "@/features/theme-editor/SymbolsPicker";
 import { useThemeEditorStore } from "@/features/theme-editor/store";
 
 function uniqueId(prefix: string, existing: string[]): string {
@@ -80,6 +95,18 @@ export default function ThemeEditorView() {
   const [showGrid, setShowGrid] = useState(false);
   const [gridSize, setGridSize] = useState(40);
   const [saving, setSaving] = useState(false);
+
+  // Photoshop-like 3-column & Canvas zoom/resolution states
+  const [propertiesWidth, setPropertiesWidth] = useState(360);
+  const isDraggingDivider = useRef(false);
+  const [zoom, setZoom] = useState<"fit" | number>("fit");
+  const [resolution, setResolution] = useState<CanvasResolution>(
+    RESOLUTION_PRESETS[0],
+  );
+
+  // Rename theme dialog
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
 
   useEffect(() => {
     if (guid) void load(guid);
@@ -135,6 +162,29 @@ export default function ThemeEditorView() {
     } else {
       navigate("/preferences");
     }
+  }
+
+  function handleDividerMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    isDraggingDivider.current = true;
+    const startX = e.clientX;
+    const startW = propertiesWidth;
+
+    function onMouseMove(ev: MouseEvent) {
+      if (!isDraggingDivider.current) return;
+      const delta = startX - ev.clientX;
+      const newWidth = Math.min(650, Math.max(280, startW + delta));
+      setPropertiesWidth(newWidth);
+    }
+
+    function onMouseUp() {
+      isDraggingDivider.current = false;
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
   }
 
   function handleAdd(kind: "text" | "color" | "image" | "video") {
@@ -202,14 +252,46 @@ export default function ThemeEditorView() {
     setSelectedId(el.id);
   }
 
+  function handleAddSymbol(symbol: string) {
+    if (!draft) return;
+    if (selectedId) {
+      const el = draft.elements.find((e) => e.id === selectedId);
+      if (el && el.type === "TEXT") {
+        useThemeEditorStore.getState().updateElement(el.id, {
+          ...el,
+          text: (el.text ?? "") ? `${el.text} ${symbol}` : symbol,
+        });
+        return;
+      }
+    }
+    const ids = draft.elements.map((el) => el.id);
+    const newEl: ThemeElement = {
+      id: uniqueId("simbolo", ids),
+      type: "TEXT",
+      x: 880,
+      y: 460,
+      visible: true,
+      locked: false,
+      css: {
+        ...baseCss(880, 460, 160, 160),
+        fontSize: "64px",
+        textAlign: "center",
+        color: "#ffffff",
+      },
+      text: symbol,
+    };
+    addElement(newEl);
+    setSelectedId(newEl.id);
+  }
+
   function handleAddWidget(
-    widget: "hora" | "cronometro" | "timer" | "proximo" | "letra",
+    widget: "clock" | "stopwatch" | "timer" | "next_verse" | "lyrics",
   ) {
     if (!draft) return;
     const ids = draft.elements.map((el) => el.id);
     let el: ThemeElement;
     switch (widget) {
-      case "hora":
+      case "clock":
         el = {
           id: uniqueId("relogio", ids),
           type: "TEXT",
@@ -224,10 +306,10 @@ export default function ThemeEditorView() {
             fontWeight: "700",
             color: "#fbbf24",
           },
-          text: "{hora}",
+          text: "{clock}",
         };
         break;
-      case "cronometro":
+      case "stopwatch":
         el = {
           id: uniqueId("cronometro", ids),
           type: "TEXT",
@@ -242,7 +324,7 @@ export default function ThemeEditorView() {
             fontWeight: "700",
             color: "#38bdf8",
           },
-          text: "{cronometro}",
+          text: "{stopwatch}",
         };
         break;
       case "timer":
@@ -263,7 +345,7 @@ export default function ThemeEditorView() {
           text: "{timer}",
         };
         break;
-      case "proximo":
+      case "next_verse":
         el = {
           id: uniqueId("proximo", ids),
           type: "TEXT",
@@ -284,10 +366,10 @@ export default function ThemeEditorView() {
             paddingTop: "16px",
             autoShrink: "true",
           },
-          text: "PRÓXIMO: {nextVerse}",
+          text: "PRÓXIMO: {next_verse}",
         };
         break;
-      case "letra":
+      case "lyrics":
         el = {
           id: uniqueId("letra", ids),
           type: "TEXT",
@@ -304,7 +386,7 @@ export default function ThemeEditorView() {
             color: "#ffffff",
             autoShrink: "true",
           },
-          text: "{letra}",
+          text: "{lyrics}",
         };
         break;
     }
@@ -345,23 +427,41 @@ export default function ThemeEditorView() {
 
   return (
     <div className="flex h-screen w-screen flex-col bg-background text-foreground">
-      <header className="flex items-center gap-2 border-b border-border px-3 py-2">
+      {/* Top Header */}
+      <header className="flex items-center gap-2 border-b border-border px-3 py-2 bg-card/40">
         <Button variant="ghost" size="icon-sm" aria-label="Voltar" onClick={handleBack}>
           <ArrowLeft />
         </Button>
-        <Input
-          value={draft.title}
-          aria-label="Título do tema"
-          className="h-8 max-w-64 font-semibold"
-          onChange={(e) => setTitle(e.target.value)}
-        />
+
+        {/* Theme Title with Edit Pencil button */}
+        <div className="flex items-center gap-1.5 rounded px-2 py-1 hover:bg-accent/50 group transition-colors">
+          <span className="font-semibold text-sm max-w-64 truncate" title={draft.title}>
+            {draft.title || "Sem título"}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="size-6 text-muted-foreground hover:text-foreground opacity-60 group-hover:opacity-100"
+            onClick={() => {
+              setRenameValue(draft.title);
+              setIsRenameOpen(true);
+            }}
+            title="Renomear tema"
+            aria-label="Renomear tema"
+          >
+            <Pencil className="size-3.5" />
+          </Button>
+        </div>
+
         <div className="flex-1" />
+
         <Button
           variant="ghost"
           size="icon-sm"
           aria-label="Desfazer"
           disabled={!undoable}
           onClick={undo}
+          title="Desfazer (Ctrl+Z / Cmd+Z)"
         >
           <Undo />
         </Button>
@@ -371,6 +471,7 @@ export default function ThemeEditorView() {
           aria-label="Refazer"
           disabled={!redoable}
           onClick={redo}
+          title="Refazer (Ctrl+Y / Cmd+Y)"
         >
           <Redo />
         </Button>
@@ -401,7 +502,8 @@ export default function ThemeEditorView() {
         </DropdownMenu>
       </header>
 
-      <div className="flex items-center gap-1 border-b border-border px-3 py-1.5">
+      {/* Sub-header Toolbar */}
+      <div className="flex items-center gap-1 border-b border-border px-3 py-1.5 bg-card/20 flex-wrap">
         <span className="mr-1 text-[11px] font-semibold text-muted-foreground">
           Adicionar:
         </span>
@@ -421,6 +523,10 @@ export default function ThemeEditorView() {
           <Film className="size-3.5" />
           Vídeo
         </Button>
+
+        <SymbolsPicker onInsert={handleAddSymbol} title="Adicionar Símbolo / Ícone" />
+
+        {/* Widgets with Canonical English tokens */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm">
@@ -429,29 +535,32 @@ export default function ThemeEditorView() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start">
-            <DropdownMenuItem onSelect={() => handleAddWidget("hora")}>
-              Relógio ({`{hora}`})
+            <DropdownMenuItem onSelect={() => handleAddWidget("clock")}>
+              Relógio ({`{clock}`})
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => handleAddWidget("cronometro")}>
-              Cronômetro ({`{cronometro}`})
+            <DropdownMenuItem onSelect={() => handleAddWidget("stopwatch")}>
+              Cronômetro ({`{stopwatch}`})
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => handleAddWidget("timer")}>
               Timer / Regressivo ({`{timer}`})
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => handleAddWidget("letra")}>
-              Slide Atual ({`{letra}`})
+            <DropdownMenuItem onSelect={() => handleAddWidget("lyrics")}>
+              Slide Atual ({`{lyrics}`})
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => handleAddWidget("proximo")}>
-              Próximo Slide ({`{nextVerse}`})
+            <DropdownMenuItem onSelect={() => handleAddWidget("next_verse")}>
+              Próximo Slide ({`{next_verse}`})
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
         <div className="mx-1 h-5 w-px bg-border" />
+
         <Button
           variant={snap ? "secondary" : "ghost"}
           size="sm"
           aria-pressed={snap}
           onClick={() => setSnap((v) => !v)}
+          title="Snap inteligente nas margens e guias"
         >
           <Frame className="size-3.5" />
           Snap
@@ -461,6 +570,7 @@ export default function ThemeEditorView() {
           size="sm"
           aria-pressed={showLimit}
           onClick={() => setShowLimit((v) => !v)}
+          title="Margem de segurança (90%)"
         >
           Limite
         </Button>
@@ -478,7 +588,7 @@ export default function ThemeEditorView() {
             type="number"
             min={4}
             aria-label="Tamanho do grid em pixels"
-            className="h-8 w-20"
+            className="h-8 w-18 text-xs"
             value={gridSize}
             onChange={(e) => {
               const num = Number(e.target.value);
@@ -486,12 +596,15 @@ export default function ThemeEditorView() {
             }}
           />
         )}
+
         <div className="flex-1" />
+
+        <span className="text-xs text-muted-foreground mr-1">Amostra:</span>
         <Select
           value={sampleAsset}
           onValueChange={(value) => setSampleAsset(value as ThemeAsset)}
         >
-          <SelectTrigger size="sm" className="w-32" aria-label="Amostra de conteúdo">
+          <SelectTrigger size="sm" className="w-32 h-8 text-xs" aria-label="Amostra de conteúdo">
             <SelectValue placeholder="Amostra" />
           </SelectTrigger>
           <SelectContent position="popper">
@@ -510,31 +623,180 @@ export default function ThemeEditorView() {
         </p>
       )}
 
-      <div className="flex min-h-0 flex-1">
-        <main className="flex min-w-0 flex-1 flex-col gap-1 overflow-auto p-3">
-          <p className="text-[11px] text-muted-foreground">
-            Saída simulada · 1920×1080
-          </p>
-          <Canvas
-            theme={draft}
-            asset={sampleAsset}
-            props={sample.props}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onChange={(el) =>
-              useThemeEditorStore.getState().updateElement(el.id, el)
-            }
-            showGrid={showGrid}
-            gridSize={gridSize}
-            showLimit={showLimit}
-            snap={snap}
-          />
-        </main>
-        <aside className="flex w-64 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border p-3">
+      {/* 3-Column Photoshop Layout: Layers (Left) | Canvas (Center) | Divider | Properties (Right) */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        {/* Left Column: Layers Panel */}
+        <aside className="w-60 shrink-0 flex flex-col h-full overflow-y-auto border-r border-border p-3 bg-card/20">
           <LayersPanel selectedId={selectedId} onSelect={setSelectedId} />
+        </aside>
+
+        {/* Center Column: Canvas Preview Area */}
+        <main className="flex min-w-0 flex-1 flex-col h-full overflow-hidden bg-background">
+          {/* Canvas Sub-Bar: Resolution & Zoom controls */}
+          <div className="flex items-center justify-between border-b border-border/80 bg-muted/20 px-3 py-1.5 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[11px] text-muted-foreground">
+                {resolution.width}×{resolution.height}
+              </span>
+              <span className="text-muted-foreground/40">|</span>
+              <Select
+                value={`${resolution.width}x${resolution.height}`}
+                onValueChange={(val) => {
+                  const found = RESOLUTION_PRESETS.find(
+                    (p) => `${p.width}x${p.height}` === val,
+                  );
+                  if (found) setResolution(found);
+                }}
+              >
+                <SelectTrigger size="sm" className="h-7 text-xs w-48">
+                  <SelectValue placeholder="Resolução" />
+                </SelectTrigger>
+                <SelectContent>
+                  {RESOLUTION_PRESETS.map((preset) => (
+                    <SelectItem
+                      key={`${preset.width}x${preset.height}`}
+                      value={`${preset.width}x${preset.height}`}
+                    >
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="Reduzir Zoom"
+                onClick={() => {
+                  if (zoom === "fit") setZoom(0.75);
+                  else if (zoom === 1.5) setZoom(1.25);
+                  else if (zoom === 1.25) setZoom(1.0);
+                  else if (zoom === 1.0) setZoom(0.75);
+                  else if (zoom === 0.75) setZoom(0.5);
+                }}
+              >
+                <ZoomOut className="size-3.5" />
+              </Button>
+
+              <Select
+                value={String(zoom)}
+                onValueChange={(val) => {
+                  if (val === "fit") setZoom("fit");
+                  else setZoom(Number(val));
+                }}
+              >
+                <SelectTrigger size="sm" className="h-7 w-24 text-xs font-mono">
+                  <SelectValue placeholder="Zoom" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="fit">Ajustar (Fit)</SelectItem>
+                  <SelectItem value="0.5">50%</SelectItem>
+                  <SelectItem value="0.75">75%</SelectItem>
+                  <SelectItem value="1">100%</SelectItem>
+                  <SelectItem value="1.25">125%</SelectItem>
+                  <SelectItem value="1.5">150%</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                title="Aumentar Zoom"
+                onClick={() => {
+                  if (zoom === "fit") setZoom(1.0);
+                  else if (zoom === 0.5) setZoom(0.75);
+                  else if (zoom === 0.75) setZoom(1.0);
+                  else if (zoom === 1.0) setZoom(1.25);
+                  else if (zoom === 1.25) setZoom(1.5);
+                }}
+              >
+                <ZoomIn className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Canvas Element */}
+          <div className="flex-1 min-h-0 min-w-0 p-3 flex flex-col">
+            <Canvas
+              theme={draft}
+              asset={sampleAsset}
+              props={sample.props}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onChange={(el) =>
+                useThemeEditorStore.getState().updateElement(el.id, el)
+              }
+              showGrid={showGrid}
+              gridSize={gridSize}
+              showLimit={showLimit}
+              snap={snap}
+              zoom={zoom}
+              resolution={resolution}
+            />
+          </div>
+        </main>
+
+        {/* Resizable Divider Handle */}
+        <div
+          role="separator"
+          tabIndex={0}
+          aria-label="Redimensionar painel de propriedades"
+          onMouseDown={handleDividerMouseDown}
+          className="relative w-1.5 shrink-0 cursor-col-resize select-none bg-border/40 hover:bg-primary/50 transition-colors after:absolute after:inset-y-0 after:-left-1 after:-right-1 after:z-10"
+        />
+
+        {/* Right Column: Properties & Formatting Panel */}
+        <aside
+          style={{ width: `${propertiesWidth}px` }}
+          className="shrink-0 flex flex-col h-full overflow-y-auto border-l border-border p-3 bg-card/20"
+        >
           <PropertiesPanel selectedId={selectedId} />
         </aside>
       </div>
+
+      {/* Rename Theme Dialog */}
+      <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Renomear Tema</DialogTitle>
+          </DialogHeader>
+          <div className="py-2">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">
+              Nome do Tema
+            </label>
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              placeholder="Ex: Padrão Culto, Palco Músicos..."
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const trimmed = renameValue.trim();
+                  if (trimmed) setTitle(trimmed);
+                  setIsRenameOpen(false);
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRenameOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                const trimmed = renameValue.trim();
+                if (trimmed) setTitle(trimmed);
+                setIsRenameOpen(false);
+              }}
+            >
+              Salvar Nome
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -14,6 +14,22 @@ import {
   elementRect,
 } from "./geometry";
 
+export interface CanvasResolution {
+  width: number;
+  height: number;
+  label: string;
+}
+
+export const RESOLUTION_PRESETS: CanvasResolution[] = [
+  { width: 1920, height: 1080, label: "16:9 Full HD (1920×1080)" },
+  { width: 3840, height: 2160, label: "16:9 4K (3840×2160)" },
+  { width: 1280, height: 720, label: "16:9 HD (1280×720)" },
+  { width: 1920, height: 1200, label: "16:10 (1920×1200)" },
+  { width: 1440, height: 1080, label: "4:3 (1440×1080)" },
+  { width: 2560, height: 1080, label: "21:9 Ultrawide (2560×1080)" },
+  { width: 1080, height: 1920, label: "9:16 Vertical (1080×1920)" },
+];
+
 export interface CanvasProps {
   theme: SlideTheme;
   asset: ThemeAsset;
@@ -25,6 +41,8 @@ export interface CanvasProps {
   gridSize: number;
   showLimit: boolean;
   snap: boolean;
+  zoom?: "fit" | number;
+  resolution?: { width: number; height: number };
 }
 
 type ResizeDir = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
@@ -42,6 +60,12 @@ interface Gesture {
 type PreviewPatch = Partial<Pick<ThemeElement, "x" | "y">> & {
   css?: Record<string, string>;
 };
+
+export interface SmartGuide {
+  type: "vertical" | "horizontal";
+  pos: number;
+  label?: string;
+}
 
 const MIN_SIZE = 20;
 
@@ -110,29 +134,44 @@ export function Canvas({
   gridSize,
   showLimit,
   snap,
+  zoom = "fit",
+  resolution,
 }: CanvasProps) {
+  const logicalW = resolution?.width ?? LOGICAL_W;
+  const logicalH = resolution?.height ?? LOGICAL_H;
+
   const wrapRef = useRef<HTMLDivElement>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const [scale, setScale] = useState(0.5);
   const [preview, setPreview] = useState<Record<string, PreviewPatch>>({});
+  const [activeGuides, setActiveGuides] = useState<SmartGuide[]>([]);
   const [measured, setMeasured] = useState<
     Record<string, { w: number; h: number }>
   >({});
   const [editingId, setEditingId] = useState<string | null>(null);
 
   useLayoutEffect(() => {
+    if (typeof zoom === "number") {
+      setScale(zoom);
+      return;
+    }
     const node = wrapRef.current;
     if (!node) return;
     const update = () => {
-      setScale(node.clientWidth / LOGICAL_W);
+      const padding = 32;
+      const availW = Math.max(100, node.clientWidth - padding);
+      const availH = Math.max(100, node.clientHeight - padding);
+      const sW = availW / logicalW;
+      const sH = availH / logicalH;
+      const autoScale = Math.min(sW, sH > 0 ? sH : sW);
+      setScale(Math.max(0.1, autoScale));
     };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [zoom, logicalW, logicalH]);
 
   const visibleElements = useMemo(
     () =>
@@ -214,18 +253,270 @@ export function Canvas({
     x: number;
     y: number;
   } {
-    const rect = viewportRef.current?.getBoundingClientRect();
-    if (!rect || rect.width === 0) return { x: 0, y: 0 };
-    const s = rect.width / LOGICAL_W;
+    const stage = stageRef.current;
+    if (!stage) return { x: 0, y: 0 };
+    const rect = stage.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) return { x: 0, y: 0 };
+    const s = rect.width / logicalW;
     return {
       x: (e.clientX - rect.left) / s,
       y: (e.clientY - rect.top) / s,
     };
   }
 
-  function snapValue(v: number): number {
-    if (!snap || gridSize <= 0) return Math.round(v);
-    return Math.round(v / gridSize) * gridSize;
+  function calculateSnap(
+    origLeft: number,
+    origTop: number,
+    dx: number,
+    dy: number,
+    width: number,
+    height: number,
+    excludeId: string,
+  ): { left: number; top: number; guides: SmartGuide[] } {
+    if (!snap) {
+      return {
+        left: Math.round(origLeft + dx),
+        top: Math.round(origTop + dy),
+        guides: [],
+      };
+    }
+
+    const SNAP_DIST = Math.max(8, Math.round(12 / Math.max(scale, 0.1)));
+    const guides: SmartGuide[] = [];
+
+    let left = origLeft + dx;
+    let top = origTop + dy;
+    const right = left + width;
+    const bottom = top + height;
+    const centerX = left + width / 2;
+    const centerY = top + height / 2;
+
+    const marginL = logicalW * 0.05;
+    const marginR = logicalW * 0.95;
+    const centerTargetX = logicalW / 2;
+
+    const otherElements = visibleElements.filter((el) => el.id !== excludeId);
+
+    let snappedX = false;
+    if (Math.abs(left - marginL) <= SNAP_DIST) {
+      left = marginL;
+      guides.push({ type: "vertical", pos: marginL, label: "Margem 5%" });
+      snappedX = true;
+    } else if (Math.abs(right - marginR) <= SNAP_DIST) {
+      left = marginR - width;
+      guides.push({ type: "vertical", pos: marginR, label: "Margem 95%" });
+      snappedX = true;
+    } else if (Math.abs(centerX - centerTargetX) <= SNAP_DIST) {
+      left = Math.round(centerTargetX - width / 2);
+      guides.push({ type: "vertical", pos: centerTargetX, label: "Centro X" });
+      snappedX = true;
+    } else if (Math.abs(left - 0) <= SNAP_DIST) {
+      left = 0;
+      guides.push({ type: "vertical", pos: 0, label: "0px" });
+      snappedX = true;
+    } else if (Math.abs(right - logicalW) <= SNAP_DIST) {
+      left = logicalW - width;
+      guides.push({ type: "vertical", pos: logicalW, label: `${logicalW}px` });
+      snappedX = true;
+    } else {
+      for (const other of otherElements) {
+        const box = resolveBox(other);
+        const otherRight = box.left + box.width;
+        const otherCenterX = box.left + box.width / 2;
+
+        if (Math.abs(left - box.left) <= SNAP_DIST) {
+          left = box.left;
+          guides.push({ type: "vertical", pos: box.left, label: other.id });
+          snappedX = true;
+          break;
+        }
+        if (Math.abs(right - otherRight) <= SNAP_DIST) {
+          left = otherRight - width;
+          guides.push({ type: "vertical", pos: otherRight, label: other.id });
+          snappedX = true;
+          break;
+        }
+        if (Math.abs(centerX - otherCenterX) <= SNAP_DIST) {
+          left = Math.round(otherCenterX - width / 2);
+          guides.push({ type: "vertical", pos: otherCenterX, label: other.id });
+          snappedX = true;
+          break;
+        }
+      }
+    }
+
+    if (!snappedX && gridSize > 0) {
+      left = Math.round(left / gridSize) * gridSize;
+    } else {
+      left = Math.round(left);
+    }
+
+    const marginT = logicalH * 0.05;
+    const marginB = logicalH * 0.95;
+    const centerTargetY = logicalH / 2;
+
+    let snappedY = false;
+    if (Math.abs(top - marginT) <= SNAP_DIST) {
+      top = marginT;
+      guides.push({ type: "horizontal", pos: marginT, label: "Margem 5%" });
+      snappedY = true;
+    } else if (Math.abs(bottom - marginB) <= SNAP_DIST) {
+      top = marginB - height;
+      guides.push({ type: "horizontal", pos: marginB, label: "Margem 95%" });
+      snappedY = true;
+    } else if (Math.abs(centerY - centerTargetY) <= SNAP_DIST) {
+      top = Math.round(centerTargetY - height / 2);
+      guides.push({ type: "horizontal", pos: centerTargetY, label: "Centro Y" });
+      snappedY = true;
+    } else if (Math.abs(top - 0) <= SNAP_DIST) {
+      top = 0;
+      guides.push({ type: "horizontal", pos: 0, label: "0px" });
+      snappedY = true;
+    } else if (Math.abs(bottom - logicalH) <= SNAP_DIST) {
+      top = logicalH - height;
+      guides.push({ type: "horizontal", pos: logicalH, label: `${logicalH}px` });
+      snappedY = true;
+    } else {
+      for (const other of otherElements) {
+        const box = resolveBox(other);
+        const otherBottom = box.top + box.height;
+        const otherCenterY = box.top + box.height / 2;
+
+        if (Math.abs(top - box.top) <= SNAP_DIST) {
+          top = box.top;
+          guides.push({ type: "horizontal", pos: box.top, label: other.id });
+          snappedY = true;
+          break;
+        }
+        if (Math.abs(bottom - otherBottom) <= SNAP_DIST) {
+          top = otherBottom - height;
+          guides.push({ type: "horizontal", pos: otherBottom, label: other.id });
+          snappedY = true;
+          break;
+        }
+        if (Math.abs(centerY - otherCenterY) <= SNAP_DIST) {
+          top = Math.round(otherCenterY - height / 2);
+          guides.push({ type: "horizontal", pos: otherCenterY, label: other.id });
+          snappedY = true;
+          break;
+        }
+      }
+    }
+
+    if (!snappedY && gridSize > 0) {
+      top = Math.round(top / gridSize) * gridSize;
+    } else {
+      top = Math.round(top);
+    }
+
+    return { left, top, guides };
+  }
+
+  function calculateResizeSnap(
+    orig: { left: number; top: number; width: number; height: number },
+    dir: ResizeDir,
+    dx: number,
+    dy: number,
+  ): { left: number; top: number; width: number; height: number; guides: SmartGuide[] } {
+    let { left, top, width, height } = orig;
+    const right = orig.left + orig.width;
+    const bottom = orig.top + orig.height;
+
+    const SNAP_DIST = Math.max(8, Math.round(12 / Math.max(scale, 0.1)));
+    const guides: SmartGuide[] = [];
+
+    const marginL = logicalW * 0.05;
+    const marginR = logicalW * 0.95;
+    const marginT = logicalH * 0.05;
+    const marginB = logicalH * 0.95;
+
+    if (dir.includes("e")) {
+      let candRight = right + dx;
+      if (snap) {
+        if (Math.abs(candRight - marginR) <= SNAP_DIST) {
+          candRight = marginR;
+          guides.push({ type: "vertical", pos: marginR, label: "Margem 95%" });
+        } else if (Math.abs(candRight - logicalW) <= SNAP_DIST) {
+          candRight = logicalW;
+          guides.push({ type: "vertical", pos: logicalW });
+        } else if (Math.abs(candRight - logicalW / 2) <= SNAP_DIST) {
+          candRight = logicalW / 2;
+          guides.push({ type: "vertical", pos: logicalW / 2 });
+        } else if (gridSize > 0) {
+          candRight = Math.round(candRight / gridSize) * gridSize;
+        }
+      }
+      width = Math.max(MIN_SIZE, candRight - left);
+    }
+
+    if (dir.includes("s")) {
+      let candBottom = bottom + dy;
+      if (snap) {
+        if (Math.abs(candBottom - marginB) <= SNAP_DIST) {
+          candBottom = marginB;
+          guides.push({ type: "horizontal", pos: marginB, label: "Margem 95%" });
+        } else if (Math.abs(candBottom - logicalH) <= SNAP_DIST) {
+          candBottom = logicalH;
+          guides.push({ type: "horizontal", pos: logicalH });
+        } else if (Math.abs(candBottom - logicalH / 2) <= SNAP_DIST) {
+          candBottom = logicalH / 2;
+          guides.push({ type: "horizontal", pos: logicalH / 2 });
+        } else if (gridSize > 0) {
+          candBottom = Math.round(candBottom / gridSize) * gridSize;
+        }
+      }
+      height = Math.max(MIN_SIZE, candBottom - top);
+    }
+
+    if (dir.includes("w")) {
+      let candLeft = left + dx;
+      if (snap) {
+        if (Math.abs(candLeft - marginL) <= SNAP_DIST) {
+          candLeft = marginL;
+          guides.push({ type: "vertical", pos: marginL, label: "Margem 5%" });
+        } else if (Math.abs(candLeft - 0) <= SNAP_DIST) {
+          candLeft = 0;
+          guides.push({ type: "vertical", pos: 0 });
+        } else if (Math.abs(candLeft - logicalW / 2) <= SNAP_DIST) {
+          candLeft = logicalW / 2;
+          guides.push({ type: "vertical", pos: logicalW / 2 });
+        } else if (gridSize > 0) {
+          candLeft = Math.round(candLeft / gridSize) * gridSize;
+        }
+      }
+      candLeft = Math.min(right - MIN_SIZE, candLeft);
+      width = right - candLeft;
+      left = candLeft;
+    }
+
+    if (dir.includes("n")) {
+      let candTop = top + dy;
+      if (snap) {
+        if (Math.abs(candTop - marginT) <= SNAP_DIST) {
+          candTop = marginT;
+          guides.push({ type: "horizontal", pos: marginT, label: "Margem 5%" });
+        } else if (Math.abs(candTop - 0) <= SNAP_DIST) {
+          candTop = 0;
+          guides.push({ type: "horizontal", pos: 0 });
+        } else if (Math.abs(candTop - logicalH / 2) <= SNAP_DIST) {
+          candTop = logicalH / 2;
+          guides.push({ type: "horizontal", pos: logicalH / 2 });
+        } else if (gridSize > 0) {
+          candTop = Math.round(candTop / gridSize) * gridSize;
+        }
+      }
+      candTop = Math.min(bottom - MIN_SIZE, candTop);
+      height = bottom - candTop;
+      top = candTop;
+    }
+
+    return {
+      left: Math.round(left),
+      top: Math.round(top),
+      width: Math.round(width),
+      height: Math.round(height),
+      guides,
+    };
   }
 
   function commitGesture(g: Gesture): void {
@@ -235,6 +526,7 @@ export function Canvas({
     const top = Math.max(0, Math.round(g.last.top));
     const width = Math.max(MIN_SIZE, Math.round(g.last.width));
     const height = Math.max(MIN_SIZE, Math.round(g.last.height));
+    setActiveGuides([]);
     setPreview((prev) => {
       const next = { ...prev };
       delete next[g.id];
@@ -269,48 +561,34 @@ export function Canvas({
     const pos = toLogical(e);
     const dx = pos.x - g.startLX;
     const dy = pos.y - g.startLY;
+
     if (g.mode === "move") {
+      const snapped = calculateSnap(
+        g.orig.left,
+        g.orig.top,
+        dx,
+        dy,
+        g.orig.width,
+        g.orig.height,
+        g.id,
+      );
       g.last = {
         ...g.last,
-        left: snapValue(g.orig.left + dx),
-        top: snapValue(g.orig.top + dy),
+        left: snapped.left,
+        top: snapped.top,
       };
+      setActiveGuides(snapped.guides);
     } else {
-      const dir = g.dir ?? "se";
-      let { left, top, width, height } = g.orig;
-      const right = g.orig.left + g.orig.width;
-      const bottom = g.orig.top + g.orig.height;
-      if (dir.includes("e")) width = Math.max(MIN_SIZE, right + dx - left);
-      if (dir.includes("s")) height = Math.max(MIN_SIZE, bottom + dy - top);
-      if (dir.includes("w")) {
-        left = Math.min(right - MIN_SIZE, left + dx);
-        width = right - left;
-      }
-      if (dir.includes("n")) {
-        top = Math.min(bottom - MIN_SIZE, top + dy);
-        height = bottom - top;
-      }
-      if (snap && gridSize > 0) {
-        if (dir.includes("e")) width = snapValue(width);
-        if (dir.includes("s")) height = snapValue(height);
-        if (dir.includes("w")) {
-          const snappedLeft = snapValue(left);
-          width = Math.max(MIN_SIZE, right - snappedLeft);
-          left = right - width;
-        }
-        if (dir.includes("n")) {
-          const snappedTop = snapValue(top);
-          height = Math.max(MIN_SIZE, bottom - snappedTop);
-          top = bottom - height;
-        }
-      } else {
-        left = Math.round(left);
-        top = Math.round(top);
-        width = Math.round(width);
-        height = Math.round(height);
-      }
-      g.last = { left, top, width, height };
+      const snapped = calculateResizeSnap(
+        g.orig,
+        g.dir ?? "se",
+        dx,
+        dy,
+      );
+      g.last = snapped;
+      setActiveGuides(snapped.guides);
     }
+
     const { left, top, width, height } = g.last;
     setPreview((prev) => ({
       ...prev,
@@ -330,6 +608,7 @@ export function Canvas({
   function endGesture(): void {
     const g = gestureRef.current;
     gestureRef.current = null;
+    setActiveGuides([]);
     if (g) commitGesture(g);
   }
 
@@ -376,35 +655,42 @@ export function Canvas({
     }
   }
 
-  const stageHeight = Math.round(LOGICAL_H * scale);
+  const stageWidth = Math.round(logicalW * scale);
+  const stageHeight = Math.round(logicalH * scale);
 
   return (
     <div
       ref={wrapRef}
-      className="w-full overflow-hidden rounded-md border border-border"
+      className="relative flex-1 size-full min-h-0 overflow-auto flex items-center justify-center p-6 rounded-md border border-border"
       style={{
         backgroundImage:
           "conic-gradient(#1b1b1f 25%, #131316 0 50%, #1b1b1f 0 75%, #131316 0)",
         backgroundSize: "24px 24px",
       }}
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget) onSelect(null);
+      }}
     >
       <div
-        ref={viewportRef}
-        className="relative w-full overflow-hidden"
-        style={{ height: stageHeight > 0 ? stageHeight : undefined }}
+        className="relative shrink-0 shadow-2xl overflow-hidden border border-white/10 rounded-sm"
+        style={{
+          width: stageWidth,
+          height: stageHeight,
+        }}
         onPointerDown={(e) => {
           if (e.target === e.currentTarget) onSelect(null);
         }}
       >
         <div
+          ref={stageRef}
           style={{
-            width: LOGICAL_W,
-            height: LOGICAL_H,
+            width: logicalW,
+            height: logicalH,
             transform: `scale(${scale})`,
             transformOrigin: "top left",
           }}
+          className="relative h-full w-full select-none"
         >
-          <div ref={stageRef} className="relative h-full w-full">
             <ThemeRenderer
               theme={effectiveTheme}
               asset={asset}
@@ -422,19 +708,55 @@ export function Canvas({
             )}
             {showLimit && (
               <div
-                className="pointer-events-none absolute rounded-sm border border-dashed border-white/25"
+                className="pointer-events-none absolute rounded-sm border border-dashed border-cyan-400/50"
                 style={{
-                  left: LOGICAL_W * 0.05,
-                  top: LOGICAL_H * 0.05,
-                  width: LOGICAL_W * 0.9,
-                  height: LOGICAL_H * 0.9,
+                  left: logicalW * 0.05,
+                  top: logicalH * 0.05,
+                  width: logicalW * 0.9,
+                  height: logicalH * 0.9,
                 }}
               >
-                <span className="absolute -top-6 right-0 text-xs text-white/40">
-                  Limite 90%
+                <span className="absolute -top-5 right-0 rounded bg-cyan-950/70 px-1.5 py-0.5 text-[10px] text-cyan-300">
+                  Margem de Segurança (90%)
                 </span>
               </div>
             )}
+            {activeGuides.map((g, idx) => (
+              <div
+                key={idx}
+                className="pointer-events-none absolute z-40"
+                style={
+                  g.type === "vertical"
+                    ? {
+                        left: `${g.pos}px`,
+                        top: 0,
+                        bottom: 0,
+                        width: "1.5px",
+                        backgroundColor: "#ec4899",
+                        boxShadow: "0 0 6px rgba(236, 72, 153, 0.9)",
+                      }
+                    : {
+                        top: `${g.pos}px`,
+                        left: 0,
+                        right: 0,
+                        height: "1.5px",
+                        backgroundColor: "#ec4899",
+                        boxShadow: "0 0 6px rgba(236, 72, 153, 0.9)",
+                      }
+                }
+              >
+                <span
+                  className="absolute bg-pink-600 text-white font-mono text-[9px] px-1 py-0.5 rounded shadow pointer-events-none whitespace-nowrap"
+                  style={
+                    g.type === "vertical"
+                      ? { top: "8px", left: "4px" }
+                      : { left: "8px", top: "4px" }
+                  }
+                >
+                  {g.label ? `${g.label}: ` : ""}{Math.round(g.pos)}px
+                </span>
+              </div>
+            ))}
             <div className="absolute inset-0">
               {visibleElements.map((el) => {
                 const box = resolveBox(el);
@@ -447,6 +769,7 @@ export function Canvas({
                       key={el.id}
                       el={el}
                       box={box}
+                      maxWidth={logicalW - box.left}
                       onCommit={commitText}
                       onCancel={() => setEditingId(null)}
                     />
@@ -569,18 +892,19 @@ export function Canvas({
           </div>
         </div>
       </div>
-    </div>
   );
 }
 
 function TextEditor({
   el,
   box,
+  maxWidth,
   onCommit,
   onCancel,
 }: {
   el: ThemeElement;
   box: { left: number; top: number; width: number; height: number };
+  maxWidth: number;
   onCommit: (el: ThemeElement, text: string) => void;
   onCancel: () => void;
 }) {
@@ -611,7 +935,7 @@ function TextEditor({
         top: box.top,
         minWidth: Math.max(box.width, 200),
         minHeight: Math.max(box.height, 60),
-        maxWidth: LOGICAL_W - box.left,
+        maxWidth,
       }}
       onPointerDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}

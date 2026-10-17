@@ -43,22 +43,45 @@ export function buildProps(
   nextUp?: SlideContent | null,
 ): Record<string, string> {
   const nextVerse = nextVerseOf(nextUp);
+  const curIdx = indexFromId(content.id);
   switch (kind) {
-    case "lyric":
+    case "lyric": {
+      const text = content.lines.join("\n");
       return {
+        // English
+        title: content.title,
+        artist: "",
+        lyrics: text,
+        next_verse: nextVerse,
+        next_up: nextVerse,
+        section: content.section ?? "",
+        current_slide: curIdx,
+        total_slides: "1",
+        // Legacy pt-BR
         titulo: content.title,
         artista: "",
-        letra: content.lines.join("\n"),
+        letra: text,
         nextVerse,
         secao: content.section ?? "",
-        currentIndex: indexFromId(content.id),
+        currentIndex: curIdx,
         totalCount: "1",
       };
+    }
     case "scripture": {
       const ref = parseReference(content.title);
+      const text = content.lines.join("\n");
       return {
+        // English
+        title: content.title,
+        verse: text,
+        book: ref.livro,
+        chapter: ref.capitulo,
+        verse_number: ref.versiculo,
+        version: "",
+        next_verse: nextVerse,
+        // Legacy pt-BR
         titulo: content.title,
-        verso: content.lines.join("\n"),
+        verso: text,
         livro: ref.livro,
         capitulo: ref.capitulo,
         versiculo: ref.versiculo,
@@ -66,15 +89,24 @@ export function buildProps(
         nextVerse,
       };
     }
-    case "custom":
+    case "custom": {
+      const text = content.lines.join("\n");
       return {
+        // English
+        title: content.title,
+        text,
+        content: text,
+        current_slide: curIdx,
+        total_slides: "1",
+        // Legacy pt-BR
         titulo: content.title,
-        texto: content.lines.join("\n"),
-        currentIndex: indexFromId(content.id),
+        texto: text,
+        currentIndex: curIdx,
         totalCount: "1",
       };
+    }
     case "blank":
-      return { titulo: content.title };
+      return { title: content.title, titulo: content.title };
   }
 }
 
@@ -145,10 +177,30 @@ export function buildStageProps(options: {
     letra = "";
   }
 
+  const title = blackout || cleared ? "" : content.title;
+  const section = blackout || cleared ? "" : (content.section ?? "");
+
   return {
-    titulo: blackout || cleared ? "" : content.title,
+    // English (Canonical)
+    title,
+    artist: "",
+    section,
+    lyrics: letra,
+    text: letra,
+    next_verse: nextVerse,
+    next_up: nextVerse,
+    next_first_line: nextFirstLine,
+    next_full: nextFull,
+    next_title: nextTitle,
+    clock: hora,
+    time: hora,
+    stopwatch: cronometro,
+    timer: timerFormatted,
+    countdown: timerFormatted,
+    // Legacy aliases (pt-BR)
+    titulo: title,
     artista: "",
-    secao: blackout || cleared ? "" : (content.section ?? ""),
+    secao: section,
     letra,
     texto: letra,
     verso: letra,
@@ -158,13 +210,9 @@ export function buildStageProps(options: {
     nextTitle,
     hora,
     "HH:MM": hhmm,
-    clock: hora,
     horaComSegundos,
     cronometro,
     crono: cronometro,
-    stopwatch: cronometro,
-    timer: timerFormatted,
     regressivo: timerFormatted,
-    countdown: timerFormatted,
   };
 }

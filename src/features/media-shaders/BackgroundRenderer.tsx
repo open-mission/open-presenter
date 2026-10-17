@@ -6,6 +6,7 @@ import {
   parseMediaWithFit,
   FIT_CLASSES,
 } from "@/features/theme-editor/media";
+import { ShaderCanvas } from "./ShaderCanvas";
 
 export function BackgroundRenderer({
   background,
@@ -60,7 +61,11 @@ export function BackgroundRenderer({
   }
 
   if (background.kind === "isf") {
-    return <div className={cn("isf-fallback absolute inset-0", className)} />;
+    return (
+      <div className={cn("absolute inset-0 overflow-hidden", className)}>
+        <ShaderCanvas shader={background.value} />
+      </div>
+    );
   }
 
   return (
