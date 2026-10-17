@@ -22,6 +22,7 @@ import {
   Tv,
   Upload,
 } from "lucide-react";
+import { cn } from "@/core/lib/utils";
 import { outputHttpUrl } from "@/core/config/app";
 import type {
   ConnectedClient,
@@ -33,7 +34,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getConnectedClients, saveThemeMedia } from "@/core/ipc/commands";
-import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
+import {
+  resolveThemeMediaUrl,
+  parseMediaWithFit,
+  FIT_CLASSES,
+  type MediaFit,
+} from "@/features/theme-editor/media";
 import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { usePreferencesStore } from "@/features/preferences/store";
@@ -51,6 +57,13 @@ const MODE_OPTIONS: { id: OutputMode; label: string; icon: typeof PowerOff }[] =
   { id: "native", label: "Nativa", icon: MonitorUp },
   { id: "web", label: "Web", icon: Radio },
   { id: "both", label: "Ambas", icon: Layers },
+];
+
+const FIT_OPTIONS: { id: MediaFit; label: string; desc: string }[] = [
+  { id: "cover", label: "Preencher", desc: "Cobre toda a tela mantendo proporção (padrão)" },
+  { id: "contain", label: "Ajustar", desc: "Exibe a imagem inteira sem cortes (com barras pretas)" },
+  { id: "scale-down", label: "Centralizar", desc: "Mantém resolução original centralizada" },
+  { id: "fill", label: "Esticar", desc: "Estica preenchendo toda a tela (pode distorcer)" },
 ];
 
 interface TargetCardProps {
@@ -123,13 +136,15 @@ function TargetCard({
       const ext = file.name.split(".").pop()?.toLowerCase() || "png";
       const safeName = `wallpaper_${Date.now()}.${ext}`;
       const saved = await saveThemeMedia("wallpapers", safeName, Array.from(bytes));
-      await setWallpaper(target, saved);
+      const currentFit = parseMediaWithFit(config.wallpaper).fit;
+      await setWallpaper(target, `${saved}#fit=${currentFit}`);
     } catch (err) {
       console.warn("Falha ao salvar via saveThemeMedia, aplicando data URL:", err);
       const reader = new FileReader();
       reader.onload = async () => {
         if (typeof reader.result === "string") {
-          await setWallpaper(target, reader.result);
+          const currentFit = parseMediaWithFit(config.wallpaper).fit;
+          await setWallpaper(target, `${reader.result}#fit=${currentFit}`);
         }
       };
       reader.readAsDataURL(file);
@@ -137,6 +152,12 @@ function TargetCard({
       setUploading(false);
       e.target.value = "";
     }
+  }
+
+  function handleFitChange(fit: MediaFit) {
+    if (!config.wallpaper) return;
+    const { url } = parseMediaWithFit(config.wallpaper);
+    void setWallpaper(target, `${url}#fit=${fit}`);
   }
 
   function handleCopyUrl() {
@@ -217,112 +238,128 @@ function TargetCard({
         </div>
       </div>
 
-      {/* Monitor Picker */}
-      <div className="mt-4 flex flex-col gap-1.5">
-        <label className="text-xs font-medium text-foreground">
-          Monitor de Exibição Nativa
-        </label>
-        <select
-          className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground shadow-2xs outline-none focus:ring-1 focus:ring-ring"
-          value={config.monitorId ?? ""}
-          disabled={busy}
-          onChange={(e) => handleMonitorSelect(e.target.value || null)}
-        >
-          <option value="">Detecção automática de monitor</option>
-          {savedMissing && (
-            <option value={config.monitorId ?? ""}>
-              {config.monitorLabel ?? config.monitorId} — não conectado
-            </option>
-          )}
-          {monitors.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name} ({m.width}×{m.height}) {m.isPrimary ? "• Principal" : ""}
-            </option>
-          ))}
-        </select>
-        {savedMissing && (
-          <p className="flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-500">
-            <TriangleAlert className="size-3.5 shrink-0" />
-            Monitor salvo não conectado — a janela nativa não abre até
-            reconectar ou trocar de monitor.
-          </p>
-        )}
-      </div>
-
-      {/* Web URL & Share Bar */}
-      <div className="mt-4 flex min-w-0 flex-col gap-1.5 rounded-lg border border-border/60 bg-muted/20 p-3">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium text-muted-foreground">
-            Endereço Web Local (OBS / Celulares / Tablets)
-          </span>
-          <span className="font-mono text-[10px] text-muted-foreground">
-            porta {port}
-          </span>
+      {/* Helper quando a saída está desligada */}
+      {config.mode === "off" && (
+        <div className="mt-4 rounded-lg border border-dashed border-border/70 bg-muted/20 p-3 text-center text-xs text-muted-foreground">
+          Esta saída está desligada. Escolha um modo acima (Nativa, Web ou Ambas) para ativá-la.
         </div>
-        {/* Input Group do Shadcn UI para URL Web */}
-        <div
-          className={`flex min-w-0 items-center rounded-md border border-input bg-background/80 shadow-2xs focus-within:ring-1 focus-within:ring-ring ${
-            serverRunning ? "" : "opacity-50"
-          }`}
-        >
-          <input
-            type="text"
-            readOnly
-            value={currentUrl}
-            className="h-8 min-w-0 flex-1 bg-transparent px-2.5 font-mono text-xs text-foreground outline-none select-all"
-          />
-          <div className="flex shrink-0 items-center gap-1 border-l border-border/60 px-1 py-1 bg-muted/20">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-6 gap-1 px-2 text-xs font-medium cursor-pointer"
-              onClick={handleCopyUrl}
-              disabled={!serverRunning}
-              title={serverRunning ? "Copiar endereço" : "Servidor local parado"}
-            >
-              {copied ? (
-                <>
-                  <Check className="size-3 text-emerald-500" />
-                  <span>Copiado!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="size-3" />
-                  <span>Copiar</span>
-                </>
-              )}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              className="h-6 gap-1 px-2 text-xs font-medium cursor-pointer"
-              onClick={() => void handleOpenUrl()}
-              disabled={!serverRunning}
-              title={serverRunning ? "Abrir no navegador" : "Servidor local parado"}
-            >
-              <ExternalLink className="size-3" />
-              <span>Abrir</span>
-            </Button>
+      )}
+
+      {/* Monitor Picker — visível apenas se modo Nativa ou Ambas */}
+      {(config.mode === "native" || config.mode === "both") && (
+        <div className="mt-4 flex flex-col gap-1.5">
+          <label className="text-xs font-medium text-foreground">
+            Monitor de Exibição Nativa
+          </label>
+          <select
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground shadow-2xs outline-none focus:ring-1 focus:ring-ring"
+            value={config.monitorId ?? ""}
+            disabled={busy}
+            onChange={(e) => handleMonitorSelect(e.target.value || null)}
+          >
+            <option value="">Detecção automática de monitor</option>
+            {savedMissing && (
+              <option value={config.monitorId ?? ""}>
+                {config.monitorLabel ?? config.monitorId} — não conectado
+              </option>
+            )}
+            {monitors.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} ({m.width}×{m.height}) {m.isPrimary ? "• Principal" : ""}
+              </option>
+            ))}
+          </select>
+          {savedMissing && (
+            <p className="flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-500">
+              <TriangleAlert className="size-3.5 shrink-0" />
+              Monitor salvo não conectado — a janela nativa não abre até
+              reconectar ou trocar de monitor.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Web URL & Share Bar — visível apenas se modo Web ou Ambas */}
+      {(config.mode === "web" || config.mode === "both") && (
+        <div className="mt-4 flex min-w-0 flex-col gap-1.5 rounded-lg border border-border/60 bg-muted/20 p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              Endereço Web Local (OBS / Celulares / Tablets)
+            </span>
+            <span className="font-mono text-[10px] text-muted-foreground">
+              porta {port}
+            </span>
+          </div>
+          {/* Input Group do Shadcn UI para URL Web */}
+          <div
+            className={`flex min-w-0 items-center rounded-md border border-input bg-background/80 shadow-2xs focus-within:ring-1 focus-within:ring-ring ${
+              serverRunning ? "" : "opacity-50"
+            }`}
+          >
+            <input
+              type="text"
+              readOnly
+              value={currentUrl}
+              className="h-8 min-w-0 flex-1 bg-transparent px-2.5 font-mono text-xs text-foreground outline-none select-all"
+            />
+            <div className="flex shrink-0 items-center gap-1 border-l border-border/60 px-1 py-1 bg-muted/20">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-6 gap-1 px-2 text-xs font-medium cursor-pointer"
+                onClick={handleCopyUrl}
+                disabled={!serverRunning}
+                title={serverRunning ? "Copiar endereço" : "Servidor local parado"}
+              >
+                {copied ? (
+                  <>
+                    <Check className="size-3 text-emerald-500" />
+                    <span>Copiado!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="size-3" />
+                    <span>Copiar</span>
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-6 gap-1 px-2 text-xs font-medium cursor-pointer"
+                onClick={() => void handleOpenUrl()}
+                disabled={!serverRunning}
+                title={serverRunning ? "Abrir no navegador" : "Servidor local parado"}
+              >
+                <ExternalLink className="size-3" />
+                <span>Abrir</span>
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Papel de Parede (Tela Desocupada / Sem Apresentação) */}
       {target === "public" && (
-        <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/20 p-3">
+        <div className="mt-4 flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/20 p-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <ImageIcon className="size-3.5 text-primary" />
-              Papel de Parede (Tela Livre)
-            </span>
+            <div>
+              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <ImageIcon className="size-3.5 text-primary" />
+                Papel de Parede (Tela Livre)
+              </span>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Exibido no telão em proporção 16:9 quando nada estiver em apresentação.
+              </p>
+            </div>
             {config.wallpaper && (
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="h-6 px-2 text-[11px] text-destructive hover:bg-destructive/10 cursor-pointer"
+                className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 cursor-pointer"
                 onClick={() => void setWallpaper(target, null)}
               >
                 <Trash2 className="size-3 mr-1" />
@@ -331,22 +368,41 @@ function TargetCard({
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* 16:9 Preview Container */}
+          <div className="relative aspect-video w-full max-w-md overflow-hidden rounded-lg border border-border/80 bg-zinc-950 shadow-inner">
             {config.wallpaper ? (
-              <div className="relative size-12 shrink-0 overflow-hidden rounded-md border border-border bg-black shadow-2xs">
-                <img
-                  src={resolveThemeMediaUrl(config.wallpaper, host, port) ?? config.wallpaper}
-                  alt="Papel de parede"
-                  className="h-full w-full object-cover"
-                />
-              </div>
+              (() => {
+                const { url, fit } = parseMediaWithFit(config.wallpaper);
+                const resolved = resolveThemeMediaUrl(url, host, port) ?? url;
+                return (
+                  <div className="relative h-full w-full">
+                    <img
+                      src={resolved}
+                      alt="Papel de parede"
+                      className={cn("h-full w-full", FIT_CLASSES[fit])}
+                    />
+                    <div className="absolute top-2 left-2 rounded bg-black/70 px-2 py-0.5 text-[10px] font-medium text-zinc-300 backdrop-blur-xs border border-white/10">
+                      16:9 Telão Livre · {FIT_OPTIONS.find((o) => o.id === fit)?.label ?? fit}
+                    </div>
+                  </div>
+                );
+              })()
             ) : (
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-md border border-dashed border-border/80 bg-muted/40 text-muted-foreground">
-                <ImageIcon className="size-5 opacity-40" />
+              <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground select-none">
+                <ImageIcon className="size-8 text-muted-foreground/30" />
+                <span className="text-xs font-medium text-foreground/80">
+                  Nenhum papel de parede definido
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  O telão permanecerá preto enquanto estiver livre.
+                </span>
               </div>
             )}
+          </div>
 
-            <div className="flex flex-1 items-center gap-2">
+          {/* Controls: Upload & Object-Fit */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <label className="cursor-pointer inline-flex">
                 <input
                   type="file"
@@ -355,15 +411,44 @@ function TargetCard({
                   onChange={handleWallpaperUpload}
                   disabled={uploading}
                 />
-                <span className="inline-flex items-center justify-center gap-1.5 rounded-md border border-input bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground shadow-2xs hover:bg-secondary/80">
+                <span className="inline-flex items-center justify-center gap-1.5 rounded-md border border-input bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground shadow-2xs hover:bg-secondary/80">
                   <Upload className="size-3.5" />
                   {uploading ? "Salvando…" : config.wallpaper ? "Trocar Imagem" : "Escolher Imagem"}
                 </span>
               </label>
               <span className="text-[11px] text-muted-foreground">
-                Exibido no telão quando nada estiver apresentando.
+                Formatos recomendados: PNG, JPG ou WebP (1920×1080).
               </span>
             </div>
+
+            {config.wallpaper && (
+              <div className="flex flex-col gap-1.5 pt-1 border-t border-border/40">
+                <span className="text-[11px] font-medium text-foreground">
+                  Ajuste na Tela (Object Fit)
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 rounded-lg border border-border/80 bg-muted/40 p-1 max-w-md">
+                  {FIT_OPTIONS.map((opt) => {
+                    const currentFit = parseMediaWithFit(config.wallpaper).fit;
+                    const selected = currentFit === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => handleFitChange(opt.id)}
+                        className={`flex items-center justify-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-all cursor-pointer ${
+                          selected
+                            ? "bg-background text-primary shadow-2xs font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                        title={opt.desc}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -22,14 +22,13 @@ import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer"
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import { StageTimerControls } from "@/features/stage-display/StageTimerControls";
 import { useWallpaperStore } from "./wallpaperStore";
-import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
+import { parseMediaWithFit } from "@/features/theme-editor/media";
 import type { BackgroundLayer, LiveSlide } from "@/core/types";
 
 export function LivePreview() {
   const live = usePresentationStore((s) => s.live);
   const preview = usePresentationStore((s) => s.preview);
   const wallpaper = useWallpaperStore((s) => s.wallpaper);
-  const host = useOutputManagerStore((s) => s.host);
   const stageConfig = useOutputManagerStore((s) => s.configs.stage);
   const stageRuntime = useOutputManagerStore((s) => s.runtime.stage);
   const serverRunning = useOutputManagerStore((s) => s.server.running);
@@ -67,8 +66,6 @@ export function LivePreview() {
     if (!preview) return;
     await usePresentationStore.getState().publishLive(preview, null);
   }
-
-  const port = useOutputManagerStore((s) => s.server.port);
 
   // Determine if nothing is showing on the Live Public display
   const isLiveEmpty = live.cleared || live.content.kind === "blank";
@@ -206,15 +203,15 @@ export function LivePreview() {
         <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
           {isLiveEmpty && !live.blackout ? (
             wallpaper ? (
-              <div className="relative h-full w-full">
+              <div className="relative h-full w-full bg-black">
                 {(() => {
-                  const resolved = resolveThemeMediaUrl(wallpaper, host, port) ?? wallpaper;
-                  const isColor = resolved.startsWith("#") || resolved.startsWith("rgb");
-                  const isVideo = resolved.endsWith(".mp4");
+                  const { url } = parseMediaWithFit(wallpaper);
+                  const isColor = url.startsWith("#") || url.startsWith("rgb");
+                  const isVideo = url.toLowerCase().endsWith(".mp4") || url.toLowerCase().endsWith(".webm");
                   const bg: BackgroundLayer = {
                     id: "wallpaper",
                     kind: isColor ? "color" : isVideo ? "video" : "image",
-                    value: resolved,
+                    value: wallpaper,
                   };
                   return <BackgroundRenderer background={bg} />;
                 })()}

@@ -1,6 +1,11 @@
 import type { BackgroundLayer } from "@/core/types";
 import { cn } from "@/core/lib/utils";
-import { resolveThemeMediaUrl, resolveCssMediaUrls } from "@/features/theme-editor/media";
+import {
+  resolveThemeMediaUrl,
+  resolveCssMediaUrls,
+  parseMediaWithFit,
+  FIT_CLASSES,
+} from "@/features/theme-editor/media";
 
 export function BackgroundRenderer({
   background,
@@ -16,28 +21,28 @@ export function BackgroundRenderer({
       : 5050;
 
   if (background.kind === "image") {
-    const resolved = resolveThemeMediaUrl(background.value, host, port) ?? background.value;
+    const { url, fit } = parseMediaWithFit(background.value);
+    const resolved = resolveThemeMediaUrl(url, host, port) ?? url;
     return (
       <img
         src={resolved}
-        crossOrigin="anonymous"
         alt=""
-        className={cn("absolute inset-0 h-full w-full object-cover", className)}
+        className={cn("absolute inset-0 h-full w-full", FIT_CLASSES[fit], className)}
       />
     );
   }
 
   if (background.kind === "video") {
-    const resolved = resolveThemeMediaUrl(background.value, host, port) ?? background.value;
+    const { url, fit } = parseMediaWithFit(background.value);
+    const resolved = resolveThemeMediaUrl(url, host, port) ?? url;
     return (
       <video
         src={resolved}
-        crossOrigin="anonymous"
         autoPlay
         muted
         loop
         playsInline
-        className={cn("absolute inset-0 h-full w-full object-cover", className)}
+        className={cn("absolute inset-0 h-full w-full", FIT_CLASSES[fit], className)}
       />
     );
   }

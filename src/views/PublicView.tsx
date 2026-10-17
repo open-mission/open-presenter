@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { kindToAsset, type BackgroundLayer } from "@/core/types";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { usePresentationStore } from "@/features/presentation/store";
@@ -10,8 +10,7 @@ import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { useWallpaperSync } from "@/features/presentation/useWallpaperSync";
 import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
-import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
-import { getServerStatus } from "@/core/ipc/commands";
+import { parseMediaWithFit } from "@/features/theme-editor/media";
 
 export default function PublicView() {
   usePresentationSync("public");
@@ -25,17 +24,8 @@ export default function PublicView() {
   );
   const theme = broadcastTheme ?? localTheme;
 
-  const [serverPort, setServerPort] = useState<number>(() => {
-    return typeof window !== "undefined" && window.location.port
-      ? Number(window.location.port)
-      : 5050;
-  });
-
   useEffect(() => {
     void loadThemes();
-    void getServerStatus().then((s) => {
-      if (s?.port) setServerPort(s.port);
-    });
   }, [loadThemes]);
 
   if (live.blackout) {
@@ -46,14 +36,13 @@ export default function PublicView() {
 
   if (!isPresenting) {
     if (wallpaper) {
-      const host = window.location.hostname || "localhost";
-      const resolved = resolveThemeMediaUrl(wallpaper, host, serverPort) ?? wallpaper;
-      const isColor = resolved.startsWith("#") || resolved.startsWith("rgb");
-      const isVideo = resolved.endsWith(".mp4");
+      const { url } = parseMediaWithFit(wallpaper);
+      const isColor = url.startsWith("#") || url.startsWith("rgb");
+      const isVideo = url.toLowerCase().endsWith(".mp4") || url.toLowerCase().endsWith(".webm");
       const bg: BackgroundLayer = {
         id: "wallpaper",
         kind: isColor ? "color" : isVideo ? "video" : "image",
-        value: resolved,
+        value: wallpaper,
       };
       return (
         <div className="relative h-full w-full overflow-hidden bg-black">

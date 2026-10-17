@@ -1,20 +1,10 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Clock,
-  Megaphone,
-  Palette,
-  Pencil,
-  Send,
-  X,
-} from "lucide-react";
+import { Clock, Palette, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useStageDisplayStore } from "@/features/stage-display/store";
 import { useStageConfigStore } from "@/features/stage-display/configStore";
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
-import type { StageAlertLevel, StageMessage } from "@/core/types";
 
 export function StageTab() {
   const navigate = useNavigate();
@@ -31,28 +21,6 @@ export function StageTab() {
   const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
   const setStageTheme = useSlideThemesStore((s) => s.setStageTheme);
   const resolvedStageTheme = useSlideThemesStore((s) => s.resolveStageTheme());
-
-  const messages = useStageDisplayStore((s) => s.messages);
-  const pushMessage = useStageDisplayStore((s) => s.pushMessage);
-  const dismissMessage = useStageDisplayStore((s) => s.dismissMessage);
-
-  const [alertText, setAlertText] = useState("");
-  const [alertLevel, setAlertLevel] = useState<StageAlertLevel>("info");
-
-  function handleSendAlert(e: React.FormEvent) {
-    e.preventDefault();
-    if (!alertText.trim()) return;
-
-    const msg: StageMessage = {
-      id: crypto.randomUUID(),
-      text: alertText.trim(),
-      level: alertLevel,
-      createdAt: new Date().toISOString(),
-    };
-
-    pushMessage(msg);
-    setAlertText("");
-  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -195,62 +163,6 @@ export function StageTab() {
             </div>
           </div>
 
-          {/* Section: Recado ao Palco */}
-          <div className="flex flex-col gap-2.5 rounded-xl border border-border/80 bg-card/60 p-4 shadow-2xs">
-            <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <Megaphone className="size-3.5 text-amber-500" />
-              Recado Rápido ao Palco
-            </span>
-
-            <form onSubmit={handleSendAlert} className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Ex: Microfone 2 sem som, atenção..."
-                value={alertText}
-                onChange={(e) => setAlertText(e.target.value)}
-                className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring"
-              />
-              <select
-                value={alertLevel}
-                onChange={(e) => setAlertLevel(e.target.value as StageAlertLevel)}
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground"
-              >
-                <option value="info">Info</option>
-                <option value="warning">Aviso</option>
-                <option value="urgent">Urgente</option>
-              </select>
-              <Button type="submit" size="sm" className="h-8 px-3 text-xs gap-1">
-                <Send className="size-3" />
-                Enviar
-              </Button>
-            </form>
-
-            {messages.length > 0 && (
-              <div className="flex flex-col gap-1 pt-1">
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Recados Ativos ({messages.length})
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {messages.map((m) => (
-                    <span
-                      key={m.id}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-border/80 bg-background px-2 py-0.5 text-xs text-foreground"
-                    >
-                      <span>{m.text}</span>
-                      <button
-                        type="button"
-                        onClick={() => dismissMessage(m.id)}
-                        className="text-muted-foreground hover:text-foreground cursor-pointer"
-                        title="Remover recado"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
 
         {/* Right Column: Compact Live Preview (5 cols) */}
