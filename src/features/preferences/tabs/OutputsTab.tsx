@@ -33,7 +33,7 @@ import type {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { getConnectedClients, saveThemeMedia } from "@/core/ipc/commands";
 import {
   resolveThemeMediaUrl,

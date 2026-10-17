@@ -1,16 +1,16 @@
 import { usePreferencesStore } from "@/features/preferences/store";
 import { getResolvedTheme } from "@/core/theme/theme";
-import { Toaster as Sonner, toast } from "sonner";
+import { Toaster as Sonner } from "sonner";
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
-function Toaster({ ...props }: ToasterProps) {
+const Toaster = ({ ...props }: ToasterProps) => {
   const themeMode = usePreferencesStore((s) => s.theme);
   const resolvedTheme = getResolvedTheme(themeMode);
 
   return (
     <Sonner
-      theme={resolvedTheme as "light" | "dark"}
+      theme={resolvedTheme as ToasterProps["theme"]}
       className="toaster group"
       richColors
       closeButton
@@ -28,6 +28,6 @@ function Toaster({ ...props }: ToasterProps) {
       {...props}
     />
   );
-}
+};
 
-export { Toaster, toast };
+export { Toaster };
