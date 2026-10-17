@@ -5,7 +5,7 @@ use crate::services::lyrics;
 use crate::state::{OnlineLyricHit, SongSection};
 
 const BASE_URL: &str = "https://lrclib.net/api";
-const USER_AGENT: &str = "Open Presenter/0.1.0";
+const USER_AGENT: &str = "OpenPresenter/0.1.0 (https://github.com/open-presenter)";
 const MENSAGEM_REDE: &str = "falha ao consultar o LRCLIB — verifique a conexão";
 const MENSAGEM_RESPOSTA: &str = "resposta inválida do LRCLIB";
 const MENSAGEM_NAO_ENCONTRADA: &str = "letra não encontrada no LRCLIB";
@@ -106,7 +106,11 @@ async fn get(
 ) -> Result<reqwest::Response, AppError> {
     let mut response = enviar(client, path, query).await?;
     let mut tentativa = 0;
-    while response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+    while response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS
+        || response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE
+        || response.status() == reqwest::StatusCode::BAD_GATEWAY
+        || response.status() == reqwest::StatusCode::GATEWAY_TIMEOUT
+    {
         let header = response
             .headers()
             .get(reqwest::header::RETRY_AFTER)
@@ -114,7 +118,7 @@ async fn get(
         let Some(espera) = espera_tentativa(tentativa, header) else {
             break;
         };
-        tracing::warn!(?espera, tentativa, "LRCLIB limitou as consultas; tentando de novo");
+        tracing::warn!(?espera, tentativa, status = %response.status(), "LRCLIB ocupado ou com limite; tentando de novo");
         tokio::time::sleep(espera).await;
         response = enviar(client, path, query).await?;
         tentativa += 1;

@@ -17,7 +17,7 @@ import type {
   SongSummary,
   StageTimer,
 } from "../types";
-import { invokeCommand, invokeStrict } from "./tauri";
+import { invokeCommand, invokeStrict, isTauri } from "./tauri";
 
 export async function listMonitors(): Promise<MonitorInfo[]> {
   return (await invokeCommand<MonitorInfo[]>("list_monitors")) ?? [];
@@ -162,7 +162,52 @@ export async function importHolyrics(path: string): Promise<ImportReport> {
 export async function searchLyricsOnline(
   query: string,
 ): Promise<OnlineLyricHit[]> {
-  return invokeStrict<OnlineLyricHit[]>("search_lyrics_online", { query });
+  if (isTauri()) {
+    return invokeStrict<OnlineLyricHit[]>("search_lyrics_online", { query });
+  }
+
+  // Web fallback com retry para contornar sobrecarga transitória do LRCLIB (503/429)
+  const url = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
+  let res: Response | null = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      res = await fetch(url);
+      if (res.ok) break;
+      if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
+        await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+        continue;
+      }
+      break;
+    } catch (err) {
+      if (i === 2) throw err;
+      await new Promise((r) => setTimeout(r, 800));
+    }
+  }
+
+  if (!res || !res.ok) {
+    if (res?.status === 429) {
+      throw new Error("O LRCLIB limitou as consultas — aguarde alguns segundos e tente de novo.");
+    }
+    if (res && res.status >= 500) {
+      throw new Error("O LRCLIB está indisponível no momento — tente de novo em instantes.");
+    }
+    throw new Error("Falha ao consultar o LRCLIB — verifique a conexão.");
+  }
+
+  const items: Array<{
+    trackName?: string;
+    artistName?: string;
+    albumName?: string | null;
+    plainLyrics?: string | null;
+  }> = await res.json();
+
+  return items
+    .filter((item) => Boolean(item.plainLyrics) && Boolean(item.trackName))
+    .map((item) => ({
+      trackName: item.trackName!,
+      artistName: item.artistName ?? "",
+      albumName: item.albumName ?? null,
+    }));
 }
 
 export async function fetchOnlineLyrics(
@@ -170,11 +215,59 @@ export async function fetchOnlineLyrics(
   trackName: string,
   artistName: string,
 ): Promise<Song> {
-  return invokeStrict<Song>("fetch_online_lyrics", {
+  if (isTauri()) {
+    return invokeStrict<Song>("fetch_online_lyrics", {
+      id,
+      trackName,
+      artistName,
+    });
+  }
+
+  const url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(trackName)}&artist_name=${encodeURIComponent(artistName)}`;
+  let res: Response | null = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      res = await fetch(url);
+      if (res.ok || res.status === 404) break;
+      if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
+        await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+        continue;
+      }
+      break;
+    } catch (err) {
+      if (i === 2) throw err;
+      await new Promise((r) => setTimeout(r, 800));
+    }
+  }
+
+  if (!res || !res.ok) {
+    if (res?.status === 404) {
+      throw new Error("Letra não encontrada no LRCLIB.");
+    }
+    if (res?.status === 429) {
+      throw new Error("O LRCLIB limitou as consultas — aguarde alguns segundos.");
+    }
+    throw new Error("Falha ao baixar letra do LRCLIB.");
+  }
+
+  const data = await res.json();
+  const plainLyrics: string = data.plainLyrics || "";
+  const blocks = plainLyrics
+    .split(/\n\s*\n/)
+    .map((b) => b.trim())
+    .filter(Boolean);
+
+  const sections: SongSection[] = blocks.map((b) => ({
+    sectionType: null,
+    lines: b.split(/\r?\n/).map((l) => l.trim()).filter(Boolean),
+  }));
+
+  return {
     id,
-    trackName,
-    artistName,
-  });
+    title: data.trackName || trackName,
+    artist: data.artistName || artistName,
+    sections,
+  };
 }
 
 export async function parseLyrics(text: string): Promise<SongSection[]> {

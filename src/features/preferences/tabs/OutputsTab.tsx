@@ -60,8 +60,8 @@ const MODE_OPTIONS: { id: OutputMode; label: string; icon: typeof PowerOff }[] =
 ];
 
 const FIT_OPTIONS: { id: MediaFit; label: string; desc: string }[] = [
-  { id: "cover", label: "Preencher", desc: "Cobre toda a tela mantendo proporção (padrão)" },
-  { id: "contain", label: "Ajustar", desc: "Exibe a imagem inteira sem cortes (com barras pretas)" },
+  { id: "contain", label: "Ajustar", desc: "Exibe a imagem inteira sem cortes (com barras se necessário)" },
+  { id: "cover", label: "Preencher", desc: "Cobre toda a tela mantendo proporção (corta bordas)" },
   { id: "scale-down", label: "Centralizar", desc: "Mantém resolução original centralizada" },
   { id: "fill", label: "Esticar", desc: "Estica preenchendo toda a tela (pode distorcer)" },
 ];
@@ -141,14 +141,18 @@ function TargetCard({
       const ext = file.name.split(".").pop()?.toLowerCase() || "png";
       const safeName = `wallpaper_${Date.now()}.${ext}`;
       const saved = await saveThemeMedia("wallpapers", safeName, Array.from(bytes));
-      const currentFit = parseMediaWithFit(config.wallpaper).fit;
+      const currentFit = config.wallpaper
+        ? parseMediaWithFit(config.wallpaper).fit
+        : "contain";
       await setWallpaper(target, `${saved}#fit=${currentFit}`);
     } catch (err) {
       console.warn("Falha ao salvar via saveThemeMedia, aplicando data URL:", err);
       const reader = new FileReader();
       reader.onload = async () => {
         if (typeof reader.result === "string") {
-          const currentFit = parseMediaWithFit(config.wallpaper).fit;
+          const currentFit = config.wallpaper
+            ? parseMediaWithFit(config.wallpaper).fit
+            : "contain";
           await setWallpaper(target, `${reader.result}#fit=${currentFit}`);
         }
       };
@@ -400,8 +404,18 @@ function TargetCard({
                       onError={() => setWallpaperError(true)}
                       className={cn("h-full w-full", FIT_CLASSES[fit])}
                     />
-                    <div className="absolute top-2 left-2 rounded bg-black/70 px-2 py-0.5 text-[10px] font-medium text-zinc-300 backdrop-blur-xs border border-white/10">
-                      16:9 Telão Livre · {FIT_OPTIONS.find((o) => o.id === fit)?.label ?? fit}
+                    <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                      <div className="rounded bg-black/75 px-2 py-0.5 text-[10px] font-medium text-zinc-300 backdrop-blur-xs border border-white/10">
+                        16:9 Telão Livre · {FIT_OPTIONS.find((o) => o.id === fit)?.label ?? fit}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleFitChange(fit === "contain" ? "cover" : "contain")}
+                        className="rounded bg-primary/20 hover:bg-primary/30 px-2 py-0.5 text-[10px] font-semibold text-primary border border-primary/40 backdrop-blur-xs transition-colors cursor-pointer"
+                        title={fit === "contain" ? "Mudar para preencher tela cortando bordas" : "Mudar para ver imagem completa sem cortes"}
+                      >
+                        {fit === "contain" ? "Preencher Tela" : "Ver Completa (Ajustar)"}
+                      </button>
                     </div>
                   </div>
                 );
