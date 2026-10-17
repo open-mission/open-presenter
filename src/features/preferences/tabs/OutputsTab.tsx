@@ -4,13 +4,11 @@ import {
   Copy,
   ExternalLink,
   Image as ImageIcon,
-  Laptop,
   Layers,
   Monitor,
   MonitorUp,
   Palette,
   Play,
-  Power,
   PowerOff,
   Projector,
   Radio,
@@ -80,7 +78,6 @@ function TargetCard({
   const setMode = useOutputManagerStore((s) => s.setMode);
   const setMonitor = useOutputManagerStore((s) => s.setMonitor);
   const setWallpaper = useOutputManagerStore((s) => s.setWallpaper);
-  const toggle = useOutputManagerStore((s) => s.toggle);
   const themeName = useSlideThemesStore((s) => {
     if (target === "stage") {
       const guid = s.stageThemeGuid;
@@ -108,15 +105,6 @@ function TargetCard({
     setBusy(true);
     try {
       await setMode(target, mode);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleToggle() {
-    setBusy(true);
-    try {
-      await toggle(target);
     } finally {
       setBusy(false);
     }
@@ -188,36 +176,15 @@ function TargetCard({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          {/* Real-state pill */}
-          <div className="flex items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs">
-            <span
-              className={`size-2 rounded-full ${
-                active ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"
-              }`}
-            />
-            <span className="font-medium capitalize text-[11px] text-foreground">
-              {active ? "Ativa" : "Desligada"}
-            </span>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            variant={active ? "secondary" : "default"}
-            className="h-7 gap-1.5 text-xs"
-            onClick={() => void handleToggle()}
-            disabled={busy}
-            title={
-              active
-                ? "Desligar saída"
-                : config.mode === "off"
-                  ? "Ligar saída no último modo usado"
-                  : "Reabrir janela nativa"
-            }
-          >
-            <Power className="size-3.5" />
-            {active ? "Desligar" : "Ligar"}
-          </Button>
+        <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs">
+          <span
+            className={`size-2 rounded-full ${
+              active ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"
+            }`}
+          />
+          <span className="font-medium text-[11px] text-foreground">
+            {active ? "Em Exibição" : "Desligada"}
+          </span>
         </div>
       </div>
 
@@ -344,33 +311,29 @@ function TargetCard({
 
       {/* Papel de Parede (Tela Desocupada / Sem Apresentação) */}
       {target === "public" && (
-        <div className="mt-4 flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/20 p-3">
+        <div className="mt-3 flex flex-col gap-2 rounded-lg border border-border/60 bg-muted/20 p-3">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-foreground flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
               <ImageIcon className="size-3.5 text-primary" />
-              Papel de Parede (Tela Desocupada)
-            </label>
+              Papel de Parede (Tela Livre)
+            </span>
             {config.wallpaper && (
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="h-6 px-2 text-[11px] text-destructive hover:bg-destructive/10"
+                className="h-6 px-2 text-[11px] text-destructive hover:bg-destructive/10 cursor-pointer"
                 onClick={() => void setWallpaper(target, null)}
-                title="Remover papel de parede"
               >
                 <Trash2 className="size-3 mr-1" />
                 Remover
               </Button>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Exibido na projeção pública quando nenhuma apresentação estiver ativa.
-          </p>
 
-          <div className="flex items-center gap-3 mt-1">
+          <div className="flex items-center gap-3">
             {config.wallpaper ? (
-              <div className="relative size-16 shrink-0 overflow-hidden rounded-md border border-border bg-black">
+              <div className="relative size-12 shrink-0 overflow-hidden rounded-md border border-border bg-black shadow-2xs">
                 <img
                   src={resolveThemeMediaUrl(config.wallpaper, host, port) ?? config.wallpaper}
                   alt="Papel de parede"
@@ -378,37 +341,28 @@ function TargetCard({
                 />
               </div>
             ) : (
-              <div className="flex size-16 shrink-0 items-center justify-center rounded-md border border-dashed border-border/80 bg-muted/40 text-muted-foreground">
-                <ImageIcon className="size-6 opacity-40" />
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-md border border-dashed border-border/80 bg-muted/40 text-muted-foreground">
+                <ImageIcon className="size-5 opacity-40" />
               </div>
             )}
 
-            <div className="flex flex-1 flex-col gap-1.5">
-              <div className="flex items-center gap-2">
-                <label className="cursor-pointer inline-flex">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleWallpaperUpload}
-                    disabled={uploading}
-                  />
-                  <span className="inline-flex items-center justify-center gap-1.5 rounded-md border border-input bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground shadow-2xs hover:bg-secondary/80">
-                    <Upload className="size-3.5" />
-                    {uploading ? "Salvando…" : config.wallpaper ? "Trocar Imagem" : "Escolher Imagem"}
-                  </span>
-                </label>
-                <span className="text-[10px] text-muted-foreground">
-                  PNG, JPG ou WEBP
+            <div className="flex flex-1 items-center gap-2">
+              <label className="cursor-pointer inline-flex">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleWallpaperUpload}
+                  disabled={uploading}
+                />
+                <span className="inline-flex items-center justify-center gap-1.5 rounded-md border border-input bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground shadow-2xs hover:bg-secondary/80">
+                  <Upload className="size-3.5" />
+                  {uploading ? "Salvando…" : config.wallpaper ? "Trocar Imagem" : "Escolher Imagem"}
                 </span>
-              </div>
-              <input
-                type="text"
-                placeholder="Ou informe uma URL / Cor (#000000)"
-                className="h-7 w-full rounded-md border border-input bg-background/80 px-2 text-xs font-mono text-foreground"
-                value={config.wallpaper ?? ""}
-                onChange={(e) => void setWallpaper(target, e.target.value.trim() || null)}
-              />
+              </label>
+              <span className="text-[11px] text-muted-foreground">
+                Exibido no telão quando nada estiver apresentando.
+              </span>
             </div>
           </div>
         </div>
@@ -797,9 +751,6 @@ function DevicesSection() {
 
 export function OutputsTab() {
   const monitors = useOutputManagerStore((s) => s.monitors);
-  const runtime = useOutputManagerStore((s) => s.runtime);
-  const host = useOutputManagerStore((s) => s.host);
-  const port = useOutputManagerStore((s) => s.server.port);
   const loaded = useOutputManagerStore((s) => s.loaded);
   const load = useOutputManagerStore((s) => s.load);
   const refreshRuntime = useOutputManagerStore((s) => s.refreshRuntime);
@@ -831,92 +782,22 @@ export function OutputsTab() {
             Saídas (telas)
           </h3>
           <p className="text-sm text-muted-foreground">
-            Gerencie os monitores físicos conectados via HDMI/DisplayPort e as saídas web locais.
+            Configure telas de projeção física, retorno de palco e servidor web local.
           </p>
         </div>
         <Button
           type="button"
           size="sm"
           variant="outline"
-          className="gap-1.5 text-xs"
+          className="h-8 gap-1.5 text-xs shrink-0 cursor-pointer"
           onClick={() => void refreshHardware()}
           disabled={refreshing}
         >
           <RefreshCw
             className={`size-3.5 ${refreshing ? "animate-spin text-primary" : ""}`}
           />
-          Detectar Telas
+          Detectar Telas ({monitors.length})
         </Button>
-      </div>
-
-      {/* Hardware Displays Overview Banner */}
-      <div className="flex flex-col gap-2 rounded-xl border border-border/80 bg-muted/30 p-4">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-foreground">
-            Monitores Físicos Detectados ({monitors.length})
-          </span>
-          <span className="text-[11px] text-muted-foreground">
-            Servidor Local: <code className="font-mono">{host}:{port}</code>
-          </span>
-        </div>
-
-        {monitors.length === 0 ? (
-          <div className="flex items-center gap-3 rounded-lg border border-dashed border-border bg-background/50 p-3 text-xs text-muted-foreground">
-            <Laptop className="size-4 shrink-0 text-muted-foreground" />
-            <span>
-              Nenhum monitor secundário detectado no momento ou em execução via navegador web. Conecte um projetor ou cabo HDMI e clique em &quot;Detectar Telas&quot;.
-            </span>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            {monitors.map((m, idx) => {
-              const users = (["public", "stage"] as const).filter(
-                (t) => runtime[t].monitorId === m.id,
-              );
-              return (
-                <div
-                  key={m.id || idx}
-                  className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/90 p-3 shadow-2xs"
-                >
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
-                    <Monitor className="size-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <p className="truncate font-semibold text-xs text-foreground">
-                        {m.name || `Monitor ${idx + 1}`}
-                      </p>
-                      {m.isPrimary && (
-                        <Badge
-                          variant="secondary"
-                          className="h-4 px-1 text-[9px] font-medium"
-                        >
-                          Principal
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {m.width} × {m.height} px
-                    </p>
-                    {users.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {users.map((t) => (
-                          <Badge
-                            key={t}
-                            variant="outline"
-                            className="h-auto py-0.5 px-1.5 text-[9px] font-medium leading-tight text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
-                          >
-                            Em uso: {TARGET_LABEL[t]}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* Telas em abas internas */}
@@ -925,21 +806,21 @@ export function OutputsTab() {
         onValueChange={(v) => setSection(v as OutputsSection)}
         className="flex flex-col gap-4"
       >
-        <TabsList>
-          <TabsTrigger value="public">
-            <Tv />
+        <TabsList className="grid grid-cols-4 w-full">
+          <TabsTrigger value="public" className="gap-1.5 text-xs">
+            <Tv className="size-3.5" />
             Projeção Pública
           </TabsTrigger>
-          <TabsTrigger value="stage">
-            <Projector />
+          <TabsTrigger value="stage" className="gap-1.5 text-xs">
+            <Projector className="size-3.5" />
             Retorno de Palco
           </TabsTrigger>
-          <TabsTrigger value="server">
-            <Server />
+          <TabsTrigger value="server" className="gap-1.5 text-xs">
+            <Server className="size-3.5" />
             Servidor
           </TabsTrigger>
-          <TabsTrigger value="devices">
-            <Smartphone />
+          <TabsTrigger value="devices" className="gap-1.5 text-xs">
+            <Smartphone className="size-3.5" />
             Dispositivos
           </TabsTrigger>
         </TabsList>
@@ -948,7 +829,7 @@ export function OutputsTab() {
           <TargetCard
             target="public"
             title="Projeção Pública (Telão)"
-            subtitle="Saída principal enviada aos projetores com slides, bíblia e fundos animados."
+            subtitle="Saída enviada aos projetores com slides de músicas, bíblia e fundos animados."
             icon={Tv}
             webPath="/public"
             monitors={monitors}
@@ -960,7 +841,7 @@ export function OutputsTab() {
             <TargetCard
               target="stage"
               title="Retorno de Palco (Stage Display)"
-              subtitle="Saída para a banda e pastores com relógio, próximo slide e alertas de ministração."
+              subtitle="Saída para os músicos com relógio, cronômetro, próximo slide e alertas."
               icon={Projector}
               webPath="/stage"
               monitors={monitors}
