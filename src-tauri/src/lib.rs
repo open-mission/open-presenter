@@ -64,12 +64,16 @@ pub fn run() {
                 .item(&search_online_item)
                 .build()?;
 
+            let quit_item = MenuItemBuilder::with_id("quit-app", "Sair")
+                .accelerator("CmdOrCtrl+Q")
+                .build(app)?;
+
             let file_menu = SubmenuBuilder::new(app, "Arquivo")
                 .item(&novo_menu)
                 .separator()
                 .item(&import_holyrics_item)
                 .separator()
-                .close_window()
+                .item(&quit_item)
                 .build()?;
 
             let shortcuts_item = MenuItemBuilder::with_id("shortcuts", "Atalhos de Teclado…")
@@ -104,6 +108,23 @@ pub fn run() {
                     }
                     "import-holyrics" => {
                         let _ = app_handle.emit("import-holyrics", ());
+                    }
+                    "quit-app" => {
+                        let app = app_handle.clone();
+                        use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+                        app.dialog()
+                            .message("Deseja realmente sair do Open Presenter?")
+                            .title("Sair do Open Presenter")
+                            .kind(MessageDialogKind::Warning)
+                            .buttons(MessageDialogButtons::OkCancelCustom(
+                                "Sair".to_string(),
+                                "Cancelar".to_string(),
+                            ))
+                            .show(move |confirmed| {
+                                if confirmed {
+                                    app.exit(0);
+                                }
+                            });
                     }
                     _ => {}
                 }
@@ -241,6 +262,28 @@ pub fn run() {
             commands::themes::delete_theme,
             commands::themes::save_theme_media,
         ])
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let app = window.app_handle().clone();
+                    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+                    app.dialog()
+                        .message("Deseja realmente sair do Open Presenter?")
+                        .title("Sair do Open Presenter")
+                        .kind(MessageDialogKind::Warning)
+                        .buttons(MessageDialogButtons::OkCancelCustom(
+                            "Sair".to_string(),
+                            "Cancelar".to_string(),
+                        ))
+                        .show(move |confirmed| {
+                            if confirmed {
+                                app.exit(0);
+                            }
+                        });
+                }
+            }
+        })
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o Open Presenter");
 }

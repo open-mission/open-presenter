@@ -87,7 +87,8 @@ pub fn router(state: ServerState) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_headers(Any)
+        .allow_private_network(true);
 
     Router::new()
         .route(WS_PATH, get(ws_handler))
@@ -130,6 +131,10 @@ async fn theme_media_handler(
             match axum::http::Response::builder()
                 .status(StatusCode::OK)
                 .header(header::CONTENT_TYPE, mime.as_ref())
+                .header("access-control-allow-origin", "*")
+                .header("access-control-allow-methods", "GET, HEAD, OPTIONS")
+                .header("access-control-allow-private-network", "true")
+                .header("cache-control", "public, max-age=3600")
                 .body(axum::body::Body::from(bytes))
             {
                 Ok(response) => response.into_response(),

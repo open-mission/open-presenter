@@ -216,11 +216,12 @@ function ThemeElementView({
     case "TEXT":
       return <AutoScaledText element={element} props={props} style={style} />;
     case "IMAGE":
-      return <img src={resolvedSrc} alt="" style={style} />;
+      return <img src={resolvedSrc} crossOrigin="anonymous" alt="" style={style} />;
     case "VIDEO":
       return (
         <video
           src={resolvedSrc}
+          crossOrigin="anonymous"
           autoPlay
           muted
           loop
