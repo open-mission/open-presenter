@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Check, ChevronLeft, ChevronRight, Pencil, Trash2, Zap } from "lucide-react";
 import { kindToAsset } from "@/core/types";
-import { isTauri } from "@/core/ipc/tauri";
-import { openThemeEditor } from "@/core/ipc/commands";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSlideThemesStore } from "./store";
 import { ScaledStage } from "./ScaledStage";
@@ -25,6 +24,7 @@ function readOpen(): boolean {
 }
 
 export function ThemeRail() {
+  const navigate = useNavigate();
   const themes = useSlideThemesStore((s) => s.themes);
   const bindings = useSlideThemesStore((s) => s.bindings);
   const load = useSlideThemesStore((s) => s.load);
@@ -82,11 +82,7 @@ export function ThemeRail() {
   }
 
   function edit(guid: string) {
-    if (isTauri()) {
-      void openThemeEditor(guid);
-    } else {
-      window.open(`/#/theme-editor?guid=${guid}`, "_blank");
-    }
+    navigate(`/theme-editor?guid=${guid}`);
   }
 
   async function handleRemove(guid: string) {

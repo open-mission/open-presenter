@@ -2,9 +2,11 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
   "description": "Capability for the main admin window",
-  "windows": ["main"],
+  "windows": ["main", "theme-editor", "preferences", "shortcuts"],
   "permissions": [
     "core:default",
+    "core:event:default",
+    "core:window:default",
     "opener:default",
     "dialog:default",
     "fs:default"

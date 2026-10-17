@@ -14,7 +14,8 @@ export async function invokeCommand<T>(
   if (!isTauri()) return null;
   try {
     return await invoke<T>(command, args);
-  } catch {
+  } catch (err) {
+    console.error(`[ipc] Falha no comando "${command}":`, err);
     return null;
   }
 }

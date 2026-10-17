@@ -241,7 +241,7 @@ pub fn open_theme_editor_window(app: &AppHandle, guid: Option<String>) -> Result
     if let Some(window) = app.get_webview_window("theme-editor") {
         let _ = window.unminimize();
         let _ = window.show();
-        window.set_focus().map_err(AppError::Tauri)?;
+        let _ = window.set_focus();
         let _ = window.emit("theme-editor://open", guid);
         return Ok(());
     }

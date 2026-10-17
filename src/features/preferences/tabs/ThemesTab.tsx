@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Copy,
   ExternalLink,
@@ -32,8 +33,6 @@ import {
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { SAMPLES } from "@/features/slide-themes/samples";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
-import { isTauri } from "@/core/ipc/tauri";
-import { openThemeEditor } from "@/core/ipc/commands";
 
 interface GridColumn {
   id: string;
@@ -141,6 +140,7 @@ function loadStoredStageRes(): { width: number; height: number } {
 }
 
 export function ThemesTab() {
+  const navigate = useNavigate();
   const themes = useSlideThemesStore((s) => s.themes);
   const bindings = useSlideThemesStore((s) => s.bindings);
   const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
@@ -187,7 +187,9 @@ export function ThemesTab() {
   async function handleCreate() {
     setError(null);
     try {
-      await save(newBlankTheme(`Novo tema ${themes.length + 1}`));
+      const theme = newBlankTheme(`Novo tema ${themes.length + 1}`);
+      await save(theme);
+      navigate(`/theme-editor?guid=${theme.guid}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Falha ao criar tema");
     }
@@ -208,11 +210,7 @@ export function ThemesTab() {
   }
 
   function handleEdit(theme: SlideTheme) {
-    if (isTauri()) {
-      void openThemeEditor(theme.guid);
-    } else {
-      window.open(`/#/theme-editor?guid=${theme.guid}`, "_blank");
-    }
+    navigate(`/theme-editor?guid=${theme.guid}`);
   }
 
   async function handleDelete() {
