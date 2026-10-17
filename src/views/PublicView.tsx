@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { kindToAsset, type BackgroundLayer } from "@/core/types";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { usePresentationStore } from "@/features/presentation/store";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
+import { PersistentBackground } from "@/features/media-shaders/PersistentBackground";
 import { SlideTransition } from "@/features/presentation/SlideTransition";
 import { useLiveThemesStore } from "@/features/slide-themes/liveThemesStore";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
@@ -45,6 +46,27 @@ export default function PublicView() {
       })()
     : null;
 
+  // Resolve o plano de fundo efetivo do slide/tema
+  const effectiveBackground: BackgroundLayer = useMemo(() => {
+    const isCustomLiveBg =
+      live.background.kind !== "color" ||
+      (live.background.value && live.background.value !== "#000000");
+
+    if (isCustomLiveBg) {
+      return live.background;
+    }
+
+    if (theme?.css.background && theme.css.background.trim() !== "") {
+      return {
+        id: `theme-bg-${theme.guid}`,
+        kind: "css",
+        value: theme.css.background,
+      };
+    }
+
+    return live.background;
+  }, [live.background, theme]);
+
   return (
     <div className="relative h-full w-full overflow-hidden bg-black select-none">
       {/* Camada 0: Papel de Parede (Base) */}
@@ -54,7 +76,7 @@ export default function PublicView() {
         </div>
       )}
 
-      {/* Camada 1: Plano de Fundo do Slide / Tema (com fade suave de entrada e saída) */}
+      {/* Camada 1: Plano de Fundo Persistente (mantido estável durante a transição dos slides) */}
       {isPresenting && (
         <div
           className="absolute inset-0 z-10 transition-opacity duration-300 ease-in-out"
@@ -62,11 +84,11 @@ export default function PublicView() {
             opacity: live.cleared && wallpaperBg ? 0 : 1,
           }}
         >
-          <BackgroundRenderer background={live.background} />
+          <PersistentBackground background={effectiveBackground} />
         </div>
       )}
 
-      {/* Camada 2: Conteúdo dos Slides (com Cross-fade e Fade-in/out) */}
+      {/* Camada 2: Transição dos Slides (por padrão é sobre o texto mantendo o fundo) */}
       {isPresenting && (
         <div className="absolute inset-0 z-20">
           <SlideTransition
@@ -75,6 +97,7 @@ export default function PublicView() {
             asset={asset}
             cleared={live.cleared}
             durationMs={300}
+            transitionBackground={false}
           />
         </div>
       )}

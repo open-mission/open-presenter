@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import {
   Eye,
   Monitor,
@@ -19,6 +19,7 @@ import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { usePresentationStore } from "./store";
 import { SlideCanvas } from "./SlideCanvas";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
+import { PersistentBackground } from "@/features/media-shaders/PersistentBackground";
 import { SlideTransition } from "./SlideTransition";
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import { StageTimerControls } from "@/features/stage-display/StageTimerControls";
@@ -41,6 +42,26 @@ export function LivePreview() {
   const liveTheme = useSlideThemesStore((s) =>
     s.resolveTheme("public", live.content.kind),
   );
+
+  const effectiveBackground: BackgroundLayer = useMemo(() => {
+    const isCustomLiveBg =
+      live.background.kind !== "color" ||
+      (live.background.value && live.background.value !== "#000000");
+
+    if (isCustomLiveBg) {
+      return live.background;
+    }
+
+    if (liveTheme?.css.background && liveTheme.css.background.trim() !== "") {
+      return {
+        id: `theme-bg-${liveTheme.guid}`,
+        kind: "css",
+        value: liveTheme.css.background,
+      };
+    }
+
+    return live.background;
+  }, [live.background, liveTheme]);
 
   useEffect(() => {
     void loadThemes();
@@ -240,9 +261,9 @@ export function LivePreview() {
             <div className="relative h-full w-full">
               <div
                 className="absolute inset-0 transition-opacity duration-300 ease-in-out"
-                style={{ opacity: live.cleared ? 0 : 1 }}
+                style={{ opacity: live.cleared && wallpaper ? 0 : 1 }}
               >
-                <BackgroundRenderer background={live.background} />
+                <PersistentBackground background={effectiveBackground} />
               </div>
               <div className="absolute inset-0">
                 <SlideTransition
@@ -251,6 +272,7 @@ export function LivePreview() {
                   asset={kindToAsset(live.content.kind)}
                   cleared={live.cleared}
                   durationMs={300}
+                  transitionBackground={false}
                 />
               </div>
             </div>

@@ -22,11 +22,13 @@ export function ScaledStage({
   asset,
   props,
   className,
+  showBackground = true,
 }: {
   theme: SlideTheme;
   asset: ThemeAsset;
   props: Record<string, string>;
   className?: string;
+  showBackground?: boolean;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
@@ -53,7 +55,9 @@ export function ScaledStage({
       ref={wrapRef}
       className={cn("absolute inset-0 overflow-hidden", className)}
     >
-      <div className="absolute inset-0" style={themeBackgroundStyle(theme)} />
+      {showBackground && (
+        <div className="absolute inset-0" style={themeBackgroundStyle(theme)} />
+      )}
       {scale > 0 && (
         <div
           className="absolute top-1/2 left-1/2"

@@ -10,16 +10,19 @@ interface SlideTransitionProps {
   asset: ThemeAsset | null;
   cleared: boolean;
   durationMs?: number;
+  transitionBackground?: boolean;
 }
 
 function RenderSingleSlide({
   slide,
   theme,
   asset,
+  showBackground = false,
 }: {
   slide: LiveSlide;
   theme: SlideTheme | null;
   asset: ThemeAsset | null;
+  showBackground?: boolean;
 }) {
   if (theme && asset) {
     return (
@@ -27,10 +30,11 @@ function RenderSingleSlide({
         theme={theme}
         asset={asset}
         props={buildProps(slide.content.kind, slide.content, slide.nextUp)}
+        showBackground={showBackground}
       />
     );
   }
-  return <SlideCanvas slide={slide} />;
+  return <SlideCanvas slide={slide} showBackground={showBackground} />;
 }
 
 export function SlideTransition({
@@ -39,8 +43,9 @@ export function SlideTransition({
   asset,
   cleared,
   durationMs = 300,
+  transitionBackground = false,
 }: SlideTransitionProps) {
-  const currentKey = `${slide.content.id}_${slide.content.lines.join("\n")}_${theme?.guid ?? ""}`;
+  const currentKey = `${slide.content.id}_${slide.content.title}_${slide.content.section ?? ""}_${slide.content.lines.join("\n")}_${theme?.guid ?? ""}`;
 
   const [active, setActive] = useState<{
     key: string;
@@ -96,6 +101,7 @@ export function SlideTransition({
             slide={outgoing.slide}
             theme={outgoing.theme}
             asset={outgoing.asset}
+            showBackground={transitionBackground}
           />
         </div>
       )}
@@ -113,6 +119,7 @@ export function SlideTransition({
           slide={active.slide}
           theme={active.theme}
           asset={active.asset}
+          showBackground={transitionBackground}
         />
       </div>
     </div>

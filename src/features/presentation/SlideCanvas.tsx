@@ -6,10 +6,12 @@ export function SlideCanvas({
   slide,
   lineClassName,
   showTitle = false,
+  showBackground = true,
 }: {
   slide: LiveSlide;
   lineClassName?: string;
   showTitle?: boolean;
+  showBackground?: boolean;
 }) {
   if (slide.blackout) {
     return <div className="h-full w-full bg-black" />;
@@ -20,8 +22,13 @@ export function SlideCanvas({
   const shouldRenderTitle = (showTitle || isScripture) && slide.content.title.trim().length > 0;
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-black [container-type:inline-size]">
-      <BackgroundRenderer background={slide.background} />
+    <div
+      className={cn(
+        "relative h-full w-full overflow-hidden [container-type:inline-size]",
+        showBackground ? "bg-black" : "bg-transparent",
+      )}
+    >
+      {showBackground && <BackgroundRenderer background={slide.background} />}
       {!slide.cleared && slide.content.kind !== "blank" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center p-[4cqw] text-center">
           {shouldRenderTitle && (
