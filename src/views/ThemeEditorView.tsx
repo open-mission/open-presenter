@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { ThemeAsset, ThemeElement } from "@/core/types";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/sonner";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -151,6 +152,9 @@ export default function ThemeEditorView() {
     setSaving(true);
     try {
       await save();
+      toast.success("Tema salvo com sucesso!");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao salvar tema.");
     } finally {
       setSaving(false);
     }

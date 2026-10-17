@@ -33,6 +33,7 @@ import type {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "@/components/ui/sonner";
 import { getConnectedClients, saveThemeMedia } from "@/core/ipc/commands";
 import {
   resolveThemeMediaUrl,
@@ -145,6 +146,7 @@ function TargetCard({
         ? parseMediaWithFit(config.wallpaper).fit
         : "contain";
       await setWallpaper(target, `${saved}#fit=${currentFit}`);
+      toast.success("Papel de parede definido com sucesso!");
     } catch (err) {
       console.warn("Falha ao salvar via saveThemeMedia, aplicando data URL:", err);
       const reader = new FileReader();
@@ -154,6 +156,7 @@ function TargetCard({
             ? parseMediaWithFit(config.wallpaper).fit
             : "contain";
           await setWallpaper(target, `${reader.result}#fit=${currentFit}`);
+          toast.success("Papel de parede definido com sucesso!");
         }
       };
       reader.readAsDataURL(file);
@@ -167,6 +170,8 @@ function TargetCard({
     if (!config.wallpaper) return;
     const { url } = parseMediaWithFit(config.wallpaper);
     void setWallpaper(target, `${url}#fit=${fit}`);
+    const fitLabel = FIT_OPTIONS.find((o) => o.id === fit)?.label ?? fit;
+    toast.info(`Ajuste alterado para: ${fitLabel}`);
   }
 
   function handleCopyUrl() {
@@ -369,7 +374,10 @@ function TargetCard({
                 size="sm"
                 variant="ghost"
                 className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 cursor-pointer"
-                onClick={() => void setWallpaper(target, null)}
+                onClick={() => {
+                  void setWallpaper(target, null);
+                  toast.info("Papel de parede removido.");
+                }}
               >
                 <Trash2 className="size-3 mr-1" />
                 Remover

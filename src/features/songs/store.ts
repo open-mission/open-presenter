@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toast } from "@/components/ui/sonner";
 import {
   deleteSong as deleteSongCommand,
   fetchOnlineLyrics,
@@ -108,6 +109,7 @@ export const useSongsStore = create<SongsState>((set, get) => ({
     }
     set({ editorSong: null });
     await get().load();
+    toast.success(`Música "${song.title}" salva!`);
     useSetlistStore
       .getState()
       .invalidateSong(song.id, {
@@ -129,6 +131,7 @@ export const useSongsStore = create<SongsState>((set, get) => ({
       editorSong: state.editorSong?.id === id ? null : state.editorSong,
     }));
     await get().load();
+    toast.info("Música excluída.");
     useSetlistStore.getState().invalidateSong(id, null);
     return true;
   },
@@ -185,6 +188,7 @@ export const useSongsStore = create<SongsState>((set, get) => ({
         hit.artistName,
       );
       set({ editorSong: song, onlineOpen: false });
+      toast.success(`Letra de "${hit.trackName}" importada!`);
     } catch (err) {
       set({ onlineError: errorMessage(err) });
     }

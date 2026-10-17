@@ -5,6 +5,7 @@ import PublicView from "./views/PublicView";
 import ShortcutsView from "./views/ShortcutsView";
 import StageView from "./views/StageView";
 import ThemeEditorView from "./views/ThemeEditorView";
+import { Toaster } from "@/components/ui/sonner";
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/theme-editor" element={<ThemeEditorView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Toaster />
     </HashRouter>
   );
 }
