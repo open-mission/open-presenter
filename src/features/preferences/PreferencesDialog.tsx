@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import {
   ChevronRight,
   Monitor,
+  Music,
   Palette,
   SlidersHorizontal,
   Sparkles,
@@ -13,6 +14,7 @@ import { AppearanceTab } from "./tabs/AppearanceTab";
 import { GeneralTab } from "./tabs/GeneralTab";
 import { OutputsTab } from "./tabs/OutputsTab";
 import { ThemesTab } from "./tabs/ThemesTab";
+import { SongsTab } from "./tabs/SongsTab";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { listenCommand } from "@/core/ipc/tauri";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
@@ -42,6 +44,12 @@ const NAV_ITEMS: NavItemConfig[] = [
     label: "Temas",
     breadcrumb: "Temas",
     icon: Sparkles,
+  },
+  {
+    id: "songs",
+    label: "Músicas",
+    breadcrumb: "Músicas & Grupos",
+    icon: Music,
   },
   {
     id: "appearance",
@@ -189,6 +197,7 @@ export function PreferencesDialog() {
               {activeTab === "appearance" && <AppearanceTab />}
               {activeTab === "outputs" && <OutputsTab />}
               {activeTab === "themes" && <ThemesTab />}
+              {activeTab === "songs" && <SongsTab />}
               {activeTab === "general" && <GeneralTab />}
             </div>
           </ScrollArea>

@@ -2,6 +2,7 @@ export type PreferencesTab =
   | "appearance"
   | "outputs"
   | "themes"
+  | "songs"
   | "general";
 
 export type OutputsSection = "public" | "stage" | "server" | "devices";

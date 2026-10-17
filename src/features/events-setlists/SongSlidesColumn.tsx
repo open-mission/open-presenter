@@ -27,6 +27,7 @@ import { saveSong } from "@/core/ipc/commands";
 import type { EventItem, SectionType, ServiceEvent, Song, SongSection } from "@/core/types";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSongsStore } from "@/features/songs/store";
+import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
 import { findEventItem, useSetlistStore } from "./store";
 
 function resolveNextItem(
@@ -47,6 +48,7 @@ export function SongSlidesColumn() {
   const loadItemSong = useSetlistStore((s) => s.loadItemSong);
   const projectSection = useSetlistStore((s) => s.projectSection);
   const selectItem = useSetlistStore((s) => s.selectItem);
+  const groups = useSongGroupsStore((s) => s.groups);
 
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -213,6 +215,56 @@ export function SongSlidesColumn() {
           });
         }
         return;
+      }
+
+      // Atalhos de grupos de música (ex: V = Verso, C = Refrão/Coro, B = Ponte, P = Pré-refrão, etc.)
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+        const pressedChar = e.key.toUpperCase();
+        const currentGroups = useSongGroupsStore.getState().groups;
+        const matchingGroup = currentGroups.find(
+          (g) => g.shortcut && g.shortcut.toUpperCase() === pressedChar,
+        );
+
+        if (matchingGroup) {
+          const targetIndices: number[] = [];
+          slides.forEach((s, idx) => {
+            const matchesType =
+              matchingGroup.typeKey && s.sectionType === matchingGroup.typeKey;
+            const matchesLabel =
+              s.label &&
+              s.label.toLowerCase().includes(matchingGroup.name.toLowerCase());
+            const matchesSection =
+              s.slide.section &&
+              s.slide.section.toLowerCase().includes(matchingGroup.name.toLowerCase());
+            if (matchesType || matchesLabel || matchesSection) {
+              targetIndices.push(idx);
+            }
+          });
+
+          if (targetIndices.length > 0) {
+            e.preventDefault();
+            const currentIdx = currentRunnerIdx ?? previewIndex ?? -1;
+            const posInMatches = targetIndices.indexOf(currentIdx);
+            let nextTargetIdx = targetIndices[0];
+            if (posInMatches >= 0) {
+              nextTargetIdx =
+                targetIndices[(posInMatches + 1) % targetIndices.length];
+            }
+
+            setPreviewIndex(nextTargetIdx);
+            usePresentationStore
+              .getState()
+              .setPreview(slides[nextTargetIdx]?.slide ?? null);
+            if (isPresentationActive) {
+              void projectSection(item.id, nextTargetIdx);
+            }
+            slideRefs.current[nextTargetIdx]?.scrollIntoView({
+              block: "nearest",
+              behavior: "smooth",
+            });
+            return;
+          }
+        }
       }
     }
 
@@ -395,7 +447,13 @@ export function SongSlidesColumn() {
               const isLive = runnerIndex === block.index;
               const isPreview = previewIndex === block.index;
               const sectionType = block.sectionType ?? "verse";
-              const colorClass = SECTION_COLOR[sectionType] ?? "bg-zinc-700 text-white";
+              const groupConfig = groups.find(
+                (g) =>
+                  (block.sectionType && g.typeKey === block.sectionType) ||
+                  (block.label && g.name.toLowerCase() === block.label.toLowerCase()) ||
+                  (block.label && block.label.toLowerCase().includes(g.name.toLowerCase())),
+              );
+              const badgeBg = groupConfig?.color || SECTION_COLOR[sectionType] || "#3b82f6";
 
               const isBeingDragged =
                 (dragSlideRef.current ?? draggedSlideIndex) === block.index;
@@ -483,9 +541,15 @@ export function SongSlidesColumn() {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <span
-                            className={`rounded-md px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase shadow-2xs ${colorClass}`}
+                            className="rounded-md px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase shadow-2xs text-white flex items-center gap-1.5"
+                            style={{ backgroundColor: badgeBg }}
                           >
-                            {block.label}
+                            <span>{block.label}</span>
+                            {groupConfig?.shortcut && (
+                              <kbd className="rounded bg-black/25 px-1 py-0.2 font-mono text-[9px] font-bold">
+                                {groupConfig.shortcut}
+                              </kbd>
+                            )}
                           </span>
                         </div>
 
