@@ -106,6 +106,11 @@ function TargetCard({
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [wallpaperError, setWallpaperError] = useState(false);
+
+  useEffect(() => {
+    setWallpaperError(false);
+  }, [config.wallpaper]);
 
   const currentUrl = outputHttpUrl(host, port, webPath);
   const active = isOutputActive(config.mode, live.open, serverRunning);
@@ -374,11 +379,25 @@ function TargetCard({
               (() => {
                 const { url, fit } = parseMediaWithFit(config.wallpaper);
                 const resolved = resolveThemeMediaUrl(url, host, port) ?? url;
+                if (wallpaperError) {
+                  return (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground select-none">
+                      <TriangleAlert className="size-6 text-amber-500" />
+                      <span className="text-xs font-semibold text-foreground">
+                        Falha ao carregar imagem
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">
+                        Arquivo pode não existir mais no disco. Escolha uma nova imagem.
+                      </span>
+                    </div>
+                  );
+                }
                 return (
                   <div className="relative h-full w-full">
                     <img
                       src={resolved}
                       alt="Papel de parede"
+                      onError={() => setWallpaperError(true)}
                       className={cn("h-full w-full", FIT_CLASSES[fit])}
                     />
                     <div className="absolute top-2 left-2 rounded bg-black/70 px-2 py-0.5 text-[10px] font-medium text-zinc-300 backdrop-blur-xs border border-white/10">

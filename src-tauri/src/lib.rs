@@ -27,6 +27,31 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .register_asynchronous_uri_scheme_protocol("media", move |ctx, request, responder| {
+            let app = ctx.app_handle().clone();
+            std::thread::spawn(move || {
+                let response = match crate::services::theme_media::read_media(&app, request.uri()) {
+                    Some((mime, bytes)) => tauri::http::Response::builder()
+                        .status(tauri::http::StatusCode::OK)
+                        .header(tauri::http::header::CONTENT_TYPE, mime)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .header("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+                        .header("Cache-Control", "public, max-age=3600")
+                        .body(bytes)
+                        .unwrap_or_else(|_| {
+                            tauri::http::Response::builder()
+                                .status(tauri::http::StatusCode::INTERNAL_SERVER_ERROR)
+                                .body(Vec::new())
+                                .unwrap()
+                        }),
+                    None => tauri::http::Response::builder()
+                        .status(tauri::http::StatusCode::NOT_FOUND)
+                        .body(Vec::new())
+                        .unwrap(),
+                };
+                responder.respond(response);
+            });
+        })
         .manage(PresentationState::default())
         .manage(OutputsState::default())
         .setup(|app| {

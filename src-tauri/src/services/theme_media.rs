@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use tauri::{AppHandle, Manager};
 
@@ -91,9 +91,74 @@ pub fn save_media(
     Ok(format!("media://{seguro}/{sanitized}"))
 }
 
+pub fn parse_media_uri_relative_path(uri: &tauri::http::Uri) -> Option<PathBuf> {
+    let host = uri.host().unwrap_or_default();
+    let raw_path = uri.path();
+    let decoded = percent_encoding::percent_decode_str(raw_path).decode_utf8_lossy();
+    let clean_path = decoded.trim_start_matches('/');
+
+    let relative_str = if !host.is_empty() && host != "localhost" && host != "media.localhost" {
+        format!("{}/{}", host, clean_path)
+    } else {
+        clean_path.to_string()
+    };
+
+    let relative = PathBuf::from(&relative_str);
+    if relative.components().any(|c| matches!(c, Component::ParentDir)) {
+        return None;
+    }
+    Some(relative)
+}
+
+pub fn read_media(app: &AppHandle, uri: &tauri::http::Uri) -> Option<(String, Vec<u8>)> {
+    let relative = parse_media_uri_relative_path(uri)?;
+    let base = media_base_dir(app).ok()?;
+    let file_path = base.join(&relative);
+    if !file_path.starts_with(&base) {
+        return None;
+    }
+    let bytes = std::fs::read(&file_path).ok()?;
+    let mime = mime_guess::from_path(&file_path)
+        .first_or_octet_stream()
+        .to_string();
+    Some((mime, bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_media_uri_suporta_formatos_diversos() {
+        let uri1: tauri::http::Uri = "media://wallpapers/fundo.jpg".parse().unwrap();
+        assert_eq!(
+            parse_media_uri_relative_path(&uri1).unwrap(),
+            PathBuf::from("wallpapers/fundo.jpg")
+        );
+
+        let uri2: tauri::http::Uri = "http://media.localhost/wallpapers/fundo.jpg"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            parse_media_uri_relative_path(&uri2).unwrap(),
+            PathBuf::from("wallpapers/fundo.jpg")
+        );
+
+        let uri3: tauri::http::Uri = "media://localhost/wallpapers/fundo.jpg".parse().unwrap();
+        assert_eq!(
+            parse_media_uri_relative_path(&uri3).unwrap(),
+            PathBuf::from("wallpapers/fundo.jpg")
+        );
+
+        let uri_space: tauri::http::Uri = "media://wallpapers/foto%201.PNG".parse().unwrap();
+        assert_eq!(
+            parse_media_uri_relative_path(&uri_space).unwrap(),
+            PathBuf::from("wallpapers/foto 1.PNG")
+        );
+
+        let uri_malicioso: tauri::http::Uri = "media://wallpapers/../secreto.txt".parse().unwrap();
+        assert!(parse_media_uri_relative_path(&uri_malicioso).is_none());
+    }
 
     #[test]
     fn sanitize_rejeita_traversal() {

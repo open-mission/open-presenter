@@ -23,6 +23,7 @@ export function BackgroundRenderer({
   if (background.kind === "image") {
     const { url, fit } = parseMediaWithFit(background.value);
     const resolved = resolveThemeMediaUrl(url, host, port) ?? url;
+    if (!resolved) return null;
     return (
       <img
         src={resolved}
@@ -35,6 +36,7 @@ export function BackgroundRenderer({
   if (background.kind === "video") {
     const { url, fit } = parseMediaWithFit(background.value);
     const resolved = resolveThemeMediaUrl(url, host, port) ?? url;
+    if (!resolved) return null;
     return (
       <video
         src={resolved}

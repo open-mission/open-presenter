@@ -1,3 +1,5 @@
+import { isTauri } from "@/core/ipc/tauri";
+
 export type MediaFit = "cover" | "contain" | "scale-down" | "fill";
 
 export const FIT_CLASSES: Record<MediaFit, string> = {
@@ -32,7 +34,7 @@ export function parseMediaWithFit(value: string | undefined | null): {
 
 export function resolveThemeMediaUrl(
   value: string | undefined,
-  host: string = "localhost",
+  host?: string,
   port: number = 5050,
 ): string | undefined {
   if (!value) return value;
@@ -41,27 +43,62 @@ export function resolveThemeMediaUrl(
   const trimmed = url.trim();
   const match = trimmed.match(/^media:\/\/([^/]+)\/(.+)$/);
   if (!match) return value;
-  const actualHost =
-    !host || host === "tauri.localhost" || host === "localhost"
-      ? "127.0.0.1"
-      : host;
-  const resolved = `http://${actualHost}:${port}/theme-media/${match[1]}/${match[2]}`;
+
+  const category = match[1];
+  const filename = match[2];
+
+  let resolved: string;
+  if (isTauri()) {
+    // No app desktop Tauri:
+    // O protocolo customizado "media" foi registrado no backend Rust.
+    // Usamos o conversor do Tauri se disponível para garantir compatibilidade com WebView2
+    // no Windows (http://media.localhost/...) e WebKit no macOS/Linux (media://localhost/...).
+    const tauriInternals = (
+      window as unknown as {
+        __TAURI_INTERNALS__?: {
+          convertFileSrc?: (path: string, protocol?: string) => string;
+        };
+      }
+    ).__TAURI_INTERNALS__;
+
+    if (typeof tauriInternals?.convertFileSrc === "function") {
+      resolved = tauriInternals.convertFileSrc(`${category}/${filename}`, "media");
+    } else {
+      resolved = `media://${category}/${filename}`;
+    }
+  } else {
+    // No navegador externo (saída Web / OBS / celulares):
+    const currentHost =
+      typeof window !== "undefined" && window.location.hostname
+        ? window.location.hostname
+        : "127.0.0.1";
+    const actualHost =
+      !host || host === "tauri.localhost" || host === "localhost"
+        ? currentHost
+        : host;
+    const currentPort =
+      typeof window !== "undefined" && window.location.port
+        ? Number(window.location.port) || port
+        : port;
+    const actualPort = port || currentPort;
+    resolved = `http://${actualHost}:${actualPort}/theme-media/${category}/${filename}`;
+  }
+
   return hasExplicitFit ? `${resolved}#fit=${fit}` : resolved;
 }
 
 export function resolveCssMediaUrls(
   value: string | undefined,
-  host: string = "localhost",
+  host?: string,
   port: number = 5050,
 ): string | undefined {
   if (!value) return value;
-  const actualHost =
-    !host || host === "tauri.localhost" || host === "localhost"
-      ? "127.0.0.1"
-      : host;
   return value.replace(
     /media:\/\/([^/\s)'"]+)\/([^)\s'"]+)/g,
-    `http://${actualHost}:${port}/theme-media/$1/$2`,
+    (_full, category, file) => {
+      const single = `media://${category}/${file}`;
+      return resolveThemeMediaUrl(single, host, port) ?? single;
+    },
   );
 }
 

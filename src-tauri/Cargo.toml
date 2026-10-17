@@ -31,6 +31,7 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 local-ip-address = "0.6.13"
 reqwest = { version = "0.13.5", features = ["json", "query"] }
+percent-encoding = "2.3.2"
 
 [features]
 default = ["custom-protocol"]
