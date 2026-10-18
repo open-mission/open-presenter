@@ -37,10 +37,10 @@
 
 ## Tasks
 
-- [ ] Task 1: Backend Rust — `Db` clonável e injeção no `ServerState`
-- [ ] Task 2: Backend Rust — `slide_builder.rs` (montagem de slides com paridade TS)
-- [ ] Task 3: Backend Rust — `media_library::list_images_in_dir` e endpoints do Remote
-- [ ] Task 4: Frontend Desktop — Listener de `remote://imprevisto` e registro automático na lista ativa
-- [ ] Task 5: Frontend Remote — Rail de navegação e aba Músicas (busca local, LRCLIB, slides e apresentação)
-- [ ] Task 6: Frontend Remote — Aba Imagens (árvore de pastas, miniaturas e projeção direta)
-- [ ] Task 7: Verificação completa, testes e merge
+- [x] Task 1: Backend Rust — `Db` clonável e injeção no `ServerState`
+- [x] Task 2: Backend Rust — `slide_builder.rs` (montagem de slides com paridade TS)
+- [x] Task 3: Backend Rust — `media_library::list_images_in_dir` e endpoints do Remote
+- [x] Task 4: Frontend Desktop — Listener de `remote://imprevisto` e registro automático na lista ativa
+- [x] Task 5: Frontend Remote — Rail de navegação e aba Músicas (busca local, LRCLIB, slides e apresentação)
+- [x] Task 6: Frontend Remote — Aba Imagens (árvore de pastas, miniaturas e projeção direta)
+- [x] Task 7: Verificação completa, testes e merge
