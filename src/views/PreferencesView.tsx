@@ -1,17 +1,12 @@
 import { useEffect } from "react";
-import {
-  ChevronRight,
-  Monitor,
-  Music,
-  Palette,
-  SlidersHorizontal,
-  Sparkles,
-} from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { usePreferencesStore } from "@/features/preferences/store";
 import type { OutputsSection, PreferencesTab } from "@/features/preferences/types";
+import { PREFERENCES_NAV_ITEMS } from "@/features/preferences/nav";
 import { AppearanceTab } from "@/features/preferences/tabs/AppearanceTab";
 import { GeneralTab } from "@/features/preferences/tabs/GeneralTab";
 import { OutputsTab } from "@/features/preferences/tabs/OutputsTab";
+import { RemoteTab } from "@/features/preferences/tabs/RemoteTab";
 import { ThemesTab } from "@/features/preferences/tabs/ThemesTab";
 import { SongsTab } from "@/features/preferences/tabs/SongsTab";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,46 +16,6 @@ import { closePreferencesWindow } from "@/core/ipc/commands";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { useOutputsSync } from "@/features/output-manager/useOutputsSync";
-
-interface NavItemConfig {
-  id: PreferencesTab;
-  label: string;
-  breadcrumb: string;
-  icon: typeof Palette;
-}
-
-const NAV_ITEMS: NavItemConfig[] = [
-  {
-    id: "general",
-    label: "Geral",
-    breadcrumb: "Geral & Atalhos",
-    icon: SlidersHorizontal,
-  },
-  {
-    id: "outputs",
-    label: "Saídas",
-    breadcrumb: "Saídas",
-    icon: Monitor,
-  },
-  {
-    id: "themes",
-    label: "Temas",
-    breadcrumb: "Temas",
-    icon: Sparkles,
-  },
-  {
-    id: "songs",
-    label: "Músicas",
-    breadcrumb: "Músicas & Grupos",
-    icon: Music,
-  },
-  {
-    id: "appearance",
-    label: "Aparência",
-    breadcrumb: "Aparência",
-    icon: Palette,
-  },
-];
 
 export default function PreferencesView() {
   const activeTab = usePreferencesStore((s) => s.activeTab);
@@ -78,7 +33,7 @@ export default function PreferencesView() {
   // Sync tab with localStorage on mount and across windows
   useEffect(() => {
     const saved = localStorage.getItem("open_presenter_pref_tab") as PreferencesTab | null;
-    if (saved && NAV_ITEMS.some((n) => n.id === saved)) {
+    if (saved && PREFERENCES_NAV_ITEMS.some((n) => n.id === saved)) {
       setTab(saved);
     }
     const savedSection = localStorage.getItem(
@@ -93,7 +48,7 @@ export default function PreferencesView() {
 
     function handleStorage(e: StorageEvent) {
       if (e.key === "open_presenter_pref_tab" && e.newValue) {
-        if (NAV_ITEMS.some((n) => n.id === e.newValue)) {
+        if (PREFERENCES_NAV_ITEMS.some((n) => n.id === e.newValue)) {
           setTab(e.newValue as PreferencesTab);
         }
       }
@@ -128,7 +83,7 @@ export default function PreferencesView() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const currentNav = NAV_ITEMS.find((item) => item.id === activeTab) || NAV_ITEMS[0];
+  const currentNav = PREFERENCES_NAV_ITEMS.find((item) => item.id === activeTab) || PREFERENCES_NAV_ITEMS[0];
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground select-none">
@@ -139,7 +94,7 @@ export default function PreferencesView() {
         </div>
 
         <nav className="mt-1 flex flex-1 flex-col gap-1">
-          {NAV_ITEMS.map((item) => {
+          {PREFERENCES_NAV_ITEMS.map((item) => {
             const isSelected = activeTab === item.id;
             const Icon = item.icon;
 
@@ -205,6 +160,7 @@ export default function PreferencesView() {
             {activeTab === "outputs" && <OutputsTab />}
             {activeTab === "themes" && <ThemesTab />}
             {activeTab === "songs" && <SongsTab />}
+            {activeTab === "remote" && <RemoteTab />}
             {activeTab === "general" && <GeneralTab />}
           </div>
         </ScrollArea>

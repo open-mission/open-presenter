@@ -1,3 +1,4 @@
+import { resolveMediaPort } from "@/core/config/mediaPort";
 import { isTauri } from "@/core/ipc/tauri";
 
 export type MediaFit = "cover" | "contain" | "scale-down" | "fill";
@@ -35,7 +36,7 @@ export function parseMediaWithFit(value: string | undefined | null): {
 export function resolveThemeMediaUrl(
   value: string | undefined,
   host?: string,
-  port: number = 5050,
+  port?: number,
 ): string | undefined {
   if (!value) return value;
   const { url, fit } = parseMediaWithFit(value);
@@ -64,28 +65,31 @@ export function resolveThemeMediaUrl(
         : host;
   }
 
-  const currentPort =
-    typeof window !== "undefined" && window.location.port
-      ? Number(window.location.port) || port
-      : port;
-  const actualPort = port || currentPort;
+  const actualPort = resolveMediaPort(port);
   const resolved = `http://${actualHost}:${actualPort}/theme-media/${category}/${encodeURIComponent(filename)}`;
 
   return hasExplicitFit ? `${resolved}#fit=${fit}` : resolved;
 }
 
 /**
- * Resolve um caminho `media://...` para URL HTTP do servidor embutido.
+ * Resolve um caminho `media://...` para a URL servida pelo app.
+ * - Desktop com servidor ativo: HTTP em 127.0.0.1 na porta configurada.
+ * - Desktop sem servidor: mantém o protocolo customizado `media://`.
+ * - Navegador/remoto: caminho relativo, preservando host e porta de origem.
  */
 export function resolveMediaLibraryUrl(value: string, serverBase?: string): string {
   const match = value.match(/^media:\/\/([^/]+)\/(.+)$/);
   if (!match) return value;
 
+  if (serverBase === "media://") return value;
+
   const relative = `${match[1]}/${match[2]}`;
   const base =
     serverBase && serverBase.startsWith("http")
       ? serverBase.replace(/\/$/, "")
-      : "http://127.0.0.1:5050";
+      : isTauri()
+        ? `http://127.0.0.1:${resolveMediaPort()}`
+        : "";
 
   return `${base}/theme-media/${relative}`;
 }
@@ -93,7 +97,7 @@ export function resolveMediaLibraryUrl(value: string, serverBase?: string): stri
 export function resolveCssMediaUrls(
   value: string | undefined,
   host?: string,
-  port: number = 5050,
+  port?: number,
 ): string | undefined {
   if (!value) return value;
   return value.replace(

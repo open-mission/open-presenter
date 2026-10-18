@@ -1,5 +1,7 @@
 import type { BackgroundLayer } from "@/core/types";
 import { cn } from "@/core/lib/utils";
+import { isCssGradient } from "@/core/lib/cssValue";
+import { useMediaPort } from "@/core/config/mediaPort";
 import {
   resolveThemeMediaUrl,
   resolveCssMediaUrls,
@@ -15,14 +17,21 @@ export function BackgroundRenderer({
   background: BackgroundLayer;
   className?: string;
 }) {
+  const mediaPort = useMediaPort();
   const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
-  const port =
-    typeof window !== "undefined" && window.location.port
-      ? Number(window.location.port)
-      : 5050;
+  const port = mediaPort ?? undefined;
 
   if (background.kind === "image") {
     const { url, fit } = parseMediaWithFit(background.value);
+    if (isCssGradient(url)) {
+      const resolved = resolveCssMediaUrls(url, host, port) ?? url;
+      return (
+        <div
+          className={cn("absolute inset-0", className)}
+          style={{ background: resolved }}
+        />
+      );
+    }
     const resolved = resolveThemeMediaUrl(url, host, port) ?? url;
     if (!resolved) return null;
     return (

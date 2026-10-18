@@ -12,6 +12,7 @@ import { ThemeRail } from "@/features/slide-themes/ThemeRail";
 import { useLiveThemesPublisher, useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { useOutputsSync } from "@/features/output-manager/useOutputsSync";
 import { useOutputManagerStore } from "@/features/output-manager/store";
+import { useWallpaperPublisher } from "@/features/presentation/useWallpaperPublisher";
 import { useStageTimerSync } from "@/features/stage-display/useStageTimerSync";
 import { SongEditorDialog } from "@/features/songs/SongEditorDialog";
 import { OnlineLyricsDialog } from "@/features/songs/OnlineLyricsDialog";
@@ -29,6 +30,7 @@ import { useRemoteSetlistPublisher } from "@/features/remote/useRemoteSetlistPub
 export default function AdminView() {
   usePresentationSync("admin");
   useOutputsSync();
+  useWallpaperPublisher();
   useStageTimerSync();
   useNativeMenu();
   useThemesSync();

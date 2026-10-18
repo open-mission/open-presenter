@@ -75,12 +75,15 @@ export interface ServerStatus {
   port: number;
 }
 
+export type ClientKind = "output" | "remote";
+
 export interface ConnectedClient {
   id: string;
   ip: string;
   output: OutputTarget | null;
   userAgent: string | null;
   connectedAt: number;
+  kind: ClientKind;
 }
 
 export type StageAlertLevel = "info" | "warning" | "urgent";

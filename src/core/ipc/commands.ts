@@ -124,6 +124,10 @@ export async function fetchPublicWallpaper(): Promise<string | null> {
   return invokeCommand<string | null>("get_public_wallpaper");
 }
 
+export async function setPublicWallpaper(wallpaper: string | null): Promise<void> {
+  await invokeCommand("set_public_wallpaper", { wallpaper });
+}
+
 export async function getServerStatus(): Promise<ServerStatus | null> {
   return invokeCommand<ServerStatus>("get_server_status");
 }
@@ -142,6 +146,10 @@ export async function startServer(): Promise<ServerStatus> {
 
 export async function getConnectedClients(): Promise<ConnectedClient[]> {
   return (await invokeCommand<ConnectedClient[]>("get_connected_clients")) ?? [];
+}
+
+export async function getRemoteClients(): Promise<ConnectedClient[]> {
+  return (await invokeCommand<ConnectedClient[]>("get_remote_clients")) ?? [];
 }
 
 export async function listSongs(query?: string): Promise<SongSummary[]> {

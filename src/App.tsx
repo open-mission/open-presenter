@@ -8,8 +8,11 @@ import ThemeEditorView from "./views/ThemeEditorView";
 import SongEditorView from "./views/SongEditorView";
 import RemoteView from "./features/remote/RemoteView";
 import { Toaster } from "@/components/ui/sonner";
+import { useMediaPortSync } from "@/core/config/mediaPort";
 
 export default function App() {
+  useMediaPortSync();
+
   return (
     <HashRouter>
       <Routes>

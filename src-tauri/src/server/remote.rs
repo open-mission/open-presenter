@@ -1,9 +1,10 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Query, State,
+        ConnectInfo, Query, State,
     },
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
@@ -12,9 +13,13 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
 
+use crate::server::clients::{
+    connected_at_now, next_id, register, user_agent, ClientGuard,
+};
 use crate::server::ServerState;
 use crate::state::types::{
-    now_millis, SlideContent, EVENT_REMOTE_SETLIST, EVENT_SLIDE, EVENT_WALLPAPER,
+    now_millis, ClientKind, ConnectedClient, SlideContent, EVENT_REMOTE_SETLIST, EVENT_SLIDE,
+    EVENT_WALLPAPER,
 };
 use crate::state::{LiveSlide, RemoteItem, RemoteSetlist};
 
@@ -256,16 +261,33 @@ pub async fn toggle_wallpaper(
 
 pub async fn ws(
     ws: WebSocketUpgrade,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     Query(query): Query<RemoteWsQuery>,
     State(state): State<Arc<ServerState>>,
 ) -> Response {
     if let Err(response) = guard_token(&state, query.token.as_deref()) {
         return response;
     }
-    ws.on_upgrade(move |socket| handle_remote_socket(socket, state))
+
+    let client_id = next_id("remote");
+    register(
+        &state.clients,
+        ConnectedClient {
+            id: client_id.clone(),
+            ip: addr.ip().to_string(),
+            output: None,
+            user_agent: user_agent(&headers),
+            connected_at: connected_at_now(),
+            kind: ClientKind::Remote,
+        },
+    );
+
+    ws.on_upgrade(move |socket| handle_remote_socket(socket, state, client_id))
 }
 
-async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>) {
+async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>, client_id: String) {
+    let _guard = ClientGuard::new(&state.clients, client_id);
     let (mut sender, mut receiver) = socket.split();
 
     let slide = serde_json::json!({

@@ -10,6 +10,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,12 +21,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { outputHttpUrl } from "@/core/config/app";
+import { isTauri } from "@/core/ipc/tauri";
 
 import type { OutputMode } from "@/core/types";
 import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { usePreferencesStore } from "@/features/preferences/store";
 import { usePresentationStore } from "@/features/presentation/store";
+import { useRemoteStore } from "@/features/remote/store";
 import { useSongsStore } from "@/features/songs/store";
 import { useSetlistStore } from "@/features/events-setlists/store";
 import { useNavigationStore } from "@/features/navigation/store";
@@ -63,6 +66,14 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
   const host = useOutputManagerStore((s) => s.host);
   const port = useOutputManagerStore((s) => s.server.port);
   const serverRunning = useOutputManagerStore((s) => s.server.running);
+  const remoteConfig = useRemoteStore((s) => s.config);
+  const ensureRemoteToken = useRemoteStore((s) => s.ensureToken);
+
+  useEffect(() => {
+    if (isTauri()) void ensureRemoteToken();
+  }, [ensureRemoteToken]);
+
+  const remoteActive = Boolean(remoteConfig?.enabled && serverRunning);
 
   const publicActive = isOutputActive(
     publicConfig.mode,
@@ -185,6 +196,30 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
 
       {/* Right section: Output status indicators, quick blackout/clear, and settings */}
       <div className="flex items-center gap-2">
+        {/* Remote control settings */}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 gap-1.5 px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+          onClick={() => openPreferences("remote")}
+          title={
+            remoteActive
+              ? "Controle remoto ativo — abrir configurações"
+              : "Configurar controle remoto"
+          }
+        >
+          <span
+            className={`size-1.5 rounded-full ${
+              remoteActive
+                ? "bg-emerald-500 animate-pulse"
+                : "bg-muted-foreground/40"
+            }`}
+          />
+          <Smartphone className="size-3.5" />
+          <span className="hidden md:inline">Remote</span>
+        </Button>
+
         {/* Output Targets Live Indicators */}
         <div className="hidden items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1 text-[11px] sm:flex">
           {/* Public output status */}

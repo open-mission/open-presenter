@@ -372,7 +372,15 @@ pub struct OutputRuntime {
     pub monitor_id: Option<String>,
 }
 
-/// Navegador web conectado ao servidor local (`GET /ws`).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ClientKind {
+    #[default]
+    Output,
+    Remote,
+}
+
+/// Navegador web conectado ao servidor local (`GET /ws` ou `/api/v1/ws`).
 /// O `output` é anunciado pelo próprio cliente via `client://hello`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -383,6 +391,8 @@ pub struct ConnectedClient {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_agent: Option<String>,
     pub connected_at: u64,
+    #[serde(default)]
+    pub kind: ClientKind,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

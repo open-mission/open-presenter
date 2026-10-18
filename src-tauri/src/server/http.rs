@@ -1,10 +1,7 @@
-use std::collections::HashMap;
 use std::io::SeekFrom;
 use std::net::SocketAddr;
 use std::path::{Component, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
 
 use axum::{
     body::{Body, Bytes},
@@ -24,14 +21,13 @@ use tower_http::cors::{Any, CorsLayer};
 
 use crate::services::SharedBroadcaster;
 use crate::state::types::{
-    ConnectedClient, OutputTarget, ServerStatus, WsEnvelope, EVENT_CLIENT_HELLO, WS_PATH,
+    ClientKind, ConnectedClient, OutputTarget, ServerStatus, WsEnvelope, EVENT_CLIENT_HELLO, WS_PATH,
 };
 use crate::state::SharedRemoteState;
 
-/// Navegadores conectados ao `/ws`, por id de conexão.
-pub type Clients = Arc<Mutex<HashMap<String, ConnectedClient>>>;
-
-static CLIENT_SEQ: AtomicU64 = AtomicU64::new(1);
+use super::clients::{
+    connected_at_now, next_id, register, set_output, user_agent, ClientGuard, Clients,
+};
 
 #[derive(serde::Deserialize)]
 struct HelloPayload {
@@ -271,32 +267,23 @@ async fn ws_handler(
     headers: HeaderMap,
     State(state): State<Arc<ServerState>>,
 ) -> impl IntoResponse {
-    let user_agent = headers
-        .get(header::USER_AGENT)
-        .and_then(|value| value.to_str().ok())
-        .map(|ua| ua.chars().take(48).collect::<String>())
-        .filter(|ua| !ua.is_empty());
-    let connected_at = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
-    let id = format!("ws-{}", CLIENT_SEQ.fetch_add(1, Ordering::Relaxed));
-    if let Ok(mut clients) = state.clients.lock() {
-        clients.insert(
-            id.clone(),
-            ConnectedClient {
-                id: id.clone(),
-                ip: addr.ip().to_string(),
-                output: None,
-                user_agent,
-                connected_at,
-            },
-        );
-    }
+    let id = next_id("ws");
+    register(
+        &state.clients,
+        ConnectedClient {
+            id: id.clone(),
+            ip: addr.ip().to_string(),
+            output: None,
+            user_agent: user_agent(&headers),
+            connected_at: connected_at_now(),
+            kind: ClientKind::Output,
+        },
+    );
     ws.on_upgrade(move |socket| handle_socket(socket, state, id))
 }
 
 async fn handle_socket(socket: WebSocket, state: Arc<ServerState>, client_id: String) {
+    let _guard = ClientGuard::new(&state.clients, client_id.clone());
     let (mut sender, mut receiver) = socket.split();
     let mut rx = state.ws_tx.subscribe();
 
@@ -355,17 +342,10 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>, client_id: St
             let Ok(hello) = serde_json::from_value::<HelloPayload>(envelope.payload) else {
                 continue;
             };
-            if let Ok(mut clients) = state.clients.lock() {
-                if let Some(client) = clients.get_mut(&client_id) {
-                    client.output = hello.output;
-                }
-            }
+            set_output(&state.clients, &client_id, hello.output);
         }
     }
     send_task.abort();
-    if let Ok(mut clients) = state.clients.lock() {
-        clients.remove(&client_id);
-    }
 }
 
 async fn static_handler(uri: axum::http::Uri) -> impl IntoResponse {

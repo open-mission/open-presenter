@@ -44,7 +44,7 @@ import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import { StageTimerControls } from "@/features/stage-display/StageTimerControls";
 import { useWallpaperStore } from "./wallpaperStore";
 import { usePreviewLayoutStore } from "./previewLayoutStore";
-import { parseMediaWithFit } from "@/features/theme-editor/media";
+import { wallpaperToBackground } from "./wallpaper";
 import type { BackgroundLayer, LiveSlide } from "@/core/types";
 
 export function LivePreview() {
@@ -408,20 +408,9 @@ export function LivePreview() {
                       {isLiveEmpty && !live.blackout ? (
                         wallpaper ? (
                           <div className="relative h-full w-full bg-black">
-                            {(() => {
-                              const { url } = parseMediaWithFit(wallpaper);
-                              const isColor =
-                                url.startsWith("#") || url.startsWith("rgb");
-                              const isVideo =
-                                url.toLowerCase().endsWith(".mp4") ||
-                                url.toLowerCase().endsWith(".webm");
-                              const bg: BackgroundLayer = {
-                                id: "wallpaper",
-                                kind: isColor ? "color" : isVideo ? "video" : "image",
-                                value: wallpaper,
-                              };
-                              return <BackgroundRenderer background={bg} />;
-                            })()}
+                            <BackgroundRenderer
+                              background={wallpaperToBackground(wallpaper)}
+                            />
                             <div className="absolute bottom-2 left-2 rounded bg-black/70 px-2 py-0.5 text-[9px] font-medium text-zinc-300 backdrop-blur-xs border border-white/10">
                               Papel de Parede Ativo
                             </div>

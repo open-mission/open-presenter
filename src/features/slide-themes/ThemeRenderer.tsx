@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
+import { useMediaPort } from "@/core/config/mediaPort";
 import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
 import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 import { ShaderCanvas } from "@/features/media-shaders/ShaderCanvas";
@@ -223,6 +224,7 @@ function ThemeElementView({
   element: ThemeElement;
   props: Record<string, string>;
 }) {
+  const mediaPort = useMediaPort();
   // `slide`/`nextSlide` keyword mapping is future work — skip unmapped media for now.
   const mediaSrc = (element.src ?? element.url ?? "").trim();
   if (
@@ -238,7 +240,8 @@ function ThemeElementView({
     typeof window !== "undefined" && window.location.hostname
       ? window.location.hostname
       : "localhost";
-  const resolvedSrc = resolveThemeMediaUrl(mediaSrc, host) ?? mediaSrc;
+  const resolvedSrc =
+    resolveThemeMediaUrl(mediaSrc, host, mediaPort ?? undefined) ?? mediaSrc;
   const style = elementStyle(element);
   switch (element.type) {
     case "TEXT":

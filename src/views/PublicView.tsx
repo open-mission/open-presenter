@@ -9,7 +9,7 @@ import { useLiveThemesStore } from "@/features/slide-themes/liveThemesStore";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useWallpaperSync } from "@/features/presentation/useWallpaperSync";
 import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
-import { parseMediaWithFit } from "@/features/theme-editor/media";
+import { wallpaperToBackground } from "@/features/presentation/wallpaper";
 import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 
 export default function PublicView() {
@@ -33,18 +33,7 @@ export default function PublicView() {
 
   // Prepara o papel de parede se definido
   const wallpaperBg: BackgroundLayer | null = wallpaper
-    ? (() => {
-        const { url } = parseMediaWithFit(wallpaper);
-        const isColor = url.startsWith("#") || url.startsWith("rgb");
-        const isVideo =
-          url.toLowerCase().endsWith(".mp4") ||
-          url.toLowerCase().endsWith(".webm");
-        return {
-          id: "wallpaper",
-          kind: isColor ? "color" : isVideo ? "video" : "image",
-          value: wallpaper,
-        };
-      })()
+    ? wallpaperToBackground(wallpaper)
     : null;
 
   // Resolve o plano de fundo efetivo do slide/tema

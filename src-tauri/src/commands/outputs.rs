@@ -55,6 +55,15 @@ pub fn get_public_wallpaper(
 }
 
 #[tauri::command]
+pub fn set_public_wallpaper(
+    broadcaster: State<'_, crate::services::broadcaster::SharedBroadcaster>,
+    wallpaper: Option<String>,
+) -> Result<(), AppError> {
+    broadcaster.publish_wallpaper(wallpaper);
+    Ok(())
+}
+
+#[tauri::command]
 pub fn get_outputs_state(
     app: AppHandle,
     outputs: State<'_, OutputsState>,

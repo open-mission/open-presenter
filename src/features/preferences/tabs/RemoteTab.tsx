@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/core/lib/utils";
 import { useOutputManagerStore } from "@/features/output-manager/store";
+import { RemoteDevices } from "@/features/remote/RemoteDevices";
 import { useRemoteStore } from "@/features/remote/store";
 
 function copyText(value: string, label: string): void {
@@ -152,6 +153,7 @@ export function RemoteTab() {
 
       {/* When enabled: Connection Details */}
       {enabled && (
+        <>
         <div className="flex flex-col gap-5 rounded-xl border border-border/80 bg-card/60 p-4 shadow-2xs">
           <div className="flex items-center justify-between border-b border-border/60 pb-3">
             <div className="flex items-center gap-2">
@@ -264,6 +266,8 @@ export function RemoteTab() {
             <p>3. Use a interface para navegar nos slides, limpar texto, alternar papel de parede ou tela preta.</p>
           </div>
         </div>
+        <RemoteDevices />
+        </>
       )}
     </div>
   );

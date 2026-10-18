@@ -1,16 +1,7 @@
 import { useEffect } from "react";
-import {
-  ChevronRight,
-  Monitor,
-  Music,
-  Palette,
-  SlidersHorizontal,
-  Smartphone,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
 import { usePreferencesStore } from "./store";
-import type { PreferencesTab } from "./types";
+import { PREFERENCES_NAV_ITEMS } from "./nav";
 import { AppearanceTab } from "./tabs/AppearanceTab";
 import { GeneralTab } from "./tabs/GeneralTab";
 import { OutputsTab } from "./tabs/OutputsTab";
@@ -20,52 +11,6 @@ import { SongsTab } from "./tabs/SongsTab";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { listenCommand } from "@/core/ipc/tauri";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
-
-interface NavItemConfig {
-  id: PreferencesTab;
-  label: string;
-  breadcrumb: string;
-  icon: typeof Palette;
-}
-
-const NAV_ITEMS: NavItemConfig[] = [
-  {
-    id: "general",
-    label: "Geral",
-    breadcrumb: "Geral & Atalhos",
-    icon: SlidersHorizontal,
-  },
-  {
-    id: "outputs",
-    label: "Saídas",
-    breadcrumb: "Saídas",
-    icon: Monitor,
-  },
-  {
-    id: "themes",
-    label: "Temas",
-    breadcrumb: "Temas",
-    icon: Sparkles,
-  },
-  {
-    id: "songs",
-    label: "Músicas",
-    breadcrumb: "Músicas & Grupos",
-    icon: Music,
-  },
-  {
-    id: "remote",
-    label: "Controle Remoto",
-    breadcrumb: "Controle Remoto",
-    icon: Smartphone,
-  },
-  {
-    id: "appearance",
-    label: "Aparência",
-    breadcrumb: "Aparência",
-    icon: Palette,
-  },
-];
 
 export function PreferencesDialog() {
   const isOpen = usePreferencesStore((s) => s.isOpen);
@@ -116,7 +61,7 @@ export function PreferencesDialog() {
 
   if (!isOpen) return null;
 
-  const currentNav = NAV_ITEMS.find((item) => item.id === activeTab) || NAV_ITEMS[0];
+  const currentNav = PREFERENCES_NAV_ITEMS.find((item) => item.id === activeTab) || PREFERENCES_NAV_ITEMS[0];
 
   return (
     <div
@@ -142,7 +87,7 @@ export function PreferencesDialog() {
           </div>
 
           <nav className="mt-1 flex flex-1 flex-col gap-1">
-            {NAV_ITEMS.map((item) => {
+            {PREFERENCES_NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
 

@@ -9,10 +9,11 @@
     "node": ">=20.19"
   },
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b",
+    "test": "node --test",
     "tauri": "tauri",
     "tauri:dev": "npm run build && tauri dev",
     "tauri:build": "tauri build"

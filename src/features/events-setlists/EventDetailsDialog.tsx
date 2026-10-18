@@ -29,6 +29,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getEvent, saveEvent, saveThemeMedia } from "@/core/ipc/commands";
+import { isCssColor, isCssGradient } from "@/core/lib/cssValue";
+import { useMediaPort } from "@/core/config/mediaPort";
 import { mediaKindLabel } from "@/core/lib/media";
 import { parseMediaWithFit, resolveThemeMediaUrl } from "@/features/theme-editor/media";
 import { useSetlistStore } from "./store";
@@ -83,6 +85,7 @@ export function EventDetailsDialog({
   const [wallpaperScope, setWallpaperScope] = useState<"single" | "series">("single");
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "4:3">("16:9");
   const [uploadingWp, setUploadingWp] = useState(false);
+  const mediaPort = useMediaPort();
 
   // Setlist manipulation state
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -556,9 +559,13 @@ export function EventDetailsDialog({
                     {currentWallpaper ? (
                       (() => {
                         const { url } = parseMediaWithFit(currentWallpaper);
-                        const isColor = url.startsWith("#") || url.startsWith("rgb");
-                        const isGradient = url.includes("gradient");
-                        const resolved = resolveThemeMediaUrl(url);
+                        const isColor = isCssColor(url);
+                        const isGradient = isCssGradient(url);
+                        const resolved = resolveThemeMediaUrl(
+                          url,
+                          undefined,
+                          mediaPort ?? undefined,
+                        );
 
                         if (isColor || isGradient) {
                           return <div className="h-full w-full" style={{ background: url }} />;

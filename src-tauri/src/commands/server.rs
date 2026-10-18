@@ -3,11 +3,13 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::error::AppError;
-use crate::server::{bind, spawn_with_listener, Clients, ServerControl};
+use crate::server::{bind, clients, spawn_with_listener, Clients, ServerControl};
 use crate::services::database::Db;
 use crate::services::settings;
 use crate::state::outputs::OutputsState;
-use crate::state::types::{ConnectedClient, ServerStatus, EVENT_OUTPUTS, OUTPUT_HTTP_PORT};
+use crate::state::types::{
+    ClientKind, ConnectedClient, ServerStatus, EVENT_OUTPUTS, OUTPUT_HTTP_PORT,
+};
 
 pub const SERVER_PORT_KEY: &str = "server.port";
 
@@ -127,14 +129,14 @@ pub async fn start_server(
 pub async fn get_connected_clients(
     clients: State<'_, Clients>,
 ) -> Result<Vec<ConnectedClient>, AppError> {
-    let mut list = clients
-        .lock()
-        .map_err(|_| AppError::Storage("clientes indisponíveis".into()))?
-        .values()
-        .cloned()
-        .collect::<Vec<_>>();
-    list.sort_by_key(|client| client.connected_at);
-    Ok(list)
+    clients::list(clients.inner(), ClientKind::Output)
+}
+
+#[tauri::command]
+pub async fn get_remote_clients(
+    clients: State<'_, Clients>,
+) -> Result<Vec<ConnectedClient>, AppError> {
+    clients::list(clients.inner(), ClientKind::Remote)
 }
 
 #[cfg(test)]

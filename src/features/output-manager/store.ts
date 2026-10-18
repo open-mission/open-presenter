@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { OUTPUT_HTTP_PORT, outputHttpUrl } from "@/core/config/app";
+import { setMediaPort } from "@/core/config/mediaPort";
 import {
   closeOutputWindow,
   fetchServerHost,
@@ -117,6 +118,7 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
       (typeof window !== "undefined" && window.location.port
         ? Number(window.location.port) || OUTPUT_HTTP_PORT
         : OUTPUT_HTTP_PORT);
+    setMediaPort(server?.port ?? null);
     set((s) => {
       const runtime = { ...s.runtime };
       for (const item of state) {
@@ -158,6 +160,7 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
       getOutputConfig("stage"),
       getServerStatus(),
     ]);
+    setMediaPort(server?.port ?? null);
     set((s) => {
       const configs = {
         public: normalizeConfig(publicConfig) ?? s.configs.public,
@@ -240,10 +243,15 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
   },
   setPort: async (port) => {
     try {
-      set({ server: await setServerPort(port) });
+      const server = await setServerPort(port);
+      set({ server });
+      setMediaPort(server.port);
     } catch (e) {
       const s = await getServerStatus();
-      if (s) set({ server: s });
+      if (s) {
+        set({ server: s });
+        setMediaPort(s.port);
+      }
       throw e;
     }
   },
@@ -251,7 +259,9 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
     set({ server: await stopServer() });
   },
   startLocalServer: async () => {
-    set({ server: await startServer() });
+    const server = await startServer();
+    set({ server });
+    setMediaPort(server.port);
   },
   restartLocalServer: async () => {
     await get().stopLocalServer();
