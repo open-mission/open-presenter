@@ -45,9 +45,14 @@ export function useLiveThemesPublisher(): void {
   useEffect(() => {
     if (!isTauri()) return;
     const store = useSlideThemesStore.getState();
+    const publicTheme = store.resolveTheme("public", liveKind, liveMediaThemeId);
+    const stageTheme =
+      liveMediaThemeId && publicTheme
+        ? publicTheme
+        : store.resolveStageTheme();
     void setLiveThemes({
-      public: store.resolveTheme("public", liveKind, liveMediaThemeId),
-      stage: store.resolveStageTheme(),
+      public: publicTheme,
+      stage: stageTheme,
     });
   }, [themes, bindings, stageThemeGuid, liveKind, liveMediaThemeId]);
 }

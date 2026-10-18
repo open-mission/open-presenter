@@ -101,6 +101,8 @@ export default function ThemeEditorView() {
   const [exporting, setExporting] = useState(false);
 
   // Photoshop-like 3-column & Canvas zoom/resolution states
+  const [layersWidth, setLayersWidth] = useState(260);
+  const isDraggingLayersDivider = useRef(false);
   const [propertiesWidth, setPropertiesWidth] = useState(360);
   const isDraggingDivider = useRef(false);
   const [zoom, setZoom] = useState<"fit" | number>("fit");
@@ -190,6 +192,29 @@ export default function ThemeEditorView() {
     } else {
       navigate("/preferences");
     }
+  }
+
+  function handleLayersDividerMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    isDraggingLayersDivider.current = true;
+    const startX = e.clientX;
+    const startW = layersWidth;
+
+    function onMouseMove(ev: MouseEvent) {
+      if (!isDraggingLayersDivider.current) return;
+      const delta = ev.clientX - startX;
+      const newWidth = Math.min(550, Math.max(180, startW + delta));
+      setLayersWidth(newWidth);
+    }
+
+    function onMouseUp() {
+      isDraggingLayersDivider.current = false;
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
   }
 
   function handleDividerMouseDown(e: React.MouseEvent) {
@@ -686,9 +711,21 @@ export default function ThemeEditorView() {
       {/* 3-Column Photoshop Layout: Layers (Left) | Canvas (Center) | Divider | Properties (Right) */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left Column: Layers Panel */}
-        <aside className="w-60 shrink-0 flex flex-col h-full overflow-y-auto border-r border-border p-3 bg-card/20">
+        <aside
+          style={{ width: `${layersWidth}px`, minWidth: "180px" }}
+          className="shrink-0 flex flex-col h-full overflow-y-auto border-r border-border p-3 bg-card/20"
+        >
           <LayersPanel selectedId={selectedId} onSelect={setSelectedId} />
         </aside>
+
+        {/* Resizable Divider Handle for Layers */}
+        <div
+          role="separator"
+          tabIndex={0}
+          aria-label="Redimensionar painel de camadas"
+          onMouseDown={handleLayersDividerMouseDown}
+          className="relative w-1.5 shrink-0 cursor-col-resize select-none bg-border/40 hover:bg-primary/50 transition-colors after:absolute after:inset-y-0 after:-left-1 after:-right-1 after:z-10"
+        />
 
         {/* Center Column: Canvas Preview Area */}
         <main className="flex min-w-0 flex-1 flex-col h-full overflow-hidden bg-background">

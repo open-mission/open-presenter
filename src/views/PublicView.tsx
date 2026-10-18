@@ -12,20 +12,26 @@ import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
 import { wallpaperToBackground } from "@/features/presentation/wallpaper";
 import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 
+import { useThemesSync } from "@/features/slide-themes/useThemeSync";
+
 export default function PublicView() {
   usePresentationSync("public");
   useWallpaperSync();
+  useThemesSync();
   const live = usePresentationStore((s) => s.live);
   const wallpaper = useWallpaperStore((s) => s.wallpaper);
   const loadThemes = useSlideThemesStore((s) => s.load);
+  const themes = useSlideThemesStore((s) => s.themes);
   const broadcastTheme = useLiveThemesStore((s) => s.themes.public);
+  const mediaThemeId = live.content.media?.themeId;
   const localTheme = useSlideThemesStore((s) =>
-    s.resolveTheme("public", live.content.kind, live.content.media?.themeId),
+    s.resolveTheme("public", live.content.kind, mediaThemeId),
   );
-  const theme =
-    (live.content.media?.themeId ? localTheme : null) ??
-    broadcastTheme ??
-    localTheme;
+  const customTheme = mediaThemeId
+    ? (themes.find((t) => t.guid === mediaThemeId) ??
+       (broadcastTheme?.guid === mediaThemeId ? broadcastTheme : null))
+    : null;
+  const theme = customTheme ?? broadcastTheme ?? localTheme;
 
   useEffect(() => {
     void loadThemes();
@@ -41,6 +47,19 @@ export default function PublicView() {
 
   // Resolve o plano de fundo efetivo do slide/tema
   const effectiveBackground: BackgroundLayer = useMemo(() => {
+    const isPresentation = Boolean(live.content.media?.themeId);
+
+    // Se for uma apresentação criada no Studio, seu fundo tem prioridade absoluta sobre fundos residuais de músicas
+    if (isPresentation && theme?.css.background && theme.css.background.trim() !== "") {
+      const bg = theme.css.background.trim();
+      const isISF = isIsfBackground(bg);
+      return {
+        id: `theme-bg-${theme.guid}`,
+        kind: isISF ? "isf" : "css",
+        value: bg,
+      };
+    }
+
     const isCustomLiveBg =
       live.background.kind !== "color" ||
       (live.background.value && live.background.value !== "#000000");
@@ -67,7 +86,7 @@ export default function PublicView() {
     }
 
     return live.background;
-  }, [live.background, theme]);
+  }, [live.background, theme, live.content.media?.themeId]);
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-black select-none">
