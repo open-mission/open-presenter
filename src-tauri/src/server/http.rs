@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::io::SeekFrom;
 use std::net::SocketAddr;
 use std::path::{Component, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -6,16 +7,18 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::{
+    body::{Body, Bytes},
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         ConnectInfo, Path, State,
     },
     http::{header, HeaderMap, StatusCode},
     response::{Html, IntoResponse},
-    routing::get,
+    routing::{get, post},
     Router,
 };
 use futures_util::{SinkExt, StreamExt};
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
 use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -109,10 +112,90 @@ async fn live_handler(State(state): State<Arc<ServerState>>) -> impl IntoRespons
     (StatusCode::OK, axum::Json(slide))
 }
 
+fn parse_range(raw: &str, total: u64) -> Option<(u64, u64)> {
+    let value = raw.strip_prefix("bytes=")?;
+    let first = value.split(',').next()?.trim();
+    let (start_raw, end_raw) = first.split_once('-')?;
+
+    if start_raw.is_empty() {
+        let suffix: u64 = end_raw.parse().ok()?;
+        if suffix == 0 || total == 0 {
+            return None;
+        }
+        return Some((total.saturating_sub(suffix), total - 1));
+    }
+
+    let start: u64 = start_raw.parse().ok()?;
+    if start >= total {
+        return None;
+    }
+    let end: u64 = if end_raw.is_empty() {
+        total - 1
+    } else {
+        end_raw.parse().ok()?
+    };
+    if end < start {
+        return None;
+    }
+    Some((start, end.min(total - 1)))
+}
+
+fn media_stream(
+    file: tokio::fs::File,
+    remaining: u64,
+) -> impl futures_util::Stream<Item = Result<Bytes, std::io::Error>> {
+    futures_util::stream::unfold(
+        (file, remaining),
+        |(mut file, remaining)| async move {
+            if remaining == 0 {
+                return None;
+            }
+            let chunk = remaining.min(64 * 1024);
+            let mut buffer = vec![0u8; chunk as usize];
+            match file.read(&mut buffer).await {
+                Ok(0) => None,
+                Ok(read) => {
+                    buffer.truncate(read);
+                    Some((
+                        Ok(Bytes::from(buffer)),
+                        (file, remaining.saturating_sub(read as u64)),
+                    ))
+                }
+                Err(err) => Some((Err(err), (file, 0))),
+            }
+        },
+    )
+}
+
+fn media_response(
+    status: StatusCode,
+    mime: mime_guess::Mime,
+    content_length: u64,
+    content_range: Option<String>,
+    body: Body,
+) -> axum::response::Response {
+    let mut builder = axum::http::Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, mime.as_ref())
+        .header(header::ACCEPT_RANGES, "bytes")
+        .header(header::CONTENT_LENGTH, content_length.to_string())
+        .header("access-control-allow-origin", "*")
+        .header("access-control-allow-methods", "GET, HEAD, OPTIONS")
+        .header("access-control-allow-private-network", "true")
+        .header("cache-control", "public, max-age=3600");
+    if let Some(range) = content_range {
+        builder = builder.header(header::CONTENT_RANGE, range);
+    }
+    builder
+        .body(body)
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
+}
+
 async fn theme_media_handler(
     State(state): State<Arc<ServerState>>,
     Path(path): Path<String>,
-) -> impl IntoResponse {
+    headers: HeaderMap,
+) -> axum::response::Response {
     let clean = path.trim_start_matches('/');
     let relativo = PathBuf::from(clean);
     if relativo
@@ -125,24 +208,47 @@ async fn theme_media_handler(
     if !arquivo.starts_with(&state.media_dir) {
         return StatusCode::NOT_FOUND.into_response();
     }
-    match tokio::fs::read(&arquivo).await {
-        Ok(bytes) => {
-            let mime = mime_guess::from_path(&arquivo).first_or_octet_stream();
-            match axum::http::Response::builder()
-                .status(StatusCode::OK)
-                .header(header::CONTENT_TYPE, mime.as_ref())
-                .header("access-control-allow-origin", "*")
-                .header("access-control-allow-methods", "GET, HEAD, OPTIONS")
-                .header("access-control-allow-private-network", "true")
-                .header("cache-control", "public, max-age=3600")
-                .body(axum::body::Body::from(bytes))
-            {
-                Ok(response) => response.into_response(),
-                Err(_) => StatusCode::NOT_FOUND.into_response(),
-            }
+
+    let metadata = match tokio::fs::metadata(&arquivo).await {
+        Ok(metadata) if metadata.is_file() => metadata,
+        _ => return StatusCode::NOT_FOUND.into_response(),
+    };
+    let total = metadata.len();
+    let mime = mime_guess::from_path(&arquivo).first_or_octet_stream();
+    let range = headers
+        .get(header::RANGE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| parse_range(value, total));
+
+    if let Some((start, end)) = range {
+        let mut file = match tokio::fs::File::open(&arquivo).await {
+            Ok(file) => file,
+            Err(_) => return StatusCode::NOT_FOUND.into_response(),
+        };
+        if file.seek(SeekFrom::Start(start)).await.is_err() {
+            return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
-        Err(_) => StatusCode::NOT_FOUND.into_response(),
+        let length = end - start + 1;
+        return media_response(
+            StatusCode::PARTIAL_CONTENT,
+            mime,
+            length,
+            Some(format!("bytes {start}-{end}/{total}")),
+            Body::from_stream(media_stream(file, length)),
+        );
     }
+
+    let file = match tokio::fs::File::open(&arquivo).await {
+        Ok(file) => file,
+        Err(_) => return StatusCode::NOT_FOUND.into_response(),
+    };
+    media_response(
+        StatusCode::OK,
+        mime,
+        total,
+        None,
+        Body::from_stream(media_stream(file, total)),
+    )
 }
 
 async fn ws_handler(
@@ -294,4 +400,21 @@ pub fn spawn_with_listener(
             tracing::error!(error = %err, "servidor de saídas encerrou com erro");
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_range;
+
+    #[test]
+    fn parse_range_aceita_intervalos_e_sufixos() {
+        assert_eq!(parse_range("bytes=0-99", 1000), Some((0, 99)));
+        assert_eq!(parse_range("bytes=100-", 1000), Some((100, 999)));
+        assert_eq!(parse_range("bytes=-100", 1000), Some((900, 999)));
+        assert_eq!(parse_range("bytes=0-5000", 1000), Some((0, 999)));
+        assert_eq!(parse_range("bytes=100-50", 1000), None);
+        assert_eq!(parse_range("bytes=1000-", 1000), None);
+        assert_eq!(parse_range("bytes=-0", 1000), None);
+        assert_eq!(parse_range("invalid", 1000), None);
+    }
 }

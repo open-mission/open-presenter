@@ -5,6 +5,7 @@ pub mod holyrics;
 pub mod import;
 pub mod lrclib;
 pub mod lyrics;
+pub mod media_library;
 pub mod setlists;
 pub mod settings;
 pub mod songs;

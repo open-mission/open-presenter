@@ -288,6 +288,16 @@ pub fn run() {
             commands::themes::save_theme,
             commands::themes::delete_theme,
             commands::themes::save_theme_media,
+            commands::media::import_media_file,
+            commands::media::import_media_folder,
+            commands::media::open_media_library,
+            commands::media::list_image_library,
+            commands::media::import_images_folder,
+            commands::media::open_images_folder,
+            commands::remote::get_remote_config,
+            commands::remote::set_remote_token,
+            commands::remote::set_remote_enabled,
+            commands::remote::set_remote_setlist,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

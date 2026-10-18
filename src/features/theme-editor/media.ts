@@ -47,44 +47,47 @@ export function resolveThemeMediaUrl(
   const category = match[1];
   const filename = match[2];
 
-  let resolved: string;
+  // O servidor HTTP embutido (porta 5050) fornece rota /theme-media com CORS e Range headers.
+  // Usar HTTP em vez de protocolo customizado (media://) evita que o WebKit (macOS) e Chromium
+  // bloqueiem imagens em CSS background: url(...) ou causem erro de segurança de recurso local.
+  let actualHost: string;
   if (isTauri()) {
-    // No app desktop Tauri:
-    // O protocolo customizado "media" foi registrado no backend Rust.
-    // Usamos o conversor do Tauri se disponível para garantir compatibilidade com WebView2
-    // no Windows (http://media.localhost/...) e WebKit no macOS/Linux (media://localhost/...).
-    const tauriInternals = (
-      window as unknown as {
-        __TAURI_INTERNALS__?: {
-          convertFileSrc?: (path: string, protocol?: string) => string;
-        };
-      }
-    ).__TAURI_INTERNALS__;
-
-    if (typeof tauriInternals?.convertFileSrc === "function") {
-      resolved = tauriInternals.convertFileSrc(`${category}/${filename}`, "media");
-    } else {
-      resolved = `media://${category}/${filename}`;
-    }
+    actualHost = "127.0.0.1";
   } else {
-    // No navegador externo (saída Web / OBS / celulares):
     const currentHost =
       typeof window !== "undefined" && window.location.hostname
         ? window.location.hostname
         : "127.0.0.1";
-    const actualHost =
+    actualHost =
       !host || host === "tauri.localhost" || host === "localhost"
         ? currentHost
         : host;
-    const currentPort =
-      typeof window !== "undefined" && window.location.port
-        ? Number(window.location.port) || port
-        : port;
-    const actualPort = port || currentPort;
-    resolved = `http://${actualHost}:${actualPort}/theme-media/${category}/${filename}`;
   }
 
+  const currentPort =
+    typeof window !== "undefined" && window.location.port
+      ? Number(window.location.port) || port
+      : port;
+  const actualPort = port || currentPort;
+  const resolved = `http://${actualHost}:${actualPort}/theme-media/${category}/${encodeURIComponent(filename)}`;
+
   return hasExplicitFit ? `${resolved}#fit=${fit}` : resolved;
+}
+
+/**
+ * Resolve um caminho `media://...` para URL HTTP do servidor embutido.
+ */
+export function resolveMediaLibraryUrl(value: string, serverBase?: string): string {
+  const match = value.match(/^media:\/\/([^/]+)\/(.+)$/);
+  if (!match) return value;
+
+  const relative = `${match[1]}/${match[2]}`;
+  const base =
+    serverBase && serverBase.startsWith("http")
+      ? serverBase.replace(/\/$/, "")
+      : "http://127.0.0.1:5050";
+
+  return `${base}/theme-media/${relative}`;
 }
 
 export function resolveCssMediaUrls(

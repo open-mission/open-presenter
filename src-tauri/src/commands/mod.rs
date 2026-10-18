@@ -1,3 +1,4 @@
+pub mod media;
 pub mod outputs;
 pub mod presentation;
 pub mod server;
