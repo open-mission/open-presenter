@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { getSongDefaults, setSongDefaults } from "@/core/ipc/commands";
+import { isTauri } from "@/core/ipc/tauri";
 import type { LinesPerSlide } from "@/core/types";
 import { useSongsStore } from "@/features/songs/store";
 import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
@@ -63,6 +64,7 @@ export function SongsTab() {
 
   // Load persisted lines-per-slide preference
   useEffect(() => {
+    if (!isTauri()) return;
     let cancelled = false;
     void getSongDefaults()
       .then((defaults) => {
