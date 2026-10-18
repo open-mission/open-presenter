@@ -7,6 +7,7 @@ node_modules/
 dist/
 dist-ssr/
 release-dist/
+dist-releases/
 *.local
 
 # Tauri / Rust
