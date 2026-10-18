@@ -29,3 +29,8 @@ pub fn save_event(db: State<'_, Db>, event: ServiceEvent) -> Result<(), AppError
 pub fn delete_event(db: State<'_, Db>, id: String) -> Result<(), AppError> {
     db.with_conn(|conn| setlists::delete(conn, &id))
 }
+
+#[tauri::command]
+pub fn get_temporary_event(db: State<'_, Db>) -> Result<ServiceEvent, AppError> {
+    db.with_conn(|conn| setlists::get_temporary(conn))
+}

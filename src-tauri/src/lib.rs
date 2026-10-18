@@ -297,6 +297,7 @@ pub fn run() {
             commands::presentation::get_server_host,
             commands::setlists::list_events,
             commands::setlists::get_event,
+            commands::setlists::get_temporary_event,
             commands::setlists::create_event,
             commands::setlists::save_event,
             commands::setlists::delete_event,

@@ -318,6 +318,10 @@ export async function getEvent(id: string): Promise<ServiceEvent | null> {
   return invokeStrict<ServiceEvent | null>("get_event", { id });
 }
 
+export async function getTemporaryEvent(): Promise<ServiceEvent> {
+  return invokeStrict<ServiceEvent>("get_temporary_event");
+}
+
 export async function createEvent(event: ServiceEvent): Promise<void> {
   await invokeStrict("create_event", { event });
 }

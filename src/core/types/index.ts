@@ -187,6 +187,9 @@ export interface EventSummary {
   wallpaper?: string | null;
 }
 
+export const TEMPORARY_EVENT_ID = "__temporary__";
+export type SetlistListMode = "event" | "temporary";
+
 export interface OnlineLyricHit {
   trackName: string;
   artistName: string;
