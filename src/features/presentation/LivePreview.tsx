@@ -71,16 +71,34 @@ export function LivePreview() {
   const resetZoom = usePreviewLayoutStore((s) => s.resetZoom);
   const showAll = usePreviewLayoutStore((s) => s.showAll);
 
-  const previewTheme = useSlideThemesStore((s) =>
-    preview
-      ? s.resolveTheme("public", preview.kind, preview.media?.themeId)
-      : null,
-  );
-  const liveTheme = useSlideThemesStore((s) =>
-    s.resolveTheme("public", live.content.kind, live.content.media?.themeId),
-  );
+  const previewTheme = useSlideThemesStore((s) => {
+    if (!preview) return null;
+    if (preview.media?.themeId) {
+      const found = s.themes.find((t) => t.guid === preview.media?.themeId);
+      if (found) return found;
+    }
+    return s.resolveTheme("public", preview.kind, preview.media?.themeId);
+  });
+  const liveTheme = useSlideThemesStore((s) => {
+    if (live.content.media?.themeId) {
+      const found = s.themes.find((t) => t.guid === live.content.media?.themeId);
+      if (found) return found;
+    }
+    return s.resolveTheme("public", live.content.kind, live.content.media?.themeId);
+  });
 
   const effectiveBackground: BackgroundLayer = useMemo(() => {
+    const isPresentation = Boolean(live.content.media?.themeId);
+    if (isPresentation && liveTheme?.css.background && liveTheme.css.background.trim() !== "") {
+      const bg = liveTheme.css.background.trim();
+      const isISF = isIsfBackground(bg);
+      return {
+        id: `theme-bg-${liveTheme.guid}`,
+        kind: isISF ? "isf" : "css",
+        value: bg,
+      };
+    }
+
     const isCustomLiveBg =
       live.background.kind !== "color" ||
       (live.background.value && live.background.value !== "#000000");
@@ -107,7 +125,7 @@ export function LivePreview() {
     }
 
     return live.background;
-  }, [live.background, liveTheme]);
+  }, [live.background, liveTheme, live.content.media?.themeId]);
 
   useEffect(() => {
     void loadThemes();

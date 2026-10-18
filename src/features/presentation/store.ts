@@ -42,8 +42,14 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   setCleared: (cleared) =>
     set((s) => ({ live: { ...s.live, cleared } })),
   publishLive: async (slide, nextUp) => {
+    const isPresentation = Boolean(slide.media?.themeId);
+    const isMedia = slide.kind === "media";
+    const shouldResetBg = isPresentation || isMedia;
     const next: LiveSlide = {
       ...get().live,
+      ...(shouldResetBg
+        ? { background: { id: "bg-default", kind: "color", value: "#000000" } }
+        : {}),
       content: slide,
       cleared: false,
       blackout: false,
