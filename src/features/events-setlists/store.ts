@@ -4,24 +4,28 @@ import {
   deleteEvent as deleteEventCommand,
   getEvent,
   getSong,
+  getTemporaryEvent,
   listEvents,
   saveEvent,
 } from "@/core/ipc/commands";
 import { buildSongSlides } from "@/core/lib/lyrics";
 import { buildMediaSlides } from "@/core/lib/media";
-import type {
-  EventItem,
-  EventPart,
-  EventSummary,
-  MediaItem,
-  ServiceEvent,
-  SlideContent,
-  Song,
-  SongSummary,
+import {
+  type EventItem,
+  type EventPart,
+  type EventSummary,
+  type MediaItem,
+  type ServiceEvent,
+  type SetlistListMode,
+  type SlideContent,
+  type Song,
+  type SongSummary,
+  TEMPORARY_EVENT_ID,
 } from "@/core/types";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
 import { useOutputManagerStore } from "@/features/output-manager/store";
+import { transferItemBetweenEvents } from "./temporaryUtils";
 
 export type RecurrenceFrequency = "none" | "weekly" | "biweekly" | "monthly";
 
@@ -101,6 +105,12 @@ interface SetlistState {
   projectSection(itemId: string, index: number): Promise<void>;
   projectNext(): Promise<void>;
   projectPrev(): Promise<void>;
+  listMode: SetlistListMode;
+  lastSelectedEventId: string | null;
+  temporaryEvent: ServiceEvent | null;
+  switchListMode(mode: SetlistListMode): Promise<void>;
+  clearTemporary(): Promise<void>;
+  moveItemToOtherList(itemId: string): Promise<void>;
 }
 
 function errorMessage(err: unknown): string {
@@ -348,6 +358,9 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
   newEventDialogOpen: false,
   newEventInitialDate: null,
   newEventSelectOnCreate: true,
+  listMode: "event",
+  lastSelectedEventId: null,
+  temporaryEvent: null,
 
   openAgenda: () => set({ agendaOpen: true }),
   closeAgenda: () => set({ agendaOpen: false }),
@@ -367,6 +380,23 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
   load: async () => {
     try {
       let events = await listEvents();
+      let temporaryEvent: ServiceEvent | null = null;
+      try {
+        temporaryEvent = await getTemporaryEvent();
+      } catch (err) {
+        console.error("Falha ao carregar temporário:", err);
+      }
+      set({ temporaryEvent });
+
+      if (get().listMode === "temporary") {
+        set({
+          events,
+          event: temporaryEvent,
+          activeEventId: TEMPORARY_EVENT_ID,
+          error: null,
+        });
+        return;
+      }
 
       // Se não houver nenhuma programação, cria um temporário/padrão
       if (events.length === 0) {
@@ -383,6 +413,7 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
           events,
           event: defaultEvent,
           activeEventId: id,
+          lastSelectedEventId: id,
           dirty: false,
           selectedItemId: null,
           error: null,
@@ -415,6 +446,8 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     try {
       const event = await getEvent(id);
       set({
+        listMode: "event",
+        lastSelectedEventId: id,
         event,
         activeEventId: id,
         dirty: false,
@@ -431,6 +464,134 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       }
     } catch (err) {
       set({ error: errorMessage(err) });
+    }
+  },
+
+  switchListMode: async (mode) => {
+    if (get().listMode === mode) return;
+
+    if (get().dirty) {
+      await get().save();
+      if (get().dirty) return;
+    }
+
+    if (mode === "temporary") {
+      const currentActiveId = get().activeEventId;
+      if (currentActiveId && currentActiveId !== TEMPORARY_EVENT_ID) {
+        set({ lastSelectedEventId: currentActiveId });
+      }
+
+      let temp = get().temporaryEvent;
+      try {
+        temp = await getTemporaryEvent();
+        set({ temporaryEvent: temp });
+      } catch (err) {
+        set({ error: errorMessage(err) });
+      }
+
+      set({
+        listMode: "temporary",
+        activeEventId: TEMPORARY_EVENT_ID,
+        event: temp,
+        dirty: false,
+        selectedItemId: null,
+        runnerIndex: null,
+      });
+
+      if (temp?.wallpaper) {
+        useWallpaperStore.getState().applyRemote(temp.wallpaper);
+      } else {
+        const defaultWp = useOutputManagerStore.getState().configs.public?.wallpaper;
+        useWallpaperStore.getState().applyRemote(defaultWp ?? null);
+      }
+    } else {
+      set({ listMode: "event" });
+      const targetId = get().lastSelectedEventId || get().events[0]?.id;
+      if (targetId) {
+        await get().selectEvent(targetId);
+      } else {
+        await get().load();
+      }
+    }
+  },
+
+  clearTemporary: async () => {
+    const emptyTemp: ServiceEvent = {
+      id: TEMPORARY_EVENT_ID,
+      title: "Temporário",
+      eventDate: "",
+      wallpaper: null,
+      parts: [],
+    };
+    try {
+      await saveEvent(emptyTemp);
+      set({
+        temporaryEvent: emptyTemp,
+        ...(get().listMode === "temporary"
+          ? {
+              event: emptyTemp,
+              dirty: false,
+              selectedItemId: null,
+              runnerIndex: null,
+            }
+          : {}),
+      });
+    } catch (err) {
+      set({ error: errorMessage(err) });
+    }
+  },
+
+  moveItemToOtherList: async (itemId) => {
+    const state = get();
+    const currentEvent = state.event;
+    if (!currentEvent) return;
+
+    if (state.listMode === "event") {
+      let targetTemp = state.temporaryEvent;
+      if (!targetTemp) {
+        try {
+          targetTemp = await getTemporaryEvent();
+        } catch {
+          return;
+        }
+      }
+      const transfer = transferItemBetweenEvents(currentEvent, targetTemp, itemId);
+      if (!transfer) return;
+
+      try {
+        await saveEvent(transfer.updatedTarget);
+        set({
+          temporaryEvent: transfer.updatedTarget,
+          event: transfer.updatedSource,
+          dirty: false,
+          selectedItemId: state.selectedItemId === itemId ? null : state.selectedItemId,
+        });
+        await saveEvent(transfer.updatedSource);
+      } catch (err) {
+        set({ error: errorMessage(err) });
+      }
+    } else {
+      const targetEventId = state.lastSelectedEventId || state.events[0]?.id;
+      if (!targetEventId) return;
+
+      const targetEvent = await getEvent(targetEventId);
+      if (!targetEvent) return;
+
+      const transfer = transferItemBetweenEvents(currentEvent, targetEvent, itemId);
+      if (!transfer) return;
+
+      try {
+        await saveEvent(transfer.updatedTarget);
+        set({
+          temporaryEvent: transfer.updatedSource,
+          event: transfer.updatedSource,
+          dirty: false,
+          selectedItemId: state.selectedItemId === itemId ? null : state.selectedItemId,
+        });
+        await saveEvent(transfer.updatedSource);
+      } catch (err) {
+        set({ error: errorMessage(err) });
+      }
     }
   },
 
@@ -629,6 +790,7 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
   },
 
   deleteEvent: async (id) => {
+    if (id === TEMPORARY_EVENT_ID) return;
     try {
       await deleteEventCommand(id);
     } catch (err) {
@@ -870,11 +1032,15 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     }),
 
   save: async () => {
-    const { event } = get();
+    const { event, listMode } = get();
     if (event === null) return;
     try {
       await saveEvent(event);
-      set({ dirty: false, error: null });
+      set({
+        dirty: false,
+        error: null,
+        ...(listMode === "temporary" ? { temporaryEvent: event } : {}),
+      });
       await get().load();
     } catch (err) {
       set({ error: errorMessage(err) });
