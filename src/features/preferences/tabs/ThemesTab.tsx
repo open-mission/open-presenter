@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  ChevronDown,
   Copy,
   ExternalLink,
+  FileText,
+  Music,
   Pencil,
   PenLine,
   Plus,
@@ -22,6 +25,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -56,12 +65,12 @@ const GRID_COLUMNS: GridColumn[] = [
   },
   {
     id: "custom",
-    label: "Apresentação",
+    label: "Texto",
     kind: "custom",
     sampleAsset: "text",
     sampleProps: {
-      texto: "C  G\nCANTAI AO SENHOR",
-      titulo: "Apresentação",
+      texto: "Culto de Domingo às 19h\nTodos são bem-vindos!",
+      titulo: "Avisos Gerais",
     },
   },
   {
@@ -94,7 +103,60 @@ const GRID_COLUMNS: GridColumn[] = [
   },
 ];
 
-function newBlankTheme(title: string): SlideTheme {
+function newBlankTheme(
+  title: string,
+  kind: "lyric" | "text" = "lyric",
+): SlideTheme {
+  if (kind === "text") {
+    return {
+      guid: crypto.randomUUID(),
+      title,
+      css: { background: "#000000" },
+      elements: [
+        {
+          id: "titulo",
+          type: "TEXT",
+          x: 10,
+          y: 8,
+          visible: true,
+          locked: false,
+          css: {
+            top: "8%",
+            left: "10%",
+            width: "80%",
+            textAlign: "center",
+            fontSize: "28px",
+            fontWeight: "600",
+            letterSpacing: "3px",
+            textTransform: "uppercase",
+            color: "#a1a1aa",
+          },
+          text: "{titulo}",
+        },
+        {
+          id: "texto",
+          type: "TEXT",
+          x: 10,
+          y: 26,
+          visible: true,
+          locked: false,
+          css: {
+            top: "26%",
+            left: "10%",
+            width: "80%",
+            textAlign: "center",
+            fontSize: "52px",
+            fontWeight: "600",
+            lineHeight: "1.35",
+            color: "#ffffff",
+            textShadow: "0 2px 10px rgba(0,0,0,0.8)",
+          },
+          text: "{texto}",
+        },
+      ],
+    };
+  }
+
   return {
     guid: crypto.randomUUID(),
     title,
@@ -184,10 +246,14 @@ export function ThemesTab() {
     );
   }, [load]);
 
-  async function handleCreate() {
+  async function handleCreate(kind: "lyric" | "text" = "lyric") {
     setError(null);
     try {
-      const theme = newBlankTheme(`Novo tema ${themes.length + 1}`);
+      const typeLabel = kind === "text" ? "Texto" : "Música";
+      const theme = newBlankTheme(
+        `Novo Tema de ${typeLabel} ${themes.length + 1}`,
+        kind,
+      );
       await save(theme);
       navigate(`/theme-editor?guid=${theme.guid}`);
     } catch (e: unknown) {
@@ -510,10 +576,31 @@ export function ThemesTab() {
               </SelectContent>
             </Select>
 
-            <Button size="sm" onClick={() => void handleCreate()}>
-              <Plus className="size-3.5 mr-1" />
-              Novo tema
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" className="gap-1.5 cursor-pointer">
+                  <Plus className="size-3.5" />
+                  <span>Novo tema</span>
+                  <ChevronDown className="size-3 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => void handleCreate("lyric")}
+                  className="cursor-pointer gap-2"
+                >
+                  <Music className="size-3.5 text-primary" />
+                  <span>Tema para Música (Louvor)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => void handleCreate("text")}
+                  className="cursor-pointer gap-2"
+                >
+                  <FileText className="size-3.5 text-primary" />
+                  <span>Tema para Texto (Avisos / Ministração)</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

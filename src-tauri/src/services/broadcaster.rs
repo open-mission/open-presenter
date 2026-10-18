@@ -90,6 +90,19 @@ impl Broadcaster {
     pub fn current_wallpaper(&self) -> Option<String> {
         self.app.state::<PresentationState>().wallpaper()
     }
+
+    pub fn publish_value<T: serde::Serialize>(&self, channel: &str, payload: &T) {
+        let _ = self.app.emit(channel, payload);
+
+        if let Ok(payload) = serde_json::to_value(payload) {
+            let envelope = serde_json::json!({
+                "channel": channel,
+                "payload": payload,
+                "version": 1,
+            });
+            let _ = self.ws_tx.send(envelope.to_string());
+        }
+    }
 }
 
 pub type SharedBroadcaster = Arc<Broadcaster>;

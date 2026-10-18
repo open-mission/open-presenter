@@ -45,7 +45,9 @@ export function SlideTransition({
   durationMs = 300,
   transitionBackground = false,
 }: SlideTransitionProps) {
-  const currentKey = `${slide.content.id}_${slide.content.title}_${slide.content.section ?? ""}_${slide.content.lines.join("\n")}_${theme?.guid ?? ""}`;
+  const mediaKey =
+    slide.content.kind === "media" ? slide.updatedAt : "";
+  const currentKey = `${slide.content.id}_${slide.content.title}_${slide.content.section ?? ""}_${slide.content.lines.join("\n")}_${theme?.guid ?? ""}_${mediaKey}`;
 
   const [active, setActive] = useState<{
     key: string;

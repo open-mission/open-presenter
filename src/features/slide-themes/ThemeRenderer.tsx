@@ -31,11 +31,19 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+function isSafeHtml(val: string): boolean {
+  return /<(?:div|span|p|br|b|i|strong|em|code)\b[^>]*>/i.test(val);
+}
+
 function renderHtml(
   template: string | undefined,
   props: Record<string, string>,
 ): string {
-  return escapeHtml(renderTemplate(template ?? "", props)).replace(/\n/g, "<br/>");
+  const rendered = renderTemplate(template ?? "", props);
+  if (isSafeHtml(rendered)) {
+    return rendered.replace(/\n/g, "<br/>");
+  }
+  return escapeHtml(rendered).replace(/\n/g, "<br/>");
 }
 
 function elementStyle(element: ThemeElement): CSSProperties {
@@ -120,6 +128,23 @@ function AutoScaledText({
   const autoShrink = element.css.autoShrink === "true";
   const autoFit = element.css.autoFit === "true";
 
+  const textAlign = (element.css.textAlign as CSSProperties["textAlign"]) || "center";
+  const originX = textAlign === "left" ? "left" : textAlign === "right" ? "right" : "center";
+
+  const rawVAlign =
+    (element.css.justifyContent as string | undefined) ||
+    (element.css.verticalAlign as string | undefined) ||
+    (element.css.alignItems as string | undefined);
+
+  const vAlign: CSSProperties["justifyContent"] =
+    rawVAlign === "flex-end" || rawVAlign === "end" || rawVAlign === "bottom"
+      ? "flex-end"
+      : rawVAlign === "flex-start" || rawVAlign === "start" || rawVAlign === "top"
+      ? "flex-start"
+      : "center";
+
+  const originY = vAlign === "flex-end" ? "bottom" : vAlign === "flex-start" ? "top" : "center";
+
   useLayoutEffect(() => {
     if (!autoShrink && !autoFit) {
       setScaleFactor(1);
@@ -154,30 +179,24 @@ function AutoScaledText({
     }
   }, [html, autoShrink, autoFit, element.css.width, element.css.height, element.css.fontSize]);
 
-  if (!autoShrink && !autoFit) {
-    return (
-      <p
-        style={{ ...style, whiteSpace: "pre-line" }}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    );
-  }
-
-  const textAlign = (element.css.textAlign as CSSProperties["textAlign"]) || "center";
-  const originX = textAlign === "left" ? "left" : textAlign === "right" ? "right" : "center";
-  const justifyContent = (element.css.justifyContent as CSSProperties["justifyContent"]) || "center";
-  const originY = justifyContent === "flex-end" ? "bottom" : justifyContent === "flex-start" ? "top" : "center";
+  const {
+    display: _display,
+    flexDirection: _flexDirection,
+    justifyContent: _justifyContent,
+    alignItems: _alignItems,
+    ...baseContainerStyle
+  } = style;
 
   return (
     <div
       ref={containerRef}
       style={{
-        ...style,
+        ...baseContainerStyle,
         display: "flex",
         flexDirection: "column",
-        justifyContent,
-        alignItems: textAlign === "left" ? "flex-start" : textAlign === "right" ? "flex-end" : "center",
-        overflow: "hidden",
+        justifyContent: vAlign,
+        alignItems: "stretch",
+        overflow: style.overflow ?? "hidden",
       }}
     >
       <div
@@ -186,6 +205,7 @@ function AutoScaledText({
           width: "100%",
           whiteSpace: style.whiteSpace ?? "pre-line",
           textAlign,
+          wordBreak: "break-word",
           transform: scaleFactor !== 1 ? `scale(${scaleFactor})` : undefined,
           transformOrigin: `${originX} ${originY}`,
           transition: "transform 0.1s ease-out",

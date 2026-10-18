@@ -162,10 +162,18 @@ function Section({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <label className="flex min-w-0 flex-1 flex-col gap-1">
-      <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
+    <label className={cn("flex min-w-0 flex-1 flex-col gap-1", className)}>
+      <span className="text-[11px] font-medium text-muted-foreground truncate">{label}</span>
       {children}
     </label>
   );
@@ -303,9 +311,9 @@ function PositionSection({
 
   return (
     <Section title="POSIÇÃO & DIMENSÕES" icon={Move} defaultOpen={true}>
-      {/* 2x2 Grid para Posição e Dimensão */}
-      <div className="grid grid-cols-2 gap-2">
-        <Field label="X (px)">
+      {/* Flex wrap para Posição e Dimensão com min-w */}
+      <div className="flex flex-wrap gap-2">
+        <Field label="X (px)" className="min-w-[110px] flex-1">
           <Input
             type="number"
             className="h-8 font-mono text-xs"
@@ -313,7 +321,7 @@ function PositionSection({
             onChange={(e) => setPos("left", e.target.value)}
           />
         </Field>
-        <Field label="Y (px)">
+        <Field label="Y (px)" className="min-w-[110px] flex-1">
           <Input
             type="number"
             className="h-8 font-mono text-xs"
@@ -321,7 +329,7 @@ function PositionSection({
             onChange={(e) => setPos("top", e.target.value)}
           />
         </Field>
-        <Field label="Largura (px)">
+        <Field label="Largura (px)" className="min-w-[110px] flex-1">
           <Input
             type="number"
             min={20}
@@ -330,7 +338,7 @@ function PositionSection({
             onChange={(e) => setDim("width", e.target.value)}
           />
         </Field>
-        <Field label="Altura (px)">
+        <Field label="Altura (px)" className="min-w-[110px] flex-1">
           <Input
             type="number"
             min={20}
@@ -393,8 +401,8 @@ function PositionSection({
         <span className="text-[11px] font-medium text-foreground">
           Margens Internas / Padding
         </span>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Topo (px)">
+        <div className="flex flex-wrap gap-2">
+          <Field label="Topo (px)" className="min-w-[110px] flex-1">
             <Input
               type="number"
               min={0}
@@ -403,7 +411,7 @@ function PositionSection({
               onChange={(e) => setMargin("paddingTop", e.target.value)}
             />
           </Field>
-          <Field label="Direita (px)">
+          <Field label="Direita (px)" className="min-w-[110px] flex-1">
             <Input
               type="number"
               min={0}
@@ -412,7 +420,7 @@ function PositionSection({
               onChange={(e) => setMargin("paddingRight", e.target.value)}
             />
           </Field>
-          <Field label="Fundo (px)">
+          <Field label="Fundo (px)" className="min-w-[110px] flex-1">
             <Input
               type="number"
               min={0}
@@ -421,7 +429,7 @@ function PositionSection({
               onChange={(e) => setMargin("paddingBottom", e.target.value)}
             />
           </Field>
-          <Field label="Esquerda (px)">
+          <Field label="Esquerda (px)" className="min-w-[110px] flex-1">
             <Input
               type="number"
               min={0}
@@ -488,8 +496,17 @@ function TextSection({
     });
   }
 
-  const hAlign = el.css.textAlign ?? "left";
-  const vAlign = el.css.alignItems ?? "flex-start";
+  const hAlign = el.css.textAlign ?? "center";
+  const rawV =
+    el.css.justifyContent ||
+    el.css.verticalAlign ||
+    el.css.alignItems;
+  const vAlign =
+    rawV === "flex-end" || rawV === "end" || rawV === "bottom"
+      ? "flex-end"
+      : rawV === "flex-start" || rawV === "start" || rawV === "top"
+      ? "flex-start"
+      : "center";
 
   return (
     <Section title="TEXTO & TIPOGRAFIA" icon={Type} defaultOpen={true}>
@@ -552,9 +569,9 @@ function TextSection({
         />
       </div>
 
-      {/* Tamanho, Peso e Altura */}
-      <div className="grid grid-cols-3 gap-2">
-        <Field label="Tam. (px)">
+      {/* Tamanho, Peso e Linha com flex-wrap e min-w */}
+      <div className="flex flex-wrap gap-2">
+        <Field label="Tam. (px)" className="min-w-[75px] flex-1">
           <Input
             type="number"
             min={1}
@@ -566,12 +583,12 @@ function TextSection({
             }}
           />
         </Field>
-        <Field label="Peso">
+        <Field label="Peso" className="min-w-[125px] flex-1">
           <Select
             value={el.css.fontWeight ?? "400"}
             onValueChange={(value) => setCss({ fontWeight: value })}
           >
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className="w-full h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent position="popper">
@@ -583,7 +600,7 @@ function TextSection({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Linha">
+        <Field label="Linha" className="min-w-[75px] flex-1">
           <Input
             className="h-8 font-mono text-xs"
             value={el.css.lineHeight ?? "1.2"}
@@ -594,11 +611,11 @@ function TextSection({
 
       {/* Alinhamento Horizontal e Vertical com Ícones */}
       <div className="flex flex-col gap-2 pt-1 border-t border-border/40">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium text-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
+          <span className="text-[11px] font-medium text-foreground shrink-0">
             Alinhamento do Texto
           </span>
-          <div className="flex items-center gap-1 rounded-md border border-border/70 p-0.5 bg-muted/30">
+          <div className="flex items-center gap-1 rounded-md border border-border/70 p-0.5 bg-muted/30 shrink-0">
             {H_ALIGN_BUTTONS.map((btn) => {
               const Icon = btn.icon;
               const selected = hAlign === btn.value;
@@ -622,11 +639,11 @@ function TextSection({
           </div>
         </div>
 
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium text-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
+          <span className="text-[11px] font-medium text-foreground shrink-0">
             Alinhamento Vertical
           </span>
-          <div className="flex items-center gap-1 rounded-md border border-border/70 p-0.5 bg-muted/30">
+          <div className="flex items-center gap-1 rounded-md border border-border/70 p-0.5 bg-muted/30 shrink-0">
             {V_ALIGN_BUTTONS.map((btn) => {
               const Icon = btn.icon;
               const selected = vAlign === btn.value;
@@ -635,7 +652,16 @@ function TextSection({
                   key={btn.value}
                   type="button"
                   title={btn.label}
-                  onClick={() => setCss({ alignItems: btn.value, display: "flex" })}
+                  onClick={() =>
+                    setCss(
+                      {
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: btn.value,
+                      },
+                      ["alignItems"],
+                    )
+                  }
                   className={cn(
                     "flex size-7 items-center justify-center rounded transition-colors cursor-pointer",
                     selected
@@ -650,11 +676,11 @@ function TextSection({
           </div>
         </div>
 
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium text-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
+          <span className="text-[11px] font-medium text-foreground shrink-0">
             Capitalização
           </span>
-          <div className="flex items-center gap-1 rounded-md border border-border/70 p-0.5 bg-muted/30">
+          <div className="flex items-center gap-1 rounded-md border border-border/70 p-0.5 bg-muted/30 shrink-0">
             {CASE_BUTTONS.map((btn) => {
               const selected = (el.css.textTransform ?? "none") === btn.value;
               return (
@@ -679,8 +705,8 @@ function TextSection({
       </div>
 
       {/* Cor do Texto e Efeitos */}
-      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/40">
-        <Field label="Cor do Texto">
+      <div className="flex flex-wrap gap-2 pt-1 border-t border-border/40">
+        <Field label="Cor do Texto" className="min-w-[130px] flex-1">
           <div className="flex items-center gap-1.5">
             <input
               type="color"
@@ -695,12 +721,12 @@ function TextSection({
             />
           </div>
         </Field>
-        <Field label="Efeito">
+        <Field label="Efeito" className="min-w-[130px] flex-1">
           <Select
             value={el.css.textShadow ?? ""}
             onValueChange={(val) => setCss({ textShadow: val })}
           >
-            <SelectTrigger className="h-8 text-xs">
+            <SelectTrigger className="w-full h-8 text-xs">
               <SelectValue placeholder="Nenhum" />
             </SelectTrigger>
             <SelectContent position="popper">
@@ -834,8 +860,8 @@ function AppearanceSection({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/40">
-        <Field label="Borda (px)">
+      <div className="flex flex-wrap gap-2 pt-1 border-t border-border/40">
+        <Field label="Borda (px)" className="min-w-[110px] flex-1">
           <Input
             type="number"
             min={0}
@@ -856,7 +882,7 @@ function AppearanceSection({
             }}
           />
         </Field>
-        <Field label="Arredondamento (px)">
+        <Field label="Arredondamento (px)" className="min-w-[110px] flex-1">
           <Input
             type="number"
             min={0}

@@ -177,7 +177,7 @@ export default function ThemeEditorView() {
     function onMouseMove(ev: MouseEvent) {
       if (!isDraggingDivider.current) return;
       const delta = startX - ev.clientX;
-      const newWidth = Math.min(650, Math.max(280, startW + delta));
+      const newWidth = Math.min(650, Math.max(320, startW + delta));
       setPropertiesWidth(newWidth);
     }
 
@@ -753,7 +753,7 @@ export default function ThemeEditorView() {
 
         {/* Right Column: Properties & Formatting Panel */}
         <aside
-          style={{ width: `${propertiesWidth}px` }}
+          style={{ width: `${propertiesWidth}px`, minWidth: "320px" }}
           className="shrink-0 flex flex-col h-full overflow-y-auto border-l border-border p-3 bg-card/20"
         >
           <PropertiesPanel selectedId={selectedId} />

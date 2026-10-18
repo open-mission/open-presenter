@@ -1,3 +1,4 @@
+import { cleanCommentText, cleanPublicLines, formatStageLyrics, isCommentLine } from "@/core/lib/lyrics";
 import type { SlideContent, SlideKind, StageTimer } from "@/core/types";
 import { stageTimerElapsed } from "@/core/types";
 import { formatElapsed } from "@/core/lib/format";
@@ -15,7 +16,9 @@ export function renderTemplate(
 }
 
 function nextVerseOf(nextUp: SlideContent | null | undefined): string {
-  return nextUp ? nextUp.lines.join("\n") : "";
+  if (!nextUp) return "";
+  const lines = cleanPublicLines(nextUp.lines);
+  return lines.length > 0 ? lines.join("\n") : nextUp.lines.join("\n");
 }
 
 function indexFromId(id: string): string {
@@ -46,12 +49,15 @@ export function buildProps(
   const curIdx = indexFromId(content.id);
   switch (kind) {
     case "lyric": {
-      const text = content.lines.join("\n");
+      const publicLines = cleanPublicLines(content.lines);
+      const text = publicLines.join("\n");
       return {
         // English
         title: content.title,
         artist: "",
         lyrics: text,
+        text,
+        content: text,
         next_verse: nextVerse,
         next_up: nextVerse,
         section: content.section ?? "",
@@ -61,6 +67,7 @@ export function buildProps(
         titulo: content.title,
         artista: "",
         letra: text,
+        texto: text,
         nextVerse,
         secao: content.section ?? "",
         currentIndex: curIdx,
@@ -96,9 +103,30 @@ export function buildProps(
         title: content.title,
         text,
         content: text,
+        lyrics: text,
+        next_verse: nextVerse,
+        next_up: nextVerse,
+        section: content.section ?? "",
         current_slide: curIdx,
         total_slides: "1",
         // Legacy pt-BR
+        titulo: content.title,
+        texto: text,
+        letra: text,
+        nextVerse,
+        secao: content.section ?? "",
+        currentIndex: curIdx,
+        totalCount: "1",
+      };
+    }
+    case "media": {
+      const text = content.media?.title || content.title;
+      return {
+        title: content.title,
+        text,
+        content: text,
+        current_slide: curIdx,
+        total_slides: "1",
         titulo: content.title,
         texto: text,
         currentIndex: curIdx,
@@ -164,13 +192,17 @@ export function buildStageProps(options: {
     timerFormatted = formatElapsed(remaining);
   }
 
-  const nextFull = nextUp ? nextUp.lines.join("\n") : "";
-  const nextFirstLine =
-    nextUp && nextUp.lines.length > 0 ? (nextUp.lines[0] ?? "") : "";
+  const nextPublicLines = nextUp ? cleanPublicLines(nextUp.lines) : [];
+  const nextFull = nextPublicLines.join("\n");
+  const nextComments = nextUp ? nextUp.lines.filter(isCommentLine).map(cleanCommentText) : [];
+  const commentPrefix = nextComments.length > 0 ? `[📌 ${nextComments[0]}] ` : "";
+  const nextFirstLine = nextPublicLines.length > 0
+    ? `${commentPrefix}${nextPublicLines[0]}`
+    : (nextUp && nextUp.lines.length > 0 ? nextUp.lines[0] : "");
   const nextVerse = nextSlideDisplay === "full" ? nextFull : nextFirstLine;
   const nextTitle = nextUp?.title ?? "";
 
-  let letra = content.lines.join("\n");
+  let letra = formatStageLyrics(content.lines);
   if (blackout) {
     letra = "[BLACKOUT]";
   } else if (cleared) {

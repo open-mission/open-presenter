@@ -20,7 +20,7 @@ export default function PublicView() {
   const loadThemes = useSlideThemesStore((s) => s.load);
   const broadcastTheme = useLiveThemesStore((s) => s.themes.public);
   const localTheme = useSlideThemesStore((s) =>
-    s.resolveTheme("public", live.content.kind),
+    s.resolveTheme("public", live.content.kind, live.content.media?.themeId),
   );
   const theme = broadcastTheme ?? localTheme;
 

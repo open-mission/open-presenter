@@ -40,13 +40,14 @@ export function useLiveThemesPublisher(): void {
   const bindings = useSlideThemesStore((s) => s.bindings);
   const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
   const liveKind = usePresentationStore((s) => s.live.content.kind);
+  const liveMediaThemeId = usePresentationStore((s) => s.live.content.media?.themeId);
 
   useEffect(() => {
     if (!isTauri()) return;
     const store = useSlideThemesStore.getState();
     void setLiveThemes({
-      public: store.resolveTheme("public", liveKind),
+      public: store.resolveTheme("public", liveKind, liveMediaThemeId),
       stage: store.resolveStageTheme(),
     });
-  }, [themes, bindings, stageThemeGuid, liveKind]);
+  }, [themes, bindings, stageThemeGuid, liveKind, liveMediaThemeId]);
 }

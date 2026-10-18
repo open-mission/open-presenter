@@ -1,6 +1,8 @@
 import type { LiveSlide } from "@/core/types";
+import { cleanPublicLines } from "@/core/lib/lyrics";
 import { cn } from "@/core/lib/utils";
 import { BackgroundRenderer } from "../media-shaders/BackgroundRenderer";
+import { MediaCanvas } from "./MediaCanvas";
 
 export function SlideCanvas({
   slide,
@@ -17,9 +19,21 @@ export function SlideCanvas({
     return <div className="h-full w-full bg-black" />;
   }
 
+  if (slide.content.kind === "media" && slide.content.media) {
+    return (
+      <div className="relative h-full w-full overflow-hidden bg-black">
+        {!slide.cleared && <MediaCanvas media={slide.content.media} />}
+      </div>
+    );
+  }
+
   // Omit song title and section on public lyrics projection (only show reference for scriptures or explicit showTitle)
   const isScripture = slide.content.kind === "scripture";
   const shouldRenderTitle = (showTitle || isScripture) && slide.content.title.trim().length > 0;
+  const linesToRender =
+    slide.content.kind === "lyric"
+      ? cleanPublicLines(slide.content.lines)
+      : slide.content.lines;
 
   return (
     <div
@@ -39,9 +53,9 @@ export function SlideCanvas({
           )}
 
           <div className="flex flex-col items-center justify-center gap-[1.2cqw] max-w-[92%]">
-            {slide.content.lines.map((line) => (
+            {linesToRender.map((line, idx) => (
               <p
-                key={line}
+                key={`${idx}-${line}`}
                 className={cn(
                   "text-[4.6cqw] font-bold leading-[1.24] text-white [text-shadow:0_0.25cqw_2.5cqw_rgba(0,0,0,0.95)]",
                   lineClassName,

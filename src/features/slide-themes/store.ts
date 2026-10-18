@@ -11,6 +11,8 @@ import {
   DEFAULT_MUSIC_THEME_GUID,
   DEFAULT_STAGE_THEME,
   DEFAULT_STAGE_THEME_GUID,
+  DEFAULT_TEXT_THEME,
+  DEFAULT_TEXT_THEME_GUID,
 } from "./seedThemes";
 
 const BINDINGS_KEY = "open_presenter_theme_bindings";
@@ -71,7 +73,11 @@ interface SlideThemesState {
   setBinding(target: OutputTarget, asset: SlideKind, guid: string): void;
   clearBinding(target: OutputTarget, asset: SlideKind): void;
   setStageTheme(guid: string | null): void;
-  resolveTheme(target: OutputTarget, kind: SlideKind): SlideTheme | null;
+  resolveTheme(
+    target: OutputTarget,
+    kind: SlideKind,
+    customThemeId?: string | null,
+  ): SlideTheme | null;
   resolveStageTheme(): SlideTheme | null;
 }
 
@@ -94,13 +100,34 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
       themes = get().themes;
     }
     if (themes.length > 0) {
+      if (
+        !themes.some(
+          (t) =>
+            t.guid === DEFAULT_TEXT_THEME_GUID ||
+            t.title.toLowerCase().includes("texto"),
+        )
+      ) {
+        await saveTheme(DEFAULT_TEXT_THEME);
+        themes = [...themes, DEFAULT_TEXT_THEME];
+      }
       set({ themes });
+      if (
+        !get().bindings.some(
+          (b) => b.target === "public" && b.asset === "custom",
+        )
+      ) {
+        get().setBinding("public", "custom", DEFAULT_TEXT_THEME_GUID);
+      }
       return;
     }
     await saveTheme(DEFAULT_MUSIC_THEME);
+    await saveTheme(DEFAULT_TEXT_THEME);
     await saveTheme(DEFAULT_STAGE_THEME);
-    set({ themes: [DEFAULT_MUSIC_THEME, DEFAULT_STAGE_THEME] });
+    set({
+      themes: [DEFAULT_MUSIC_THEME, DEFAULT_TEXT_THEME, DEFAULT_STAGE_THEME],
+    });
     get().setBinding("public", "lyric", DEFAULT_MUSIC_THEME_GUID);
+    get().setBinding("public", "custom", DEFAULT_TEXT_THEME_GUID);
     get().setStageTheme(DEFAULT_STAGE_THEME_GUID);
   },
   save: async (theme) => {
@@ -150,12 +177,37 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
     persistStageTheme(guid);
     set({ stageThemeGuid: guid });
   },
-  resolveTheme: (target, kind) => {
+  resolveTheme: (target, kind, customThemeId) => {
+    if (customThemeId) {
+      const foundCustom = get().themes.find((t) => t.guid === customThemeId);
+      if (foundCustom) return foundCustom;
+    }
     const binding = get().bindings.find(
       (b) => b.target === target && b.asset === kind,
     );
-    if (!binding) return null;
-    return get().themes.find((t) => t.guid === binding.themeGuid) ?? null;
+    if (binding) {
+      const found = get().themes.find((t) => t.guid === binding.themeGuid);
+      if (found) return found;
+    }
+    // Fallback inteligente caso não haja binding explícito
+    if (kind === "custom") {
+      const textTheme = get().themes.find(
+        (t) =>
+          t.guid === DEFAULT_TEXT_THEME_GUID ||
+          t.title.toLowerCase().includes("texto") ||
+          t.title.toLowerCase().includes("aviso"),
+      );
+      if (textTheme) return textTheme;
+    } else if (kind === "lyric") {
+      const musicTheme = get().themes.find(
+        (t) =>
+          t.guid === DEFAULT_MUSIC_THEME_GUID ||
+          t.title.toLowerCase().includes("louvor") ||
+          t.title.toLowerCase().includes("música"),
+      );
+      if (musicTheme) return musicTheme;
+    }
+    return get().themes[0] ?? null;
   },
   resolveStageTheme: () => {
     const guid = get().stageThemeGuid ?? DEFAULT_STAGE_THEME_GUID;

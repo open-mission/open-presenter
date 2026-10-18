@@ -4,6 +4,58 @@ export const DEFAULT_MUSIC_THEME_GUID = "a7c799c6-7f78-47ff-b0bb-28ffd657c343";
 
 export const DEFAULT_STAGE_THEME_GUID = "279597e6-9811-497a-8e32-9e5dd189e7d0";
 
+export const DEFAULT_TEXT_THEME_GUID = "c8d198e7-8b89-48ff-b1cc-39eed768d454";
+
+export const DEFAULT_TEXT_THEME: SlideTheme = {
+  guid: DEFAULT_TEXT_THEME_GUID,
+  title: "Texto Padrão",
+  css: {
+    background: "#000000",
+  },
+  elements: [
+    {
+      id: "titulo",
+      type: "TEXT",
+      x: 10,
+      y: 8,
+      visible: true,
+      locked: false,
+      css: {
+        top: "8%",
+        left: "10%",
+        width: "80%",
+        textAlign: "center",
+        fontSize: "28px",
+        fontWeight: "600",
+        letterSpacing: "3px",
+        textTransform: "uppercase",
+        color: "#a1a1aa",
+      },
+      text: "{titulo}",
+    },
+    {
+      id: "texto",
+      type: "TEXT",
+      x: 10,
+      y: 26,
+      visible: true,
+      locked: false,
+      css: {
+        top: "26%",
+        left: "10%",
+        width: "80%",
+        textAlign: "center",
+        fontSize: "52px",
+        fontWeight: "600",
+        lineHeight: "1.35",
+        color: "#ffffff",
+        textShadow: "0 2px 10px rgba(0,0,0,0.8)",
+      },
+      text: "{texto}",
+    },
+  ],
+};
+
 export const DEFAULT_MUSIC_THEME: SlideTheme = {
   guid: DEFAULT_MUSIC_THEME_GUID,
   title: "Louvor Padrão",
