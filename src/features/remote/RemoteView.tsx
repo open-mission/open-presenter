@@ -7,6 +7,7 @@ import {
   Image,
   Loader2,
   Moon,
+  Music,
   Radio,
   SkipBack,
   SkipForward,
@@ -28,6 +29,8 @@ import {
   parseMediaWithFit,
   resolveMediaLibraryUrl,
 } from "@/features/theme-editor/media";
+import { RemoteSongsTab } from "./RemoteSongsTab";
+import { RemoteImagesTab } from "./RemoteImagesTab";
 
 const TOKEN_KEY = "open_presenter_remote_token";
 const WS_CHANNEL_SLIDE = "presentation://slide";
@@ -125,6 +128,9 @@ export default function RemoteView() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [activeTab, setActiveTab] = useState<"programacao" | "musicas" | "imagens">(
+    "programacao",
+  );
 
   function togglePreview() {
     setPreviewCollapsed((previous) => {
@@ -696,9 +702,56 @@ export default function RemoteView() {
           </div>
         </section>
 
+        {/* Rail de Navegação */}
+        <nav
+          aria-label="Abas do controle remoto"
+          className="grid grid-cols-3 gap-1 rounded-xl bg-muted/60 p-1 text-xs"
+        >
+          <button
+            type="button"
+            onClick={() => setActiveTab("programacao")}
+            className={cn(
+              "flex items-center justify-center gap-2 rounded-lg py-2 font-medium transition-colors cursor-pointer",
+              activeTab === "programacao"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Radio className="size-3.5" />
+            <span>Programação</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("musicas")}
+            className={cn(
+              "flex items-center justify-center gap-2 rounded-lg py-2 font-medium transition-colors cursor-pointer",
+              activeTab === "musicas"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Music className="size-3.5" />
+            <span>Músicas</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("imagens")}
+            className={cn(
+              "flex items-center justify-center gap-2 rounded-lg py-2 font-medium transition-colors cursor-pointer",
+              activeTab === "imagens"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Image className="size-3.5" />
+            <span>Imagens</span>
+          </button>
+        </nav>
+
         {/* Programação Destilada */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between px-0.5">
+        {activeTab === "programacao" && (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between px-0.5">
             <div className="flex items-center gap-2">
               <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Programação
@@ -879,6 +932,17 @@ export default function RemoteView() {
             })
           )}
         </section>
+      )}
+
+        {/* Aba Músicas */}
+        {activeTab === "musicas" && (
+          <RemoteSongsTab token={token} live={live} onPost={post} />
+        )}
+
+        {/* Aba Imagens */}
+        {activeTab === "imagens" && (
+          <RemoteImagesTab token={token} live={live} onPost={post} />
+        )}
       </main>
     </div>
   );
