@@ -54,12 +54,17 @@ pub async fn search_lyrics_online(query: String) -> Result<Vec<OnlineLyricHit>, 
 
 #[tauri::command]
 pub async fn fetch_online_lyrics(
+    db: State<'_, Db>,
     id: String,
     track_name: String,
     artist_name: String,
 ) -> Result<Song, AppError> {
     let client = lrclib::client();
     let (title, artist, sections) = lrclib::fetch(&client, &track_name, &artist_name).await?;
+    let sections = db.with_conn(|conn| {
+        let defaults = songs::song_defaults(conn)?;
+        Ok(songs::apply_layout(sections, defaults))
+    })?;
     Ok(Song {
         id,
         title,

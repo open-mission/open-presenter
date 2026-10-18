@@ -10,6 +10,7 @@ pub fn import_holyrics_file(conn: &Connection, path: &Path) -> Result<ImportRepo
     let text = std::fs::read_to_string(path).map_err(|e| AppError::Storage(e.to_string()))?;
     let format = holyrics::format_from_path(path)?;
     let parsed = holyrics::parse(&text, format)?;
+    let defaults = songs::song_defaults(conn)?;
 
     let mut report = ImportReport {
         imported: Vec::new(),
@@ -25,7 +26,8 @@ pub fn import_holyrics_file(conn: &Connection, path: &Path) -> Result<ImportRepo
             });
             continue;
         }
-        songs::insert_new(conn, &song.title, &song.artist, &song.sections)?;
+        let sections = songs::apply_layout(song.sections, defaults);
+        songs::insert_new(conn, &song.title, &song.artist, &sections)?;
         report.imported.push(song.title);
     }
 
@@ -36,6 +38,53 @@ pub fn import_holyrics_file(conn: &Connection, path: &Path) -> Result<ImportRepo
 mod tests {
     use super::*;
     use crate::services::database::open_in_memory;
+    use crate::state::{LinesPerSlide, SectionType, SongDefaults};
+
+    const FIXTURE_SINGLE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/holyrics_single.json");
+
+    #[test]
+    fn importa_quebrando_estrofes_no_layout_padrao() {
+        let conn = open_in_memory();
+        let report = import_holyrics_file(&conn, Path::new(FIXTURE_SINGLE)).unwrap();
+        assert_eq!(report.imported, vec!["A Boa Parte".to_string()]);
+        let summary = songs::list(&conn, Some("A Boa Parte")).unwrap();
+        let song = songs::get(&conn, &summary[0].id).unwrap().unwrap();
+        // 11 parágrafos quebrados de 2 em 2 linhas → 19 seções (default = "2")
+        assert_eq!(song.sections.len(), 19);
+        assert_eq!(song.sections[0].lines, vec!["Precioso Jesus", "Aos Teus pés aqui estou"]);
+    }
+
+    #[test]
+    fn estrofe_rotulada_quebrada_mantem_rotulo_so_no_primeiro_fragmento() {
+        let conn = open_in_memory();
+        let path = std::env::temp_dir().join(format!("layout-{}.txt", std::process::id()));
+        std::fs::write(
+            &path,
+            "Título: Hino\nArtista: X\n\n##(Verso 1)\nlinha 1\nlinha 2\nlinha 3\nlinha 4\n",
+        )
+        .unwrap();
+        import_holyrics_file(&conn, &path).unwrap();
+        let summary = songs::list(&conn, Some("Hino")).unwrap();
+        let song = songs::get(&conn, &summary[0].id).unwrap().unwrap();
+        assert_eq!(song.sections.len(), 2);
+        assert_eq!(song.sections[0].section_type, Some(SectionType::Verse));
+        assert_eq!(song.sections[1].section_type, None);
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn layout_keep_nao_quebra_estrofes() {
+        let conn = open_in_memory();
+        songs::save_song_defaults(
+            &conn,
+            SongDefaults { lines_per_slide: LinesPerSlide::Keep },
+        )
+        .unwrap();
+        import_holyrics_file(&conn, Path::new(FIXTURE_SINGLE)).unwrap();
+        let summary = songs::list(&conn, Some("A Boa Parte")).unwrap();
+        let song = songs::get(&conn, &summary[0].id).unwrap().unwrap();
+        assert_eq!(song.sections.len(), 11);
+    }
 
     #[test]
     fn importa_txt_e_pula_duplicadas_na_segunda_vez() {
