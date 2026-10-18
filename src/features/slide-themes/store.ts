@@ -15,6 +15,7 @@ import {
   DEFAULT_STAGE_THEME_GUID,
   DEFAULT_TEXT_THEME,
   DEFAULT_TEXT_THEME_GUID,
+  createEmptyStudioTheme,
 } from "./seedThemes";
 
 const BINDINGS_KEY = "open_presenter_theme_bindings";
@@ -100,6 +101,8 @@ interface SlideThemesState {
   ): SlideTheme | null;
   resolveStageTheme(): SlideTheme | null;
   resolveStageRestTheme(): SlideTheme | null;
+  duplicate(guid: string): Promise<SlideTheme>;
+  createPresentation(title?: string, bgGradient?: string): Promise<SlideTheme>;
 }
 
 export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
@@ -199,6 +202,30 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
         stageRestThemeGuid,
       };
     });
+  },
+  duplicate: async (guid) => {
+    const existing = get().themes.find((t) => t.guid === guid);
+    if (!existing) throw new Error("Apresentação não encontrada.");
+    const now = new Date().toISOString();
+    const cloned: SlideTheme = {
+      ...existing,
+      guid: crypto.randomUUID(),
+      title: `${existing.title} (Cópia)`,
+      category: existing.category || "presentation",
+      createdAt: now,
+      updatedAt: now,
+      elements: existing.elements.map((el) => ({
+        ...el,
+        id: `${el.id}-${Math.floor(Math.random() * 1000)}`,
+      })),
+    };
+    await get().save(cloned);
+    return cloned;
+  },
+  createPresentation: async (title = "Nova Apresentação", bgGradient?: string) => {
+    const theme = createEmptyStudioTheme(title, bgGradient);
+    await get().save(theme);
+    return theme;
   },
   setBinding: (target, asset, guid) => {
     const key = bindingKey(target, asset);

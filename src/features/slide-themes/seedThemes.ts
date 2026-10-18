@@ -304,12 +304,21 @@ export const DEFAULT_STAGE_REST_THEME: SlideTheme = {
   ],
 };
 
-export function createEmptyStudioTheme(title = "Nova Apresentação"): SlideTheme {
+export function createEmptyStudioTheme(
+  title = "Nova Apresentação",
+  bgGradient?: string,
+): SlideTheme {
+  const now = new Date().toISOString();
   return {
     guid: crypto.randomUUID(),
     title,
+    category: "presentation",
+    createdAt: now,
+    updatedAt: now,
     css: {
-      background: "linear-gradient(135deg, #1e1b4b 0%, #0f172a 50%, #020617 100%)",
+      background:
+        bgGradient ||
+        "linear-gradient(135deg, #1e1b4b 0%, #0f172a 50%, #020617 100%)",
     },
     elements: [
       {

@@ -64,6 +64,7 @@ import { MediaDialog, type VisualMediaKind } from "./MediaDialog";
 import { TextEditorDialog } from "./TextEditorDialog";
 import { EventDetailsDialog } from "./EventDetailsDialog";
 import { SongPickerDialog } from "./SongPickerDialog";
+import { StudioPickerDialog } from "./StudioPickerDialog";
 import { formatEventDateTime } from "./dateUtils";
 
 const MEDIA_ICONS: Record<MediaKind, typeof AlignLeft> = {
@@ -196,6 +197,7 @@ export function SetlistSidebar() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [pickerPartId, setPickerPartId] = useState<string | null>(null);
+  const [studioPickerPartId, setStudioPickerPartId] = useState<string | null>(null);
   const [newPartDialogOpen, setNewPartDialogOpen] = useState(false);
   const [newPartTitle, setNewPartTitle] = useState("");
   const [newEventDialogOpen, setNewEventDialogOpen] = useState(false);
@@ -361,6 +363,22 @@ export function SetlistSidebar() {
     } else {
       const untitled = event.parts.find((p) => p.title.trim() === "");
       setPickerPartId(untitled ? untitled.id : event.parts[0].id);
+    }
+  }
+
+  function handleOpenStudioPicker(targetPartId?: string) {
+    if (!event) return;
+    if (targetPartId) {
+      setStudioPickerPartId(targetPartId);
+      return;
+    }
+    if (event.parts.length === 0) {
+      const newPartId = addPart("");
+      setStudioPickerPartId(newPartId);
+      void save();
+    } else {
+      const untitled = event.parts.find((p) => p.title.trim() === "");
+      setStudioPickerPartId(untitled ? untitled.id : event.parts[0].id);
     }
   }
 
@@ -635,13 +653,28 @@ export function SetlistSidebar() {
                 <Music className="size-3.5 mr-2 text-primary" />
                 Adicionar Música
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => void handleAddPresentation()}
-                className="text-xs cursor-pointer font-medium"
-              >
-                <Sparkles className="size-3.5 mr-2 text-amber-500" />
-                Apresentação (Studio de Criação)
-              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="text-xs cursor-pointer font-medium">
+                  <Sparkles className="size-3.5 mr-2 text-amber-500" />
+                  Apresentação (Studio)
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-56">
+                  <DropdownMenuItem
+                    onSelect={() => handleOpenStudioPicker()}
+                    className="text-xs cursor-pointer font-medium"
+                  >
+                    <Search className="size-3.5 mr-2 text-amber-500" />
+                    Inserir Salva da Biblioteca...
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => void handleAddPresentation()}
+                    className="text-xs cursor-pointer"
+                  >
+                    <Plus className="size-3.5 mr-2 text-primary" />
+                    Criar Nova no Studio...
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
               <DropdownMenuItem
                 onSelect={() => handleAddMedia(undefined, "text")}
                 className="text-xs cursor-pointer"
@@ -747,7 +780,7 @@ export function SetlistSidebar() {
                     size="sm"
                     variant="outline"
                     className="h-8 text-xs font-medium w-full cursor-pointer text-amber-500 border-amber-500/30 hover:bg-amber-500/10"
-                    onClick={() => void handleAddPresentation()}
+                    onClick={() => handleOpenStudioPicker()}
                   >
                     <Sparkles className="size-3.5 mr-1.5 text-amber-500" />
                     Studio
@@ -913,13 +946,28 @@ export function SetlistSidebar() {
                                 <Music className="size-3.5 mr-2 text-primary" />
                                 Adicionar Música
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={() => void handleAddPresentation(part.id)}
-                                className="text-xs cursor-pointer font-medium"
-                              >
-                                <Sparkles className="size-3.5 mr-2 text-amber-500" />
-                                Apresentação (Studio)
-                              </DropdownMenuItem>
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger className="text-xs cursor-pointer font-medium">
+                                  <Sparkles className="size-3.5 mr-2 text-amber-500" />
+                                  Apresentação (Studio)
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent className="w-56">
+                                  <DropdownMenuItem
+                                    onSelect={() => handleOpenStudioPicker(part.id)}
+                                    className="text-xs cursor-pointer font-medium"
+                                  >
+                                    <Search className="size-3.5 mr-2 text-amber-500" />
+                                    Inserir Salva da Biblioteca...
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onSelect={() => void handleAddPresentation(part.id)}
+                                    className="text-xs cursor-pointer"
+                                  >
+                                    <Plus className="size-3.5 mr-2 text-primary" />
+                                    Criar Nova no Studio...
+                                  </DropdownMenuItem>
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
                               <DropdownMenuItem
                                 onSelect={() => handleAddMedia(part.id, "text")}
                                 className="text-xs cursor-pointer"
@@ -1315,13 +1363,28 @@ export function SetlistSidebar() {
             <Music className="size-3.5 text-primary" />
             <span>Adicionar Música</span>
           </ContextMenuItem>
-          <ContextMenuItem
-            onClick={() => void handleAddPresentation()}
-            className="flex items-center gap-2 cursor-pointer font-medium"
-          >
-            <Sparkles className="size-3.5 text-amber-500" />
-            <span>Apresentação (Studio)</span>
-          </ContextMenuItem>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger className="flex items-center gap-2 cursor-pointer font-medium">
+              <Sparkles className="size-3.5 text-amber-500" />
+              <span>Apresentação (Studio)</span>
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="w-56 text-xs">
+              <ContextMenuItem
+                onClick={() => handleOpenStudioPicker()}
+                className="flex items-center gap-2 cursor-pointer font-medium"
+              >
+                <Search className="size-3.5 text-amber-500" />
+                <span>Inserir Salva da Biblioteca...</span>
+              </ContextMenuItem>
+              <ContextMenuItem
+                onClick={() => void handleAddPresentation()}
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <Plus className="size-3.5 text-primary" />
+                <span>Criar Nova no Studio...</span>
+              </ContextMenuItem>
+            </ContextMenuSubContent>
+          </ContextMenuSub>
           <ContextMenuItem
             onClick={() => handleAddMedia(undefined, "text")}
             className="flex items-center gap-2 cursor-pointer"
@@ -1408,6 +1471,17 @@ export function SetlistSidebar() {
           open={Boolean(pickerPartId)}
           onOpenChange={(open) => {
             if (!open) setPickerPartId(null);
+          }}
+        />
+      )}
+
+      {/* Dialog for Studio Presentation Picker */}
+      {studioPickerPartId && (
+        <StudioPickerDialog
+          partId={studioPickerPartId}
+          open={Boolean(studioPickerPartId)}
+          onOpenChange={(open) => {
+            if (!open) setStudioPickerPartId(null);
           }}
         />
       )}

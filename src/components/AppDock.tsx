@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Calendar, HelpCircle, Images, Music, Settings, Smartphone, Tv } from "lucide-react";
+import { Calendar, HelpCircle, Images, Music, Settings, Smartphone, Sparkles, Tv } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isTauri } from "@/core/ipc/tauri";
 import { openShortcutsWindow } from "@/core/ipc/commands";
@@ -66,6 +66,9 @@ export function AppDock() {
       } else if (e.key === "4") {
         e.preventDefault();
         setActiveTab("images");
+      } else if (e.key === "5") {
+        e.preventDefault();
+        setActiveTab("studio");
       }
     }
 
@@ -122,6 +125,15 @@ export function AppDock() {
           shortcut="⌘4"
           active={activeTab === "images"}
           onClick={() => setActiveTab("images")}
+        />
+
+        {/* Studio de Criação & Apresentações */}
+        <NavButton
+          icon={Sparkles}
+          label="Studio de Criação"
+          shortcut="⌘5"
+          active={activeTab === "studio"}
+          onClick={() => setActiveTab("studio")}
         />
       </div>
 

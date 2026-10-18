@@ -285,6 +285,9 @@ export interface SlideTheme {
   title: string;
   css: Record<string, string>;
   elements: ThemeElement[];
+  category?: "presentation" | "theme" | string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ThemeBinding {
