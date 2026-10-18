@@ -39,7 +39,7 @@ pub async fn close_song_editor(app: AppHandle) -> Result<(), AppError> {
     display_manager::close_song_editor_window(&app)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn import_holyrics(db: State<'_, Db>, paths: Vec<String>) -> Result<ImportReport, AppError> {
     db.with_conn(|conn| import::import_holyrics_files(conn, &paths))
 }

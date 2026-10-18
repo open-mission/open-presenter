@@ -158,11 +158,14 @@ export const useSongsStore = create<SongsState>((set, get) => ({
     try {
       const paths = await pickHolyricsFiles();
       if (paths.length === 0) return;
+      set({ loading: true });
       const importReport = await importHolyrics(paths);
       set({ importReport });
       await get().load();
     } catch (err) {
       set({ error: errorMessage(err) });
+    } finally {
+      set({ loading: false });
     }
   },
 

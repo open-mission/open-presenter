@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronUp,
   FolderOpen,
+  Loader2,
   Plus,
   RotateCcw,
   Trash2,
@@ -47,6 +48,7 @@ const LINES_PER_SLIDE_OPTIONS: { value: LinesPerSlide; label: string }[] = [
 
 export function SongsTab() {
   const startHolyricsImport = useSongsStore((s) => s.startHolyricsImport);
+  const loading = useSongsStore((s) => s.loading);
   const groups = useSongGroupsStore((s) => s.groups);
   const updateGroup = useSongGroupsStore((s) => s.updateGroup);
   const addGroup = useSongGroupsStore((s) => s.addGroup);
@@ -144,10 +146,15 @@ export function SongsTab() {
         <button
           type="button"
           onClick={() => void startHolyricsImport()}
-          className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl border border-dashed border-border/80 bg-card/40 px-4 text-xs font-medium text-foreground transition-all hover:border-primary/60 hover:bg-muted/40 cursor-pointer shadow-2xs"
+          disabled={loading}
+          className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl border border-dashed border-border/80 bg-card/40 px-4 text-xs font-medium text-foreground transition-all hover:border-primary/60 hover:bg-muted/40 cursor-pointer shadow-2xs disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <FolderOpen className="size-4 text-primary" />
-          <span>Importar músicas (.json, .txt)</span>
+          {loading ? (
+            <Loader2 className="size-4 animate-spin text-primary" />
+          ) : (
+            <FolderOpen className="size-4 text-primary" />
+          )}
+          <span>{loading ? "Importando músicas…" : "Importar músicas (.json, .txt)"}</span>
         </button>
       </div>
 
