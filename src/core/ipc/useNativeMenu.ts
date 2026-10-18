@@ -8,6 +8,7 @@ import { useSetlistStore } from "@/features/events-setlists/store";
 
 export function useNativeMenu() {
   useEffect(() => {
+    let unlistenNewEvent: (() => void) | null = null;
     let unlistenNewSong: (() => void) | null = null;
     let unlistenSearchOnline: (() => void) | null = null;
     let unlistenImport: (() => void) | null = null;
@@ -23,6 +24,12 @@ export function useNativeMenu() {
     }
 
     // Listen to native menu items from Tauri (macOS/desktop)
+    void listenCommand("new-event", () => {
+      useSetlistStore.getState().openNewEventDialog();
+    }).then((fn) => {
+      unlistenNewEvent = fn;
+    });
+
     void listenCommand("new-song", () => {
       useSongsStore.getState().startNewSong();
     }).then((fn) => {
@@ -67,6 +74,12 @@ export function useNativeMenu() {
         return;
       }
 
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "e") {
+        e.preventDefault();
+        useSetlistStore.getState().openNewEventDialog();
+        return;
+      }
+
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
         useSongsStore.getState().startNewSong();
@@ -108,6 +121,7 @@ export function useNativeMenu() {
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
+      unlistenNewEvent?.();
       unlistenNewSong?.();
       unlistenSearchOnline?.();
       unlistenImport?.();

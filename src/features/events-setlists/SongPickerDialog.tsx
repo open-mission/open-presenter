@@ -16,12 +16,14 @@ interface SongPickerDialogProps {
   partId: string;
   open: boolean;
   onOpenChange(open: boolean): void;
+  onSelectSong?: (song: SongSummary) => void;
 }
 
 export function SongPickerDialog({
   partId,
   open,
   onOpenChange,
+  onSelectSong,
 }: SongPickerDialogProps) {
   const addSong = useSetlistStore((s) => s.addSong);
 
@@ -94,7 +96,11 @@ export function SongPickerDialog({
                 variant="secondary"
                 className="justify-start"
                 onClick={() => {
-                  addSong(partId, song);
+                  if (onSelectSong) {
+                    onSelectSong(song);
+                  } else {
+                    addSong(partId, song);
+                  }
                   onOpenChange(false);
                 }}
               >

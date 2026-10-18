@@ -1,13 +1,17 @@
 import { useRef, useState } from "react";
 import {
+  AlignLeft,
   ArrowDown,
   ArrowUp,
   Calendar,
   Check,
   ChevronDown,
   ChevronRight,
+  FolderOpen,
   FolderPlus,
   GripVertical,
+  Image as ImageIcon,
+  Images,
   MoreVertical,
   Music,
   Palette,
@@ -16,7 +20,9 @@ import {
   RotateCcw,
   Search,
   Trash2,
+  Video,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +30,9 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
@@ -31,6 +40,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -40,10 +52,63 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { EventPart } from "@/core/types";
+import { mediaKindLabel } from "@/core/lib/media";
+import { openMediaLibrary } from "@/core/ipc/commands";
+import type { EventItem, EventPart, MediaKind } from "@/core/types";
 import { useSongsStore } from "@/features/songs/store";
-import { useSetlistStore } from "./store";
+import { findEventItem, useSetlistStore } from "./store";
+import { MediaDialog, type VisualMediaKind } from "./MediaDialog";
+import { TextEditorDialog } from "./TextEditorDialog";
+import { EventDetailsDialog } from "./EventDetailsDialog";
 import { SongPickerDialog } from "./SongPickerDialog";
+import { formatEventDateTime } from "./dateUtils";
+
+const MEDIA_ICONS: Record<MediaKind, typeof AlignLeft> = {
+  text: AlignLeft,
+  image: ImageIcon,
+  folder: Images,
+  video: Video,
+};
+
+const MEDIA_KIND_OPTIONS: Array<{
+  kind: VisualMediaKind;
+  label: string;
+  icon: typeof ImageIcon;
+}> = [
+  { kind: "image", label: "Imagem", icon: ImageIcon },
+  { kind: "folder", label: "Pasta de imagens", icon: Images },
+  { kind: "video", label: "Vídeo", icon: Video },
+];
+
+function ItemKindIcon({ item }: { item: EventItem }) {
+  const media = item.media;
+  const Icon = media ? MEDIA_ICONS[media.kind] : Music;
+  return (
+    <Icon
+      className={`size-3.5 mt-0.5 shrink-0 ${
+        media ? "text-sky-500" : "text-primary"
+      }`}
+    />
+  );
+}
+
+function itemTitle(item: EventItem): string {
+  return (
+    item.media?.title ||
+    item.song?.title ||
+    (item.media ? "Mídia sem título" : "Música sem título")
+  );
+}
+
+function itemSubtitle(item: EventItem): string {
+  if (item.media) {
+    const count = item.media.files?.length ?? 0;
+    return item.media.kind === "folder"
+      ? `${mediaKindLabel(item.media.kind)} · ${count} ${count === 1 ? "imagem" : "imagens"}`
+      : mediaKindLabel(item.media.kind);
+  }
+  return item.song?.artist || "Louvor";
+}
 
 const LABEL_COLOR_PRESETS = [
   { label: "Padrão", value: "" },
@@ -99,6 +164,15 @@ export function SetlistSidebar() {
   const [newPartTitle, setNewPartTitle] = useState("");
   const [newEventDialogOpen, setNewEventDialogOpen] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState("");
+  const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
+  const [mediaPartId, setMediaPartId] = useState<string | null>(null);
+  const [mediaItemId, setMediaItemId] = useState<string | null>(null);
+  const [mediaInitialKind, setMediaInitialKind] =
+    useState<VisualMediaKind>("image");
+  const [textEditorOpen, setTextEditorOpen] = useState(false);
+  const [textEditorPartId, setTextEditorPartId] = useState("");
+  const [textEditorItemId, setTextEditorItemId] = useState<string | null>(null);
+  const [eventDetailsOpen, setEventDetailsOpen] = useState(false);
 
   // Collapse, color and rename section states
   const [collapsedParts, setCollapsedParts] = useState<Record<string, boolean>>({});
@@ -254,105 +328,241 @@ export function SetlistSidebar() {
     }
   }
 
+  function resolvePartId(targetPartId?: string): string {
+    if (targetPartId) return targetPartId;
+    if (!event || event.parts.length === 0) return "";
+    const untitled = event.parts.find((p) => p.title.trim() === "");
+    return untitled ? untitled.id : event.parts[0].id;
+  }
+
+  function handleAddMedia(targetPartId?: string, kind: MediaKind = "text") {
+    if (!event) return;
+    const partId = resolvePartId(targetPartId);
+
+    if (kind === "text") {
+      setTextEditorPartId(partId);
+      setTextEditorItemId(null);
+      setTextEditorOpen(true);
+      return;
+    }
+
+    setMediaPartId(partId);
+    setMediaItemId(null);
+    setMediaInitialKind(kind);
+    setMediaDialogOpen(true);
+  }
+
+  function handleEditMedia(itemId: string) {
+    if (!event) return;
+    const item = findEventItem(event, itemId);
+    const part = event.parts.find((candidate) =>
+      candidate.items.some((candidateItem) => candidateItem.id === itemId),
+    );
+    if (!part) return;
+
+    if (item?.media?.kind === "text") {
+      setTextEditorPartId(part.id);
+      setTextEditorItemId(itemId);
+      setTextEditorOpen(true);
+      return;
+    }
+
+    setMediaPartId(part.id);
+    setMediaItemId(itemId);
+    setMediaDialogOpen(true);
+  }
+
+  async function handleOpenMediaLibrary() {
+    try {
+      await openMediaLibrary();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+
   const totalItems = event?.parts.reduce((acc, p) => acc + p.items.length, 0) ?? 0;
 
   return (
     <aside className="flex h-full w-72 min-h-0 flex-col border-r border-border bg-muted/20 sm:w-80 shrink-0 select-none overflow-hidden">
       {/* Top Header: Event Title & Action Plus */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-3 sm:px-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex items-center gap-1.5 text-left font-bold text-sm tracking-tight text-foreground hover:text-primary transition-colors outline-none"
+              className="group flex flex-col text-left transition-colors outline-none cursor-pointer max-w-[170px] sm:max-w-[195px]"
             >
-              <span className="truncate max-w-[180px]">
-                {event?.title || "Programação do Culto"}
-              </span>
-              <ChevronDown className="size-3.5 text-muted-foreground" />
+              <div className="flex items-center gap-1.5 font-bold text-sm tracking-tight text-foreground group-hover:text-primary transition-colors">
+                <span className="truncate">
+                  {event?.title || "Programação do Culto"}
+                </span>
+                <ChevronDown className="size-3.5 text-muted-foreground shrink-0 group-hover:text-primary transition-colors" />
+              </div>
+              {event?.eventDate && (
+                <span className="text-[11px] font-medium text-muted-foreground truncate">
+                  {formatEventDateTime(event.eventDate).displaySummary}
+                </span>
+              )}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <div className="px-2 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+          <DropdownMenuContent align="start" className="w-72 sm:w-80 max-h-[65vh] overflow-y-auto">
+            <div className="px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
               Cultos & Eventos
             </div>
-            {events.map((ev) => (
-              <DropdownMenuItem
-                key={ev.id}
-                onSelect={() => void selectEvent(ev.id)}
-                className="flex items-center justify-between text-xs"
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <Calendar className="size-3.5 text-muted-foreground" />
-                  <span className="truncate">{ev.title}</span>
-                </div>
-                {ev.id === activeEventId && (
-                  <Check className="size-3.5 text-primary" />
-                )}
-              </DropdownMenuItem>
-            ))}
+            {events.map((ev) => {
+              const dt = formatEventDateTime(ev.eventDate);
+              const isSelected = ev.id === activeEventId;
+              return (
+                <DropdownMenuItem
+                  key={ev.id}
+                  onSelect={() => void selectEvent(ev.id)}
+                  className={`flex items-center justify-between py-2 px-2.5 text-xs cursor-pointer ${
+                    isSelected ? "bg-accent/60 font-semibold" : ""
+                  }`}
+                >
+                  <div className="flex flex-col min-w-0 pr-2">
+                    <span className="font-semibold text-foreground truncate">{ev.title}</span>
+                    {dt.displaySummary && (
+                      <span className="text-[11px] text-muted-foreground truncate">
+                        {dt.displaySummary}
+                      </span>
+                    )}
+                  </div>
+                  {isSelected && (
+                    <Check className="size-4 text-primary shrink-0" />
+                  )}
+                </DropdownMenuItem>
+              );
+            })}
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onSelect={() => setNewEventDialogOpen(true)}
-              className="text-xs"
+              onSelect={() => useSetlistStore.getState().openAgenda()}
+              className="text-xs cursor-pointer py-1.5"
             >
-              <Plus className="size-3.5 mr-2" />
-              Novo Culto / Evento…
+              <Calendar className="size-3.5 mr-2 text-primary" />
+              <span>Abrir Agenda de Eventos…</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => useSetlistStore.getState().openNewEventDialog(undefined, true)}
+              className="text-xs cursor-pointer py-1.5"
+            >
+              <Plus className="size-3.5 mr-2 text-primary" />
+              <span>Novo Culto / Evento…</span>
             </DropdownMenuItem>
             {event && (
               <DropdownMenuItem
+                onSelect={() => setEventDetailsOpen(true)}
+                className="text-xs cursor-pointer py-1.5"
+              >
+                <ImageIcon className="size-3.5 mr-2 text-primary" />
+                <span>Plano de Fundo do Culto…</span>
+              </DropdownMenuItem>
+            )}
+            {event && (
+              <DropdownMenuItem
                 onSelect={() => void deleteEvent(event.id)}
-                className="text-xs text-destructive focus:text-destructive"
+                className="text-xs text-destructive focus:text-destructive cursor-pointer py-1.5"
               >
                 <Trash2 className="size-3.5 mr-2" />
-                Excluir este evento
+                <span>Excluir este evento</span>
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Plus Action Button */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="size-8 rounded-lg border-border/80 shadow-2xs hover:bg-accent"
-              aria-label="Adicionar item"
-            >
-              <Plus className="size-4 text-foreground" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem
-              onSelect={() => handleAddMusic()}
-              className="text-xs cursor-pointer"
-            >
-              <Music className="size-3.5 mr-2 text-primary" />
-              Adicionar Música
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => setNewPartDialogOpen(true)}
-              className="text-xs cursor-pointer"
-            >
-              <FolderPlus className="size-3.5 mr-2 text-primary" />
-              Adicionar Seção
-            </DropdownMenuItem>
-            {dirty && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={() => void save()}
-                  className="text-xs font-semibold text-primary cursor-pointer"
-                >
-                  <Check className="size-3.5 mr-2" />
-                  Salvar Programação
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Action Buttons: Calendar Quick Access & Plus Menu */}
+        <div className="flex items-center gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="size-8 rounded-lg border-border/80 shadow-2xs hover:bg-accent hover:text-primary transition-colors cursor-pointer"
+            onClick={() => useSetlistStore.getState().openAgenda()}
+            title="Agenda & Cronograma de Eventos"
+            aria-label="Abrir agenda de eventos"
+          >
+            <Calendar className="size-4 text-foreground" />
+          </Button>
+
+          {/* Plus Action Button */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-8 rounded-lg border-border/80 shadow-2xs hover:bg-accent cursor-pointer"
+                aria-label="Adicionar item"
+              >
+                <Plus className="size-4 text-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onSelect={() => handleAddMusic()}
+                className="text-xs cursor-pointer"
+              >
+                <Music className="size-3.5 mr-2 text-primary" />
+                Adicionar Música
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => handleAddMedia(undefined, "text")}
+                className="text-xs cursor-pointer"
+              >
+                <AlignLeft className="size-3.5 mr-2 text-sky-500" />
+                Adicionar Texto
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => setNewPartDialogOpen(true)}
+                className="text-xs cursor-pointer"
+              >
+                <FolderPlus className="size-3.5 mr-2 text-primary" />
+                Adicionar Seção
+              </DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="text-xs cursor-pointer">
+                  <ImageIcon className="size-3.5 mr-2 text-sky-500" />
+                  Adicionar Mídia
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-52">
+                  {MEDIA_KIND_OPTIONS.map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <DropdownMenuItem
+                        key={option.kind}
+                        onSelect={() => handleAddMedia(undefined, option.kind)}
+                        className="text-xs cursor-pointer"
+                      >
+                        <Icon className="size-3.5 mr-2 text-sky-500" />
+                        {option.label}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuItem
+                onSelect={() => void handleOpenMediaLibrary()}
+                className="text-xs cursor-pointer"
+              >
+                <FolderOpen className="size-3.5 mr-2 text-muted-foreground" />
+                Abrir Pasta de Mídias
+              </DropdownMenuItem>
+              {dirty && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => void save()}
+                    className="text-xs font-semibold text-primary cursor-pointer"
+                  >
+                    <Check className="size-3.5 mr-2" />
+                    Salvar Programação
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Search Input Bar */}
@@ -363,7 +573,7 @@ export function SetlistSidebar() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar música na programação…"
+            placeholder="Buscar na programação…"
             className="h-8 w-full rounded-md border border-input bg-background pr-3 pl-8 text-xs text-foreground placeholder:text-muted-foreground shadow-2xs outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
@@ -382,11 +592,11 @@ export function SetlistSidebar() {
                   <p className="text-xs font-semibold text-foreground">
                     Nenhum item na programação
                   </p>
-                  <p className="text-[11px] text-muted-foreground max-w-[210px] leading-relaxed">
-                    Adicione músicas ou seções para montar a programação deste culto.
+                  <p className="text-[11px] text-muted-foreground max-w-[220px] leading-relaxed">
+                    Adicione músicas, textos, mídias ou seções para montar a programação deste culto.
                   </p>
                 </div>
-                <div className="flex flex-col gap-1.5 w-full max-w-[190px] pt-1">
+                <div className="grid w-full max-w-[240px] grid-cols-2 gap-1.5 pt-1">
                   <Button
                     type="button"
                     size="sm"
@@ -394,7 +604,27 @@ export function SetlistSidebar() {
                     onClick={() => handleAddMusic()}
                   >
                     <Music className="size-3.5 mr-1.5" />
-                    Adicionar Música
+                    Música
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs font-medium w-full cursor-pointer"
+                    onClick={() => handleAddMedia(undefined, "text")}
+                  >
+                    <AlignLeft className="size-3.5 mr-1.5" />
+                    Texto
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs font-medium w-full cursor-pointer"
+                    onClick={() => handleAddMedia(undefined, "image")}
+                  >
+                    <ImageIcon className="size-3.5 mr-1.5" />
+                    Mídia
                   </Button>
                   <Button
                     type="button"
@@ -404,7 +634,7 @@ export function SetlistSidebar() {
                     onClick={() => setNewPartDialogOpen(true)}
                   >
                     <FolderPlus className="size-3.5 mr-1.5" />
-                    Adicionar Seção
+                    Seção
                   </Button>
                 </div>
               </div>
@@ -414,7 +644,16 @@ export function SetlistSidebar() {
                   if (!needle) return true;
                   const title = item.song?.title?.toLowerCase() || "";
                   const artist = item.song?.artist?.toLowerCase() || "";
-                  return title.includes(needle) || artist.includes(needle);
+                  const mediaTitle = item.media?.title.toLowerCase() || "";
+                  const mediaKind = item.media
+                    ? mediaKindLabel(item.media.kind).toLowerCase()
+                    : "";
+                  return (
+                    title.includes(needle) ||
+                    artist.includes(needle) ||
+                    mediaTitle.includes(needle) ||
+                    mediaKind.includes(needle)
+                  );
                 });
 
                 if (needle && filteredItems.length === 0) return null;
@@ -504,7 +743,7 @@ export function SetlistSidebar() {
                           </span>
                           {isCollapsed && (
                             <span className="text-[10px] font-normal opacity-70 shrink-0 lowercase">
-                              ({filteredItems.length} {filteredItems.length === 1 ? "música" : "músicas"})
+                              ({filteredItems.length} {filteredItems.length === 1 ? "item" : "itens"})
                             </span>
                           )}
                         </div>
@@ -584,8 +823,9 @@ export function SetlistSidebar() {
                       <div className="space-y-1">
                       {filteredItems.map((item, itemIdx) => {
                         const isSelected = selectedItemId === item.id;
-                        const title = item.song?.title || "Música sem título";
-                        const artist = item.song?.artist || "Louvor";
+                        const title = itemTitle(item);
+                        const artist = itemSubtitle(item);
+                        const isMedia = item.media != null;
                         const isBeingDragged =
                           (dragItemRef.current?.itemId ?? draggedItem?.itemId) === item.id;
                         const isHoveredOver = dragOverItem?.itemId === item.id;
@@ -672,6 +912,7 @@ export function SetlistSidebar() {
                               >
                                 <div className="flex items-start gap-1.5 min-w-0 flex-1 pr-1">
                                   <GripVertical className="size-3.5 mt-0.5 text-muted-foreground/30 group-hover:text-muted-foreground/70 transition-colors shrink-0" />
+                                  <ItemKindIcon item={item} />
                                   <div className="min-w-0 flex-1">
                                     <p className="truncate font-semibold text-xs text-foreground">
                                       {title}
@@ -707,13 +948,27 @@ export function SetlistSidebar() {
                                       align="end"
                                       className="min-w-44 whitespace-nowrap text-xs"
                                     >
-                                      <DropdownMenuItem
-                                        onSelect={() => void useSongsStore.getState().editSong(item.songId)}
-                                        className="whitespace-nowrap flex items-center gap-2 cursor-pointer"
-                                      >
-                                        <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
-                                        <span>Editar música</span>
-                                      </DropdownMenuItem>
+                                      {isMedia ? (
+                                        <DropdownMenuItem
+                                          onSelect={() => handleEditMedia(item.id)}
+                                          className="whitespace-nowrap flex items-center gap-2 cursor-pointer"
+                                        >
+                                          <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
+                                          <span>Editar mídia</span>
+                                        </DropdownMenuItem>
+                                      ) : (
+                                        <DropdownMenuItem
+                                          onSelect={() => {
+                                            if (item.songId) {
+                                              void useSongsStore.getState().editSong(item.songId);
+                                            }
+                                          }}
+                                          className="whitespace-nowrap flex items-center gap-2 cursor-pointer"
+                                        >
+                                          <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
+                                          <span>Editar música</span>
+                                        </DropdownMenuItem>
+                                      )}
                                       <DropdownMenuSeparator />
                                       <DropdownMenuItem
                                         disabled={itemIdx === 0}
@@ -747,13 +1002,27 @@ export function SetlistSidebar() {
 
                             {/* Context Menu for right-click on item */}
                             <ContextMenuContent className="min-w-44 whitespace-nowrap text-xs">
-                              <ContextMenuItem
-                                onClick={() => void useSongsStore.getState().editSong(item.songId)}
-                                className="whitespace-nowrap flex items-center gap-2 cursor-pointer"
-                              >
-                                <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
-                                <span>Editar música</span>
-                              </ContextMenuItem>
+                              {isMedia ? (
+                                <ContextMenuItem
+                                  onClick={() => handleEditMedia(item.id)}
+                                  className="whitespace-nowrap flex items-center gap-2 cursor-pointer"
+                                >
+                                  <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
+                                  <span>Editar mídia</span>
+                                </ContextMenuItem>
+                              ) : (
+                                <ContextMenuItem
+                                  onClick={() => {
+                                    if (item.songId) {
+                                      void useSongsStore.getState().editSong(item.songId);
+                                    }
+                                  }}
+                                  className="whitespace-nowrap flex items-center gap-2 cursor-pointer"
+                                >
+                                  <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
+                                  <span>Editar música</span>
+                                </ContextMenuItem>
+                              )}
                               <ContextMenuSeparator />
                               <ContextMenuItem
                                 disabled={itemIdx === 0}
@@ -802,11 +1071,46 @@ export function SetlistSidebar() {
             <span>Adicionar Música</span>
           </ContextMenuItem>
           <ContextMenuItem
+            onClick={() => handleAddMedia(undefined, "text")}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <AlignLeft className="size-3.5 text-sky-500" />
+            <span>Adicionar Texto</span>
+          </ContextMenuItem>
+          <ContextMenuItem
             onClick={() => setNewPartDialogOpen(true)}
             className="flex items-center gap-2 cursor-pointer"
           >
             <FolderPlus className="size-3.5 text-primary" />
             <span>Adicionar Seção</span>
+          </ContextMenuItem>
+          <ContextMenuSub>
+            <ContextMenuSubTrigger className="flex items-center gap-2 cursor-pointer">
+              <ImageIcon className="size-3.5 text-sky-500" />
+              <span>Adicionar Mídia</span>
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="w-52">
+              {MEDIA_KIND_OPTIONS.map((option) => {
+                const Icon = option.icon;
+                return (
+                  <ContextMenuItem
+                    key={option.kind}
+                    onClick={() => handleAddMedia(undefined, option.kind)}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <Icon className="size-3.5 text-sky-500" />
+                    <span>{option.label}</span>
+                  </ContextMenuItem>
+                );
+              })}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+          <ContextMenuItem
+            onClick={() => void handleOpenMediaLibrary()}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <FolderOpen className="size-3.5 text-muted-foreground" />
+            <span>Abrir Pasta de Mídias</span>
           </ContextMenuItem>
           {dirty && (
             <>
@@ -1103,6 +1407,40 @@ export function SetlistSidebar() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog for Adding/Editing Media Items */}
+      {mediaPartId !== null && (
+        <MediaDialog
+          open={mediaDialogOpen}
+          onOpenChange={(open) => {
+            setMediaDialogOpen(open);
+            if (!open) setMediaItemId(null);
+          }}
+          partId={mediaPartId}
+          itemId={mediaItemId}
+          initialKind={mediaInitialKind}
+        />
+      )}
+
+      {/* Full editor for text sequences */}
+      <TextEditorDialog
+        open={textEditorOpen}
+        onOpenChange={(open) => {
+          setTextEditorOpen(open);
+          if (!open) setTextEditorItemId(null);
+        }}
+        partId={textEditorPartId}
+        itemId={textEditorItemId}
+      />
+
+      {/* Event details and wallpaper configuration */}
+      {event && (
+        <EventDetailsDialog
+          eventSummary={event}
+          open={eventDetailsOpen}
+          onClose={() => setEventDetailsOpen(false)}
+        />
+      )}
     </aside>
   );
 }

@@ -16,8 +16,9 @@ function resolveNextItem(
 ): { id: string; title: string } | null {
   if (item === undefined || item.nextItemId === null) return null;
   const next = findEventItem(event, item.nextItemId);
-  if (next === undefined || next.song === null) return null;
-  return { id: next.id, title: next.song.title };
+  if (next === undefined) return null;
+  const title = next.media?.title ?? next.song?.title;
+  return title ? { id: next.id, title } : null;
 }
 
 export function SongRunner() {
@@ -34,12 +35,12 @@ export function SongRunner() {
   const item =
     selectedItemId === null ? undefined : findEventItem(event, selectedItemId);
   const song =
-    item !== undefined && item.song !== null
+    item !== undefined && item.song != null && item.songId != null
       ? songsCache[item.songId]
       : undefined;
 
   useEffect(() => {
-    if (item !== undefined && item.song !== null && song === undefined) {
+    if (item !== undefined && item.song != null && song === undefined) {
       void loadItemSong(item.id);
     }
   }, [item, song, loadItemSong]);
@@ -58,12 +59,12 @@ export function SongRunner() {
             Selecione uma música no setlist.
           </p>
         )}
-        {item !== undefined && item.song === null && (
+        {item !== undefined && item.song == null && item.media == null && (
           <p className="text-sm text-amber-500">
             Música removida — escolha outra no setlist.
           </p>
         )}
-        {item !== undefined && item.song !== null && song === undefined && (
+        {item !== undefined && item.song != null && song === undefined && (
           <p className="text-sm text-muted-foreground">Carregando…</p>
         )}
         {item !== undefined && song !== undefined && (

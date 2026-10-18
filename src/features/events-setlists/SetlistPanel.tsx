@@ -300,12 +300,14 @@ function ItemRow({ item, index, count }: ItemRowProps) {
             className={cn(
               "min-w-0 flex-1 justify-start",
               selectedItemId === item.id && "ring-1 ring-primary",
-              item.song === null && "text-muted-foreground",
+              item.song == null && item.media == null && "text-muted-foreground",
             )}
             onClick={() => selectItem(item.id)}
           >
             <span className="min-w-0 truncate">
-              {item.song
+              {item.media
+                ? item.media.title
+                : item.song
                 ? `${item.song.title} · ${item.song.artist}`
                 : "Música removida"}
             </span>
@@ -316,8 +318,12 @@ function ItemRow({ item, index, count }: ItemRowProps) {
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem
-            disabled={item.song === null}
-            onClick={() => void useSongsStore.getState().editSong(item.songId)}
+            disabled={item.songId == null}
+            onClick={() => {
+              if (item.songId) {
+                void useSongsStore.getState().editSong(item.songId);
+              }
+            }}
           >
             Editar
           </ContextMenuItem>

@@ -28,6 +28,7 @@ import type { EventItem, SectionType, ServiceEvent, Song, SongSection } from "@/
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSongsStore } from "@/features/songs/store";
 import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
+import { MediaSlidesColumn } from "./MediaSlidesColumn";
 import { findEventItem, useSetlistStore } from "./store";
 
 function resolveNextItem(
@@ -36,11 +37,30 @@ function resolveNextItem(
 ): { id: string; title: string } | null {
   if (item === undefined || item.nextItemId === null) return null;
   const next = findEventItem(event, item.nextItemId);
-  if (next === undefined || next.song === null) return null;
-  return { id: next.id, title: next.song.title };
+  if (next === undefined) return null;
+  const title = next.media?.title ?? next.song?.title;
+  return title ? { id: next.id, title } : null;
 }
 
 export function SongSlidesColumn() {
+  const event = useSetlistStore((s) => s.event);
+  const selectedItemId = useSetlistStore((s) => s.selectedItemId);
+  const item =
+    selectedItemId === null ? undefined : findEventItem(event, selectedItemId);
+
+  if (item?.media) {
+    const part = event?.parts.find((candidate) =>
+      candidate.items.some((candidateItem) => candidateItem.id === item.id),
+    );
+    return (
+      <MediaSlidesColumn item={item} partId={part?.id ?? ""} />
+    );
+  }
+
+  return <SongSlidesContent />;
+}
+
+function SongSlidesContent() {
   const event = useSetlistStore((s) => s.event);
   const selectedItemId = useSetlistStore((s) => s.selectedItemId);
   const songsCache = useSetlistStore((s) => s.songsCache);
@@ -63,12 +83,12 @@ export function SongSlidesColumn() {
   const item =
     selectedItemId === null ? undefined : findEventItem(event, selectedItemId);
   const song =
-    item !== undefined && item.song !== null
+    item !== undefined && item.song != null && item.songId != null
       ? songsCache[item.songId]
       : undefined;
 
   useEffect(() => {
-    if (item !== undefined && item.song !== null && song === undefined) {
+    if (item !== undefined && item.song != null && song === undefined) {
       void loadItemSong(item.id);
     }
   }, [item, song, loadItemSong]);
@@ -95,7 +115,8 @@ export function SongSlidesColumn() {
       if (
         target?.tagName === "INPUT" ||
         target?.tagName === "TEXTAREA" ||
-        target?.isContentEditable
+        target?.isContentEditable ||
+        target?.closest('[role="dialog"]')
       ) {
         return;
       }

@@ -59,6 +59,10 @@ pub fn run() {
                 .accelerator("CmdOrCtrl+,")
                 .build(app)?;
 
+            let new_event_item = MenuItemBuilder::with_id("new-event", "Novo Culto / Evento…")
+                .accelerator("CmdOrCtrl+E")
+                .build(app)?;
+
             let new_song_item = MenuItemBuilder::with_id("new-song", "Nova Música")
                 .accelerator("CmdOrCtrl+N")
                 .build(app)?;
@@ -85,6 +89,7 @@ pub fn run() {
                 .build()?;
 
             let novo_menu = SubmenuBuilder::new(app, "Novo")
+                .item(&new_event_item)
                 .item(&new_song_item)
                 .item(&search_online_item)
                 .build()?;
@@ -124,6 +129,9 @@ pub fn run() {
                     "shortcuts" => {
                         let _ = crate::services::display_manager::open_shortcuts_window(app_handle);
                         let _ = app_handle.emit("open-shortcuts", ());
+                    }
+                    "new-event" => {
+                        let _ = app_handle.emit("new-event", ());
                     }
                     "new-song" => {
                         let _ = app_handle.emit("new-song", ());

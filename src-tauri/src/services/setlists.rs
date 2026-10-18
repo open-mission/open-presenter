@@ -3,15 +3,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 use crate::services::songs;
-use crate::state::{EventItem, EventPart, EventSummary, ServiceEvent, SongSummary};
+use crate::state::{EventItem, EventPart, EventSummary, MediaItem, ServiceEvent, SongSummary};
 
 #[derive(Serialize, Deserialize)]
 struct StoredItem {
     id: String,
-    #[serde(rename = "songId")]
-    song_id: String,
+    #[serde(rename = "songId", default, skip_serializing_if = "Option::is_none")]
+    song_id: Option<String>,
     #[serde(rename = "nextItemId", default)]
     next_item_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    media: Option<MediaItem>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -28,6 +30,8 @@ struct StoredPart {
 #[derive(Serialize, Deserialize)]
 struct StoredEvent {
     parts: Vec<StoredPart>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    wallpaper: Option<String>,
 }
 
 fn storage_error(err: rusqlite::Error) -> AppError {
@@ -36,6 +40,7 @@ fn storage_error(err: rusqlite::Error) -> AppError {
 
 fn serialize_setlist(event: &ServiceEvent) -> Result<String, AppError> {
     let stored = StoredEvent {
+        wallpaper: event.wallpaper.clone(),
         parts: event
             .parts
             .iter()
@@ -51,6 +56,7 @@ fn serialize_setlist(event: &ServiceEvent) -> Result<String, AppError> {
                         id: item.id.clone(),
                         song_id: item.song_id.clone(),
                         next_item_id: item.next_item_id.clone(),
+                        media: item.media.clone(),
                     })
                     .collect(),
             })
@@ -62,7 +68,7 @@ fn serialize_setlist(event: &ServiceEvent) -> Result<String, AppError> {
 pub fn list(conn: &Connection) -> Result<Vec<EventSummary>, AppError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, title, event_date FROM service_events
+            "SELECT id, title, event_date, json_extract(setlist_json, '$.wallpaper') FROM service_events
              ORDER BY event_date DESC, title",
         )
         .map_err(storage_error)?;
@@ -72,6 +78,7 @@ pub fn list(conn: &Connection) -> Result<Vec<EventSummary>, AppError> {
                 id: row.get(0)?,
                 title: row.get(1)?,
                 event_date: row.get(2)?,
+                wallpaper: row.get::<_, Option<String>>(3).unwrap_or(None),
             })
         })
         .map_err(storage_error)?
@@ -106,16 +113,24 @@ pub fn get(conn: &Connection, id: &str) -> Result<Option<ServiceEvent>, AppError
     for part in stored.parts {
         let mut items = Vec::with_capacity(part.items.len());
         for item in part.items {
-            let song = songs::get(conn, &item.song_id)?.map(|song| SongSummary {
-                id: song.id,
-                title: song.title,
-                artist: song.artist,
-            });
+            let song = match item.song_id.as_deref() {
+                Some(song_id) => songs::get(conn, song_id)?.map(|song| SongSummary {
+                    id: song.id,
+                    title: song.title,
+                    artist: song.artist,
+                    song_key: song.song_key,
+                    bpm: song.bpm,
+                    composer: song.composer,
+                    album: song.album,
+                }),
+                None => None,
+            };
             items.push(EventItem {
                 id: item.id,
                 song_id: item.song_id,
                 next_item_id: item.next_item_id,
                 song,
+                media: item.media,
             });
         }
         parts.push(EventPart {
@@ -131,6 +146,7 @@ pub fn get(conn: &Connection, id: &str) -> Result<Option<ServiceEvent>, AppError
         id: id.to_string(),
         title,
         event_date,
+        wallpaper: stored.wallpaper,
         parts,
     }))
 }
@@ -152,8 +168,8 @@ pub fn create(conn: &Connection, event: &ServiceEvent) -> Result<(), AppError> {
 pub fn save(conn: &Connection, event: &ServiceEvent) -> Result<(), AppError> {
     let affected = conn
         .execute(
-            "UPDATE service_events SET title = ?1, setlist_json = ?2 WHERE id = ?3",
-            params![event.title, serialize_setlist(event)?, event.id],
+            "UPDATE service_events SET title = ?1, event_date = ?2, setlist_json = ?3 WHERE id = ?4",
+            params![event.title, event.event_date, serialize_setlist(event)?, event.id],
         )
         .map_err(storage_error)?;
     if affected == 0 {
@@ -173,16 +189,16 @@ mod tests {
     use super::*;
     use crate::services::database::open_in_memory;
     use crate::services::songs;
-    use crate::state::{EventItem, EventPart, ServiceEvent, SongSection};
+    use crate::state::{EventItem, EventPart, MediaItem, MediaKind, ServiceEvent, SongSection};
 
     #[test]
     fn create_get_roundtrip_hidrata_musicas_da_setlist() {
         let conn = open_in_memory();
         let song_id = songs::insert_new(&conn, "Ousado Amor", "Isaias Saad", &[SongSection { section_type: None, lines: vec!["x".into()] }]).unwrap();
-        let event = ServiceEvent { id: "e1".into(), title: "Culto".into(), event_date: "2026-10-18".into(),
+        let event = ServiceEvent { id: "e1".into(), title: "Culto".into(), event_date: "2026-10-18".into(), wallpaper: None,
             parts: vec![EventPart { id: "p1".into(), title: "Louvor".into(), items: vec![
-                EventItem { id: "i1".into(), song_id: song_id.clone(), next_item_id: Some("i2".into()), song: None },
-                EventItem { id: "i2".into(), song_id: song_id.clone(), next_item_id: None, song: None },
+                EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: Some("i2".into()), song: None, media: None },
+                EventItem { id: "i2".into(), song_id: Some(song_id.clone()), next_item_id: None, song: None, media: None },
             ], color: None, bg_color: None }] };
         create(&conn, &event).unwrap();
         let loaded = get(&conn, "e1").unwrap().unwrap();
@@ -194,9 +210,9 @@ mod tests {
     fn musica_excluida_vira_item_removido_e_next_orfao_nao_quebra() {
         let conn = open_in_memory();
         let song_id = songs::insert_new(&conn, "T", "", &[SongSection { section_type: None, lines: vec!["l".into()] }]).unwrap();
-        let event = ServiceEvent { id: "e1".into(), title: "C".into(), event_date: "2026-10-18".into(),
+        let event = ServiceEvent { id: "e1".into(), title: "C".into(), event_date: "2026-10-18".into(), wallpaper: None,
             parts: vec![EventPart { id: "p1".into(), title: "P".into(), items: vec![
-                EventItem { id: "i1".into(), song_id: song_id.clone(), next_item_id: Some("i-que-nao-existe".into()), song: None }], color: None, bg_color: None }] };
+                EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: Some("i-que-nao-existe".into()), song: None, media: None }], color: None, bg_color: None }] };
         create(&conn, &event).unwrap();
         songs::delete(&conn, &song_id).unwrap();
         let loaded = get(&conn, "e1").unwrap().unwrap();
@@ -205,13 +221,60 @@ mod tests {
     }
 
     #[test]
+    fn create_get_roundtrip_preserva_item_de_midia() {
+        let conn = open_in_memory();
+        let event = ServiceEvent {
+            id: "e-media".into(),
+            title: "Culto".into(),
+            event_date: "2026-10-18".into(),
+            wallpaper: None,
+            parts: vec![EventPart {
+                id: "p1".into(),
+                title: "Avisos".into(),
+                items: vec![EventItem {
+                    id: "i-media".into(),
+                    song_id: None,
+                    next_item_id: None,
+                    song: None,
+                    media: Some(MediaItem {
+                        kind: MediaKind::Image,
+                        title: "Foto do evento".into(),
+                        text: None,
+                        path: Some("media://library/images/foto.jpg".into()),
+                        files: Vec::new(),
+                        index: None,
+                        fit: Some("contain".into()),
+                        theme_id: None,
+                    }),
+                }],
+                color: None,
+                bg_color: None,
+            }],
+        };
+
+        create(&conn, &event).unwrap();
+        let loaded = get(&conn, "e-media").unwrap().unwrap();
+        let item = &loaded.parts[0].items[0];
+        assert!(item.song_id.is_none());
+        assert!(item.song.is_none());
+        let media = item.media.as_ref().expect("mídia persistida");
+        assert_eq!(media.kind, MediaKind::Image);
+        assert_eq!(media.title, "Foto do evento");
+        assert_eq!(
+            media.path.as_deref(),
+            Some("media://library/images/foto.jpg")
+        );
+        assert_eq!(media.fit.as_deref(), Some("contain"));
+    }
+
+    #[test]
     fn save_persiste_ordem_e_delete_remove() {
         let conn = open_in_memory();
         let song_id = songs::insert_new(&conn, "T", "", &[SongSection { section_type: None, lines: vec!["l".into()] }]).unwrap();
-        let mut event = ServiceEvent { id: "e1".into(), title: "C".into(), event_date: "2026-10-18".into(),
-            parts: vec![EventPart { id: "p1".into(), title: "P".into(), items: vec![EventItem { id: "i1".into(), song_id: song_id.clone(), next_item_id: None, song: None }], color: None, bg_color: None }] };
+        let mut event = ServiceEvent { id: "e1".into(), title: "C".into(), event_date: "2026-10-18".into(), wallpaper: None,
+            parts: vec![EventPart { id: "p1".into(), title: "P".into(), items: vec![EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: None, song: None, media: None }], color: None, bg_color: None }] };
         create(&conn, &event).unwrap();
-        event.parts[0].items.push(EventItem { id: "i2".into(), song_id, next_item_id: None, song: None });
+        event.parts[0].items.push(EventItem { id: "i2".into(), song_id: Some(song_id), next_item_id: None, song: None, media: None });
         save(&conn, &event).unwrap();
         assert_eq!(get(&conn, "e1").unwrap().unwrap().parts[0].items.len(), 2);
         assert_eq!(list(&conn).unwrap().len(), 1);

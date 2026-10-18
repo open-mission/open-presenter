@@ -8,16 +8,37 @@ import {
   saveEvent,
 } from "@/core/ipc/commands";
 import { buildSongSlides } from "@/core/lib/lyrics";
+import { buildMediaSlides } from "@/core/lib/media";
 import type {
   EventItem,
   EventPart,
   EventSummary,
+  MediaItem,
   ServiceEvent,
   SlideContent,
   Song,
   SongSummary,
 } from "@/core/types";
 import { usePresentationStore } from "@/features/presentation/store";
+import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
+import { useOutputManagerStore } from "@/features/output-manager/store";
+
+export type RecurrenceFrequency = "none" | "weekly" | "biweekly" | "monthly";
+
+export type MonthlyRecurrenceMode = "day_of_month" | "nth_weekday";
+
+export interface CreateRecurringEventParams {
+  title: string;
+  startDate: string;
+  recurrence: RecurrenceFrequency;
+  weekdays?: number[];
+  monthlyMode?: MonthlyRecurrenceMode;
+  monthlyNth?: number;
+  monthlyWeekday?: number;
+  endMode?: "until_date" | "count";
+  untilDate?: string;
+  count?: number;
+}
 
 interface SetlistState {
   events: EventSummary[];
@@ -28,9 +49,28 @@ interface SetlistState {
   songsCache: Record<string, Song>;
   runnerIndex: number | null;
   error: string | null;
+  agendaOpen: boolean;
+  newEventDialogOpen: boolean;
+  newEventInitialDate: string | null;
+  newEventSelectOnCreate: boolean;
+  openAgenda(): void;
+  closeAgenda(): void;
+  openNewEventDialog(initialDate?: string, selectOnCreate?: boolean): void;
+  closeNewEventDialog(): void;
   load(): Promise<void>;
   selectEvent(id: string): Promise<void>;
-  createEvent(title: string): Promise<void>;
+  createEvent(title: string, eventDate?: string): Promise<string | undefined>;
+  createRecurringEvents(params: CreateRecurringEventParams): Promise<string[]>;
+  updateEventDate(id: string, newDate: string): Promise<void>;
+  updateEventDetails(
+    id: string,
+    updates: { title?: string; eventDate?: string; wallpaper?: string | null },
+  ): Promise<void>;
+  updateRecurringSeries(
+    matchTitle: string,
+    updates: { title?: string; timeInterval?: string; wallpaper?: string | null },
+  ): Promise<void>;
+  deleteRecurringSeries(matchTitle: string): Promise<void>;
   deleteEvent(id: string): Promise<void>;
   renameEvent(title: string): void;
   addPart(title?: string, style?: { color?: string | null; bgColor?: string | null }): string;
@@ -42,7 +82,9 @@ interface SetlistState {
   removePart(partId: string): void;
   movePart(partId: string, dir: -1 | 1): void;
   reorderParts(sourceIndex: number, targetIndex: number): void;
-  addSong(partId: string, song: SongSummary): void;
+  addSong(partId: string, song: SongSummary): string;
+  addMedia(partId: string, media: MediaItem): string;
+  updateMedia(itemId: string, media: MediaItem): void;
   removeItem(itemId: string): void;
   moveItem(itemId: string, dir: -1 | 1): void;
   reorderItem(
@@ -73,6 +115,35 @@ function clearPointers(
   return { ...item, nextItemId: null };
 }
 
+function insertItemInEvent(
+  event: ServiceEvent,
+  partId: string,
+  item: EventItem,
+): ServiceEvent {
+  if (event.parts.length === 0) {
+    return {
+      ...event,
+      parts: [{ id: crypto.randomUUID(), title: "", items: [item] }],
+    };
+  }
+
+  if (event.parts.some((part) => part.id === partId)) {
+    return {
+      ...event,
+      parts: event.parts.map((part) =>
+        part.id === partId ? { ...part, items: [...part.items, item] } : part,
+      ),
+    };
+  }
+
+  return {
+    ...event,
+    parts: event.parts.map((part, index) =>
+      index === 0 ? { ...part, items: [...part.items, item] } : part,
+    ),
+  };
+}
+
 export function findEventItem(
   event: ServiceEvent | null,
   itemId: string,
@@ -89,6 +160,181 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+export function pickNextUpcomingEvent(events: EventSummary[]): EventSummary | null {
+  if (events.length === 0) return null;
+  const now = Date.now();
+
+  const parsed = events.map((e) => {
+    let startStr = e.eventDate;
+    let endStr = "";
+    if (e.eventDate.includes("/")) {
+      const parts = e.eventDate.split("/");
+      startStr = parts[0];
+      endStr = parts[1];
+    }
+    const hasTime = startStr.includes("T");
+    const startTime = hasTime
+      ? new Date(startStr).getTime()
+      : new Date(`${startStr}T00:00:00`).getTime();
+    let endTime: number;
+    if (endStr && endStr.includes("T")) {
+      endTime = new Date(endStr).getTime();
+    } else if (hasTime) {
+      endTime = startTime + 2 * 60 * 60 * 1000;
+    } else {
+      endTime = new Date(`${startStr}T23:59:59`).getTime();
+    }
+
+    return {
+      event: e,
+      hasTime,
+      startTime: isNaN(startTime) ? 0 : startTime,
+      endTime: isNaN(endTime) ? startTime + 2 * 60 * 60 * 1000 : endTime,
+    };
+  });
+
+  parsed.sort((a, b) => a.startTime - b.startTime);
+
+  // 1. Events starting soon (within 15 min ago or later in future)
+  const soonOrFuture = parsed.filter((p) => p.startTime >= now - 15 * 60 * 1000);
+  if (soonOrFuture.length > 0) {
+    return soonOrFuture[0].event;
+  }
+
+  // 2. Event currently in progress
+  const inProgress = parsed.find((p) => p.startTime <= now && p.endTime >= now);
+  if (inProgress) {
+    return inProgress.event;
+  }
+
+  // 3. Fallback: most recent event
+  return parsed[parsed.length - 1].event;
+}
+
+export function getNthWeekdayOfMonth(year: number, month: number, weekday: number, nth: number): Date {
+  if (nth > 0) {
+    const first = new Date(year, month, 1);
+    const diff = (weekday - first.getDay() + 7) % 7;
+    const day = 1 + diff + (nth - 1) * 7;
+    return new Date(year, month, day);
+  } else {
+    const last = new Date(year, month + 1, 0);
+    const diff = (last.getDay() - weekday + 7) % 7;
+    const day = last.getDate() - diff;
+    return new Date(year, month, day);
+  }
+}
+
+export function generateRecurrenceDates(params: CreateRecurringEventParams): string[] {
+  const dates: string[] = [];
+  let startRaw = params.startDate;
+  let endRaw: string | null = null;
+  if (params.startDate.includes("/")) {
+    const parts = params.startDate.split("/");
+    startRaw = parts[0];
+    endRaw = parts[1];
+  }
+
+  const baseDate = new Date(startRaw);
+  if (isNaN(baseDate.getTime())) return [];
+
+  const hasTime = startRaw.includes("T");
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  let intervalDurationMs = 0;
+  if (endRaw && endRaw.includes("T")) {
+    const endBaseDate = new Date(endRaw);
+    if (!isNaN(endBaseDate.getTime())) {
+      intervalDurationMs = Math.max(0, endBaseDate.getTime() - baseDate.getTime());
+    }
+  }
+
+  function formatDateTimeStr(d: Date): string {
+    if (hasTime) {
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  function formatEventInterval(d: Date): string {
+    const startStr = formatDateTimeStr(d);
+    if (intervalDurationMs > 0 && hasTime) {
+      const endD = new Date(d.getTime() + intervalDurationMs);
+      const endStr = formatDateTimeStr(endD);
+      return `${startStr}/${endStr}`;
+    }
+    return startStr;
+  }
+
+  if (params.recurrence === "none") {
+    return [formatEventInterval(baseDate)];
+  }
+
+  const endLimit =
+    params.endMode === "until_date" && params.untilDate
+      ? new Date(`${params.untilDate}T23:59:59`).getTime()
+      : null;
+  const maxCount =
+    params.endMode === "count" && params.count ? Math.max(1, params.count) : 104; // Safety max (up to 2 years)
+
+  if (params.recurrence === "weekly" || params.recurrence === "biweekly") {
+    const stepWeeks = params.recurrence === "weekly" ? 1 : 2;
+    const weekdays =
+      params.weekdays && params.weekdays.length > 0
+        ? [...params.weekdays].sort((a, b) => a - b)
+        : [baseDate.getDay()];
+
+    const currentWeekStart = new Date(baseDate);
+    currentWeekStart.setDate(baseDate.getDate() - baseDate.getDay());
+    currentWeekStart.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+
+    for (let w = 0; w < 104; w += stepWeeks) {
+      for (const wday of weekdays) {
+        const candidate = new Date(currentWeekStart);
+        candidate.setDate(currentWeekStart.getDate() + w * 7 + wday);
+
+        // Skip days before start date (1 minute tolerance)
+        if (candidate.getTime() < baseDate.getTime() - 60000) continue;
+
+        if (endLimit && candidate.getTime() > endLimit) return dates;
+        dates.push(formatEventInterval(candidate));
+        if (dates.length >= maxCount) return dates;
+      }
+    }
+  } else if (params.recurrence === "monthly") {
+    let year = baseDate.getFullYear();
+    let month = baseDate.getMonth();
+
+    for (let m = 0; m < 60; m++) {
+      let candidate: Date;
+      if (params.monthlyMode === "nth_weekday") {
+        const nth = params.monthlyNth ?? 1;
+        const weekday = params.monthlyWeekday ?? baseDate.getDay();
+        candidate = getNthWeekdayOfMonth(year, month, weekday, nth);
+        candidate.setHours(baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+      } else {
+        const targetDay = baseDate.getDate();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const day = Math.min(targetDay, daysInMonth);
+        candidate = new Date(year, month, day, baseDate.getHours(), baseDate.getMinutes(), 0, 0);
+      }
+
+      month++;
+      if (month > 11) {
+        month = 0;
+        year++;
+      }
+
+      if (candidate.getTime() < baseDate.getTime() - 60000) continue;
+      if (endLimit && candidate.getTime() > endLimit) return dates;
+      dates.push(formatEventInterval(candidate));
+      if (dates.length >= maxCount) return dates;
+    }
+  }
+
+  return dates;
+}
+
 export const useSetlistStore = create<SetlistState>((set, get) => ({
   events: [],
   activeEventId: null,
@@ -98,6 +344,25 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
   songsCache: {},
   runnerIndex: null,
   error: null,
+  agendaOpen: false,
+  newEventDialogOpen: false,
+  newEventInitialDate: null,
+  newEventSelectOnCreate: true,
+
+  openAgenda: () => set({ agendaOpen: true }),
+  closeAgenda: () => set({ agendaOpen: false }),
+  openNewEventDialog: (initialDate, selectOnCreate = true) =>
+    set({
+      newEventDialogOpen: true,
+      newEventInitialDate: initialDate || null,
+      newEventSelectOnCreate: selectOnCreate,
+    }),
+  closeNewEventDialog: () =>
+    set({
+      newEventDialogOpen: false,
+      newEventInitialDate: null,
+      newEventSelectOnCreate: true,
+    }),
 
   load: async () => {
     try {
@@ -128,9 +393,14 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       set({ events, error: null });
 
       const currentActiveId = get().activeEventId;
-      // Se houver apenas 1 evento ou se o evento ativo não existir mais, seleciona como padrão
-      if (events.length === 1 || !currentActiveId || !events.some((e) => e.id === currentActiveId)) {
-        await get().selectEvent(events[0].id);
+      // Seleciona o próximo evento baseado em data/horário caso não haja nenhum selecionado ou não exista mais
+      if (!currentActiveId || !events.some((e) => e.id === currentActiveId)) {
+        const nextEvent = pickNextUpcomingEvent(events);
+        if (nextEvent) {
+          await get().selectEvent(nextEvent.id);
+        } else if (events.length > 0) {
+          await get().selectEvent(events[0].id);
+        }
       }
     } catch (err) {
       set({ error: errorMessage(err) });
@@ -151,33 +421,208 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
         selectedItemId: null,
         error: null,
       });
+
+      // Synchronize event-specific wallpaper or fall back to public default
+      if (event?.wallpaper) {
+        useWallpaperStore.getState().applyRemote(event.wallpaper);
+      } else {
+        const defaultWp = useOutputManagerStore.getState().configs.public?.wallpaper;
+        useWallpaperStore.getState().applyRemote(defaultWp ?? null);
+      }
     } catch (err) {
       set({ error: errorMessage(err) });
     }
   },
 
-  createEvent: async (title) => {
+  createEvent: async (title, eventDate) => {
     if (get().dirty) {
       await get().save();
-      if (get().dirty) return;
+      if (get().dirty) return undefined;
     }
     const id = crypto.randomUUID();
     try {
       await createEventCommand({
         id,
         title,
-        eventDate: today(),
+        eventDate: eventDate || today(),
         parts: [],
       });
       await get().load();
-      const event = await getEvent(id);
-      set({
-        event,
-        activeEventId: id,
-        dirty: false,
-        selectedItemId: null,
-        error: null,
-      });
+      await get().selectEvent(id);
+      return id;
+    } catch (err) {
+      set({ error: errorMessage(err) });
+      return undefined;
+    }
+  },
+
+  createRecurringEvents: async (params) => {
+    if (get().dirty) {
+      await get().save();
+      if (get().dirty) return [];
+    }
+
+    const dates = generateRecurrenceDates(params);
+    const createdIds: string[] = [];
+
+    for (const dateStr of dates) {
+      const id = crypto.randomUUID();
+      const newEvent: ServiceEvent = {
+        id,
+        title: params.title.trim(),
+        eventDate: dateStr,
+        parts: [], // Setlist separado e independente
+      };
+
+      await createEventCommand(newEvent);
+      createdIds.push(id);
+    }
+
+    await get().load();
+    if (get().newEventSelectOnCreate && createdIds.length > 0) {
+      await get().selectEvent(createdIds[0]);
+    }
+    return createdIds;
+  },
+
+  updateEventDate: async (id, newDate) => {
+    try {
+      const current = get().event;
+      if (current && current.id === id) {
+        const updated = { ...current, eventDate: newDate };
+        await saveEvent(updated);
+        set({
+          event: updated,
+          events: get().events.map((e) => (e.id === id ? { ...e, eventDate: newDate } : e)),
+        });
+      } else {
+        const ev = await getEvent(id);
+        if (ev) {
+          const updated = { ...ev, eventDate: newDate };
+          await saveEvent(updated);
+          set({
+            events: get().events.map((e) => (e.id === id ? { ...e, eventDate: newDate } : e)),
+          });
+        }
+      }
+    } catch (err) {
+      set({ error: errorMessage(err) });
+    }
+  },
+
+  updateEventDetails: async (id, updates) => {
+    try {
+      const current = get().event;
+      if (current && current.id === id) {
+        const updated: ServiceEvent = {
+          ...current,
+          title: updates.title !== undefined ? updates.title.trim() : current.title,
+          eventDate: updates.eventDate !== undefined ? updates.eventDate : current.eventDate,
+          wallpaper: updates.wallpaper !== undefined ? updates.wallpaper : current.wallpaper,
+        };
+        await saveEvent(updated);
+        set({
+          event: updated,
+          events: get().events.map((e) =>
+            e.id === id
+              ? {
+                  ...e,
+                  title: updated.title,
+                  eventDate: updated.eventDate,
+                  wallpaper: updated.wallpaper,
+                }
+              : e,
+          ),
+        });
+        if (updates.wallpaper !== undefined) {
+          useWallpaperStore.getState().applyRemote(updates.wallpaper);
+        }
+      } else {
+        const ev = await getEvent(id);
+        if (ev) {
+          const updated: ServiceEvent = {
+            ...ev,
+            title: updates.title !== undefined ? updates.title.trim() : ev.title,
+            eventDate: updates.eventDate !== undefined ? updates.eventDate : ev.eventDate,
+            wallpaper: updates.wallpaper !== undefined ? updates.wallpaper : ev.wallpaper,
+          };
+          await saveEvent(updated);
+          set({
+            events: get().events.map((e) =>
+              e.id === id
+                ? {
+                    ...e,
+                    title: updated.title,
+                    eventDate: updated.eventDate,
+                    wallpaper: updated.wallpaper,
+                  }
+                : e,
+            ),
+          });
+          if (get().activeEventId === id && updates.wallpaper !== undefined) {
+            useWallpaperStore.getState().applyRemote(updates.wallpaper);
+          }
+        }
+      }
+    } catch (err) {
+      set({ error: errorMessage(err) });
+    }
+  },
+
+  updateRecurringSeries: async (matchTitle, updates) => {
+    try {
+      const events = get().events;
+      const matching = events.filter((e) => e.title === matchTitle);
+      for (const summary of matching) {
+        const ev = await getEvent(summary.id);
+        if (!ev) continue;
+
+        let newEventDate = ev.eventDate;
+        if (updates.timeInterval) {
+          const datePart = ev.eventDate.split("T")[0];
+          if (updates.timeInterval.includes("/")) {
+            const [startTime, endTime] = updates.timeInterval.split("/");
+            newEventDate = `${datePart}T${startTime}/${datePart}T${endTime}`;
+          } else {
+            newEventDate = `${datePart}T${updates.timeInterval}`;
+          }
+        }
+
+        const updated: ServiceEvent = {
+          ...ev,
+          title: updates.title !== undefined ? updates.title.trim() : ev.title,
+          eventDate: newEventDate,
+          wallpaper: updates.wallpaper !== undefined ? updates.wallpaper : ev.wallpaper,
+        };
+
+        await saveEvent(updated);
+      }
+
+      await get().load();
+
+      const activeId = get().activeEventId;
+      if (activeId) {
+        const refreshed = await getEvent(activeId);
+        if (refreshed) {
+          set({ event: refreshed });
+          if (refreshed.wallpaper !== undefined) {
+            useWallpaperStore.getState().applyRemote(refreshed.wallpaper);
+          }
+        }
+      }
+    } catch (err) {
+      set({ error: errorMessage(err) });
+    }
+  },
+
+  deleteRecurringSeries: async (matchTitle) => {
+    try {
+      const matching = get().events.filter((e) => e.title === matchTitle);
+      for (const summary of matching) {
+        await deleteEventCommand(summary.id);
+      }
+      set({ activeEventId: null, event: null });
+      await get().load();
     } catch (err) {
       set({ error: errorMessage(err) });
     }
@@ -304,56 +749,51 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       return { event: { ...event, parts }, dirty: true };
     }),
 
-  addSong: (partId, song) =>
+  addSong: (partId, song) => {
+    const id = crypto.randomUUID();
     set((state) => {
       const { event } = state;
       if (event === null) return {};
       const item: EventItem = {
-        id: crypto.randomUUID(),
+        id,
         songId: song.id,
         nextItemId: null,
         song,
+        media: null,
       };
+      return { event: insertItemInEvent(event, partId, item), dirty: true };
+    });
+    return id;
+  },
 
-      // Se a programação não tiver nenhuma seção, cria uma seção sem título para adicionar diretamente
-      if (event.parts.length === 0) {
-        const newPart: EventPart = {
-          id: crypto.randomUUID(),
-          title: "",
-          items: [item],
-        };
-        return {
-          event: { ...event, parts: [newPart] },
-          dirty: true,
-        };
-      }
-
-      // Se a seção informada existe, adiciona nela
-      const targetExists = event.parts.some((p) => p.id === partId);
-      if (targetExists) {
-        return {
-          event: {
-            ...event,
-            parts: event.parts.map((part) =>
-              part.id === partId
-                ? { ...part, items: [...part.items, item] }
-                : part,
-            ),
-          },
-          dirty: true,
-        };
-      }
-
-      // Caso contrário, adiciona na primeira seção
-      return {
-        event: {
-          ...event,
-          parts: event.parts.map((part, idx) =>
-            idx === 0 ? { ...part, items: [...part.items, item] } : part,
-          ),
-        },
-        dirty: true,
+  addMedia: (partId, media) => {
+    const id = crypto.randomUUID();
+    set((state) => {
+      const { event } = state;
+      if (event === null) return {};
+      const item: EventItem = {
+        id,
+        songId: null,
+        nextItemId: null,
+        song: null,
+        media,
       };
+      return { event: insertItemInEvent(event, partId, item), dirty: true };
+    });
+    return id;
+  },
+
+  updateMedia: (itemId, media) =>
+    set((state) => {
+      const { event } = state;
+      if (event === null) return {};
+      const parts = event.parts.map((part) => ({
+        ...part,
+        items: part.items.map((item) =>
+          item.id === itemId ? { ...item, media } : item,
+        ),
+      }));
+      return { event: { ...event, parts }, dirty: true };
     }),
 
   removeItem: (itemId) =>
@@ -443,12 +883,21 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
 
   selectItem: (itemId) => {
     set({ selectedItemId: itemId, runnerIndex: null });
-    if (itemId !== null) void get().loadItemSong(itemId);
+    if (itemId === null) return;
+    const item = findEventItem(get().event, itemId);
+    if (item?.media) {
+      const slides = buildMediaSlides(item.id, item.media);
+      usePresentationStore.getState().setPreview(slides[0]?.slide ?? null);
+      return;
+    }
+    void get().loadItemSong(itemId);
   },
 
   loadItemSong: async (itemId) => {
     const item = findEventItem(get().event, itemId);
-    if (item === undefined || item.song === null) return null;
+    if (item === undefined || item.song == null || item.songId == null) {
+      return null;
+    }
     const cached = get().songsCache[item.songId];
     if (cached !== undefined) return cached;
     try {
@@ -484,33 +933,39 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     }),
 
   projectSection: async (itemId, index) => {
-    const song = await get().loadItemSong(itemId);
-    if (song === null) return;
-    const slides = buildSongSlides(song);
+    const event = get().event;
+    const item = findEventItem(event, itemId);
+    if (item === undefined) return;
+
+    let slides: SlideContent[];
+    if (item.media != null) {
+      slides = buildMediaSlides(item.id, item.media).map((entry) => entry.slide);
+    } else {
+      const song = await get().loadItemSong(itemId);
+      if (song === null) return;
+      slides = buildSongSlides(song).map((entry) => entry.slide);
+    }
     if (index < 0 || index >= slides.length) return;
 
     let nextUp: SlideContent | null = null;
     if (index + 1 < slides.length) {
-      nextUp = slides[index + 1].slide;
-    } else {
-      const event = get().event;
-      const item = findEventItem(event, itemId);
-      const nextItem =
-        item !== undefined && item.nextItemId !== null
-          ? findEventItem(event, item.nextItemId)
-          : undefined;
-      if (nextItem !== undefined && nextItem.song !== null) {
-        const nextSong = await get().loadItemSong(nextItem.id);
-        if (nextSong !== null) {
-          nextUp = buildSongSlides(nextSong)[0]?.slide ?? null;
+      nextUp = slides[index + 1];
+    } else if (item.nextItemId !== null) {
+      const nextItem = findEventItem(event, item.nextItemId);
+      if (nextItem !== undefined) {
+        if (nextItem.media != null) {
+          nextUp = buildMediaSlides(nextItem.id, nextItem.media)[0]?.slide ?? null;
+        } else if (nextItem.song != null) {
+          const nextSong = await get().loadItemSong(nextItem.id);
+          if (nextSong !== null) {
+            nextUp = buildSongSlides(nextSong)[0]?.slide ?? null;
+          }
         }
       }
     }
 
     set({ runnerIndex: index });
-    await usePresentationStore
-      .getState()
-      .publishLive(slides[index].slide, nextUp);
+    await usePresentationStore.getState().publishLive(slides[index], nextUp);
   },
 
   projectNext: async () => {
@@ -520,10 +975,18 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       await get().projectSection(selectedItemId, 0);
       return;
     }
-    const song = await get().loadItemSong(selectedItemId);
-    if (song === null) return;
-    const slides = buildSongSlides(song);
-    if (runnerIndex + 1 >= slides.length) return;
+    const item = findEventItem(get().event, selectedItemId);
+    if (item === undefined) return;
+
+    let count: number;
+    if (item.media != null) {
+      count = buildMediaSlides(item.id, item.media).length;
+    } else {
+      const song = await get().loadItemSong(selectedItemId);
+      if (song === null) return;
+      count = buildSongSlides(song).length;
+    }
+    if (runnerIndex + 1 >= count) return;
     await get().projectSection(selectedItemId, runnerIndex + 1);
   },
 
