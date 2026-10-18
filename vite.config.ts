@@ -14,6 +14,12 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    proxy: {
+      "/theme-media": {
+        target: "http://127.0.0.1:5050",
+        changeOrigin: true,
+      },
+    },
   },
   preview: {
     port: 1421,

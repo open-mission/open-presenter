@@ -6,6 +6,7 @@ node_modules/
 # Build outputs
 dist/
 dist-ssr/
+release-dist/
 *.local
 
 # Tauri / Rust
@@ -43,6 +44,8 @@ pnpm-debug.log*
 
 # Local tooling state (not part of the project)
 .commandcode/
+.superpowers/
+command-code-session-*.html
 
 # Misc
 coverage/

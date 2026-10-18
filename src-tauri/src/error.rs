@@ -8,6 +8,8 @@ pub enum AppError {
     Storage(String),
     #[error("erro de rede: {0}")]
     Network(String),
+    #[error("não encontrado: {0}")]
+    NotFound(String),
 }
 
 impl serde::Serialize for AppError {

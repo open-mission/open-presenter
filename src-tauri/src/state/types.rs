@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -7,6 +8,36 @@ pub enum SlideKind {
     Scripture,
     Custom,
     Blank,
+    Media,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum MediaKind {
+    #[serde(alias = "title")]
+    Text,
+    Image,
+    Folder,
+    Video,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaItem {
+    pub kind: MediaKind,
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fit: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,6 +47,10 @@ pub struct SlideContent {
     pub title: String,
     pub lines: Vec<String>,
     pub notes: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media: Option<MediaItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -43,6 +78,8 @@ pub struct LiveSlide {
     pub cleared: bool,
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "nextUp")]
+    pub next_up: Option<SlideContent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,7 +96,7 @@ pub struct MonitorInfo {
     pub scale_factor: f64,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum OutputTarget {
     Public,
@@ -76,8 +113,8 @@ impl OutputTarget {
 
     pub const fn route(self) -> &'static str {
         match self {
-            OutputTarget::Public => "/#/public",
-            OutputTarget::Stage => "/#/stage",
+            OutputTarget::Public => "index.html#/public",
+            OutputTarget::Stage => "index.html#/stage",
         }
     }
 
@@ -96,9 +133,433 @@ pub struct WsEnvelope {
     pub version: u8,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "kebab-case")]
+pub enum SectionType {
+    Verse,
+    PreChorus,
+    Chorus,
+    Bridge,
+    Intro,
+    Outro,
+    Instrumental,
+    Tag,
+    Ending,
+}
+
+impl SectionType {
+    pub fn from_label(label: &str) -> Option<Self> {
+        let normalized = label.trim().to_lowercase();
+        let key = normalized
+            .trim_end_matches(|c: char| c.is_ascii_digit())
+            .trim_end();
+        match key {
+            "verso" | "estrofe" | "verse" => Some(SectionType::Verse),
+            "refrão" | "refrao" | "coro" | "chorus" => Some(SectionType::Chorus),
+            "pré-refrão" | "pre-refrao" | "pre-refrão" | "pre-chorus" | "pre chorus" => {
+                Some(SectionType::PreChorus)
+            }
+            "ponte" | "bridge" => Some(SectionType::Bridge),
+            "introdução" | "introducao" | "intro" => Some(SectionType::Intro),
+            "final" | "outro" => Some(SectionType::Outro),
+            "instrumental" => Some(SectionType::Instrumental),
+            "tag" => Some(SectionType::Tag),
+            "encerramento" | "ending" => Some(SectionType::Ending),
+            _ => None,
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            SectionType::Verse => "verse",
+            SectionType::PreChorus => "pre-chorus",
+            SectionType::Chorus => "chorus",
+            SectionType::Bridge => "bridge",
+            SectionType::Intro => "intro",
+            SectionType::Outro => "outro",
+            SectionType::Instrumental => "instrumental",
+            SectionType::Tag => "tag",
+            SectionType::Ending => "ending",
+        }
+    }
+
+    pub const fn as_label(self) -> &'static str {
+        match self {
+            SectionType::Verse => "Verso",
+            SectionType::PreChorus => "Pré-refrão",
+            SectionType::Chorus => "Refrão",
+            SectionType::Bridge => "Ponte",
+            SectionType::Intro => "Introdução",
+            SectionType::Outro => "Final",
+            SectionType::Instrumental => "Instrumental",
+            SectionType::Tag => "Tag",
+            SectionType::Ending => "Encerramento",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SongSection {
+    pub section_type: Option<SectionType>,
+    pub lines: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Song {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    #[serde(default)]
+    pub album: Option<String>,
+    #[serde(default)]
+    pub composer: Option<String>,
+    #[serde(default)]
+    pub song_key: Option<String>,
+    #[serde(default)]
+    pub bpm: Option<i32>,
+    pub sections: Vec<SongSection>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SongSummary {
+    pub id: String,
+    pub title: String,
+    pub artist: String,
+    #[serde(default)]
+    pub song_key: Option<String>,
+    #[serde(default)]
+    pub bpm: Option<i32>,
+    #[serde(default)]
+    pub composer: Option<String>,
+    #[serde(default)]
+    pub album: Option<String>,
+}
+
+/// Linhas por slide ao importar/salvar letras de músicas.
+/// Valor ausente ou desconhecido equivale a `Two` (`"2"`).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum LinesPerSlide {
+    #[serde(rename = "1")]
+    One,
+    #[serde(rename = "2")]
+    Two,
+    #[serde(rename = "keep")]
+    Keep,
+}
+
+impl LinesPerSlide {
+    pub fn from_setting(value: Option<&str>) -> Self {
+        match value {
+            Some("1") => LinesPerSlide::One,
+            Some("2") => LinesPerSlide::Two,
+            Some("keep") => LinesPerSlide::Keep,
+            _ => LinesPerSlide::Two,
+        }
+    }
+
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            LinesPerSlide::One => "1",
+            LinesPerSlide::Two => "2",
+            LinesPerSlide::Keep => "keep",
+        }
+    }
+
+    pub const fn lines_per_slide(self) -> Option<usize> {
+        match self {
+            LinesPerSlide::One => Some(1),
+            LinesPerSlide::Two => Some(2),
+            LinesPerSlide::Keep => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SongDefaults {
+    pub lines_per_slide: LinesPerSlide,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct EventItem {
+    pub id: String,
+    #[serde(default)]
+    pub song_id: Option<String>,
+    pub next_item_id: Option<String>,
+    pub song: Option<SongSummary>,
+    #[serde(default)]
+    pub media: Option<MediaItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct EventPart {
+    pub id: String,
+    pub title: String,
+    pub items: Vec<EventItem>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bg_color: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceEvent {
+    pub id: String,
+    pub title: String,
+    pub event_date: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wallpaper: Option<String>,
+    pub parts: Vec<EventPart>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct EventSummary {
+    pub id: String,
+    pub title: String,
+    pub event_date: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wallpaper: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OnlineLyricHit {
+    pub track_name: String,
+    pub artist_name: String,
+    pub album_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ImportSkip {
+    pub title: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ImportReport {
+    pub imported: Vec<String>,
+    pub skipped: Vec<ImportSkip>,
+    pub errors: Vec<String>,
+}
+
 pub const EVENT_SLIDE: &str = "presentation://slide";
 pub const EVENT_STAGE_MESSAGE: &str = "stage://message";
+pub const EVENT_TIMER: &str = "stage://timer";
 pub const EVENT_OUTPUTS: &str = "outputs://changed";
+pub const EVENT_THEMES: &str = "presentation://themes";
+pub const EVENT_THEMES_CHANGED: &str = "themes://changed";
+pub const EVENT_REMOTE_SETLIST: &str = "remote://setlist";
+pub const EVENT_WALLPAPER: &str = "presentation://wallpaper";
+pub const EVENT_CLIENT_HELLO: &str = "client://hello";
 
 pub const OUTPUT_HTTP_PORT: u16 = 5050;
 pub const WS_PATH: &str = "/ws";
+
+/// Estado do servidor local de saídas, espelhado no frontend (`ServerStatus`).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerStatus {
+    pub running: bool,
+    pub port: u16,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum OutputMode {
+    #[default]
+    Off,
+    Native,
+    Web,
+    Both,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputConfig {
+    pub target: OutputTarget,
+    pub mode: OutputMode,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub monitor_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub monitor_label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wallpaper: Option<String>,
+}
+
+impl OutputConfig {
+    pub fn off(target: OutputTarget) -> Self {
+        Self {
+            target,
+            mode: OutputMode::Off,
+            monitor_id: None,
+            monitor_label: None,
+            url: None,
+            wallpaper: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputRuntime {
+    pub target: OutputTarget,
+    pub open: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub monitor_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ClientKind {
+    #[default]
+    Output,
+    Remote,
+}
+
+/// Navegador web conectado ao servidor local (`GET /ws` ou `/api/v1/ws`).
+/// O `output` é anunciado pelo próprio cliente via `client://hello`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectedClient {
+    pub id: String,
+    pub ip: String,
+    pub output: Option<OutputTarget>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_agent: Option<String>,
+    pub connected_at: u64,
+    #[serde(default)]
+    pub kind: ClientKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ThemeElementType {
+    Text,
+    Image,
+    Video,
+    Rectangle,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeElement {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub element_type: ThemeElementType,
+    pub x: f64,
+    pub y: f64,
+    pub visible: bool,
+    pub locked: bool,
+    pub css: HashMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub src: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "assetTypeVisibility"
+    )]
+    pub asset_type_visibility: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SlideTheme {
+    pub guid: String,
+    pub title: String,
+    pub css: HashMap<String, String>,
+    pub elements: Vec<ThemeElement>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeBinding {
+    pub target: OutputTarget,
+    pub asset: String,
+    #[serde(rename = "themeGuid")]
+    pub theme_guid: String,
+}
+
+/// Temas já resolvidos para as saídas. O operador (admin) decide qual tema
+/// cada saída usa; aqui guardamos o resultado para que clientes nativos e web
+/// rendam exatamente o mesmo tema, sem depender de localStorage ou IPC.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LiveThemes {
+    #[serde(default)]
+    pub public: Option<SlideTheme>,
+    #[serde(default)]
+    pub stage: Option<SlideTheme>,
+}
+
+/// Cronômetro do palco. Fonte da verdade no Rust: todas as saídas e o painel
+/// de controle espelham este estado via `stage://timer`. Os instantes são
+/// milissegundos Unix; cada cliente calcula o visor como
+/// `elapsed + (running ? now - started_at : 0)`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct StageTimer {
+    pub running: bool,
+    pub elapsed_secs: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at_millis: Option<u64>,
+}
+
+impl StageTimer {
+    pub fn start_at(&mut self, now_millis: u64) {
+        if !self.running {
+            self.running = true;
+            self.started_at_millis = Some(now_millis);
+        }
+    }
+
+    pub fn pause_at(&mut self, now_millis: u64) {
+        if self.running {
+            if let Some(started) = self.started_at_millis {
+                self.elapsed_secs += now_millis.saturating_sub(started) / 1000;
+            }
+            self.running = false;
+            self.started_at_millis = None;
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.running = false;
+        self.elapsed_secs = 0;
+        self.started_at_millis = None;
+    }
+
+    pub fn elapsed_at(&self, now_millis: u64) -> u64 {
+        self.elapsed_secs
+            + if self.running {
+                self.started_at_millis
+                    .map(|s| now_millis.saturating_sub(s) / 1000)
+                    .unwrap_or(0)
+            } else {
+                0
+            }
+    }
+}
+
+pub fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}

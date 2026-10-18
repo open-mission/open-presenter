@@ -1,0 +1,120 @@
+import { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { listSongs } from "@/core/ipc/commands";
+import type { SongSummary } from "@/core/types";
+import { useSetlistStore } from "./store";
+
+interface SongPickerDialogProps {
+  partId: string;
+  open: boolean;
+  onOpenChange(open: boolean): void;
+  onSelectSong?: (song: SongSummary) => void;
+}
+
+export function SongPickerDialog({
+  partId,
+  open,
+  onOpenChange,
+  onSelectSong,
+}: SongPickerDialogProps) {
+  const addSong = useSetlistStore((s) => s.addSong);
+
+  const [query, setQuery] = useState("");
+  const [catalog, setCatalog] = useState<SongSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setQuery("");
+      return;
+    }
+    setQuery("");
+    setLoading(true);
+    setError(null);
+    void (async () => {
+      try {
+        setCatalog(await listSongs());
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [open]);
+
+  const needle = query.trim().toLowerCase();
+  const filtered =
+    needle === ""
+      ? catalog
+      : catalog.filter(
+          (song) =>
+            song.title.toLowerCase().includes(needle) ||
+            song.artist.toLowerCase().includes(needle),
+        );
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle>Adicionar música</DialogTitle>
+        </DialogHeader>
+        <Input
+          placeholder="Buscar por título ou artista"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <ScrollArea className="h-64">
+          <div className="flex flex-col gap-1 pr-2">
+            {loading && catalog.length === 0 && (
+              <p className="text-sm text-muted-foreground">Carregando…</p>
+            )}
+            {!loading && error !== null && (
+              <p className="text-sm text-destructive">{error}</p>
+            )}
+            {!loading && error === null && catalog.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Nenhuma música no catálogo.
+              </p>
+            )}
+            {!loading && error === null && catalog.length > 0 && filtered.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Nenhuma música encontrada.
+              </p>
+            )}
+            {filtered.map((song) => (
+              <Button
+                key={song.id}
+                variant="secondary"
+                className="justify-start"
+                onClick={() => {
+                  if (onSelectSong) {
+                    onSelectSong(song);
+                  } else {
+                    addSong(partId, song);
+                  }
+                  onOpenChange(false);
+                }}
+              >
+                <span className="min-w-0 truncate">
+                  {song.title}
+                  {song.artist !== "" && (
+                    <span className="text-muted-foreground"> · {song.artist}</span>
+                  )}
+                </span>
+              </Button>
+            ))}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+}

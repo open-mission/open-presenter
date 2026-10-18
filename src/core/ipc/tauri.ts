@@ -14,9 +14,18 @@ export async function invokeCommand<T>(
   if (!isTauri()) return null;
   try {
     return await invoke<T>(command, args);
-  } catch {
+  } catch (err) {
+    console.error(`[ipc] Falha no comando "${command}":`, err);
     return null;
   }
+}
+
+export async function invokeStrict<T>(
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<T> {
+  if (!isTauri()) throw new Error("Disponível apenas no app desktop.");
+  return invoke<T>(command, args);
 }
 
 export async function listenCommand<T>(

@@ -1,9 +1,29 @@
 import type {
+  ConnectedClient,
+  EventSummary,
+  ImageTreeNode,
+  ImportedFolder,
+  ImportedMedia,
+  ImportReport,
   LiveSlide,
+  LiveThemes,
   MonitorInfo,
+  OnlineLyricHit,
+  OutputConfig,
+  OutputRuntime,
   OutputTarget,
+  RemoteConfig,
+  RemoteSetlist,
+  ServerStatus,
+  ServiceEvent,
+  SlideTheme,
+  Song,
+  SongDefaults,
+  SongSection,
+  SongSummary,
+  StageTimer,
 } from "../types";
-import { invokeCommand } from "./tauri";
+import { invokeCommand, invokeStrict, isTauri } from "./tauri";
 
 export async function listMonitors(): Promise<MonitorInfo[]> {
   return (await invokeCommand<MonitorInfo[]>("list_monitors")) ?? [];
@@ -12,14 +32,53 @@ export async function listMonitors(): Promise<MonitorInfo[]> {
 export async function openOutputWindow(
   target: OutputTarget,
   monitorId: string | null,
+  monitorLabel?: string | null,
 ): Promise<void> {
-  await invokeCommand("open_output_window", { target, monitor_id: monitorId });
+  await invokeCommand("open_output_window", {
+    target,
+    monitorId,
+    monitorLabel: monitorLabel ?? null,
+  });
 }
 
 export async function closeOutputWindow(
   target: OutputTarget,
 ): Promise<void> {
   await invokeCommand("close_output_window", { target });
+}
+
+export async function getOutputConfig(
+  target: OutputTarget,
+): Promise<OutputConfig | null> {
+  return invokeCommand<OutputConfig>("get_output_config", { target });
+}
+
+export async function setOutputConfig(config: OutputConfig): Promise<void> {
+  await invokeCommand("set_output_config", { config });
+}
+
+export async function getOutputsState(): Promise<OutputRuntime[]> {
+  return (await invokeCommand<OutputRuntime[]>("get_outputs_state")) ?? [];
+}
+
+export async function openPreferencesWindow(): Promise<void> {
+  await invokeCommand("open_preferences_window");
+}
+
+export async function closePreferencesWindow(): Promise<void> {
+  await invokeCommand("close_preferences_window");
+}
+
+export async function openShortcutsWindow(): Promise<void> {
+  await invokeCommand("open_shortcuts_window");
+}
+
+export async function closeShortcutsWindow(): Promise<void> {
+  await invokeCommand("close_shortcuts_window");
+}
+
+export async function openThemeEditor(guid?: string): Promise<void> {
+  await invokeCommand("open_theme_editor", { guid: guid ?? null });
 }
 
 export async function publishSlide(slide: LiveSlide): Promise<void> {
@@ -34,6 +93,312 @@ export async function fetchLiveSlide(): Promise<LiveSlide | null> {
   return invokeCommand<LiveSlide>("get_live_slide");
 }
 
+export async function setLiveThemes(themes: LiveThemes): Promise<void> {
+  await invokeCommand("set_live_themes", { themes });
+}
+
+export async function fetchLiveThemes(): Promise<LiveThemes | null> {
+  return invokeCommand<LiveThemes>("get_live_themes");
+}
+
 export async function fetchServerHost(): Promise<string> {
   return (await invokeCommand<string>("get_server_host")) ?? "localhost";
+}
+
+export async function timerStart(): Promise<StageTimer | null> {
+  return invokeCommand<StageTimer>("timer_start");
+}
+
+export async function timerPause(): Promise<StageTimer | null> {
+  return invokeCommand<StageTimer>("timer_pause");
+}
+
+export async function timerReset(): Promise<StageTimer | null> {
+  return invokeCommand<StageTimer>("timer_reset");
+}
+
+export async function fetchStageTimer(): Promise<StageTimer | null> {
+  return invokeCommand<StageTimer>("get_stage_timer");
+}
+
+export async function fetchPublicWallpaper(): Promise<string | null> {
+  return invokeCommand<string | null>("get_public_wallpaper");
+}
+
+export async function setPublicWallpaper(wallpaper: string | null): Promise<void> {
+  await invokeCommand("set_public_wallpaper", { wallpaper });
+}
+
+export async function getServerStatus(): Promise<ServerStatus | null> {
+  return invokeCommand<ServerStatus>("get_server_status");
+}
+
+export async function setServerPort(port: number): Promise<ServerStatus> {
+  return invokeStrict<ServerStatus>("set_server_port", { port });
+}
+
+export async function stopServer(): Promise<ServerStatus> {
+  return invokeStrict<ServerStatus>("stop_server");
+}
+
+export async function startServer(): Promise<ServerStatus> {
+  return invokeStrict<ServerStatus>("start_server");
+}
+
+export async function getConnectedClients(): Promise<ConnectedClient[]> {
+  return (await invokeCommand<ConnectedClient[]>("get_connected_clients")) ?? [];
+}
+
+export async function getRemoteClients(): Promise<ConnectedClient[]> {
+  return (await invokeCommand<ConnectedClient[]>("get_remote_clients")) ?? [];
+}
+
+export async function listSongs(query?: string): Promise<SongSummary[]> {
+  return invokeStrict<SongSummary[]>("list_songs", { query: query ?? null });
+}
+
+export async function getSong(id: string): Promise<Song | null> {
+  return invokeStrict<Song | null>("get_song", { id });
+}
+
+export async function saveSong(song: Song): Promise<void> {
+  await invokeStrict("save_song", { song });
+}
+
+export async function deleteSong(id: string): Promise<void> {
+  await invokeStrict("delete_song", { id });
+}
+
+export async function openSongEditor(songId?: string): Promise<void> {
+  await invokeStrict("open_song_editor", { songId: songId ?? null });
+}
+
+export async function closeSongEditor(): Promise<void> {
+  await invokeStrict("close_song_editor");
+}
+
+export async function importHolyrics(paths: string[]): Promise<ImportReport> {
+  return invokeStrict<ImportReport>("import_holyrics", { paths });
+}
+
+export async function searchLyricsOnline(
+  query: string,
+): Promise<OnlineLyricHit[]> {
+  if (isTauri()) {
+    return invokeStrict<OnlineLyricHit[]>("search_lyrics_online", { query });
+  }
+
+  // Web fallback com retry para contornar sobrecarga transitória do LRCLIB (503/429)
+  const url = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
+  let res: Response | null = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      res = await fetch(url);
+      if (res.ok) break;
+      if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
+        await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+        continue;
+      }
+      break;
+    } catch (err) {
+      if (i === 2) throw err;
+      await new Promise((r) => setTimeout(r, 800));
+    }
+  }
+
+  if (!res || !res.ok) {
+    if (res?.status === 429) {
+      throw new Error("O LRCLIB limitou as consultas — aguarde alguns segundos e tente de novo.");
+    }
+    if (res && res.status >= 500) {
+      throw new Error("O LRCLIB está indisponível no momento — tente de novo em instantes.");
+    }
+    throw new Error("Falha ao consultar o LRCLIB — verifique a conexão.");
+  }
+
+  const items: Array<{
+    trackName?: string;
+    artistName?: string;
+    albumName?: string | null;
+    plainLyrics?: string | null;
+  }> = await res.json();
+
+  return items
+    .filter((item) => Boolean(item.plainLyrics) && Boolean(item.trackName))
+    .map((item) => ({
+      trackName: item.trackName!,
+      artistName: item.artistName ?? "",
+      albumName: item.albumName ?? null,
+    }));
+}
+
+export async function fetchOnlineLyrics(
+  id: string,
+  trackName: string,
+  artistName: string,
+): Promise<Song> {
+  if (isTauri()) {
+    return invokeStrict<Song>("fetch_online_lyrics", {
+      id,
+      trackName,
+      artistName,
+    });
+  }
+
+  const url = `https://lrclib.net/api/get?track_name=${encodeURIComponent(trackName)}&artist_name=${encodeURIComponent(artistName)}`;
+  let res: Response | null = null;
+  for (let i = 0; i < 3; i++) {
+    try {
+      res = await fetch(url);
+      if (res.ok || res.status === 404) break;
+      if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
+        await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+        continue;
+      }
+      break;
+    } catch (err) {
+      if (i === 2) throw err;
+      await new Promise((r) => setTimeout(r, 800));
+    }
+  }
+
+  if (!res || !res.ok) {
+    if (res?.status === 404) {
+      throw new Error("Letra não encontrada no LRCLIB.");
+    }
+    if (res?.status === 429) {
+      throw new Error("O LRCLIB limitou as consultas — aguarde alguns segundos.");
+    }
+    throw new Error("Falha ao baixar letra do LRCLIB.");
+  }
+
+  const data = await res.json();
+  const plainLyrics: string = data.plainLyrics || "";
+  const blocks = plainLyrics
+    .split(/\n\s*\n/)
+    .map((b) => b.trim())
+    .filter(Boolean);
+
+  const sections: SongSection[] = blocks.map((b) => ({
+    sectionType: null,
+    lines: b.split(/\r?\n/).map((l) => l.trim()).filter(Boolean),
+  }));
+
+  return {
+    id,
+    title: data.trackName || trackName,
+    artist: data.artistName || artistName,
+    sections,
+  };
+}
+
+export async function parseLyrics(text: string): Promise<SongSection[]> {
+  return invokeStrict<SongSection[]>("parse_lyrics", { text });
+}
+
+export async function lyricsToText(sections: SongSection[]): Promise<string> {
+  return invokeStrict<string>("lyrics_to_text", { sections });
+}
+
+export async function getSongDefaults(): Promise<SongDefaults> {
+  return invokeStrict<SongDefaults>("get_song_defaults");
+}
+
+export async function setSongDefaults(
+  defaults: SongDefaults,
+): Promise<SongDefaults> {
+  return invokeStrict<SongDefaults>("set_song_defaults", { defaults });
+}
+
+export async function listEvents(): Promise<EventSummary[]> {
+  return invokeStrict<EventSummary[]>("list_events");
+}
+
+export async function getEvent(id: string): Promise<ServiceEvent | null> {
+  return invokeStrict<ServiceEvent | null>("get_event", { id });
+}
+
+export async function getTemporaryEvent(): Promise<ServiceEvent> {
+  return invokeStrict<ServiceEvent>("get_temporary_event");
+}
+
+export async function createEvent(event: ServiceEvent): Promise<void> {
+  await invokeStrict("create_event", { event });
+}
+
+export async function saveEvent(event: ServiceEvent): Promise<void> {
+  await invokeStrict("save_event", { event });
+}
+
+export async function deleteEvent(id: string): Promise<void> {
+  await invokeStrict("delete_event", { id });
+}
+
+export async function listThemes(): Promise<SlideTheme[]> {
+  return invokeStrict<SlideTheme[]>("list_themes");
+}
+
+export async function getTheme(guid: string): Promise<SlideTheme | null> {
+  return invokeStrict<SlideTheme | null>("get_theme", { guid });
+}
+
+export async function saveTheme(theme: SlideTheme): Promise<void> {
+  await invokeStrict("save_theme", { theme });
+}
+
+export async function deleteTheme(guid: string): Promise<void> {
+  await invokeStrict("delete_theme", { guid });
+}
+
+export async function saveThemeMedia(
+  guid: string,
+  filename: string,
+  contents: number[],
+): Promise<string> {
+  return invokeStrict<string>("save_theme_media", { guid, filename, contents });
+}
+
+export async function importMediaFile(
+  path: string,
+  kind: "image" | "video",
+): Promise<ImportedMedia> {
+  return invokeStrict<ImportedMedia>("import_media_file", { path, kind });
+}
+
+export async function importMediaFolder(path: string): Promise<ImportedFolder> {
+  return invokeStrict<ImportedFolder>("import_media_folder", { path });
+}
+
+export async function openMediaLibrary(): Promise<void> {
+  await invokeStrict("open_media_library");
+}
+
+export async function listImageLibrary(): Promise<ImageTreeNode[]> {
+  return invokeStrict<ImageTreeNode[]>("list_image_library");
+}
+
+export async function importImagesFolder(path: string): Promise<string> {
+  return invokeStrict<string>("import_images_folder", { path });
+}
+
+export async function openImagesFolder(): Promise<void> {
+  await invokeStrict("open_images_folder");
+}
+
+export async function getRemoteConfig(): Promise<RemoteConfig> {
+  return invokeStrict<RemoteConfig>("get_remote_config");
+}
+
+export async function setRemoteToken(token: string): Promise<RemoteConfig> {
+  return invokeStrict<RemoteConfig>("set_remote_token", { token });
+}
+
+export async function setRemoteEnabled(enabled: boolean): Promise<RemoteConfig> {
+  return invokeStrict<RemoteConfig>("set_remote_enabled", { enabled });
+}
+
+export async function setRemoteSetlist(
+  setlist: RemoteSetlist | null,
+): Promise<void> {
+  await invokeStrict("set_remote_setlist", { setlist });
 }

@@ -18,10 +18,10 @@ export function ScripturesPanel() {
         <CardTitle>Bíblia · Busca rápida</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
-        <label className="flex items-center gap-2 rounded-md border border-zinc-700 bg-zinc-900 px-2">
-          <Search size={14} className="text-zinc-400" />
+        <label className="flex items-center gap-2 rounded-md border border-input bg-background px-2">
+          <Search size={14} className="text-muted-foreground" />
           <input
-            className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-zinc-500"
+            className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             placeholder="Buscar referência ou texto…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
