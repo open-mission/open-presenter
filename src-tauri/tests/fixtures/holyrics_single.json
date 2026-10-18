@@ -1,0 +1,117 @@
+{
+  "id": 1717345652813,
+  "title": "A Boa Parte",
+  "artist": "Florianópolis House Of Prayer e Nívea Soares",
+  "author": "Gabriela Laranjo",
+  "note": "",
+  "copyright": "",
+  "language": "",
+  "key": "",
+  "bpm": 0.0,
+  "time_sig": "",
+  "midi": null,
+  "order": "",
+  "arrangements": [],
+  "lyrics": {
+    "full_text": "Precioso Jesus\nAos Teus pés aqui estou\nO que eu poderia Te oferecer\nPor tudo que Tu és?\n\nTudo o que tenho\nEu derramo aos Teus pés\nNão importa o quanto custou\nJesus, Teu valor é maior\n\nEu encontrei o meu tesouro\nEu encontrei\nO bem mais precioso\n\nPrecioso Jesus\nEu amo o som da Tua voz\n\nTuas palavras\nSão mais desejáveis\nQue o mais doce mel\n\nTudo o que tenho\nEu derramo aos Teus pés\nNão importa o quanto custou\nJesus, Teu valor é maior\n\nJesus, Teu valor é maior\n\nEu encontrei o meu tesouro\nEu encontrei\nO bem mais precioso\n\nComo Maria\nQue estava aos Teus pés\nE disseste a ela\n\nEssa é a boa parte que nunca\nQue nunca será tirada\n\nEu encontrei o meu tesouro\nEu encontrei\nO bem mais precioso",
+    "full_text_with_comment": null,
+    "paragraphs": [
+      {
+        "number": 1,
+        "description": "",
+        "text": "Precioso Jesus\nAos Teus pés aqui estou\nO que eu poderia Te oferecer\nPor tudo que Tu és?",
+        "text_with_comment": null,
+        "translations": null
+      },
+      {
+        "number": 2,
+        "description": "",
+        "text": "Tudo o que tenho\nEu derramo aos Teus pés\nNão importa o quanto custou\nJesus, Teu valor é maior",
+        "text_with_comment": null,
+        "translations": null
+      },
+      {
+        "number": 3,
+        "description": "",
+        "text": "Eu encontrei o meu tesouro\nEu encontrei\nO bem mais precioso",
+        "text_with_comment": null,
+        "translations": null
+      },
+      {
+        "number": 4,
+        "description": "",
+        "text": "Precioso Jesus\nEu amo o som da Tua voz",
+        "text_with_comment": null,
+        "translations": null
+      },
+      {
+        "number": 5,
+        "description": "",
+        "text": "Tuas palavras\nSão mais desejáveis\nQue o mais doce mel",
+        "text_with_comment": null,
+        "translations": null
+      },
+      {
+        "number": 6,
+        "description": "",
+        "text": "Tudo o que tenho\nEu derramo aos Teus pés\nNão importa o quanto custou\nJesus, Teu valor é maior",
+        "text_with_comment": null,
+        "translations": null
+      },
+      {
+        "number": 7,
+        "description": "",
+        "text": "Jesus, Teu valor é maior",
+        "text_with_comment": null,
+        "translations": null
+      },
+      {
+        "number": 8,
+        "description": "",
+        "text": "Eu encontrei o meu tesouro\nEu encontrei\nO bem mais precioso",
+        "text_with_comment": null,
+        "translations": null
+      },
+      {
+        "number": 9,
+        "description": "",
+        "text": "Como Maria\nQue estava aos Teus pés\nE disseste a ela",
+        "text_with_comment": null,
+        "translations": null
+      },
+      {
+        "number": 10,
+        "description": "",
+        "text": "Essa é a boa parte que nunca\nQue nunca será tirada",
+        "text_with_comment": null,
+        "translations": null
+      },
+      {
+        "number": 11,
+        "description": "",
+        "text": "Eu encontrei o meu tesouro\nEu encontrei\nO bem mais precioso",
+        "text_with_comment": null,
+        "translations": null
+      }
+    ]
+  },
+  "streaming": {
+    "audio": {
+      "spotify": "https://open.spotify.com/track/2L4zfLI1fTyUyshnCay6ci",
+      "youtube": "https://youtube.com/watch?v=TqTTmE25hXE",
+      "deezer": "https://deezer.com/track/2604991142",
+      "apple_music": "",
+      "amazon_music": ""
+    },
+    "backing_track": {
+      "spotify": "",
+      "youtube": "",
+      "deezer": "",
+      "apple_music": "",
+      "amazon_music": ""
+    }
+  },
+  "extras": {
+    "extra": ""
+  }
+}

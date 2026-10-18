@@ -56,9 +56,11 @@ fn text_lines(text: &str) -> Vec<String> {
 fn parse_json(text: &str) -> Result<Vec<ParsedSong>, AppError> {
     let root: Value =
         serde_json::from_str(text).map_err(|_| AppError::Storage(JSON_INVALIDO.into()))?;
-    let items = root
-        .as_array()
-        .ok_or_else(|| AppError::Storage(JSON_INVALIDO.into()))?;
+    let items: Vec<Value> = match root {
+        Value::Array(items) => items,
+        Value::Object(_) => vec![root],
+        _ => return Err(AppError::Storage(JSON_INVALIDO.into())),
+    };
 
     let mut songs = Vec::new();
     for item in items {
@@ -185,6 +187,42 @@ mod tests {
     use super::*;
 
     const TXT: &str = "\u{FEFF}Título: Ousado Amor\r\nArtista: Isaias Saad\r\n\r\n//Primeira Estrofe\r\n##(Verso 1)\r\nAntes de eu falar\r\nTu cantavas sobre mim\r\n\r\n##(Refrão)\r\nOusado amor\r\nDe Deus por mim\r\n\r\n==========\r\nTítulo: Sem Artista\r\n\r\n##(Estrofe A)\r\nLinha qualquer\r\n";
+    const FIXTURE_ARRAY: &str = include_str!("../../tests/fixtures/holyrics_array.json");
+    const FIXTURE_SINGLE: &str = include_str!("../../tests/fixtures/holyrics_single.json");
+
+    #[test]
+    fn parseia_json_do_export_real_com_varias_musicas() {
+        let songs = parse(FIXTURE_ARRAY, HolyricsFormat::Json).unwrap();
+        let titulos: Vec<&str> = songs.iter().map(|s| s.title.as_str()).collect();
+        assert_eq!(
+            titulos,
+            vec!["A Coroa", "A Estrela da Alva", "A Fonte Salvadora"]
+        );
+        assert!(!songs[0].sections.is_empty());
+        // export sem `description` → nenhum rótulo inventado
+        assert!(songs
+            .iter()
+            .flat_map(|s| &s.sections)
+            .all(|s| s.section_type.is_none()));
+    }
+
+    #[test]
+    fn parseia_json_de_musica_unica_na_raiz() {
+        let songs = parse(FIXTURE_SINGLE, HolyricsFormat::Json).unwrap();
+        assert_eq!(songs.len(), 1);
+        assert_eq!(songs[0].title, "A Boa Parte");
+        assert_eq!(
+            songs[0].artist,
+            "Florianópolis House Of Prayer e Nívea Soares"
+        );
+        assert_eq!(songs[0].sections.len(), 11);
+        assert!(songs[0].sections.iter().all(|s| s.section_type.is_none()));
+    }
+
+    #[test]
+    fn raiz_json_que_nao_e_objeto_nem_array_gera_erro() {
+        assert!(parse("42", HolyricsFormat::Json).is_err());
+    }
 
     #[test]
     fn parseia_txt_com_rotulos_artista_e_bom_crlf() {
