@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { setRemoteSetlist } from "@/core/ipc/commands";
-import { isTauri } from "@/core/ipc/tauri";
+import { isTauri, listenCommand } from "@/core/ipc/tauri";
 import { useSetlistStore } from "@/features/events-setlists/store";
 import { useRemoteStore } from "./store";
 import { buildRemoteSetlist } from "./remoteSetlist";
@@ -16,11 +16,28 @@ export function useRemoteSetlistPublisher(): void {
   const songsCache = useSetlistStore((s) => s.songsCache);
   const dirty = useSetlistStore((s) => s.dirty);
   const ensureToken = useRemoteStore((s) => s.ensureToken);
+  const appendImprevistoSong = useSetlistStore((s) => s.appendImprevistoSong);
 
   useEffect(() => {
     if (!isTauri()) return;
     void ensureToken();
   }, [ensureToken]);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten: (() => void) | null = null;
+    void listenCommand<string>("remote://imprevisto", (songId) => {
+      if (songId) {
+        void appendImprevistoSong(songId);
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+
+    return () => {
+      unlisten?.();
+    };
+  }, [appendImprevistoSong]);
 
   useEffect(() => {
     if (!isTauri()) return;

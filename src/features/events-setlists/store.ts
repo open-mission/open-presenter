@@ -25,7 +25,7 @@ import {
 import { usePresentationStore } from "@/features/presentation/store";
 import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
 import { useOutputManagerStore } from "@/features/output-manager/store";
-import { transferItemBetweenEvents } from "./temporaryUtils";
+import { appendItemToEvent, transferItemBetweenEvents } from "./temporaryUtils";
 
 export type RecurrenceFrequency = "none" | "weekly" | "biweekly" | "monthly";
 
@@ -111,6 +111,7 @@ interface SetlistState {
   switchListMode(mode: SetlistListMode): Promise<void>;
   clearTemporary(): Promise<void>;
   moveItemToOtherList(itemId: string): Promise<void>;
+  appendImprevistoSong(songId: string): Promise<void>;
 }
 
 function errorMessage(err: unknown): string {
@@ -1162,5 +1163,59 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       return;
     }
     await get().projectSection(selectedItemId, runnerIndex - 1);
+  },
+
+  appendImprevistoSong: async (songId) => {
+    let song = get().songsCache[songId];
+    if (!song) {
+      const fetched = await getSong(songId);
+      if (!fetched) return;
+      song = fetched;
+      set((s) => ({
+        songsCache: { ...s.songsCache, [songId]: fetched },
+      }));
+    }
+
+    const { event, listMode } = get();
+    if (!event) return;
+
+    const summary: SongSummary = {
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      composer: song.composer,
+      songKey: song.songKey,
+      bpm: song.bpm,
+    };
+
+    const newItem: EventItem = {
+      id: crypto.randomUUID(),
+      songId: song.id,
+      nextItemId: null,
+      song: summary,
+      media: null,
+    };
+
+    const updatedEvent = appendItemToEvent(event, newItem);
+
+    if (listMode === "temporary") {
+      set({
+        event: updatedEvent,
+        temporaryEvent: updatedEvent,
+        dirty: false,
+      });
+    } else {
+      set({
+        event: updatedEvent,
+        dirty: false,
+      });
+    }
+
+    try {
+      await saveEvent(updatedEvent);
+    } catch (err) {
+      console.error("Falha ao salvar evento após imprevisto do remote:", err);
+    }
   },
 }));

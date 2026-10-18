@@ -37,30 +37,42 @@ export function transferItemBetweenEvents(
     nextItemId: null,
   };
 
-  let newTargetParts: EventPart[];
-  if (target.parts.length === 0) {
-    newTargetParts = [
-      {
-        id: crypto.randomUUID(),
-        title: "Avulsas",
-        items: [itemToMove],
-      },
-    ];
-  } else {
-    newTargetParts = target.parts.map((part, index) => {
-      if (index === target.parts.length - 1) {
-        return {
-          ...part,
-          items: [...part.items, itemToMove],
-        };
-      }
-      return part;
-    });
-  }
+  const updatedTarget = appendItemToEvent(target, itemToMove);
 
   return {
     updatedSource: { ...source, parts: cleanedSourceParts },
-    updatedTarget: { ...target, parts: newTargetParts },
+    updatedTarget,
     movedItem: itemToMove,
+  };
+}
+
+export function appendItemToEvent(
+  event: ServiceEvent,
+  item: EventItem,
+): ServiceEvent {
+  if (event.parts.length === 0) {
+    return {
+      ...event,
+      parts: [
+        {
+          id: crypto.randomUUID(),
+          title: "Avulsas",
+          items: [item],
+        },
+      ],
+    };
+  }
+
+  return {
+    ...event,
+    parts: event.parts.map((part, index) => {
+      if (index === event.parts.length - 1) {
+        return {
+          ...part,
+          items: [...part.items, item],
+        };
+      }
+      return part;
+    }),
   };
 }

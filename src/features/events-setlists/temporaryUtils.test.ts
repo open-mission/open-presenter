@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { transferItemBetweenEvents } from "./temporaryUtils.ts";
+import { appendItemToEvent, transferItemBetweenEvents } from "./temporaryUtils.ts";
 import type { ServiceEvent, EventItem } from "@/core/types";
 
 test("transfere item de um evento para o outro criando parte Avulsas se o destino for vazio", () => {
@@ -70,4 +70,37 @@ test("retorna null se o item não for encontrado na origem", () => {
 
   const result = transferItemBetweenEvents(source, target, "item-inexistente");
   assert.equal(result, null);
+});
+
+test("appendItemToEvent cria parte Avulsas quando o evento não possui partes", () => {
+  const event: ServiceEvent = {
+    id: "e1",
+    title: "Culto",
+    eventDate: "2026-10-18",
+    parts: [],
+  };
+  const item: EventItem = { id: "item-new", songId: "s-new", nextItemId: null, song: null, media: null };
+  const updated = appendItemToEvent(event, item);
+  assert.equal(updated.parts.length, 1);
+  assert.equal(updated.parts[0].title, "Avulsas");
+  assert.equal(updated.parts[0].items.length, 1);
+  assert.equal(updated.parts[0].items[0].id, "item-new");
+});
+
+test("appendItemToEvent anexa na última parte quando o evento já possui partes", () => {
+  const event: ServiceEvent = {
+    id: "e1",
+    title: "Culto",
+    eventDate: "2026-10-18",
+    parts: [
+      { id: "p1", title: "Primeira", items: [] },
+      { id: "p2", title: "Segunda", items: [] },
+    ],
+  };
+  const item: EventItem = { id: "item-new", songId: "s-new", nextItemId: null, song: null, media: null };
+  const updated = appendItemToEvent(event, item);
+  assert.equal(updated.parts.length, 2);
+  assert.equal(updated.parts[0].items.length, 0);
+  assert.equal(updated.parts[1].items.length, 1);
+  assert.equal(updated.parts[1].items[0].id, "item-new");
 });
