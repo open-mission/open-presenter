@@ -65,15 +65,18 @@ fn serialize_setlist(event: &ServiceEvent) -> Result<String, AppError> {
     serde_json::to_string(&stored).map_err(|e| AppError::Storage(e.to_string()))
 }
 
+pub const TEMPORARY_EVENT_ID: &str = "__temporary__";
+
 pub fn list(conn: &Connection) -> Result<Vec<EventSummary>, AppError> {
     let mut stmt = conn
         .prepare(
             "SELECT id, title, event_date, json_extract(setlist_json, '$.wallpaper') FROM service_events
+             WHERE id != ?1
              ORDER BY event_date DESC, title",
         )
         .map_err(storage_error)?;
     let events = stmt
-        .query_map([], |row| {
+        .query_map(params![TEMPORARY_EVENT_ID], |row| {
             Ok(EventSummary {
                 id: row.get(0)?,
                 title: row.get(1)?,
@@ -178,7 +181,25 @@ pub fn save(conn: &Connection, event: &ServiceEvent) -> Result<(), AppError> {
     Ok(())
 }
 
+pub fn get_temporary(conn: &Connection) -> Result<ServiceEvent, AppError> {
+    if let Some(event) = get(conn, TEMPORARY_EVENT_ID)? {
+        return Ok(event);
+    }
+    let temp = ServiceEvent {
+        id: TEMPORARY_EVENT_ID.to_string(),
+        title: "Temporário".to_string(),
+        event_date: "".to_string(),
+        wallpaper: None,
+        parts: vec![],
+    };
+    create(conn, &temp)?;
+    Ok(temp)
+}
+
 pub fn delete(conn: &Connection, id: &str) -> Result<(), AppError> {
+    if id == TEMPORARY_EVENT_ID {
+        return Err(AppError::Storage("não é permitido excluir a lista temporária".into()));
+    }
     conn.execute("DELETE FROM service_events WHERE id = ?1", params![id])
         .map_err(storage_error)?;
     Ok(())
@@ -280,5 +301,46 @@ mod tests {
         assert_eq!(list(&conn).unwrap().len(), 1);
         delete(&conn, "e1").unwrap();
         assert!(get(&conn, "e1").unwrap().is_none());
+    }
+
+    #[test]
+    fn get_temporary_cria_se_nao_existir_e_reutiliza() {
+        let conn = open_in_memory();
+        let temp1 = get_temporary(&conn).unwrap();
+        assert_eq!(temp1.id, TEMPORARY_EVENT_ID);
+        assert_eq!(temp1.title, "Temporário");
+        assert!(temp1.parts.is_empty());
+
+        let temp2 = get_temporary(&conn).unwrap();
+        assert_eq!(temp2.id, temp1.id);
+        assert_eq!(temp2.title, temp1.title);
+    }
+
+    #[test]
+    fn list_exclui_evento_temporario() {
+        let conn = open_in_memory();
+        get_temporary(&conn).unwrap();
+        let event = ServiceEvent {
+            id: "e-culto".into(),
+            title: "Culto de Domingo".into(),
+            event_date: "2026-10-18".into(),
+            wallpaper: None,
+            parts: vec![],
+        };
+        create(&conn, &event).unwrap();
+
+        let events = list(&conn).unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].id, "e-culto");
+        assert!(!events.iter().any(|e| e.id == TEMPORARY_EVENT_ID));
+    }
+
+    #[test]
+    fn delete_recusa_exclusao_do_temporario() {
+        let conn = open_in_memory();
+        get_temporary(&conn).unwrap();
+        let res = delete(&conn, TEMPORARY_EVENT_ID);
+        assert!(res.is_err());
+        assert!(get(&conn, TEMPORARY_EVENT_ID).unwrap().is_some());
     }
 }
