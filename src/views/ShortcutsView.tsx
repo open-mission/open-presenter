@@ -74,6 +74,15 @@ const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
         keys: ["Duplo Clique"],
         description: "Projeta o slide diretamente na saída pública",
       },
+      {
+        keys: ["0–9", "Enter"],
+        description:
+          "Digite o número do slide (música, texto ou imagem) e Enter para ir até ele; projeta se a apresentação estiver ativa, senão faz prévia e rolagem",
+      },
+      {
+        keys: ["Backspace"],
+        description: "Apaga o último dígito do número digitado",
+      },
     ],
   },
   {
@@ -91,6 +100,11 @@ const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
       {
         keys: ["Botão Direito"],
         description: "Menu com opção de Editar música, mover na ordem ou remover",
+      },
+      {
+        keys: ["V", "C", "B", "…"],
+        description:
+          "Pula para o início do próximo grupo do rótulo (Verso, Refrão…); letras configuráveis em Preferências → Músicas",
       },
     ],
   },
