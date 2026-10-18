@@ -42,6 +42,8 @@ pub struct ServerState {
     pub media_dir: PathBuf,
     pub clients: Clients,
     pub remote: SharedRemoteState,
+    pub db: Option<crate::services::database::Db>,
+    pub app_handle: Option<tauri::AppHandle>,
 }
 
 /// Controle de ciclo de vida do servidor local de saídas.

@@ -216,7 +216,8 @@ pub fn run() {
                 }));
             app.manage(remote_state.clone());
 
-            app.manage(database::Db(std::sync::Mutex::new(conn)));
+            let db = database::Db::new(conn);
+            app.manage(db.clone());
 
             let media_dir = crate::services::theme_media::media_base_dir(&handle)
                 .unwrap_or_else(|_| std::path::PathBuf::from("theme-media"));
@@ -229,6 +230,8 @@ pub fn run() {
                 media_dir,
                 clients: clients.clone(),
                 remote: remote_state.clone(),
+                db: Some(db),
+                app_handle: Some(app.handle().clone()),
             };
             app.manage(clients);
             app.manage(std::sync::Mutex::new(

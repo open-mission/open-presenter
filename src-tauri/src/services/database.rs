@@ -58,9 +58,20 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 ";
 
-pub struct Db(pub std::sync::Mutex<Connection>);
+#[derive(Clone)]
+pub struct Db(pub std::sync::Arc<std::sync::Mutex<Connection>>);
+
+impl std::fmt::Debug for Db {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Db").finish()
+    }
+}
 
 impl Db {
+    pub fn new(conn: Connection) -> Self {
+        Self(std::sync::Arc::new(std::sync::Mutex::new(conn)))
+    }
+
     pub fn with_conn<T>(
         &self,
         f: impl FnOnce(&Connection) -> Result<T, AppError>,
