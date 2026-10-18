@@ -58,7 +58,11 @@ export function StudioPickerDialog({
   }, [open, loadThemes]);
 
   const presentations = useMemo(() => {
-    return themes.filter((t) => t.category === "presentation" || !SYSTEM_GUIDS.has(t.guid));
+    return themes.filter(
+      (t) =>
+        t.category === "presentation" ||
+        (!SYSTEM_GUIDS.has(t.guid) && t.category !== "theme"),
+    );
   }, [themes]);
 
   const filtered = useMemo(() => {

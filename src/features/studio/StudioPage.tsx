@@ -126,10 +126,10 @@ export function StudioPage() {
     const q = search.trim().toLowerCase();
     return themes.filter((t) => {
       const isSystem = SYSTEM_GUIDS.has(t.guid);
-      const isPresentation = t.category === "presentation" || !isSystem;
+      const isPresentation = t.category === "presentation" || (!isSystem && t.category !== "theme");
 
       if (activeFilter === "presentations" && !isPresentation) return false;
-      if (activeFilter === "templates" && isPresentation && !isSystem) return false;
+      if (activeFilter === "templates" && isPresentation) return false;
 
       if (!q) return true;
       if (t.title.toLowerCase().includes(q)) return true;
@@ -141,8 +141,10 @@ export function StudioPage() {
     let presentations = 0;
     let templates = 0;
     for (const t of themes) {
-      if (SYSTEM_GUIDS.has(t.guid)) templates++;
-      else presentations++;
+      const isSystem = SYSTEM_GUIDS.has(t.guid);
+      const isPresentation = t.category === "presentation" || (!isSystem && t.category !== "theme");
+      if (isPresentation) presentations++;
+      else templates++;
     }
     return { presentations, templates, all: themes.length };
   }, [themes]);

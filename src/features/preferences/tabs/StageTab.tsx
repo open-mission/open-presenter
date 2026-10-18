@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Clock, Palette, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,10 @@ export function StageTab() {
   const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
   const setStageTheme = useSlideThemesStore((s) => s.setStageTheme);
   const resolvedStageTheme = useSlideThemesStore((s) => s.resolveStageTheme());
+
+  const templateThemes = useMemo(() => {
+    return themes.filter((t) => t.category !== "presentation");
+  }, [themes]);
 
   return (
     <div className="flex flex-col gap-5">
@@ -57,7 +62,7 @@ export function StageTab() {
                 onChange={(e) => setStageTheme(e.target.value || null)}
                 className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
               >
-                {themes.map((t) => (
+                {templateThemes.map((t) => (
                   <option key={t.guid} value={t.guid}>
                     {t.title}
                   </option>

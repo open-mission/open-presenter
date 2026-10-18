@@ -100,6 +100,10 @@ export function SongsPage() {
 
   // Temas de slides
   const themes = useSlideThemesStore((s) => s.themes);
+  const templateThemes = useMemo(
+    () => themes.filter((t) => t.category !== "presentation"),
+    [themes],
+  );
   const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
   const loadThemes = useSlideThemesStore((s) => s.load);
   const ensureSeeded = useSlideThemesStore((s) => s.ensureSeeded);
@@ -110,7 +114,7 @@ export function SongsPage() {
   );
 
   const [selectedThemeGuid, setSelectedThemeGuid] = useState<string | null>(
-    () => defaultTheme?.guid ?? (themes[0]?.guid || null),
+    () => defaultTheme?.guid ?? (templateThemes[0]?.guid || null),
   );
 
   useEffect(() => {
@@ -549,7 +553,7 @@ export function SongsPage() {
                   </Button>
 
                   {/* Seletor de Tema quando ativo */}
-                  {themePreviewActive && themes.length > 0 && (
+                  {themePreviewActive && templateThemes.length > 0 && (
                     <Select
                       value={activeTheme?.guid ?? ""}
                       onValueChange={(guid) => setSelectedThemeGuid(guid)}
@@ -558,7 +562,7 @@ export function SongsPage() {
                         <SelectValue placeholder="Escolher tema..." />
                       </SelectTrigger>
                       <SelectContent align="end" className="w-[180px]">
-                        {themes.map((theme) => (
+                        {templateThemes.map((theme) => (
                           <SelectItem
                             key={theme.guid}
                             value={theme.guid}

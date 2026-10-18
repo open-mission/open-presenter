@@ -9,6 +9,7 @@ export const DEFAULT_TEXT_THEME_GUID = "c8d198e7-8b89-48ff-b1cc-39eed768d454";
 export const DEFAULT_TEXT_THEME: SlideTheme = {
   guid: DEFAULT_TEXT_THEME_GUID,
   title: "Texto Padrão",
+  category: "theme",
   css: {
     background: "#000000",
   },
@@ -61,6 +62,7 @@ export const DEFAULT_TEXT_THEME: SlideTheme = {
 export const DEFAULT_MUSIC_THEME: SlideTheme = {
   guid: DEFAULT_MUSIC_THEME_GUID,
   title: "Louvor Padrão",
+  category: "theme",
   css: {
     background:
       "radial-gradient(circle at 50% 120%, #7c2d12 0%, #1c0a00 55%, #000000 100%)",
@@ -114,6 +116,7 @@ export const DEFAULT_MUSIC_THEME: SlideTheme = {
 export const DEFAULT_STAGE_THEME: SlideTheme = {
   guid: DEFAULT_STAGE_THEME_GUID,
   title: "Retorno Padrão",
+  category: "theme",
   css: {
     background: "#000000",
   },
@@ -231,6 +234,7 @@ export const DEFAULT_STAGE_REST_THEME_GUID = "38e928f7-9912-40ee-b0cc-49ffc779d8
 export const DEFAULT_STAGE_REST_THEME: SlideTheme = {
   guid: DEFAULT_STAGE_REST_THEME_GUID,
   title: "Retorno - Descanso / Relógio",
+  category: "theme",
   css: {
     background: "#080808",
   },
