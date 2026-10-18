@@ -19,6 +19,7 @@ import {
   Plus,
   RotateCcw,
   Search,
+  Sparkles,
   Trash2,
   Video,
 } from "lucide-react";
@@ -53,9 +54,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { mediaKindLabel } from "@/core/lib/media";
-import { openMediaLibrary } from "@/core/ipc/commands";
+import { openMediaLibrary, openThemeEditor } from "@/core/ipc/commands";
 import type { EventItem, EventPart, MediaKind } from "@/core/types";
 import { useSongsStore } from "@/features/songs/store";
+import { createEmptyStudioTheme } from "@/features/slide-themes/seedThemes";
+import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { findEventItem, useSetlistStore } from "./store";
 import { MediaDialog, type VisualMediaKind } from "./MediaDialog";
 import { TextEditorDialog } from "./TextEditorDialog";
@@ -82,6 +85,9 @@ const MEDIA_KIND_OPTIONS: Array<{
 
 function ItemKindIcon({ item }: { item: EventItem }) {
   const media = item.media;
+  if (media?.themeId) {
+    return <Sparkles className="size-3.5 mt-0.5 shrink-0 text-amber-500" />;
+  }
   const Icon = media ? MEDIA_ICONS[media.kind] : Music;
   return (
     <Icon
@@ -93,6 +99,12 @@ function ItemKindIcon({ item }: { item: EventItem }) {
 }
 
 function itemTitle(item: EventItem): string {
+  if (item.media?.themeId) {
+    const studioTheme = useSlideThemesStore
+      .getState()
+      .themes.find((t) => t.guid === item.media?.themeId);
+    if (studioTheme?.title) return studioTheme.title;
+  }
   return (
     item.media?.title ||
     item.song?.title ||
@@ -101,6 +113,9 @@ function itemTitle(item: EventItem): string {
 }
 
 function itemSubtitle(item: EventItem): string {
+  if (item.media?.themeId) {
+    return "Apresentação (Studio)";
+  }
   if (item.media) {
     const count = item.media.files?.length ?? 0;
     return item.media.kind === "folder"
@@ -157,6 +172,7 @@ export function SetlistSidebar() {
   const reorderItem = useSetlistStore((s) => s.reorderItem);
   const save = useSetlistStore((s) => s.save);
   const dirty = useSetlistStore((s) => s.dirty);
+  const addMedia = useSetlistStore((s) => s.addMedia);
   const listMode = useSetlistStore((s) => s.listMode);
   const switchListMode = useSetlistStore((s) => s.switchListMode);
   const clearTemporary = useSetlistStore((s) => s.clearTemporary);
@@ -372,6 +388,31 @@ export function SetlistSidebar() {
     setMediaDialogOpen(true);
   }
 
+  async function handleAddPresentation(targetPartId?: string) {
+    if (!event) return;
+    const partId = resolvePartId(targetPartId);
+    if (!partId) return;
+
+    try {
+      const theme = createEmptyStudioTheme("Aviso / Comunicado");
+      await useSlideThemesStore.getState().save(theme);
+      const newMediaItemId = addMedia(partId, {
+        kind: "text",
+        title: theme.title,
+        text: "",
+        themeId: theme.guid,
+      });
+      selectItem(newMediaItemId);
+      await save();
+      toast.success("Apresentação criada no Studio!");
+      await openThemeEditor(theme.guid);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Falha ao criar apresentação no Studio.",
+      );
+    }
+  }
+
   function handleEditMedia(itemId: string) {
     if (!event) return;
     const item = findEventItem(event, itemId);
@@ -379,6 +420,11 @@ export function SetlistSidebar() {
       candidate.items.some((candidateItem) => candidateItem.id === itemId),
     );
     if (!part) return;
+
+    if (item?.media?.themeId) {
+      void openThemeEditor(item.media.themeId);
+      return;
+    }
 
     if (item?.media?.kind === "text") {
       setTextEditorPartId(part.id);
@@ -590,6 +636,13 @@ export function SetlistSidebar() {
                 Adicionar Música
               </DropdownMenuItem>
               <DropdownMenuItem
+                onSelect={() => void handleAddPresentation()}
+                className="text-xs cursor-pointer font-medium"
+              >
+                <Sparkles className="size-3.5 mr-2 text-amber-500" />
+                Apresentação (Studio de Criação)
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 onSelect={() => handleAddMedia(undefined, "text")}
                 className="text-xs cursor-pointer"
               >
@@ -693,6 +746,16 @@ export function SetlistSidebar() {
                     type="button"
                     size="sm"
                     variant="outline"
+                    className="h-8 text-xs font-medium w-full cursor-pointer text-amber-500 border-amber-500/30 hover:bg-amber-500/10"
+                    onClick={() => void handleAddPresentation()}
+                  >
+                    <Sparkles className="size-3.5 mr-1.5 text-amber-500" />
+                    Studio
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
                     className="h-8 text-xs font-medium w-full cursor-pointer"
                     onClick={() => handleAddMedia(undefined, "text")}
                   >
@@ -713,11 +776,11 @@ export function SetlistSidebar() {
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="h-8 text-xs font-medium w-full cursor-pointer"
+                    className="col-span-2 h-8 text-xs font-medium w-full cursor-pointer"
                     onClick={() => setNewPartDialogOpen(true)}
                   >
                     <FolderPlus className="size-3.5 mr-1.5" />
-                    Seção
+                    Nova Seção
                   </Button>
                 </div>
               </div>
@@ -832,14 +895,61 @@ export function SetlistSidebar() {
                         </div>
 
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setPickerPartId(part.id)}
-                            className="rounded p-1 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground cursor-pointer"
-                            title="Adicionar música nesta seção"
-                          >
-                            <Plus className="size-3" />
-                          </button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type="button"
+                                className="rounded p-1 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground cursor-pointer"
+                                title="Adicionar item nesta seção"
+                              >
+                                <Plus className="size-3" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                              <DropdownMenuItem
+                                onSelect={() => setPickerPartId(part.id)}
+                                className="text-xs cursor-pointer"
+                              >
+                                <Music className="size-3.5 mr-2 text-primary" />
+                                Adicionar Música
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() => void handleAddPresentation(part.id)}
+                                className="text-xs cursor-pointer font-medium"
+                              >
+                                <Sparkles className="size-3.5 mr-2 text-amber-500" />
+                                Apresentação (Studio)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() => handleAddMedia(part.id, "text")}
+                                className="text-xs cursor-pointer"
+                              >
+                                <AlignLeft className="size-3.5 mr-2 text-sky-500" />
+                                Adicionar Texto
+                              </DropdownMenuItem>
+                              <DropdownMenuSub>
+                                <DropdownMenuSubTrigger className="text-xs cursor-pointer">
+                                  <ImageIcon className="size-3.5 mr-2 text-sky-500" />
+                                  Adicionar Mídia
+                                </DropdownMenuSubTrigger>
+                                <DropdownMenuSubContent className="w-52">
+                                  {MEDIA_KIND_OPTIONS.map((option) => {
+                                    const Icon = option.icon;
+                                    return (
+                                      <DropdownMenuItem
+                                        key={option.kind}
+                                        onSelect={() => handleAddMedia(part.id, option.kind)}
+                                        className="text-xs cursor-pointer"
+                                      >
+                                        <Icon className="size-3.5 mr-2 text-sky-500" />
+                                        {option.label}
+                                      </DropdownMenuItem>
+                                    );
+                                  })}
+                                </DropdownMenuSubContent>
+                              </DropdownMenuSub>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                           <button
                             type="button"
                             onClick={() => openColorDialog(part)}
@@ -1036,8 +1146,17 @@ export function SetlistSidebar() {
                                           onSelect={() => handleEditMedia(item.id)}
                                           className="whitespace-nowrap flex items-center gap-2 cursor-pointer"
                                         >
-                                          <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
-                                          <span>Editar mídia</span>
+                                          {item.media?.themeId ? (
+                                            <>
+                                              <Sparkles className="size-3.5 shrink-0 text-amber-500" />
+                                              <span>Editar no Studio</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
+                                              <span>Editar mídia</span>
+                                            </>
+                                          )}
                                         </DropdownMenuItem>
                                       ) : (
                                         <DropdownMenuItem
@@ -1107,8 +1226,17 @@ export function SetlistSidebar() {
                                   onClick={() => handleEditMedia(item.id)}
                                   className="whitespace-nowrap flex items-center gap-2 cursor-pointer"
                                 >
-                                  <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
-                                  <span>Editar mídia</span>
+                                  {item.media?.themeId ? (
+                                    <>
+                                      <Sparkles className="size-3.5 shrink-0 text-amber-500" />
+                                      <span>Editar no Studio</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Pencil className="size-3.5 shrink-0 text-muted-foreground" />
+                                      <span>Editar mídia</span>
+                                    </>
+                                  )}
                                 </ContextMenuItem>
                               ) : (
                                 <ContextMenuItem
@@ -1186,6 +1314,13 @@ export function SetlistSidebar() {
           >
             <Music className="size-3.5 text-primary" />
             <span>Adicionar Música</span>
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => void handleAddPresentation()}
+            className="flex items-center gap-2 cursor-pointer font-medium"
+          >
+            <Sparkles className="size-3.5 text-amber-500" />
+            <span>Apresentação (Studio)</span>
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => handleAddMedia(undefined, "text")}

@@ -7,6 +7,7 @@ import {
   Pencil,
   Play,
   Radio,
+  Sparkles,
   Trash2,
   Video,
 } from "lucide-react";
@@ -20,9 +21,12 @@ import {
   removeLastSlideNumberDigit,
   resolveSlideNumberIndex,
 } from "@/core/lib/slideNumbers";
+import { openThemeEditor } from "@/core/ipc/commands";
 import type { EventItem, MediaKind } from "@/core/types";
 import { useMediaBaseUrl } from "@/features/presentation/useMediaBaseUrl";
 import { usePresentationStore } from "@/features/presentation/store";
+import { ScaledStage } from "@/features/slide-themes/ScaledStage";
+import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { resolveMediaLibraryUrl } from "@/features/theme-editor/media";
 import { MediaDialog } from "./MediaDialog";
 import { SlideNumberIndicator } from "./SlideNumberIndicator";
@@ -44,6 +48,10 @@ export function MediaSlidesColumn({
   partId: string;
 }) {
   const media = item.media;
+  const studioTheme = useSlideThemesStore((s) =>
+    media?.themeId ? s.themes.find((t) => t.guid === media.themeId) : undefined,
+  );
+  const isStudioPresentation = Boolean(media?.themeId);
   const slides = useMemo(
     () => (media ? buildMediaSlides(item.id, media) : []),
     [item.id, media],
@@ -189,18 +197,40 @@ export function MediaSlidesColumn({
     <section className="relative flex h-full w-80 min-h-0 flex-col border-r border-border bg-background sm:w-96 shrink-0 select-none overflow-hidden" onClick={() => setNumberBuffer("")}>
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3.5">
         <div className="flex min-w-0 flex-1 items-center gap-2.5 pr-3">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-500">
-            <Icon className="size-4" />
+          <span
+            className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
+              isStudioPresentation
+                ? "bg-amber-500/10 text-amber-500"
+                : "bg-sky-500/10 text-sky-500"
+            }`}
+          >
+            {isStudioPresentation ? (
+              <Sparkles className="size-4" />
+            ) : (
+              <Icon className="size-4" />
+            )}
           </span>
           <div className="min-w-0">
             <p className="truncate font-semibold text-xs text-foreground">
-              {media.title}
+              {studioTheme?.title || media.title}
             </p>
-            <p className="truncate text-[11px] text-muted-foreground mt-0.5">
-              {mediaKindLabel(media.kind)}
-              {isFolder ? ` · ${fileCount} imagens` : ""}
-              {isText && slides.length > 1 ? ` · ${slides.length} textos` : ""}
-            </p>
+            {isStudioPresentation ? (
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <Badge
+                  variant="outline"
+                  className="text-[9px] px-1.5 py-0 h-4 bg-amber-500/10 text-amber-500 border-amber-500/30 font-semibold gap-1"
+                >
+                  <Sparkles className="size-2.5" />
+                  Studio de Criação
+                </Badge>
+              </div>
+            ) : (
+              <p className="truncate text-[11px] text-muted-foreground mt-0.5">
+                {mediaKindLabel(media.kind)}
+                {isFolder ? ` · ${fileCount} imagens` : ""}
+                {isText && slides.length > 1 ? ` · ${slides.length} textos` : ""}
+              </p>
+            )}
           </div>
         </div>
 
@@ -210,13 +240,22 @@ export function MediaSlidesColumn({
             variant="ghost"
             size="icon"
             className="size-8 cursor-pointer text-muted-foreground hover:text-foreground"
-            title="Editar mídia"
+            title={isStudioPresentation ? "Editar no Studio de Criação" : "Editar mídia"}
             onClick={() => {
-              if (media.kind === "text") setTextEditOpen(true);
-              else setEditOpen(true);
+              if (isStudioPresentation && media.themeId) {
+                void openThemeEditor(media.themeId);
+              } else if (media.kind === "text") {
+                setTextEditOpen(true);
+              } else {
+                setEditOpen(true);
+              }
             }}
           >
-            <Pencil className="size-3.5" />
+            {isStudioPresentation ? (
+              <Sparkles className="size-3.5 text-amber-500" />
+            ) : (
+              <Pencil className="size-3.5" />
+            )}
           </Button>
           <Button
             type="button"
@@ -248,19 +287,92 @@ export function MediaSlidesColumn({
           <div className="flex h-64 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 p-6 text-center text-xs text-muted-foreground">
             <Icon className="size-8 opacity-50" />
             <p className="font-semibold text-foreground">
-              {isText
+              {isStudioPresentation
+                ? "Apresentação sem conteúdo"
+                : isText
                 ? "Nenhum texto"
                 : isFolder
                 ? "Nenhuma imagem"
                 : "Nenhuma mídia"}
             </p>
             <p className="max-w-[220px] text-[11px]">
-              {isText
+              {isStudioPresentation
+                ? "Abra o Studio de Criação para editar o slide."
+                : isText
                 ? "Edite esta mídia e escreva um ou mais textos."
                 : isFolder
                 ? "Edite esta mídia e escolha uma pasta com imagens para exibir."
                 : "Edite esta mídia e escolha o arquivo para exibir."}
             </p>
+          </div>
+        ) : isStudioPresentation && studioTheme ? (
+          <div className="space-y-3">
+            {slides.map((entry) => {
+              const isPreview = previewIndex === entry.index;
+              const isLive = runnerIndex === entry.index;
+              return (
+                <div key={entry.slide.id} className="space-y-2">
+                  <button
+                    type="button"
+                    ref={(el) => {
+                      slideRefs.current[entry.index] = el;
+                    }}
+                    onClick={() => handlePreview(entry.index)}
+                    onDoubleClick={() => handlePresent(entry.index)}
+                    className={`group relative aspect-video w-full overflow-hidden rounded-xl border bg-black shadow-md transition-all cursor-pointer ${
+                      isLive
+                        ? "border-emerald-500 ring-2 ring-emerald-500/40 shadow-emerald-500/10"
+                        : isPreview
+                        ? "border-primary ring-2 ring-primary/30"
+                        : "border-border/80 hover:border-primary/50"
+                    }`}
+                    title="1 clique: prévia · 2 cliques: apresentar"
+                  >
+                    <ScaledStage
+                      theme={studioTheme}
+                      asset="text"
+                      props={{
+                        title: studioTheme.title || media.title,
+                        titulo: studioTheme.title || media.title,
+                        text: media.text || studioTheme.title || media.title,
+                        texto: media.text || studioTheme.title || media.title,
+                        lyrics: media.text || studioTheme.title || media.title,
+                        letra: media.text || studioTheme.title || media.title,
+                      }}
+                    />
+                    <div className="absolute left-2 top-2 z-30 flex items-center gap-1.5 pointer-events-none">
+                      <span className="rounded bg-black/75 px-1.5 py-0.5 text-[9px] font-semibold text-white backdrop-blur-xs">
+                        #{entry.index + 1}
+                      </span>
+                      {isPreview && !isLive && (
+                        <span className="rounded bg-primary/90 px-1.5 py-0.5 text-[9px] font-semibold text-primary-foreground shadow-xs">
+                          Prévia
+                        </span>
+                      )}
+                    </div>
+                    {isLive && (
+                      <div className="absolute right-2 top-2 z-30 pointer-events-none">
+                        <Badge className="h-4 gap-1 bg-emerald-600 px-1.5 text-[9px] font-semibold text-white animate-pulse">
+                          <Radio className="size-2.5" />
+                          AO VIVO
+                        </Badge>
+                      </div>
+                    )}
+                  </button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full text-xs font-medium gap-1.5 text-amber-500 border-amber-500/30 hover:bg-amber-500/10 cursor-pointer"
+                    onClick={() => void openThemeEditor(media.themeId)}
+                  >
+                    <Sparkles className="size-3.5" />
+                    Editar no Studio de Criação
+                  </Button>
+                </div>
+              );
+            })}
           </div>
         ) : isFolder ? (
           <div className="grid grid-cols-2 gap-2">

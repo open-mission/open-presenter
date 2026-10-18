@@ -22,7 +22,10 @@ export default function PublicView() {
   const localTheme = useSlideThemesStore((s) =>
     s.resolveTheme("public", live.content.kind, live.content.media?.themeId),
   );
-  const theme = broadcastTheme ?? localTheme;
+  const theme =
+    (live.content.media?.themeId ? localTheme : null) ??
+    broadcastTheme ??
+    localTheme;
 
   useEffect(() => {
     void loadThemes();

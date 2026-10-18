@@ -73,10 +73,24 @@ export function buildMediaSlides(itemId: string, media: MediaItem): RunnerSlide[
   switch (media.kind) {
     case "text": {
       const blocks = splitTextBlocks(media.text);
+      if (blocks.length === 0 && media.themeId) {
+        return [
+          {
+            index: 0,
+            label: "Apresentação",
+            sectionType: null,
+            slide: slideForText(itemId, media, [], 0, 1),
+          },
+        ];
+      }
       return blocks.map((lines, index) => ({
         index,
         label:
-          blocks.length > 1 ? `Texto ${index + 1}` : MEDIA_KIND_LABEL.text,
+          blocks.length > 1
+            ? `Texto ${index + 1}`
+            : media.themeId
+            ? "Apresentação"
+            : MEDIA_KIND_LABEL.text,
         sectionType: null,
         slide: slideForText(itemId, media, lines, index, blocks.length),
       }));
