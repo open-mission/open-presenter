@@ -1,4 +1,4 @@
-import { SECTION_LABEL } from "../config/lyrics";
+import { SECTION_LABEL } from "../config/lyrics.ts";
 import type { SectionType, SlideContent, Song, SongSection } from "../types";
 
 export interface RunnerSlide {
@@ -230,4 +230,31 @@ export function buildSongSlides(song: Song): RunnerSlide[] {
       },
     };
   });
+}
+
+export interface SlideGroup {
+  startIndex: number;
+  indices: number[];
+  label: string | null;
+  sectionType: SectionType | null;
+}
+
+export function computeSlideGroups(slides: RunnerSlide[]): SlideGroup[] {
+  const groups: SlideGroup[] = [];
+
+  for (const slide of slides) {
+    const current = groups[groups.length - 1];
+    if (slide.label !== null || current === undefined) {
+      groups.push({
+        startIndex: slide.index,
+        indices: [slide.index],
+        label: slide.label,
+        sectionType: slide.sectionType,
+      });
+      continue;
+    }
+    current.indices.push(slide.index);
+  }
+
+  return groups;
 }
