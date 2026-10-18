@@ -1,16 +1,15 @@
 import { useEffect } from "react";
 import {
+  Calendar,
   ChevronDown,
   EyeOff,
   Globe,
-  HelpCircle,
   Image,
   Moon,
   Music,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
-  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,14 +20,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { outputHttpUrl } from "@/core/config/app";
-import { openShortcutsWindow } from "@/core/ipc/commands";
-import { isTauri } from "@/core/ipc/tauri";
+
 import type { OutputMode } from "@/core/types";
 import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { usePreferencesStore } from "@/features/preferences/store";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSongsStore } from "@/features/songs/store";
+import { useSetlistStore } from "@/features/events-setlists/store";
+import { useNavigationStore } from "@/features/navigation/store";
 
 interface AppTopBarProps {
   sidebarOpen: boolean;
@@ -53,6 +53,7 @@ function statusTitle(
 }
 
 export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
+  const activeTab = useNavigationStore((s) => s.activeTab);
   const live = usePresentationStore((s) => s.live);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
   const publicConfig = useOutputManagerStore((s) => s.configs.public);
@@ -123,20 +124,22 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
     <header className="flex h-14 w-full items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur-xs shrink-0">
       {/* Left section: Sidebar toggle button and Novo dropdown menu */}
       <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-8 text-muted-foreground hover:text-foreground"
-          onClick={onToggleSidebar}
-          title={sidebarOpen ? "Ocultar Programação" : "Mostrar Programação"}
-        >
-          {sidebarOpen ? (
-            <PanelLeftClose className="size-4" />
-          ) : (
-            <PanelLeftOpen className="size-4" />
-          )}
-        </Button>
+        {activeTab === "presentation" && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 text-muted-foreground hover:text-foreground"
+            onClick={onToggleSidebar}
+            title={sidebarOpen ? "Ocultar Programação" : "Mostrar Programação"}
+          >
+            {sidebarOpen ? (
+              <PanelLeftClose className="size-4" />
+            ) : (
+              <PanelLeftOpen className="size-4" />
+            )}
+          </Button>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -152,6 +155,14 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => useSetlistStore.getState().openNewEventDialog()}
+            >
+              <Calendar className="size-4 mr-2" />
+              <span>Novo Evento…</span>
+              <DropdownMenuShortcut>⌘E</DropdownMenuShortcut>
+            </DropdownMenuItem>
             <DropdownMenuItem
               className="cursor-pointer"
               onClick={() => useSongsStore.getState().startNewSong()}
@@ -260,42 +271,6 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
           <span className="hidden sm:inline">Tela Preta</span>
           <kbd className="hidden lg:inline rounded bg-muted/80 px-1 py-0.2 font-mono text-[9px]">
             B
-          </kbd>
-        </Button>
-
-        {/* Preferences Dialog Trigger */}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5 px-2 text-xs"
-          onClick={() => openPreferences()}
-          title="Preferências (⌘,)"
-        >
-          <Settings className="size-3.5" />
-          <kbd className="hidden rounded bg-muted px-1 py-0.2 font-mono text-[9px] text-muted-foreground sm:inline-block">
-            ⌘,
-          </kbd>
-        </Button>
-
-        {/* Shortcuts Window Trigger */}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5 px-2 text-xs"
-          onClick={() => {
-            if (isTauri()) {
-              void openShortcutsWindow();
-            } else {
-              window.open("/#/shortcuts", "_blank", "width=700,height=580");
-            }
-          }}
-          title="Atalhos de Teclado (⌘/)"
-        >
-          <HelpCircle className="size-3.5" />
-          <kbd className="hidden rounded bg-muted px-1 py-0.2 font-mono text-[9px] text-muted-foreground sm:inline-block">
-            ⌘/
           </kbd>
         </Button>
       </div>

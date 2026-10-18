@@ -3,6 +3,7 @@ import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { openOutputWindow } from "@/core/ipc/commands";
 import type { OutputTarget } from "@/core/types";
 import { AppTopBar } from "@/components/AppTopBar";
+import { AppDock } from "@/components/AppDock";
 import { PreferencesDialog } from "@/features/preferences/PreferencesDialog";
 import { SetlistSidebar } from "@/features/events-setlists/SetlistSidebar";
 import { SongSlidesColumn } from "@/features/events-setlists/SongSlidesColumn";
@@ -17,6 +18,13 @@ import { OnlineLyricsDialog } from "@/features/songs/OnlineLyricsDialog";
 import { ImportReportDialog } from "@/features/songs/ImportReportDialog";
 import { useSetlistStore } from "@/features/events-setlists/store";
 import { useNativeMenu } from "@/core/ipc/useNativeMenu";
+import { useNavigationStore } from "@/features/navigation/store";
+import { SongsPage } from "@/features/songs/SongsPage";
+import { AgendaCalendar } from "@/features/events-setlists/AgendaCalendar";
+import { AgendaDialog } from "@/features/events-setlists/AgendaDialog";
+import { CreateEventDialog } from "@/features/events-setlists/CreateEventDialog";
+import { ImagesPage } from "@/features/image-browser/ImagesPage";
+import { useRemoteSetlistPublisher } from "@/features/remote/useRemoteSetlistPublisher";
 
 export default function AdminView() {
   usePresentationSync("admin");
@@ -25,8 +33,11 @@ export default function AdminView() {
   useNativeMenu();
   useThemesSync();
   useLiveThemesPublisher();
+  useRemoteSetlistPublisher();
   const loadSetlists = useSetlistStore((s) => s.load);
   const outputsLoaded = useOutputManagerStore((s) => s.loaded);
+  const activeTab = useNavigationStore((s) => s.activeTab);
+  const setActiveTab = useNavigationStore((s) => s.setActiveTab);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -59,24 +70,51 @@ export default function AdminView() {
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
       />
 
-      {/* Main 3-Column Operator Workspace */}
-      <main className="flex flex-1 overflow-hidden">
-        {/* Column 1: Programação do Culto (Collapsible) */}
-        {sidebarOpen && <SetlistSidebar />}
+      {/* Main Body: Dock Lateral on the left + Content Views */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Dock Lateral Apenas com icone no lado esquerdo */}
+        <AppDock />
 
-        {/* Column 2: Estrofes & Letras da Música Selecionada */}
-        <SongSlidesColumn />
+        {/* View 1: Apresentação & Culto ao Vivo */}
+        {activeTab === "presentation" && (
+          <main className="flex flex-1 overflow-hidden">
+            {/* Column 1: Programação do Culto (Collapsible) */}
+            {sidebarOpen && <SetlistSidebar />}
 
-        {/* Column 3: Monitores de Preview (Um embaixo do outro) */}
-        <section className="flex flex-1 flex-col overflow-y-auto bg-muted/10 p-4">
-          <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
-            <LivePreview />
-          </div>
-        </section>
+            {/* Column 2: Estrofes & Letras da Música Selecionada */}
+            <SongSlidesColumn />
 
-        {/* Column 4: Trilho de Temas (quick-switch) */}
-        <ThemeRail />
-      </main>
+            {/* Column 3: Monitores de Preview */}
+            <section className="flex flex-1 flex-col overflow-hidden border-r border-border/60 bg-muted/10">
+              <LivePreview />
+            </section>
+
+            {/* Column 4: Trilho de Temas (quick-switch) */}
+            <ThemeRail />
+          </main>
+        )}
+
+        {/* View 2: Nova Página de Todas as Músicas & Letras */}
+        {activeTab === "songs" && (
+          <main className="flex flex-1 overflow-hidden">
+            <SongsPage />
+          </main>
+        )}
+
+        {/* View 3: Agenda & Cronograma de Eventos */}
+        {activeTab === "agenda" && (
+          <main className="flex flex-1 overflow-hidden">
+            <AgendaCalendar onSelectAndSwitch={() => setActiveTab("presentation")} />
+          </main>
+        )}
+
+        {/* View 4: Biblioteca de Imagens */}
+        {activeTab === "images" && (
+          <main className="flex flex-1 overflow-hidden">
+            <ImagesPage />
+          </main>
+        )}
+      </div>
 
       {/* Preferences Modal Dialog (Native ⌘, shortcut or Edit > Preferences) */}
       <PreferencesDialog />
@@ -89,6 +127,12 @@ export default function AdminView() {
 
       {/* Import Report Dialog (Holyrics import summary) */}
       <ImportReportDialog />
+
+      {/* Quick Event Creation & Recurrence Dialog */}
+      <CreateEventDialog />
+
+      {/* Agenda Dialog (Modal version) */}
+      <AgendaDialog />
     </div>
   );
 }
