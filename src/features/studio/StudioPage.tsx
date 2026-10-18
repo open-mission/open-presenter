@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarPlus,
   Copy,
@@ -48,7 +48,7 @@ import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useSetlistStore } from "@/features/events-setlists/store";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useNavigationStore } from "@/features/navigation/store";
-import { exportElementAsImage } from "@/features/theme-editor/exportImage";
+import { exportThemeAsImage } from "@/features/theme-editor/exportImage";
 
 const SYSTEM_GUIDS = new Set([
   DEFAULT_MUSIC_THEME_GUID,
@@ -117,8 +117,6 @@ export function StudioPage() {
 
   const [addToSetlistTheme, setAddToSetlistTheme] = useState<SlideTheme | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<SlideTheme | null>(null);
-
-  const stageRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     void loadThemes();
@@ -228,16 +226,19 @@ export function StudioPage() {
   }
 
   async function handleExportCardImage(theme: SlideTheme, format: "png" | "jpeg") {
-    const container = stageRefs.current[theme.guid];
-    if (!container) {
-      toast.error("Elemento visual não encontrado para exportação.");
-      return;
-    }
-    await exportElementAsImage(container, {
+    await exportThemeAsImage(theme, {
       fileName: `apresentacao-${theme.title}`,
       format,
       width: 1920,
       height: 1080,
+      sampleProps: {
+        title: theme.title,
+        titulo: theme.title,
+        lyrics: theme.title,
+        letra: theme.title,
+        text: theme.title,
+        texto: theme.title,
+      },
     });
   }
 
@@ -420,9 +421,6 @@ export function StudioPage() {
                 >
                   {/* Aspect 16:9 Slide Preview */}
                   <div
-                    ref={(el) => {
-                      stageRefs.current[theme.guid] = el;
-                    }}
                     onDoubleClick={() => void handlePresentNow(theme)}
                     className="relative aspect-video w-full overflow-hidden bg-black cursor-pointer"
                     title="1 clique: ver detalhes · 2 cliques: apresentar ao vivo"
