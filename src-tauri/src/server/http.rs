@@ -108,6 +108,13 @@ pub fn router(state: ServerState) -> Router {
             get(crate::server::remote::get_wallpaper)
                 .post(crate::server::remote::toggle_wallpaper),
         )
+        .route("/api/v1/songs", get(crate::server::remote::list_songs))
+        .route("/api/v1/songs/{id}/slides", get(crate::server::remote::song_slides))
+        .route("/api/v1/lyrics/search", get(crate::server::remote::search_lyrics))
+        .route("/api/v1/lyrics/save", post(crate::server::remote::save_lyrics))
+        .route("/api/v1/present-song", post(crate::server::remote::present_song))
+        .route("/api/v1/images", get(crate::server::remote::list_images))
+        .route("/api/v1/present-image", post(crate::server::remote::present_image))
         .route("/api/v1/ws", get(crate::server::remote::ws))
         .route("/theme-media/{*path}", get(theme_media_handler))
         .fallback(static_handler)

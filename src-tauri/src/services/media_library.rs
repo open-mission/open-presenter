@@ -361,10 +361,17 @@ fn build_image_tree(
     Ok(nodes)
 }
 
+pub fn list_images_in_dir(root: &Path) -> Result<Vec<ImageTreeNode>, AppError> {
+    if !root.exists() {
+        return Ok(Vec::new());
+    }
+    let mut budget = 5000;
+    build_image_tree(root, Path::new(""), 0, &mut budget).map_err(storage_error)
+}
+
 pub fn list_images(app: &AppHandle) -> Result<Vec<ImageTreeNode>, AppError> {
     let root = images_dir(app)?;
-    let mut budget = 5000;
-    build_image_tree(&root, Path::new(""), 0, &mut budget).map_err(storage_error)
+    list_images_in_dir(&root)
 }
 
 fn copy_images_tree(

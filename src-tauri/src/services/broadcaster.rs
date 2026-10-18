@@ -7,20 +7,37 @@ use crate::state::{types::EVENT_SLIDE, LiveSlide, LiveThemes, PresentationState,
 
 #[derive(Debug, Clone)]
 pub struct Broadcaster {
-    app: AppHandle,
+    app: Option<AppHandle>,
     ws_tx: broadcast::Sender<String>,
+    fallback: PresentationState,
 }
 
 impl Broadcaster {
     pub fn new(app: AppHandle, ws_tx: broadcast::Sender<String>) -> Self {
-        Self { app, ws_tx }
+        Self {
+            app: Some(app),
+            ws_tx,
+            fallback: PresentationState::default(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn new_test(ws_tx: broadcast::Sender<String>) -> Self {
+        Self {
+            app: None,
+            ws_tx,
+            fallback: PresentationState::default(),
+        }
     }
 
     pub fn publish_slide(&self, slide: &LiveSlide) {
-        let state = self.app.state::<PresentationState>();
-        state.set(slide.clone());
-
-        let _ = self.app.emit(EVENT_SLIDE, slide);
+        if let Some(app) = &self.app {
+            let state = app.state::<PresentationState>();
+            state.set(slide.clone());
+            let _ = app.emit(EVENT_SLIDE, slide);
+        } else {
+            self.fallback.set(slide.clone());
+        }
 
         if let Ok(payload) = serde_json::to_value(slide) {
             let envelope = serde_json::json!({
@@ -33,14 +50,21 @@ impl Broadcaster {
     }
 
     pub fn current_slide(&self) -> LiveSlide {
-        self.app.state::<PresentationState>().get()
+        if let Some(app) = &self.app {
+            app.state::<PresentationState>().get()
+        } else {
+            self.fallback.get()
+        }
     }
 
     pub fn publish_themes(&self, themes: &LiveThemes) {
-        let state = self.app.state::<PresentationState>();
-        state.set_themes(themes.clone());
-
-        let _ = self.app.emit(crate::state::types::EVENT_THEMES, themes);
+        if let Some(app) = &self.app {
+            let state = app.state::<PresentationState>();
+            state.set_themes(themes.clone());
+            let _ = app.emit(crate::state::types::EVENT_THEMES, themes);
+        } else {
+            self.fallback.set_themes(themes.clone());
+        }
 
         if let Ok(payload) = serde_json::to_value(themes) {
             let envelope = serde_json::json!({
@@ -53,11 +77,17 @@ impl Broadcaster {
     }
 
     pub fn current_themes(&self) -> LiveThemes {
-        self.app.state::<PresentationState>().themes()
+        if let Some(app) = &self.app {
+            app.state::<PresentationState>().themes()
+        } else {
+            self.fallback.themes()
+        }
     }
 
     pub fn publish_timer(&self, timer: &StageTimer) {
-        let _ = self.app.emit(crate::state::types::EVENT_TIMER, timer);
+        if let Some(app) = &self.app {
+            let _ = app.emit(crate::state::types::EVENT_TIMER, timer);
+        }
 
         if let Ok(payload) = serde_json::to_value(timer) {
             let envelope = serde_json::json!({
@@ -70,14 +100,21 @@ impl Broadcaster {
     }
 
     pub fn current_timer(&self) -> StageTimer {
-        self.app.state::<PresentationState>().timer()
+        if let Some(app) = &self.app {
+            app.state::<PresentationState>().timer()
+        } else {
+            self.fallback.timer()
+        }
     }
 
     pub fn publish_wallpaper(&self, wallpaper: Option<String>) {
-        let state = self.app.state::<PresentationState>();
-        state.set_wallpaper(wallpaper.clone());
-
-        let _ = self.app.emit(crate::state::types::EVENT_WALLPAPER, &wallpaper);
+        if let Some(app) = &self.app {
+            let state = app.state::<PresentationState>();
+            state.set_wallpaper(wallpaper.clone());
+            let _ = app.emit(crate::state::types::EVENT_WALLPAPER, &wallpaper);
+        } else {
+            self.fallback.set_wallpaper(wallpaper.clone());
+        }
 
         let envelope = serde_json::json!({
             "channel": crate::state::types::EVENT_WALLPAPER,
@@ -88,11 +125,17 @@ impl Broadcaster {
     }
 
     pub fn current_wallpaper(&self) -> Option<String> {
-        self.app.state::<PresentationState>().wallpaper()
+        if let Some(app) = &self.app {
+            app.state::<PresentationState>().wallpaper()
+        } else {
+            self.fallback.wallpaper()
+        }
     }
 
     pub fn publish_value<T: serde::Serialize>(&self, channel: &str, payload: &T) {
-        let _ = self.app.emit(channel, payload);
+        if let Some(app) = &self.app {
+            let _ = app.emit(channel, payload);
+        }
 
         if let Ok(payload) = serde_json::to_value(payload) {
             let envelope = serde_json::json!({

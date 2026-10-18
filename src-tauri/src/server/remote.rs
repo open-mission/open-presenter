@@ -4,7 +4,7 @@ use std::sync::Arc;
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        ConnectInfo, Query, State,
+        ConnectInfo, Path, Query, State,
     },
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
@@ -17,15 +17,49 @@ use crate::server::clients::{
     connected_at_now, next_id, register, user_agent, ClientGuard,
 };
 use crate::server::ServerState;
+use crate::services::{lrclib, media_library, slide_builder, songs};
 use crate::state::types::{
-    now_millis, ClientKind, ConnectedClient, SlideContent, EVENT_REMOTE_SETLIST, EVENT_SLIDE,
-    EVENT_WALLPAPER,
+    now_millis, ClientKind, ConnectedClient, MediaItem, MediaKind, SlideContent, SlideKind, Song,
+    EVENT_REMOTE_SETLIST, EVENT_SLIDE, EVENT_WALLPAPER,
 };
 use crate::state::{LiveSlide, RemoteItem, RemoteSetlist};
 
 #[derive(Debug, Deserialize)]
 pub struct RemoteWsQuery {
     token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchSongsQuery {
+    pub q: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchLyricsQuery {
+    pub q: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveLyricsRequest {
+    pub track_name: String,
+    pub artist_name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PresentSongRequest {
+    pub song_id: String,
+    #[serde(default)]
+    pub index: usize,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PresentImageRequest {
+    pub path: String,
+    #[serde(default)]
+    pub title: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -259,6 +293,222 @@ pub async fn toggle_wallpaper(
     Json(live).into_response()
 }
 
+pub async fn list_songs(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+    Query(query): Query<SearchSongsQuery>,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let Some(db) = &state.db else {
+        return internal("banco de dados indisponível");
+    };
+    let songs = match db.with_conn(|conn| songs::list(conn, query.q.as_deref())) {
+        Ok(s) => s,
+        Err(err) => return internal(&err.to_string()),
+    };
+    Json(songs).into_response()
+}
+
+pub async fn song_slides(
+    State(state): State<Arc<ServerState>>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let Some(db) = &state.db else {
+        return internal("banco de dados indisponível");
+    };
+    let song = match db.with_conn(|conn| songs::get(conn, &id)) {
+        Ok(Some(s)) => s,
+        Ok(None) => return (StatusCode::NOT_FOUND, "música não encontrada").into_response(),
+        Err(err) => return internal(&err.to_string()),
+    };
+    let slides = slide_builder::build_song_slides(&song);
+    Json(slides).into_response()
+}
+
+pub async fn search_lyrics(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+    Query(query): Query<SearchLyricsQuery>,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let client = lrclib::client();
+    match lrclib::search(&client, &query.q).await {
+        Ok(results) => Json(results).into_response(),
+        Err(err) => (StatusCode::BAD_GATEWAY, err.to_string()).into_response(),
+    }
+}
+
+pub async fn save_lyrics(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+    Json(request): Json<SaveLyricsRequest>,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let Some(db) = &state.db else {
+        return internal("banco de dados indisponível");
+    };
+    let client = lrclib::client();
+    let (title, artist, sections) =
+        match lrclib::fetch(&client, &request.track_name, &request.artist_name).await {
+            Ok(data) => data,
+            Err(err) => return (StatusCode::BAD_GATEWAY, err.to_string()).into_response(),
+        };
+
+    let song_result = db.with_conn(|conn| {
+        let defaults = songs::song_defaults(conn)?;
+        let sections = songs::apply_layout(sections, defaults);
+        songs::insert_new(conn, &title, &artist, &sections)
+    });
+
+    match song_result {
+        Ok(saved) => {
+            if let Some(app) = &state.app_handle {
+                use tauri::Emitter;
+                let _ = app.emit("songs://changed", ());
+            }
+            Json(saved).into_response()
+        }
+        Err(err) => internal(&err.to_string()),
+    }
+}
+
+pub async fn present_song(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+    Json(request): Json<PresentSongRequest>,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let Some(db) = &state.db else {
+        return internal("banco de dados indisponível");
+    };
+    let song = match db.with_conn(|conn| songs::get(conn, &request.song_id)) {
+        Ok(Some(s)) => s,
+        Ok(None) => return (StatusCode::NOT_FOUND, "música não encontrada").into_response(),
+        Err(err) => return internal(&err.to_string()),
+    };
+    let slides = slide_builder::build_song_slides(&song);
+    let Some(slide) = slides.get(request.index) else {
+        return (StatusCode::NOT_FOUND, "slide não encontrado").into_response();
+    };
+
+    let next_up = slides.get(request.index + 1).map(|s| s.content.clone());
+    let current = state.broadcaster.current_slide();
+    let live = LiveSlide {
+        content: slide.content.clone(),
+        background: current.background,
+        blackout: false,
+        cleared: false,
+        updated_at: now_millis().to_string(),
+        next_up,
+    };
+    state.broadcaster.publish_slide(&live);
+
+    if let Some(app) = &state.app_handle {
+        use tauri::Emitter;
+        let _ = app.emit("remote://imprevisto", &request.song_id);
+    }
+
+    Json(live).into_response()
+}
+
+pub async fn list_images(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let root = state.media_dir.join("library").join("images");
+    match media_library::list_images_in_dir(&root) {
+        Ok(tree) => Json(tree).into_response(),
+        Err(err) => internal(&err.to_string()),
+    }
+}
+
+pub async fn present_image(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+    Json(request): Json<PresentImageRequest>,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let mut clean = request.path.trim().to_string();
+    if let Some(stripped) = clean.strip_prefix("media://library/images/") {
+        clean = stripped.to_string();
+    } else if let Some(stripped) = clean.strip_prefix("media://library/") {
+        clean = stripped.to_string();
+    }
+    if let Some(stripped) = clean.strip_prefix("images/") {
+        clean = stripped.to_string();
+    }
+    let clean = clean.trim_start_matches('/');
+    let relative = std::path::PathBuf::from(clean);
+    if relative
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return (StatusCode::BAD_REQUEST, "caminho de imagem inválido").into_response();
+    }
+    let images_root = state.media_dir.join("library").join("images");
+    let image_file = images_root.join(&relative);
+    if !image_file.starts_with(&images_root) || !image_file.is_file() {
+        return (StatusCode::NOT_FOUND, "imagem não encontrada").into_response();
+    }
+
+    let relative_str = relative.to_string_lossy().replace('\\', "/");
+    let image_url = format!("media://library/images/{relative_str}");
+    let title = request.title.unwrap_or_else(|| {
+        relative
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("Imagem")
+            .to_string()
+    });
+
+    let content = SlideContent {
+        id: format!("remote_img_{}", now_millis()),
+        kind: SlideKind::Media,
+        title: title.clone(),
+        lines: Vec::new(),
+        notes: None,
+        section: None,
+        media: Some(MediaItem {
+            kind: MediaKind::Image,
+            title: title.clone(),
+            text: None,
+            path: Some(image_url),
+            files: Vec::new(),
+            index: None,
+            fit: None,
+            theme_id: None,
+        }),
+    };
+    let current = state.broadcaster.current_slide();
+    let live = LiveSlide {
+        content,
+        background: current.background,
+        blackout: false,
+        cleared: false,
+        updated_at: now_millis().to_string(),
+        next_up: None,
+    };
+    state.broadcaster.publish_slide(&live);
+    Json(live).into_response()
+}
+
 pub async fn ws(
     ws: WebSocketUpgrade,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -484,5 +734,87 @@ mod tests {
         assert!(guard_token_remote(&remote, Some("secret-token-123")).is_ok());
         assert_eq!(guard_token_remote(&remote, Some("errado")).unwrap_err().status(), StatusCode::UNAUTHORIZED);
         assert_eq!(guard_token_remote(&remote, None).unwrap_err().status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn list_songs_e_song_slides_retornam_dados_autenticados() {
+        use rusqlite::Connection;
+        use crate::services::database::{migrate, Db};
+        use crate::services::songs;
+        use crate::state::types::{SectionType, Song, SongSection};
+        use crate::state::RemoteSettings;
+        use std::sync::Mutex;
+
+        let conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+        let db = Db::new(conn);
+
+        db.with_conn(|conn| {
+            let song = Song {
+                id: "test-song-1".into(),
+                title: "Grandes Coisas".into(),
+                artist: "Fernandinho".into(),
+                album: None,
+                composer: None,
+                song_key: None,
+                bpm: None,
+                sections: vec![SongSection {
+                    section_type: Some(SectionType::Verse),
+                    lines: vec!["Tu és o Deus que faz maravilhas".into()],
+                }],
+            };
+            songs::save(conn, &song)
+        })
+        .unwrap();
+
+        let remote = Arc::new(Mutex::new(RemoteSettings {
+            enabled: true,
+            token: "tok123".into(),
+            setlist: None,
+        }));
+        let (ws_tx, _) = tokio::sync::broadcast::channel(16);
+        let broadcaster = Arc::new(crate::services::Broadcaster::new_test(ws_tx.clone()));
+        let clients = Arc::new(Mutex::new(std::collections::HashMap::new()));
+        let state = Arc::new(ServerState {
+            broadcaster,
+            ws_tx,
+            media_dir: std::path::PathBuf::from("/tmp"),
+            clients,
+            remote,
+            db: Some(db),
+            app_handle: None,
+        });
+
+        let mut headers = HeaderMap::new();
+        headers.insert(header::AUTHORIZATION, "Bearer tok123".parse().unwrap());
+
+        let res = list_songs(
+            State(state.clone()),
+            headers.clone(),
+            Query(SearchSongsQuery {
+                q: Some("Grandes".into()),
+            }),
+        )
+        .await;
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let res_slides = song_slides(
+            State(state.clone()),
+            Path("test-song-1".into()),
+            headers.clone(),
+        )
+        .await;
+        assert_eq!(res_slides.status(), StatusCode::OK);
+
+        let res_img_bad = present_image(
+            State(state.clone()),
+            headers.clone(),
+            Json(PresentImageRequest {
+                path: "../../../etc/passwd".into(),
+                title: None,
+            }),
+        )
+        .await;
+        assert_eq!(res_img_bad.status(), StatusCode::BAD_REQUEST);
     }
 }
