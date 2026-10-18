@@ -19,10 +19,12 @@ import {
   Lock,
   Move,
   Palette,
+  Scaling,
   Sliders,
   Square,
   Type,
   Unlock,
+  WrapText,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ThemeElement } from "@/core/types";
@@ -738,6 +740,126 @@ function TextSection({
             </SelectContent>
           </Select>
         </Field>
+      </div>
+
+      {/* Quebra de Linha e Auto-size da Fonte */}
+      <div className="flex flex-col gap-2 pt-1 border-t border-border/40">
+        {/* Quebra de Linha */}
+        <div className="flex flex-wrap items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <WrapText className="size-3.5 text-muted-foreground" />
+            <span className="text-[11px] font-medium text-foreground shrink-0">
+              Quebra de Texto
+            </span>
+          </div>
+          <div className="flex items-center gap-1 rounded-md border border-border/70 p-0.5 bg-muted/30 shrink-0">
+            <button
+              type="button"
+              title="Quebrar texto automaticamente em múltiplas linhas"
+              onClick={() =>
+                setCss({
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                })
+              }
+              className={cn(
+                "flex h-7 px-2 items-center gap-1.5 justify-center rounded text-xs transition-colors cursor-pointer",
+                (el.css.whiteSpace ?? "pre-wrap") !== "nowrap"
+                  ? "bg-background text-primary shadow-2xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <WrapText className="size-3" />
+              <span>Quebrar</span>
+            </button>
+            <button
+              type="button"
+              title="Manter em linha única (sem quebra automática)"
+              onClick={() =>
+                setCss({
+                  whiteSpace: "nowrap",
+                  wordBreak: "normal",
+                })
+              }
+              className={cn(
+                "flex h-7 px-2 items-center gap-1.5 justify-center rounded text-xs transition-colors cursor-pointer",
+                el.css.whiteSpace === "nowrap"
+                  ? "bg-background text-primary shadow-2xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <span>Linha única</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Ajuste de Fonte / Auto-size */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <Scaling className="size-3.5 text-muted-foreground" />
+              <span className="text-[11px] font-medium text-foreground shrink-0">
+                Auto-size (Fazer caber)
+              </span>
+            </div>
+            <Select
+              value={
+                el.css.autoFit === "true"
+                  ? "fit"
+                  : el.css.autoShrink === "true"
+                  ? "shrink"
+                  : "none"
+              }
+              onValueChange={(val) => {
+                if (val === "shrink") {
+                  setCss({ autoShrink: "true", autoFit: "false" });
+                } else if (val === "fit") {
+                  setCss({ autoShrink: "true", autoFit: "true" });
+                } else {
+                  setCss({ autoShrink: "false", autoFit: "false" });
+                }
+              }}
+            >
+              <SelectTrigger className="w-[160px] h-7 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                <SelectItem value="none" className="text-xs">
+                  Fixo (Desativado)
+                </SelectItem>
+                <SelectItem value="shrink" className="text-xs">
+                  Reduzir para caber
+                </SelectItem>
+                <SelectItem value="fit" className="text-xs">
+                  Preencher caixa (Auto-fit)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Tamanho Mínimo da Fonte quando auto-size ativo */}
+          {(el.css.autoShrink === "true" || el.css.autoFit === "true") && (
+            <div className="flex items-center justify-between gap-2 pl-5 pt-0.5">
+              <span className="text-[10px] text-muted-foreground">
+                Tam. Mínimo da Fonte (px)
+              </span>
+              <Input
+                type="number"
+                min={8}
+                max={120}
+                className="h-7 w-20 font-mono text-xs text-right"
+                placeholder="20"
+                value={pxOf(el.css.minFontSize) || 20}
+                onChange={(e) => {
+                  const num = Number(e.target.value);
+                  if (Number.isFinite(num) && num > 0) {
+                    setCss({ minFontSize: `${num}px` });
+                  }
+                }}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </Section>
   );

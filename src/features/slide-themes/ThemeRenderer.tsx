@@ -146,6 +146,8 @@ function AutoScaledText({
 
   const originY = vAlign === "flex-end" ? "bottom" : vAlign === "flex-start" ? "top" : "center";
 
+  const isNoWrap = element.css.whiteSpace === "nowrap" || style.whiteSpace === "nowrap";
+
   useLayoutEffect(() => {
     if (!autoShrink && !autoFit) {
       setScaleFactor(1);
@@ -155,30 +157,76 @@ function AutoScaledText({
     const content = contentRef.current;
     if (!container || !content) return;
 
-    content.style.transform = "none";
-    const cw = container.clientWidth;
-    const ch = container.clientHeight;
-    const sw = content.scrollWidth;
-    const sh = content.scrollHeight;
+    const measureAndScale = () => {
+      content.style.transform = "none";
+      const cw = container.clientWidth;
+      let ch = container.clientHeight;
 
-    if (cw > 0 && ch > 0 && sw > 0 && sh > 0) {
-      const scaleW = cw / sw;
-      const scaleH = ch / sh;
-      let targetScale = Math.min(scaleW, scaleH);
-
-      if (autoShrink && !autoFit) {
-        targetScale = Math.min(1, targetScale);
-      } else if (autoFit && !autoShrink) {
-        targetScale = Math.min(1.5, Math.max(0.35, targetScale));
-      } else if (autoShrink && autoFit) {
-        targetScale = Math.min(1.3, targetScale);
+      // Se a caixa do elemento não tem height explícito (ex: só width: 80% e top: 30%),
+      // o container pode se expandir livremente com o scrollHeight.
+      // Nesse caso, o limite inferior disponível da tela do tema é calculado:
+      if (!element.css.height && container.parentElement) {
+        const parentH = container.parentElement.clientHeight || 1080;
+        const availableH = parentH - container.offsetTop - (parentH * 0.05);
+        if (availableH > 0 && ch > availableH) {
+          ch = availableH;
+        }
       }
-      const finalScale = Math.max(0.25, targetScale);
-      setScaleFactor(finalScale);
-    } else {
-      setScaleFactor(1);
+
+      const sw = content.scrollWidth;
+      const sh = content.scrollHeight;
+
+      if (cw > 0 && ch > 0 && sw > 0 && sh > 0) {
+        const scaleW = cw / sw;
+        const scaleH = ch / sh;
+        let targetScale = Math.min(scaleW, scaleH);
+
+        if (autoShrink && !autoFit) {
+          targetScale = Math.min(1, targetScale);
+        } else if (autoFit && !autoShrink) {
+          targetScale = Math.min(1.5, Math.max(0.35, targetScale));
+        } else if (autoShrink && autoFit) {
+          targetScale = Math.min(1.3, targetScale);
+        }
+
+        // Respeitar minFontSize se configurado
+        const rawMinFontSize = element.css.minFontSize;
+        const baseFontSize = parseFloat(element.css.fontSize ?? "48") || 48;
+        let minScale = 0.2;
+        if (rawMinFontSize) {
+          const minFontPx = parseFloat(rawMinFontSize);
+          if (minFontPx > 0 && baseFontSize > 0) {
+            minScale = Math.max(0.05, minFontPx / baseFontSize);
+          }
+        }
+
+        const finalScale = Math.max(minScale, targetScale);
+        setScaleFactor(finalScale);
+      } else {
+        setScaleFactor(1);
+      }
+    };
+
+    measureAndScale();
+
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(() => {
+        measureAndScale();
+      });
+      ro.observe(container);
+      return () => ro.disconnect();
     }
-  }, [html, autoShrink, autoFit, element.css.width, element.css.height, element.css.fontSize]);
+  }, [
+    html,
+    autoShrink,
+    autoFit,
+    isNoWrap,
+    element.css.width,
+    element.css.height,
+    element.css.fontSize,
+    element.css.minFontSize,
+    element.css.whiteSpace,
+  ]);
 
   const {
     display: _display,
@@ -203,13 +251,19 @@ function AutoScaledText({
       <div
         ref={contentRef}
         style={{
-          width: "100%",
-          whiteSpace: style.whiteSpace ?? "pre-line",
+          width: isNoWrap ? "max-content" : "100%",
+          maxWidth: isNoWrap ? "none" : "100%",
+          whiteSpace: isNoWrap
+            ? "nowrap"
+            : ((style.whiteSpace as CSSProperties["whiteSpace"]) ?? "pre-wrap"),
+          wordBreak: isNoWrap
+            ? "normal"
+            : ((element.css.wordBreak as CSSProperties["wordBreak"]) ?? "break-word"),
+          overflowWrap: isNoWrap ? "normal" : "break-word",
           textAlign,
-          wordBreak: "break-word",
           transform: scaleFactor !== 1 ? `scale(${scaleFactor})` : undefined,
           transformOrigin: `${originX} ${originY}`,
-          transition: "transform 0.1s ease-out",
+          transition: "transform 0.08s ease-out",
         }}
         dangerouslySetInnerHTML={{ __html: html }}
       />

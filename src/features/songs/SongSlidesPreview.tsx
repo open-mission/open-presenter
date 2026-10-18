@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import {
   Check,
+  ChevronDown,
   Eye,
   EyeOff,
   LayoutGrid,
@@ -22,6 +23,14 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -333,7 +342,93 @@ export function SongSlidesPreview({
                         {item.index + 1}
                       </span>
 
-                      {item.label ? (
+                      {canEditLabels ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="inline-flex items-center gap-1 cursor-pointer outline-none rounded hover:opacity-80 transition-opacity"
+                              title="Clique para alterar o rótulo da estrofe"
+                            >
+                              {item.label ? (
+                                <Badge
+                                  variant="outline"
+                                  className="h-5 px-1.5 text-[10px] font-medium border flex items-center gap-1"
+                                  style={
+                                    secColor
+                                      ? {
+                                          borderColor: `${secColor}66`,
+                                          backgroundColor: `${secColor}15`,
+                                          color: secColor,
+                                        }
+                                      : undefined
+                                  }
+                                >
+                                  <span>{item.label}</span>
+                                  <ChevronDown className="size-2.5 opacity-60" />
+                                </Badge>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded border border-dashed border-border/80 bg-muted/30 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors">
+                                  <Tag className="size-2.5" />
+                                  <span>+ Rótulo</span>
+                                  <ChevronDown className="size-2.5 opacity-60" />
+                                </span>
+                              )}
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-52 z-50">
+                            <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
+                              Rótulo do Slide #{item.index + 1}
+                            </DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {SECTION_OPTIONS.map((sec) => {
+                              const isSelected = item.sectionType === sec.type;
+                              const dotColor = SECTION_COLOR[sec.type];
+                              return (
+                                <DropdownMenuItem
+                                  key={sec.type}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSetLabel(item.index, sec.type);
+                                    toast.success(
+                                      `Slide #${item.index + 1} marcado como "${sec.label}"`,
+                                    );
+                                  }}
+                                  className="text-xs flex items-center justify-between cursor-pointer"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className="size-2 rounded-full shrink-0"
+                                      style={{ backgroundColor: dotColor }}
+                                    />
+                                    <span>{sec.label}</span>
+                                  </div>
+                                  {isSelected && (
+                                    <Check className="size-3.5 text-primary" />
+                                  )}
+                                </DropdownMenuItem>
+                              );
+                            })}
+                            {item.label && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSetLabel(item.index, null);
+                                    toast.info(
+                                      `Rótulo do slide #${item.index + 1} removido`,
+                                    );
+                                  }}
+                                  className="text-xs text-muted-foreground cursor-pointer"
+                                >
+                                  Remover rótulo
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : item.label ? (
                         <Badge
                           variant="outline"
                           className="h-5 px-1.5 text-[10px] font-medium border"
@@ -359,10 +454,10 @@ export function SongSlidesPreview({
                     {canEditLabels && (
                       <span
                         className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-muted-foreground flex items-center gap-0.5"
-                        title="Clique com o botão direito para definir o rótulo"
+                        title="Clique no rótulo ou use o botão direito para alterar"
                       >
                         <Tag className="size-3" />
-                        <span className="hidden sm:inline">Botão direito</span>
+                        <span className="hidden sm:inline">Alterar rótulo</span>
                       </span>
                     )}
                   </div>
@@ -426,11 +521,14 @@ export function SongSlidesPreview({
               }
 
               return (
-                <ContextMenu key={item.index}>
+                <ContextMenu key={item.index} modal={false}>
                   <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
 
                   {/* Menu de Contexto (Botão Direito) */}
-                  <ContextMenuContent className="w-52">
+                  <ContextMenuContent
+                    className="w-52"
+                    onCloseAutoFocus={(e) => e.preventDefault()}
+                  >
                     <ContextMenuLabel className="text-xs font-semibold text-muted-foreground">
                       Rótulo do Slide #{item.index + 1}
                     </ContextMenuLabel>
@@ -482,7 +580,7 @@ export function SongSlidesPreview({
       <div className="border-t border-border/70 bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground flex items-center justify-between">
         <span>
           {canEditLabels
-            ? "Clique com o botão direito em qualquer slide para alterar o rótulo"
+            ? "Clique no rótulo (+ Rótulo) ou use o botão direito no slide para definir a seção"
             : lyricsMode
             ? "Slides gerados a partir da letra"
             : "Slides gerados a partir dos textos"}
