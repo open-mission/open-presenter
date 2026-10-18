@@ -157,6 +157,26 @@ export function SetlistSidebar() {
   const reorderItem = useSetlistStore((s) => s.reorderItem);
   const save = useSetlistStore((s) => s.save);
   const dirty = useSetlistStore((s) => s.dirty);
+  const listMode = useSetlistStore((s) => s.listMode);
+  const switchListMode = useSetlistStore((s) => s.switchListMode);
+  const clearTemporary = useSetlistStore((s) => s.clearTemporary);
+  const moveItemToOtherList = useSetlistStore((s) => s.moveItemToOtherList);
+
+  async function handleMoveItem(itemId: string) {
+    const item = findEventItem(event, itemId);
+    const title = item ? itemTitle(item) : "Item";
+    await moveItemToOtherList(itemId);
+    if (listMode === "event") {
+      toast.success(`"${title}" movido para a Lista Temporária.`);
+    } else {
+      toast.success(`"${title}" movido para a Programação do Culto.`);
+    }
+  }
+
+  async function handleClearTemporary() {
+    await clearTemporary();
+    toast.success("Lista temporária limpa.");
+  }
 
   const [searchQuery, setSearchQuery] = useState("");
   const [pickerPartId, setPickerPartId] = useState<string | null>(null);
@@ -385,28 +405,90 @@ export function SetlistSidebar() {
 
   return (
     <aside className="flex h-full w-72 min-h-0 flex-col border-r border-border bg-muted/20 sm:w-80 shrink-0 select-none overflow-hidden">
+      {/* List Mode Switcher: Culto / Evento | Temporário */}
+      <div className="p-2 border-b border-border bg-background/50 shrink-0">
+        <div className="grid grid-cols-2 p-0.5 rounded-lg bg-muted/60 text-xs font-medium">
+          <button
+            type="button"
+            onClick={() => void switchListMode("event")}
+            className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md transition-all cursor-pointer ${
+              listMode === "event"
+                ? "bg-background text-foreground shadow-2xs font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Calendar className="size-3.5 text-primary" />
+            <span className="truncate">Culto / Evento</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => void switchListMode("temporary")}
+            className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md transition-all cursor-pointer ${
+              listMode === "temporary"
+                ? "bg-background text-foreground shadow-2xs font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <span className="size-2 rounded-full bg-amber-500 animate-pulse" />
+            <span className="truncate">Temporário</span>
+          </button>
+        </div>
+      </div>
+
       {/* Top Header: Event Title & Action Plus */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-3 sm:px-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="group flex flex-col text-left transition-colors outline-none cursor-pointer max-w-[170px] sm:max-w-[195px]"
-            >
-              <div className="flex items-center gap-1.5 font-bold text-sm tracking-tight text-foreground group-hover:text-primary transition-colors">
-                <span className="truncate">
-                  {event?.title || "Programação do Culto"}
-                </span>
-                <ChevronDown className="size-3.5 text-muted-foreground shrink-0 group-hover:text-primary transition-colors" />
-              </div>
-              {event?.eventDate && (
-                <span className="text-[11px] font-medium text-muted-foreground truncate">
-                  {formatEventDateTime(event.eventDate).displaySummary}
-                </span>
-              )}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-72 sm:w-80 max-h-[65vh] overflow-y-auto">
+        {listMode === "temporary" ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="group flex flex-col text-left transition-colors outline-none cursor-pointer max-w-[170px] sm:max-w-[195px]"
+              >
+                <div className="flex items-center gap-1.5 font-bold text-sm tracking-tight text-foreground group-hover:text-primary transition-colors">
+                  <span className="truncate">Lista Temporária</span>
+                  <ChevronDown className="size-3.5 text-muted-foreground shrink-0 group-hover:text-primary transition-colors" />
+                </div>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-amber-500/40 text-amber-500 bg-amber-500/10 font-normal">
+                    Avulsa
+                  </Badge>
+                  <span className="text-[11px] text-muted-foreground truncate">
+                    Sem vínculo a culto
+                  </span>
+                </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem
+                onSelect={() => void handleClearTemporary()}
+                className="text-xs text-destructive focus:text-destructive cursor-pointer py-1.5"
+              >
+                <Trash2 className="size-3.5 mr-2" />
+                <span>Limpar lista temporária</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="group flex flex-col text-left transition-colors outline-none cursor-pointer max-w-[170px] sm:max-w-[195px]"
+              >
+                <div className="flex items-center gap-1.5 font-bold text-sm tracking-tight text-foreground group-hover:text-primary transition-colors">
+                  <span className="truncate">
+                    {event?.title || "Programação do Culto"}
+                  </span>
+                  <ChevronDown className="size-3.5 text-muted-foreground shrink-0 group-hover:text-primary transition-colors" />
+                </div>
+                {event?.eventDate && (
+                  <span className="text-[11px] font-medium text-muted-foreground truncate">
+                    {formatEventDateTime(event.eventDate).displaySummary}
+                  </span>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-72 sm:w-80 max-h-[65vh] overflow-y-auto">
             <div className="px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
               Cultos & Eventos
             </div>
@@ -470,6 +552,7 @@ export function SetlistSidebar() {
             )}
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
 
         {/* Action Buttons: Calendar Quick Access & Plus Menu */}
         <div className="flex items-center gap-1.5">
@@ -988,6 +1071,23 @@ export function SetlistSidebar() {
                                       </DropdownMenuItem>
                                       <DropdownMenuSeparator />
                                       <DropdownMenuItem
+                                        onSelect={() => void handleMoveItem(item.id)}
+                                        className="whitespace-nowrap flex items-center gap-2 cursor-pointer"
+                                      >
+                                        {listMode === "event" ? (
+                                          <>
+                                            <RotateCcw className="size-3.5 shrink-0 text-amber-500" />
+                                            <span>Mover para Temporário</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Calendar className="size-3.5 shrink-0 text-primary" />
+                                            <span>Mover para Culto</span>
+                                          </>
+                                        )}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
                                         onSelect={() => removeItem(item.id)}
                                         className="text-destructive focus:text-destructive whitespace-nowrap flex items-center gap-2 cursor-pointer"
                                       >
@@ -1039,6 +1139,23 @@ export function SetlistSidebar() {
                               >
                                 <ArrowDown className="size-3.5 shrink-0" />
                                 <span>Mover para baixo</span>
+                              </ContextMenuItem>
+                              <ContextMenuSeparator />
+                              <ContextMenuItem
+                                onClick={() => void handleMoveItem(item.id)}
+                                className="whitespace-nowrap flex items-center gap-2 cursor-pointer"
+                              >
+                                {listMode === "event" ? (
+                                  <>
+                                    <RotateCcw className="size-3.5 shrink-0 text-amber-500" />
+                                    <span>Mover para Temporário</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Calendar className="size-3.5 shrink-0 text-primary" />
+                                    <span>Mover para Culto</span>
+                                  </>
+                                )}
                               </ContextMenuItem>
                               <ContextMenuSeparator />
                               <ContextMenuItem
@@ -1129,7 +1246,13 @@ export function SetlistSidebar() {
 
       {/* Footer Info */}
       <div className="flex h-10 shrink-0 items-center justify-between border-t border-border px-3 text-[11px] text-muted-foreground">
-        <span>{event ? `${event.parts.reduce((acc, p) => acc + p.items.length, 0)} itens` : "Sem evento"}</span>
+        <span>
+          {listMode === "temporary"
+            ? `Temporário · ${event ? event.parts.reduce((acc, p) => acc + p.items.length, 0) : 0} itens`
+            : event
+              ? `${event.parts.reduce((acc, p) => acc + p.items.length, 0)} itens`
+              : "Sem evento"}
+        </span>
         {dirty && (
           <Button
             type="button"
