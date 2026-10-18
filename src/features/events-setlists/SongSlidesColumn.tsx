@@ -24,12 +24,19 @@ import {
 import { SECTION_COLOR, SECTION_LABEL } from "@/core/config/lyrics";
 import { buildSongSlides, computeSlideGroups, splitSection } from "@/core/lib/lyrics";
 import type { RunnerSlide } from "@/core/lib/lyrics";
+import {
+  appendSlideNumberDigit,
+  isSlideNumberKey,
+  removeLastSlideNumberDigit,
+  resolveSlideNumberIndex,
+} from "@/core/lib/slideNumbers";
 import { saveSong } from "@/core/ipc/commands";
 import type { EventItem, SectionType, ServiceEvent, Song } from "@/core/types";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSongsStore } from "@/features/songs/store";
 import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
 import { MediaSlidesColumn } from "./MediaSlidesColumn";
+import { SlideNumberIndicator } from "./SlideNumberIndicator";
 import { findEventItem, useSetlistStore } from "./store";
 
 function resolveNextItem(
@@ -72,6 +79,7 @@ function SongSlidesContent() {
   const groups = useSongGroupsStore((s) => s.groups);
 
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [numberBuffer, setNumberBuffer] = useState("");
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null);
@@ -133,12 +141,29 @@ function SongSlidesContent() {
         !live.blackout &&
         live.content.kind !== "blank";
 
+      if (e.key === "Backspace" && numberBuffer.length > 0) {
+        e.preventDefault();
+        setNumberBuffer(removeLastSlideNumberDigit(numberBuffer));
+        return;
+      }
+
       if (e.key === "Escape") {
+        if (numberBuffer.length > 0) {
+          e.preventDefault();
+          setNumberBuffer("");
+          return;
+        }
         if (isPresentationActive || currentRunnerIdx !== null || !live.cleared) {
           e.preventDefault();
           void usePresentationStore.getState().clearLive();
           useSetlistStore.setState({ runnerIndex: null });
         }
+        return;
+      }
+
+      if (isSlideNumberKey(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setNumberBuffer(appendSlideNumberDigit(numberBuffer, e.key));
         return;
       }
 
@@ -229,8 +254,24 @@ function SongSlidesContent() {
       }
 
       if (e.key === "Enter") {
+        e.preventDefault();
+        if (numberBuffer.length > 0) {
+          const targetIdx = resolveSlideNumberIndex(numberBuffer, slides.length);
+          setNumberBuffer("");
+          if (targetIdx !== null) {
+            setPreviewIndex(targetIdx);
+            usePresentationStore.getState().setPreview(slides[targetIdx]?.slide ?? null);
+            if (isPresentationActive) {
+              void projectSection(item.id, targetIdx);
+            }
+            slideRefs.current[targetIdx]?.scrollIntoView({
+              block: "nearest",
+              behavior: "smooth",
+            });
+          }
+          return;
+        }
         if (previewIndex !== null) {
-          e.preventDefault();
           void projectSection(item.id, previewIndex);
           slideRefs.current[previewIndex]?.scrollIntoView({
             block: "nearest",
@@ -293,7 +334,7 @@ function SongSlidesContent() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [slides, item, previewIndex, projectSection]);
+  }, [slides, item, previewIndex, projectSection, numberBuffer]);
 
   function resolveSlideBadge(block: RunnerSlide) {
     const groupConfig = groups.find(
@@ -424,7 +465,8 @@ function SongSlidesContent() {
         // Prevent default browser context menu throughout column
         e.preventDefault();
       }}
-      className="flex h-full w-80 min-h-0 flex-col border-r border-border bg-background sm:w-96 shrink-0 select-none overflow-hidden"
+      onClick={() => setNumberBuffer("")}
+      className="relative flex h-full w-80 min-h-0 flex-col border-r border-border bg-background sm:w-96 shrink-0 select-none overflow-hidden"
     >
       {/* Top Header with increased padding top & bottom */}
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3.5">
@@ -756,6 +798,7 @@ function SongSlidesContent() {
             </div>
           )}
       </div>
+      <SlideNumberIndicator buffer={numberBuffer} />
     </section>
   );
 }
