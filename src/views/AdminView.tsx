@@ -25,6 +25,7 @@ import { AgendaCalendar } from "@/features/events-setlists/AgendaCalendar";
 import { AgendaDialog } from "@/features/events-setlists/AgendaDialog";
 import { CreateEventDialog } from "@/features/events-setlists/CreateEventDialog";
 import { ImagesPage } from "@/features/image-browser/ImagesPage";
+import { StudioPage } from "@/features/studio/StudioPage";
 import { useRemoteSetlistPublisher } from "@/features/remote/useRemoteSetlistPublisher";
 
 export default function AdminView() {
@@ -114,6 +115,13 @@ export default function AdminView() {
         {activeTab === "images" && (
           <main className="flex flex-1 overflow-hidden">
             <ImagesPage />
+          </main>
+        )}
+
+        {/* View 5: Studio de Criação & Apresentações */}
+        {activeTab === "studio" && (
+          <main className="flex flex-1 overflow-hidden">
+            <StudioPage />
           </main>
         )}
       </div>

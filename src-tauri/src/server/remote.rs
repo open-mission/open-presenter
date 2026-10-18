@@ -19,7 +19,7 @@ use crate::server::clients::{
 use crate::server::ServerState;
 use crate::services::{lrclib, media_library, slide_builder, songs};
 use crate::state::types::{
-    now_millis, ClientKind, ConnectedClient, MediaItem, MediaKind, SlideContent, SlideKind, Song,
+    now_millis, ClientKind, ConnectedClient, MediaItem, MediaKind, SlideContent, SlideKind,
     EVENT_REMOTE_SETLIST, EVENT_SLIDE, EVENT_WALLPAPER,
 };
 use crate::state::{LiveSlide, RemoteItem, RemoteSetlist};
