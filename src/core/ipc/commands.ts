@@ -1,6 +1,9 @@
 import type {
   ConnectedClient,
   EventSummary,
+  ImageTreeNode,
+  ImportedFolder,
+  ImportedMedia,
   ImportReport,
   LiveSlide,
   LiveThemes,
@@ -9,6 +12,8 @@ import type {
   OutputConfig,
   OutputRuntime,
   OutputTarget,
+  RemoteConfig,
+  RemoteSetlist,
   ServerStatus,
   ServiceEvent,
   SlideTheme,
@@ -153,6 +158,14 @@ export async function saveSong(song: Song): Promise<void> {
 
 export async function deleteSong(id: string): Promise<void> {
   await invokeStrict("delete_song", { id });
+}
+
+export async function openSongEditor(songId?: string): Promise<void> {
+  await invokeStrict("open_song_editor", { songId: songId ?? null });
+}
+
+export async function closeSongEditor(): Promise<void> {
+  await invokeStrict("close_song_editor");
 }
 
 export async function importHolyrics(path: string): Promise<ImportReport> {
@@ -320,4 +333,49 @@ export async function saveThemeMedia(
   contents: number[],
 ): Promise<string> {
   return invokeStrict<string>("save_theme_media", { guid, filename, contents });
+}
+
+export async function importMediaFile(
+  path: string,
+  kind: "image" | "video",
+): Promise<ImportedMedia> {
+  return invokeStrict<ImportedMedia>("import_media_file", { path, kind });
+}
+
+export async function importMediaFolder(path: string): Promise<ImportedFolder> {
+  return invokeStrict<ImportedFolder>("import_media_folder", { path });
+}
+
+export async function openMediaLibrary(): Promise<void> {
+  await invokeStrict("open_media_library");
+}
+
+export async function listImageLibrary(): Promise<ImageTreeNode[]> {
+  return invokeStrict<ImageTreeNode[]>("list_image_library");
+}
+
+export async function importImagesFolder(path: string): Promise<string> {
+  return invokeStrict<string>("import_images_folder", { path });
+}
+
+export async function openImagesFolder(): Promise<void> {
+  await invokeStrict("open_images_folder");
+}
+
+export async function getRemoteConfig(): Promise<RemoteConfig> {
+  return invokeStrict<RemoteConfig>("get_remote_config");
+}
+
+export async function setRemoteToken(token: string): Promise<RemoteConfig> {
+  return invokeStrict<RemoteConfig>("set_remote_token", { token });
+}
+
+export async function setRemoteEnabled(enabled: boolean): Promise<RemoteConfig> {
+  return invokeStrict<RemoteConfig>("set_remote_enabled", { enabled });
+}
+
+export async function setRemoteSetlist(
+  setlist: RemoteSetlist | null,
+): Promise<void> {
+  await invokeStrict("set_remote_setlist", { setlist });
 }

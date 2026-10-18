@@ -8,6 +8,36 @@ pub enum SlideKind {
     Scripture,
     Custom,
     Blank,
+    Media,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum MediaKind {
+    #[serde(alias = "title")]
+    Text,
+    Image,
+    Folder,
+    Video,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaItem {
+    pub kind: MediaKind,
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fit: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,6 +49,8 @@ pub struct SlideContent {
     pub notes: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub section: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub media: Option<MediaItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -81,8 +113,8 @@ impl OutputTarget {
 
     pub const fn route(self) -> &'static str {
         match self {
-            OutputTarget::Public => "/#/public",
-            OutputTarget::Stage => "/#/stage",
+            OutputTarget::Public => "index.html#/public",
+            OutputTarget::Stage => "index.html#/stage",
         }
     }
 
@@ -174,27 +206,48 @@ pub struct SongSection {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct Song {
     pub id: String,
     pub title: String,
     pub artist: String,
+    #[serde(default)]
+    pub album: Option<String>,
+    #[serde(default)]
+    pub composer: Option<String>,
+    #[serde(default)]
+    pub song_key: Option<String>,
+    #[serde(default)]
+    pub bpm: Option<i32>,
     pub sections: Vec<SongSection>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct SongSummary {
     pub id: String,
     pub title: String,
     pub artist: String,
+    #[serde(default)]
+    pub song_key: Option<String>,
+    #[serde(default)]
+    pub bpm: Option<i32>,
+    #[serde(default)]
+    pub composer: Option<String>,
+    #[serde(default)]
+    pub album: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct EventItem {
     pub id: String,
-    pub song_id: String,
+    #[serde(default)]
+    pub song_id: Option<String>,
     pub next_item_id: Option<String>,
     pub song: Option<SongSummary>,
+    #[serde(default)]
+    pub media: Option<MediaItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -215,6 +268,8 @@ pub struct ServiceEvent {
     pub id: String,
     pub title: String,
     pub event_date: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wallpaper: Option<String>,
     pub parts: Vec<EventPart>,
 }
 
@@ -224,6 +279,8 @@ pub struct EventSummary {
     pub id: String,
     pub title: String,
     pub event_date: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wallpaper: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -253,6 +310,7 @@ pub const EVENT_TIMER: &str = "stage://timer";
 pub const EVENT_OUTPUTS: &str = "outputs://changed";
 pub const EVENT_THEMES: &str = "presentation://themes";
 pub const EVENT_THEMES_CHANGED: &str = "themes://changed";
+pub const EVENT_REMOTE_SETLIST: &str = "remote://setlist";
 pub const EVENT_WALLPAPER: &str = "presentation://wallpaper";
 pub const EVENT_CLIENT_HELLO: &str = "client://hello";
 

@@ -1,4 +1,17 @@
-export type SlideKind = "lyric" | "scripture" | "custom" | "blank";
+export type SlideKind = "lyric" | "scripture" | "custom" | "blank" | "media";
+
+export type MediaKind = "text" | "image" | "folder" | "video";
+
+export interface MediaItem {
+  kind: MediaKind;
+  title: string;
+  text?: string;
+  path?: string;
+  files?: string[];
+  index?: number;
+  fit?: "cover" | "contain" | "scale-down" | "fill";
+  themeId?: string;
+}
 
 export interface SlideContent {
   id: string;
@@ -7,6 +20,7 @@ export interface SlideContent {
   lines: string[];
   notes?: string;
   section?: string;
+  media?: MediaItem;
 }
 
 export type BackgroundKind = "color" | "image" | "video" | "css" | "isf";
@@ -116,6 +130,10 @@ export interface Song {
   id: string;
   title: string;
   artist: string;
+  album?: string;
+  composer?: string;
+  songKey?: string;
+  bpm?: number;
   sections: SongSection[];
 }
 
@@ -123,13 +141,18 @@ export interface SongSummary {
   id: string;
   title: string;
   artist: string;
+  composer?: string;
+  album?: string;
+  songKey?: string;
+  bpm?: number;
 }
 
 export interface EventItem {
   id: string;
-  songId: string;
+  songId: string | null;
   nextItemId: string | null;
   song: SongSummary | null;
+  media: MediaItem | null;
 }
 
 export interface EventPart {
@@ -144,6 +167,7 @@ export interface ServiceEvent {
   id: string;
   title: string;
   eventDate: string;
+  wallpaper?: string | null;
   parts: EventPart[];
 }
 
@@ -151,6 +175,7 @@ export interface EventSummary {
   id: string;
   title: string;
   eventDate: string;
+  wallpaper?: string | null;
 }
 
 export interface OnlineLyricHit {
@@ -168,6 +193,60 @@ export interface ImportReport {
   imported: string[];
   skipped: ImportSkip[];
   errors: string[];
+}
+
+export interface ImportedMedia {
+  path: string;
+  name: string;
+}
+
+export interface ImportedFolder {
+  path: string;
+  name: string;
+  files: ImportedMedia[];
+}
+
+export interface RemoteSlide {
+  index: number;
+  label?: string | null;
+  content: SlideContent;
+}
+
+export interface RemoteItem {
+  id: string;
+  kind: "song" | "media";
+  title: string;
+  subtitle?: string | null;
+  nextItemId?: string | null;
+  slides: RemoteSlide[];
+}
+
+export interface RemotePart {
+  id: string;
+  title: string;
+  items: RemoteItem[];
+}
+
+export interface RemoteSetlist {
+  eventId: string;
+  title: string;
+  eventDate: string;
+  parts: RemotePart[];
+}
+
+export interface RemoteConfig {
+  enabled: boolean;
+  token: string;
+}
+
+export type ImageNodeKind = "folder" | "image";
+
+export interface ImageTreeNode {
+  name: string;
+  path: string;
+  kind: ImageNodeKind;
+  url?: string;
+  children?: ImageTreeNode[];
 }
 
 export type ThemeElementType = "TEXT" | "IMAGE" | "VIDEO" | "RECTANGLE";
@@ -220,6 +299,7 @@ export function kindToAsset(kind: SlideKind): ThemeAsset | null {
       return "bible";
     case "custom":
       return "text";
+    case "media":
     case "blank":
       return null;
   }
