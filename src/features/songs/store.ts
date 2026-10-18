@@ -18,7 +18,7 @@ import type {
   SongSummary,
 } from "@/core/types";
 import { useSetlistStore } from "@/features/events-setlists/store";
-import { pickHolyricsFile } from "./services/files";
+import { pickHolyricsFiles } from "./services/files";
 
 interface SongsState {
   songs: SongSummary[];
@@ -156,9 +156,9 @@ export const useSongsStore = create<SongsState>((set, get) => ({
   startHolyricsImport: async () => {
     set({ error: null });
     try {
-      const path = await pickHolyricsFile();
-      if (path === null) return;
-      const importReport = await importHolyrics(path);
+      const paths = await pickHolyricsFiles();
+      if (paths.length === 0) return;
+      const importReport = await importHolyrics(paths);
       set({ importReport });
       await get().load();
     } catch (err) {

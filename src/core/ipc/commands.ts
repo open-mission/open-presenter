@@ -177,8 +177,8 @@ export async function closeSongEditor(): Promise<void> {
   await invokeStrict("close_song_editor");
 }
 
-export async function importHolyrics(path: string): Promise<ImportReport> {
-  return invokeStrict<ImportReport>("import_holyrics", { path });
+export async function importHolyrics(paths: string[]): Promise<ImportReport> {
+  return invokeStrict<ImportReport>("import_holyrics", { paths });
 }
 
 export async function searchLyricsOnline(

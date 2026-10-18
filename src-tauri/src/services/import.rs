@@ -34,6 +34,32 @@ pub fn import_holyrics_file(conn: &Connection, path: &Path) -> Result<ImportRepo
     Ok(report)
 }
 
+pub fn import_holyrics_files(conn: &Connection, paths: &[String]) -> Result<ImportReport, AppError> {
+    let mut report = ImportReport {
+        imported: Vec::new(),
+        skipped: Vec::new(),
+        errors: Vec::new(),
+    };
+
+    for path in paths {
+        match import_holyrics_file(conn, Path::new(path)) {
+            Ok(partial) => {
+                report.imported.extend(partial.imported);
+                report.skipped.extend(partial.skipped);
+            }
+            Err(e) => {
+                let name = Path::new(path)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.clone());
+                report.errors.push(format!("{} — {}", name, e));
+            }
+        }
+    }
+
+    Ok(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -41,6 +67,7 @@ mod tests {
     use crate::state::{LinesPerSlide, SectionType, SongDefaults};
 
     const FIXTURE_SINGLE: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/holyrics_single.json");
+    const FIXTURE_ARRAY: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/holyrics_array.json");
 
     #[test]
     fn importa_quebrando_estrofes_no_layout_padrao() {
@@ -112,5 +139,28 @@ mod tests {
         std::fs::write(&mufl, "x").unwrap();
         assert!(import_holyrics_file(&conn, &mufl).is_err());
         std::fs::remove_file(&mufl).ok();
+    }
+
+    #[test]
+    fn importa_varios_arquivos_e_reporta_erro_por_arquivo() {
+        let conn = open_in_memory();
+        let ausente = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/nao-existe.json").to_string();
+        let report = import_holyrics_files(
+            &conn,
+            &[FIXTURE_ARRAY.to_string(), FIXTURE_SINGLE.to_string(), ausente],
+        )
+        .unwrap();
+        assert_eq!(report.imported.len(), 4);
+        assert!(report.skipped.is_empty());
+        assert_eq!(report.errors.len(), 1);
+        assert!(report.errors[0].contains("nao-existe.json"));
+
+        let segunda_rodada = import_holyrics_files(
+            &conn,
+            &[FIXTURE_ARRAY.to_string(), FIXTURE_SINGLE.to_string()],
+        )
+        .unwrap();
+        assert!(segunda_rodada.imported.is_empty());
+        assert_eq!(segunda_rodada.skipped.len(), 4);
     }
 }

@@ -135,8 +135,8 @@ export function SongsTab() {
             Importar de outro software de projeção
           </h4>
           <p className="text-xs text-muted-foreground">
-            Importe sua biblioteca de músicas de outro software de projeção (.json,
-            .txt ou .pro). Selecione um ou mais arquivos. Músicas já existentes
+            Importe sua biblioteca de músicas de outro software de projeção (.json
+            ou .txt). Selecione um ou vários arquivos. Músicas já existentes
             (mesmo título e artista) são ignoradas.
           </p>
         </div>
@@ -147,7 +147,7 @@ export function SongsTab() {
           className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl border border-dashed border-border/80 bg-card/40 px-4 text-xs font-medium text-foreground transition-all hover:border-primary/60 hover:bg-muted/40 cursor-pointer shadow-2xs"
         >
           <FolderOpen className="size-4 text-primary" />
-          <span>Importar músicas (.json, .txt, .pro)</span>
+          <span>Importar músicas (.json, .txt)</span>
         </button>
       </div>
 
