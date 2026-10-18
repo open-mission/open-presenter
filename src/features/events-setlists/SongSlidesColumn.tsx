@@ -106,6 +106,15 @@ function SongSlidesContent() {
   const slideGroups = computeSlideGroups(slides);
   const nextItem = resolveNextItem(item, event);
 
+  const live = usePresentationStore((s) => s.live);
+  const isPresentationActive =
+    runnerIndex !== null &&
+    !live.cleared &&
+    !live.blackout &&
+    live.content.kind !== "blank";
+
+  const labeledGroups = slideGroups.filter((g) => g.label !== null);
+
   // Sync preview slide on song load or change
   useEffect(() => {
     if (slides.length > 0) {
@@ -393,6 +402,28 @@ function SongSlidesContent() {
     }
   }
 
+  async function handleRemoveSectionLabel(sectionIndex: number) {
+    if (!song || !item) return;
+    const updatedSections = song.sections.map((sec, idx) =>
+      idx === sectionIndex ? { ...sec, sectionType: null } : sec
+    );
+    const updatedSong: Song = {
+      ...song,
+      sections: updatedSections,
+    };
+    try {
+      await saveSong(updatedSong);
+      useSetlistStore.getState().invalidateSong(song.id, {
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+      });
+      await useSetlistStore.getState().loadItemSong(item.id);
+    } catch (err) {
+      console.error("Erro ao remover rótulo:", err);
+    }
+  }
+
   async function handleSplitSection(sectionIndex: number, linesPerSlide: 1 | 2) {
     if (!song || !item) return;
     const target = song.sections[sectionIndex];
@@ -498,6 +529,83 @@ function SongSlidesContent() {
         )}
       </div>
 
+      {/* Barra Rápida de Seções / Atalhos de Grupos */}
+      {item && labeledGroups.length > 0 && (
+        <div className="flex shrink-0 items-center gap-1.5 border-b border-border/70 bg-muted/30 px-3 py-1.5 overflow-x-auto [scrollbar-width:none]">
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
+            Ir para:
+          </span>
+          <div className="flex items-center gap-1">
+            {labeledGroups.map((g) => {
+              const firstSlide = slides[g.startIndex];
+              const { groupConfig, badgeBg } = resolveSlideBadge(firstSlide);
+              const isSelected =
+                previewIndex !== null && g.indices.includes(previewIndex);
+              const isCurrentLive =
+                runnerIndex !== null && g.indices.includes(runnerIndex);
+
+              return (
+                <button
+                  key={g.startIndex}
+                  type="button"
+                  onClick={() => {
+                    setPreviewIndex(g.startIndex);
+                    usePresentationStore
+                      .getState()
+                      .setPreview(firstSlide?.slide ?? null);
+                    if (isPresentationActive) {
+                      void projectSection(item.id, g.startIndex);
+                    }
+                    slideRefs.current[g.startIndex]?.scrollIntoView({
+                      block: "nearest",
+                      behavior: "smooth",
+                    });
+                  }}
+                  onDoubleClick={() => {
+                    handlePresent(g.startIndex);
+                  }}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold transition-all cursor-pointer shrink-0 border ${
+                    isCurrentLive
+                      ? "ring-2 ring-emerald-500 shadow-xs font-bold"
+                      : isSelected
+                      ? "ring-2 ring-primary/40 shadow-2xs"
+                      : "opacity-85 hover:opacity-100"
+                  }`}
+                  style={{
+                    backgroundColor: `${badgeBg}22`,
+                    borderColor: `${badgeBg}88`,
+                    color: badgeBg,
+                  }}
+                  title={`Ir para ${g.label}${
+                    groupConfig?.shortcut ? ` (tecla ${groupConfig.shortcut})` : ""
+                  }`}
+                >
+                  <span>{g.label}</span>
+                  {groupConfig?.shortcut && (
+                    <kbd className="rounded bg-black/20 dark:bg-white/20 px-1 py-0.2 font-mono text-[8px] font-bold">
+                      {groupConfig.shortcut}
+                    </kbd>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {item && song && labeledGroups.length === 0 && slides.length > 0 && (
+        <div className="flex shrink-0 items-center justify-between border-b border-border/70 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+          <span className="truncate">Música sem seções definidas (Verso, Refrão...)</span>
+          <button
+            type="button"
+            onClick={handleEditSong}
+            className="ml-2 font-medium underline hover:no-underline shrink-0 cursor-pointer"
+          >
+            Editar seções
+          </button>
+        </div>
+      )}
+
       {/* Slides Cards List (Scrollable with persistent native scrollbar) */}
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 space-y-2.5 [scrollbar-gutter:stable]">
           {!item ? (
@@ -549,7 +657,7 @@ function SongSlidesContent() {
                             : undefined
                         }
                       >
-                        <ContextMenu>
+                        <ContextMenu modal={false}>
                           <ContextMenuTrigger asChild>
                             <div
                               ref={(el) => {
@@ -629,7 +737,7 @@ function SongSlidesContent() {
                               {/* Card Header: Section Badge & Status Pills */}
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1.5">
-                                  {block.label !== null && (
+                                  {block.label !== null ? (
                                     <span
                                       className="rounded-md px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase shadow-2xs text-white flex items-center gap-1.5"
                                       style={{ backgroundColor: badgeBg }}
@@ -640,6 +748,10 @@ function SongSlidesContent() {
                                           {groupConfig.shortcut}
                                         </kbd>
                                       )}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-muted-foreground/40 italic">
+                                      Sem grupo
                                     </span>
                                   )}
                                 </div>
@@ -697,7 +809,10 @@ function SongSlidesContent() {
                             </div>
                           </ContextMenuTrigger>
 
-                          <ContextMenuContent className="w-52">
+                          <ContextMenuContent
+                            className="w-52"
+                            onCloseAutoFocus={(e) => e.preventDefault()}
+                          >
                             {/* 1. Editar */}
                             <ContextMenuItem onClick={() => handleEditSong()}>
                               <Pencil className="size-3.5 mr-2" />
@@ -733,6 +848,13 @@ function SongSlidesContent() {
                                     </ContextMenuItem>
                                   ),
                                 )}
+                                <ContextMenuSeparator />
+                                <ContextMenuItem
+                                  onClick={() => handleRemoveSectionLabel(block.index)}
+                                  className="text-xs text-muted-foreground"
+                                >
+                                  Remover rótulo
+                                </ContextMenuItem>
                               </ContextMenuSubContent>
                             </ContextMenuSub>
 
