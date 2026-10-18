@@ -7,7 +7,10 @@ import { useStageTimerSync } from "@/features/stage-display/useStageTimerSync";
 import { useStageTimerStore } from "@/features/stage-display/timerStore";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { buildStageProps } from "@/features/slide-themes/themeTemplate";
-import { DEFAULT_STAGE_THEME } from "@/features/slide-themes/seedThemes";
+import {
+  DEFAULT_STAGE_REST_THEME,
+  DEFAULT_STAGE_THEME,
+} from "@/features/slide-themes/seedThemes";
 import { useLiveThemesStore } from "@/features/slide-themes/liveThemesStore";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 
@@ -24,7 +27,17 @@ export default function StageView() {
   const loadThemes = useSlideThemesStore((s) => s.load);
   const broadcastTheme = useLiveThemesStore((s) => s.themes.stage);
   const localStageTheme = useSlideThemesStore((s) => s.resolveStageTheme());
-  const stageTheme = broadcastTheme ?? localStageTheme ?? DEFAULT_STAGE_THEME;
+  const localStageRestTheme = useSlideThemesStore((s) => s.resolveStageRestTheme());
+
+  const isIdle =
+    live.cleared ||
+    live.blackout ||
+    live.content.kind === "blank" ||
+    (live.content.lines.length === 0 && !live.content.title);
+
+  const stageTheme = isIdle
+    ? (localStageRestTheme ?? DEFAULT_STAGE_REST_THEME)
+    : (broadcastTheme ?? localStageTheme ?? DEFAULT_STAGE_THEME);
 
   const [now, setNow] = useState(() => Date.now());
 

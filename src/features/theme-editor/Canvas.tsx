@@ -691,11 +691,13 @@ export function Canvas({
           }}
           className="relative h-full w-full select-none"
         >
-            <ThemeRenderer
-              theme={effectiveTheme}
-              asset={asset}
-              props={sampleProps}
-            />
+            <div id="theme-export-target" className="absolute inset-0 h-full w-full">
+              <ThemeRenderer
+                theme={effectiveTheme}
+                asset={asset}
+                props={sampleProps}
+              />
+            </div>
             {showGrid && gridSize > 0 && (
               <div
                 className="pointer-events-none absolute inset-0"

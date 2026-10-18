@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Clock,
+  Download,
   Grid3x3,
   Image,
   Film,
@@ -19,6 +20,7 @@ import {
 import type { ThemeAsset, ThemeElement } from "@/core/types";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { exportElementAsImage } from "@/features/theme-editor/exportImage";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -96,6 +98,7 @@ export default function ThemeEditorView() {
   const [showGrid, setShowGrid] = useState(false);
   const [gridSize, setGridSize] = useState(40);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Photoshop-like 3-column & Canvas zoom/resolution states
   const [propertiesWidth, setPropertiesWidth] = useState(360);
@@ -157,6 +160,27 @@ export default function ThemeEditorView() {
       toast.error(e instanceof Error ? e.message : "Falha ao salvar tema.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleExport(format: "png" | "jpeg") {
+    const el = document.getElementById("theme-export-target");
+    if (!el) {
+      toast.error("Elemento do slide não encontrado para exportação.");
+      return;
+    }
+    setExporting(true);
+    try {
+      await exportElementAsImage(el, {
+        fileName: draft?.title ? `apresentacao-${draft.title}` : "apresentacao",
+        format,
+        width: resolution.width,
+        height: resolution.height,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao exportar imagem.");
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -491,11 +515,43 @@ export default function ThemeEditorView() {
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={exporting}
+              title="Exportar imagem do slide em alta resolução"
+            >
+              <Download className="size-3.5" />
+              <span>{exporting ? "Exportando…" : "Exportar"}</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => void handleExport("png")}>
+              <Download className="mr-2 size-4 text-primary" />
+              Exportar como PNG ({resolution.width}×{resolution.height})
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void handleExport("jpeg")}>
+              <Download className="mr-2 size-4 text-primary" />
+              Exportar como JPG ({resolution.width}×{resolution.height})
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon-sm" aria-label="Menu do editor">
               <Menu />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => void handleExport("png")}>
+              <Download className="mr-2 size-4" />
+              Exportar PNG ({resolution.width}×{resolution.height})
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void handleExport("jpeg")}>
+              <Download className="mr-2 size-4" />
+              Exportar JPG ({resolution.width}×{resolution.height})
+            </DropdownMenuItem>
             <DropdownMenuItem disabled={!dirty} onSelect={() => revert()}>
               Reverter alterações
             </DropdownMenuItem>
