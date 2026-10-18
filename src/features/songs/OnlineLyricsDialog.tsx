@@ -28,18 +28,22 @@ export function OnlineLyricsDialog() {
       }}
     >
       {onlineOpen && (
-        <DialogContent aria-describedby={undefined}>
+        <DialogContent
+          aria-describedby={undefined}
+          className="sm:max-w-xl max-h-[85vh] flex flex-col overflow-hidden"
+        >
           <DialogHeader>
             <DialogTitle>Buscar letra na internet</DialogTitle>
           </DialogHeader>
           <form
-            className="flex items-center gap-2"
+            className="flex w-full min-w-0 items-center gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               searchOnline();
             }}
           >
             <Input
+              className="min-w-0 flex-1"
               placeholder="Nome da música ou artista"
               value={onlineQuery}
               onChange={(e) => setOnlineQuery(e.target.value)}
@@ -47,6 +51,7 @@ export function OnlineLyricsDialog() {
             <Button
               type="submit"
               disabled={onlineLoading || onlineQuery.trim() === ""}
+              className="shrink-0"
             >
               {onlineLoading ? "Buscando…" : "Buscar"}
             </Button>
@@ -62,28 +67,24 @@ export function OnlineLyricsDialog() {
               </p>
             )}
           {!onlineLoading && onlineError === null && onlineResults.length > 0 && (
-            <ScrollArea className="max-h-[50vh]">
-              <div className="flex flex-col gap-1 pr-2">
+            <ScrollArea className="max-h-[50vh] w-full min-w-0">
+              <div className="flex flex-col gap-1.5 pr-2.5 w-full min-w-0">
                 {onlineResults.map((hit, index) => (
                   <Button
                     key={`${hit.trackName}-${hit.artistName}-${index}`}
                     variant="secondary"
-                    className="justify-start"
+                    className="w-full justify-start text-left h-auto py-2.5 px-3 min-w-0 overflow-hidden"
                     onClick={() => importOnlineHit(hit)}
                   >
-                    <span className="min-w-0 truncate">
-                      {hit.trackName}
-                      <span className="text-muted-foreground">
-                        {" · "}
-                        {hit.artistName}
+                    <div className="flex flex-col min-w-0 w-full text-left truncate">
+                      <span className="truncate font-medium text-foreground text-sm">
+                        {hit.trackName}
                       </span>
-                      {hit.albumName !== null && (
-                        <span className="text-muted-foreground">
-                          {" · "}
-                          {hit.albumName}
-                        </span>
-                      )}
-                    </span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {hit.artistName}
+                        {hit.albumName ? ` · ${hit.albumName}` : ""}
+                      </span>
+                    </div>
                   </Button>
                 ))}
               </div>

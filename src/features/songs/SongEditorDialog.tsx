@@ -1,26 +1,30 @@
-import { useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { useEffect, useState, useCallback } from "react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { lyricsToText, parseLyrics } from "@/core/ipc/commands";
 import { buildSongSlides, type RunnerSlide } from "@/core/lib/lyrics";
-import type { Song, SongSection } from "@/core/types";
+import type { SectionType, Song, SongSection } from "@/core/types";
+import { SongLyricsEditor } from "./SongLyricsEditor";
+import {
+  SongMetadataHeader,
+  type EditorSongDraft,
+} from "./SongMetadataHeader";
+import { SongSlidesPreview } from "./SongSlidesPreview";
+import { assignSectionLabel } from "./songEditorUtils";
 import { useSongsStore } from "./store";
 
-const PREVIEW_DEBOUNCE_MS = 300;
+const PREVIEW_DEBOUNCE_MS = 250;
 
-type EditorDraft = Pick<Song, "id" | "title" | "artist">;
-
-function previewSlides(sections: SongSection[]): RunnerSlide[] {
-  return buildSongSlides({ id: "preview", title: "", artist: "", sections });
+function previewSlides(sections: SongSection[], draft: EditorSongDraft): RunnerSlide[] {
+  return buildSongSlides({
+    id: draft.id,
+    title: draft.title,
+    artist: draft.artist,
+    album: draft.album,
+    composer: draft.composer,
+    songKey: draft.songKey,
+    bpm: draft.bpm,
+    sections,
+  });
 }
 
 function hasContent(sections: SongSection[]): boolean {
@@ -35,7 +39,7 @@ export function SongEditorDialog() {
   const saveEditor = useSongsStore((s) => s.saveEditor);
   const deleteSong = useSongsStore((s) => s.deleteSong);
 
-  const [draft, setDraft] = useState<EditorDraft | null>(null);
+  const [draft, setDraft] = useState<EditorSongDraft | null>(null);
   const [text, setText] = useState("");
   const [textReady, setTextReady] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -43,24 +47,34 @@ export function SongEditorDialog() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  // Carrega os dados da música quando editorSong é aberto
   useEffect(() => {
     setConfirmDelete(false);
     setActionError(null);
     setTextReady(false);
     setText("");
+
     if (editorSong === null) {
       setDraft(null);
       setPreview([]);
       return;
     }
 
-    setDraft({
+    const currentDraft: EditorSongDraft = {
       id: editorSong.id,
       title: editorSong.title,
       artist: editorSong.artist,
-    });
+      album: editorSong.album,
+      composer: editorSong.composer,
+      songKey: editorSong.songKey,
+      bpm: editorSong.bpm,
+    };
+
+    setDraft(currentDraft);
     setPreview(
-      hasContent(editorSong.sections) ? previewSlides(editorSong.sections) : [],
+      hasContent(editorSong.sections)
+        ? previewSlides(editorSong.sections, currentDraft)
+        : [],
     );
 
     let cancelled = false;
@@ -80,26 +94,31 @@ export function SongEditorDialog() {
     };
   }, [editorSong, reloadKey]);
 
+  // Atualiza a prévia dos slides com debounce sempre que o texto ou o título/artista mudam
   useEffect(() => {
     if (draft === null || !textReady) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       parseLyrics(text)
         .then((sections) => {
-          if (!cancelled) setPreview(previewSlides(sections));
+          if (!cancelled) {
+            setPreview(previewSlides(sections, draft));
+          }
         })
         .catch(() => {});
     }, PREVIEW_DEBOUNCE_MS);
+
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
   }, [draft, text, textReady]);
 
-  const updateDraft = (patch: Partial<EditorDraft>) =>
-    setDraft((current) => (current === null ? current : { ...current, ...patch }));
+  const updateDraft = useCallback((patch: Partial<EditorSongDraft>) => {
+    setDraft((curr) => (curr === null ? curr : { ...curr, ...patch }));
+  }, []);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (draft === null || draft.title.trim() === "") return;
     setActionError(null);
     let sections: SongSection[];
@@ -109,20 +128,27 @@ export function SongEditorDialog() {
       setActionError("Não foi possível interpretar a letra.");
       return;
     }
-    const ok = await saveEditor({
+
+    const songPayload: Song = {
       id: draft.id,
       title: draft.title.trim(),
       artist: draft.artist.trim(),
+      album: draft.album?.trim() ? draft.album.trim() : undefined,
+      composer: draft.composer?.trim() ? draft.composer.trim() : undefined,
+      songKey: draft.songKey?.trim() ? draft.songKey.trim() : undefined,
+      bpm: draft.bpm,
       sections,
-    });
+    };
+
+    const ok = await saveEditor(songPayload);
     if (!ok) {
       setActionError(
-        useSongsStore.getState().error ?? "Não foi possível salvar.",
+        useSongsStore.getState().error ?? "Não foi possível salvar a música.",
       );
     }
-  };
+  }, [draft, text, saveEditor]);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (draft === null) return;
     if (!confirmDelete) {
       setConfirmDelete(true);
@@ -132,10 +158,43 @@ export function SongEditorDialog() {
     const ok = await deleteSong(draft.id);
     if (!ok) {
       setActionError(
-        useSongsStore.getState().error ?? "Não foi possível excluir.",
+        useSongsStore.getState().error ?? "Não foi possível excluir a música.",
       );
     }
-  };
+  }, [draft, confirmDelete, deleteSong]);
+
+  // Atribuição de rótulo via botão direito no slide da Coluna 2
+  const handleSetSlideLabel = useCallback(
+    (slideIndex: number, newType: SectionType | null) => {
+      setText((currText) => {
+        const updated = assignSectionLabel(currText, slideIndex, newType);
+        return updated;
+      });
+    },
+    [],
+  );
+
+  // Atalho global Cmd+S / Ctrl+S para salvar
+  useEffect(() => {
+    if (!draft) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        if (draft.title.trim() !== "" && textReady) {
+          void handleSave();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [draft, textReady, handleSave]);
+
+  if (editorSong === null || draft === null) {
+    return null;
+  }
+
+  const isNew = editorSong.title === "" && editorSong.artist === "";
+  const canSave = draft.title.trim() !== "" && textReady;
 
   return (
     <Dialog
@@ -144,116 +203,62 @@ export function SongEditorDialog() {
         if (!open) closeEditor();
       }}
     >
-      {draft && (
-        <DialogContent
-          aria-describedby={undefined}
-          className="max-h-[85vh] overflow-y-auto sm:max-w-2xl"
-        >
-          <DialogHeader>
-            <DialogTitle>
-              {draft.title !== "" ? "Editar música" : "Nova música"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm text-muted-foreground">Título</span>
-              <Input
-                value={draft.title}
-                onChange={(e) => updateDraft({ title: e.target.value })}
-              />
-            </label>
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm text-muted-foreground">Artista</span>
-              <Input
-                value={draft.artist}
-                onChange={(e) => updateDraft({ artist: e.target.value })}
-              />
-            </label>
+      <DialogContent
+        aria-describedby={undefined}
+        showCloseButton={false}
+        className="w-[88vw] sm:max-w-[82vw] md:max-w-[80vw] lg:max-w-[78vw] h-[84vh] max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden rounded-xl border border-border/80 shadow-2xl bg-background text-foreground"
+      >
+        {/* Header com Metadados da Música */}
+        <SongMetadataHeader
+          draft={draft}
+          isNew={isNew}
+          canSave={canSave}
+          confirmDelete={confirmDelete}
+          onUpdateDraft={updateDraft}
+          onSave={handleSave}
+          onCancel={closeEditor}
+          onDelete={handleDelete}
+        />
+
+        {/* Mensagem de Erro de Ação */}
+        {actionError !== null && (
+          <div className="flex items-center justify-between border-b border-destructive/30 bg-destructive/10 px-6 py-2 text-xs text-destructive">
+            <span>{actionError}</span>
+            {!textReady && (
+              <button
+                type="button"
+                className="underline hover:no-underline font-medium ml-2"
+                onClick={() => setReloadKey((k) => k + 1)}
+              >
+                Tentar carregar novamente
+              </button>
+            )}
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm text-muted-foreground">Letra</span>
-              <Textarea
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder={"Uma linha por verso…\n\n## Refrão\n\nDeixe uma linha em branco entre os blocos"}
-                className="max-h-[50vh] min-h-56"
-                disabled={!textReady}
-              />
-            </label>
-            <p className="text-xs text-muted-foreground">
-              <code className="rounded bg-muted px-1 py-0.5 font-mono">
-                ## Nome
-              </code>{" "}
-              ou{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono">
-                ##(Nome)
-              </code>{" "}
-              nomeia o bloco (ex.: Refrão, Verso 2) e uma linha em branco separa
-              os slides. Linhas iniciadas por{" "}
-              <code className="rounded bg-muted px-1 py-0.5 font-mono">//</code>{" "}
-              não aparecem no telão.
-            </p>
+        )}
+
+        {/* Estrutura de 2 Colunas: Coluna 1 (Letra) | Coluna 2 (Slides / Prévia) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 flex-1 min-h-0 overflow-hidden divide-y lg:divide-y-0 lg:divide-x divide-border/60 p-4 gap-4 bg-muted/10">
+          {/* Coluna 1: Letra com Realce de Sintaxe (// comentários, ## seções, [cifras]) */}
+          <div className="lg:col-span-6 flex flex-col min-h-0 h-full">
+            <SongLyricsEditor
+              value={text}
+              onChange={setText}
+              disabled={!textReady}
+              slidesCount={preview.length}
+            />
           </div>
-          {preview.length > 0 && (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-sm text-muted-foreground">
-                Slides ({preview.length})
-              </span>
-              <div className="flex max-h-36 flex-col gap-1 overflow-y-auto pr-1">
-                {preview.map((item) => (
-                  <div
-                    key={item.index}
-                    className="flex items-center gap-2 rounded-md border border-border/60 px-2 py-1"
-                  >
-                    <span className="w-5 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
-                      {item.index + 1}
-                    </span>
-                    <Badge variant="secondary" className="shrink-0">
-                      {item.label ?? "Sem rótulo"}
-                    </Badge>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {item.slide.lines.slice(0, 2).join(" · ")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {actionError !== null && (
-            <div className="flex items-center gap-2">
-              <p className="text-sm text-destructive">{actionError}</p>
-              {!textReady && editorSong !== null && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setReloadKey((key) => key + 1)}
-                >
-                  Tentar de novo
-                </Button>
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              variant="destructive"
-              className="sm:mr-auto"
-              onClick={handleDelete}
-            >
-              {confirmDelete ? "Confirmar?" : "Excluir"}
-            </Button>
-            <Button variant="outline" onClick={closeEditor}>
-              Cancelar
-            </Button>
-            <Button
-              disabled={draft.title.trim() === "" || !textReady}
-              onClick={handleSave}
-            >
-              Salvar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      )}
+
+          {/* Coluna 2: A música separada nos slides (Grade, Tema Público e Menu de Contexto) */}
+          <div className="lg:col-span-6 flex flex-col min-h-0 h-full">
+            <SongSlidesPreview
+              slides={preview}
+              songTitle={draft.title}
+              songArtist={draft.artist}
+              onSetLabel={handleSetSlideLabel}
+            />
+          </div>
+        </div>
+      </DialogContent>
     </Dialog>
   );
 }

@@ -1,10 +1,10 @@
 use std::path::Path;
 
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 use crate::error::AppError;
 use crate::services::database::Db;
-use crate::services::{import, lrclib, lyrics, songs};
+use crate::services::{display_manager, import, lrclib, lyrics, songs};
 use crate::state::{ImportReport, OnlineLyricHit, Song, SongSection, SongSummary};
 
 #[tauri::command]
@@ -18,13 +18,27 @@ pub fn get_song(db: State<'_, Db>, id: String) -> Result<Option<Song>, AppError>
 }
 
 #[tauri::command]
-pub fn save_song(db: State<'_, Db>, song: Song) -> Result<(), AppError> {
-    db.with_conn(|conn| songs::save(conn, &song))
+pub fn save_song(app: AppHandle, db: State<'_, Db>, song: Song) -> Result<(), AppError> {
+    db.with_conn(|conn| songs::save(conn, &song))?;
+    let _ = app.emit("songs://changed", ());
+    Ok(())
 }
 
 #[tauri::command]
-pub fn delete_song(db: State<'_, Db>, id: String) -> Result<(), AppError> {
-    db.with_conn(|conn| songs::delete(conn, &id))
+pub fn delete_song(app: AppHandle, db: State<'_, Db>, id: String) -> Result<(), AppError> {
+    db.with_conn(|conn| songs::delete(conn, &id))?;
+    let _ = app.emit("songs://changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn open_song_editor(app: AppHandle, song_id: Option<String>) -> Result<(), AppError> {
+    display_manager::open_song_editor_window(&app, song_id)
+}
+
+#[tauri::command]
+pub async fn close_song_editor(app: AppHandle) -> Result<(), AppError> {
+    display_manager::close_song_editor_window(&app)
 }
 
 #[tauri::command]
@@ -50,6 +64,10 @@ pub async fn fetch_online_lyrics(
         id,
         title,
         artist,
+        album: None,
+        composer: None,
+        song_key: None,
+        bpm: None,
         sections,
     })
 }

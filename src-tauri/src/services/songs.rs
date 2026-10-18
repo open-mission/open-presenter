@@ -42,9 +42,11 @@ pub fn list(conn: &Connection, query: Option<&str>) -> Result<Vec<SongSummary>, 
     let pattern = format!("%{}%", escape_like(term));
     let mut stmt = conn
         .prepare(
-            "SELECT id, title, artist FROM songs s
+            "SELECT id, title, artist, song_key, bpm, composer, album FROM songs s
              WHERE title LIKE ?1 ESCAPE '\\'
                 OR artist LIKE ?1 ESCAPE '\\'
+                OR album LIKE ?1 ESCAPE '\\'
+                OR composer LIKE ?1 ESCAPE '\\'
                 OR EXISTS (
                     SELECT 1 FROM song_lyrics l
                     WHERE l.song_id = s.id AND l.line LIKE ?1 ESCAPE '\\'
@@ -58,6 +60,10 @@ pub fn list(conn: &Connection, query: Option<&str>) -> Result<Vec<SongSummary>, 
                 id: row.get(0)?,
                 title: row.get(1)?,
                 artist: row.get(2)?,
+                song_key: row.get(3)?,
+                bpm: row.get(4)?,
+                composer: row.get(5)?,
+                album: row.get(6)?,
             })
         })
         .map_err(storage_error)?
@@ -69,13 +75,22 @@ pub fn list(conn: &Connection, query: Option<&str>) -> Result<Vec<SongSummary>, 
 pub fn get(conn: &Connection, id: &str) -> Result<Option<Song>, AppError> {
     let base = conn
         .query_row(
-            "SELECT title, artist FROM songs WHERE id = ?1",
+            "SELECT title, artist, album, composer, song_key, bpm FROM songs WHERE id = ?1",
             params![id],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Option<i32>>(5)?,
+                ))
+            },
         )
         .optional()
         .map_err(storage_error)?;
-    let Some((title, artist)) = base else {
+    let Some((title, artist, album, composer, song_key, bpm)) = base else {
         return Ok(None);
     };
 
@@ -120,10 +135,18 @@ pub fn get(conn: &Connection, id: &str) -> Result<Option<Song>, AppError> {
         })
         .collect();
 
+    let album = album.filter(|v| !v.trim().is_empty());
+    let composer = composer.filter(|v| !v.trim().is_empty());
+    let song_key = song_key.filter(|v| !v.trim().is_empty());
+
     Ok(Some(Song {
         id: id.to_string(),
         title,
         artist,
+        album,
+        composer,
+        song_key,
+        bpm,
         sections,
     }))
 }
@@ -131,9 +154,24 @@ pub fn get(conn: &Connection, id: &str) -> Result<Option<Song>, AppError> {
 pub fn save(conn: &Connection, song: &Song) -> Result<(), AppError> {
     let tx = conn.unchecked_transaction().map_err(storage_error)?;
     tx.execute(
-        "INSERT INTO songs (id, title, artist) VALUES (?1, ?2, ?3)
-         ON CONFLICT(id) DO UPDATE SET title = excluded.title, artist = excluded.artist",
-        params![song.id, song.title, song.artist],
+        "INSERT INTO songs (id, title, artist, album, composer, song_key, bpm)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+         ON CONFLICT(id) DO UPDATE SET
+             title = excluded.title,
+             artist = excluded.artist,
+             album = excluded.album,
+             composer = excluded.composer,
+             song_key = excluded.song_key,
+             bpm = excluded.bpm",
+        params![
+            song.id,
+            song.title,
+            song.artist,
+            song.album.as_deref().unwrap_or(""),
+            song.composer.as_deref().unwrap_or(""),
+            song.song_key.as_deref().unwrap_or(""),
+            song.bpm,
+        ],
     )
     .map_err(storage_error)?;
     tx.execute(
@@ -204,6 +242,10 @@ pub fn insert_new(
         id: id.clone(),
         title: title.to_string(),
         artist: artist.to_string(),
+        album: None,
+        composer: None,
+        song_key: None,
+        bpm: None,
         sections: sections.to_vec(),
     };
     save(conn, &song)?;
@@ -222,6 +264,10 @@ mod tests {
             id: "s1".into(),
             title: "Grandes Coisas".into(),
             artist: "Fernandinho".into(),
+            album: Some("Uma Nova História".into()),
+            composer: Some("Fernandinho".into()),
+            song_key: Some("G".into()),
+            bpm: Some(128),
             sections: vec![
                 SongSection {
                     section_type: Some(SectionType::Verse),
@@ -246,6 +292,10 @@ mod tests {
                 id: "s1".into(),
                 title: "A".into(),
                 artist: "B".into(),
+                album: None,
+                composer: None,
+                song_key: None,
+                bpm: None,
                 sections: vec![SongSection {
                     section_type: None,
                     lines: vec!["ousado amor".into()],
@@ -266,6 +316,10 @@ mod tests {
                 id: "s1".into(),
                 title: "100%".into(),
                 artist: "".into(),
+                album: None,
+                composer: None,
+                song_key: None,
+                bpm: None,
                 sections: vec![SongSection {
                     section_type: None,
                     lines: vec!["a_b c%d".into()],
@@ -279,6 +333,10 @@ mod tests {
                 id: "s2".into(),
                 title: "Outra".into(),
                 artist: "".into(),
+                album: None,
+                composer: None,
+                song_key: None,
+                bpm: None,
                 sections: vec![SongSection {
                     section_type: None,
                     lines: vec!["sem curinga".into()],
@@ -299,6 +357,10 @@ mod tests {
             id: "s1".into(),
             title: "T".into(),
             artist: "".into(),
+            album: None,
+            composer: None,
+            song_key: None,
+            bpm: None,
             sections: vec![SongSection {
                 section_type: Some(SectionType::Verse),
                 lines: vec!["l1".into()],

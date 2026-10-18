@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::error::AppError;
 
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 5;
 
 const SCHEMA_V2: &str = "
 CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
@@ -13,7 +13,10 @@ CREATE TABLE IF NOT EXISTS songs (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     artist TEXT NOT NULL DEFAULT '',
+    album TEXT NOT NULL DEFAULT '',
+    composer TEXT NOT NULL DEFAULT '',
     song_key TEXT NOT NULL DEFAULT '',
+    bpm INTEGER,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 CREATE TABLE IF NOT EXISTS song_sections (
@@ -107,6 +110,11 @@ pub fn migrate(conn: &Connection) -> Result<(), AppError> {
         .map_err(storage_error)?;
         conn.execute_batch(SCHEMA_V2).map_err(storage_error)?;
     }
+    if version < 5 {
+        let _ = conn.execute("ALTER TABLE songs ADD COLUMN album TEXT NOT NULL DEFAULT ''", []);
+        let _ = conn.execute("ALTER TABLE songs ADD COLUMN composer TEXT NOT NULL DEFAULT ''", []);
+        let _ = conn.execute("ALTER TABLE songs ADD COLUMN bpm INTEGER", []);
+    }
     conn.execute_batch(THEMES_DDL).map_err(storage_error)?;
     conn.execute_batch(SETTINGS_DDL).map_err(storage_error)?;
     conn.execute("DELETE FROM schema_version", [])
@@ -138,10 +146,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn migrate_cria_schema_v4_e_marca_versao() {
+    fn migrate_cria_schema_v5_e_marca_versao() {
         let conn = open_in_memory();
         let v: i64 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 4);
+        assert_eq!(v, 5);
         let tabelas: Vec<String> = conn
             .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
             .unwrap()
@@ -174,7 +182,7 @@ mod tests {
         migrate(&conn).unwrap();
         migrate(&conn).unwrap();
         let v: i64 = conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 4);
+        assert_eq!(v, 5);
     }
 
     #[test]
@@ -215,7 +223,7 @@ mod tests {
         let v: i64 = conn
             .query_row("SELECT version FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(v, 4);
+        assert_eq!(v, 5);
         let tem_temas: bool = conn
             .query_row(
                 "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='themes'",

@@ -5,6 +5,7 @@ import PublicView from "./views/PublicView";
 import ShortcutsView from "./views/ShortcutsView";
 import StageView from "./views/StageView";
 import ThemeEditorView from "./views/ThemeEditorView";
+import SongEditorView from "./views/SongEditorView";
 import { Toaster } from "@/components/ui/sonner";
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/public" element={<PublicView />} />
         <Route path="/stage" element={<StageView />} />
         <Route path="/theme-editor" element={<ThemeEditorView />} />
+        <Route path="/song-editor" element={<SongEditorView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Toaster />

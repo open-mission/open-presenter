@@ -6,9 +6,11 @@ import {
   getSong,
   importHolyrics,
   listSongs,
+  openSongEditor,
   saveSong,
   searchLyricsOnline,
 } from "@/core/ipc/commands";
+import { isTauri, listenCommand } from "@/core/ipc/tauri";
 import type {
   ImportReport,
   OnlineLyricHit,
@@ -75,17 +77,30 @@ export const useSongsStore = create<SongsState>((set, get) => ({
 
   setQuery: (query) => set({ query }),
 
-  startNewSong: () =>
+  startNewSong: () => {
+    if (isTauri()) {
+      void openSongEditor();
+      return;
+    }
     set({
       editorSong: {
         id: crypto.randomUUID(),
         title: "",
         artist: "",
+        album: "",
+        composer: "",
+        songKey: "",
+        bpm: undefined,
         sections: [{ sectionType: null, lines: [""] }],
       },
-    }),
+    });
+  },
 
   editSong: async (id) => {
+    if (isTauri()) {
+      await openSongEditor(id);
+      return;
+    }
     try {
       const song = await getSong(id);
       if (song === null) {
@@ -116,6 +131,8 @@ export const useSongsStore = create<SongsState>((set, get) => ({
         id: song.id,
         title: song.title,
         artist: song.artist,
+        songKey: song.songKey,
+        bpm: song.bpm,
       });
     return true;
   },
@@ -187,6 +204,13 @@ export const useSongsStore = create<SongsState>((set, get) => ({
         hit.trackName,
         hit.artistName,
       );
+      if (isTauri()) {
+        await saveSong(song);
+        await openSongEditor(song.id);
+        set({ onlineOpen: false });
+        toast.success(`Letra de "${hit.trackName}" importada!`);
+        return;
+      }
       set({ editorSong: song, onlineOpen: false });
       toast.success(`Letra de "${hit.trackName}" importada!`);
     } catch (err) {
@@ -194,3 +218,9 @@ export const useSongsStore = create<SongsState>((set, get) => ({
     }
   },
 }));
+
+if (typeof window !== "undefined" && isTauri()) {
+  void listenCommand("songs://changed", () => {
+    void useSongsStore.getState().load();
+  });
+}

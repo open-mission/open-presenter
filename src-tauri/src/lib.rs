@@ -276,6 +276,8 @@ pub fn run() {
             commands::songs::get_song,
             commands::songs::save_song,
             commands::songs::delete_song,
+            commands::songs::open_song_editor,
+            commands::songs::close_song_editor,
             commands::songs::import_holyrics,
             commands::songs::search_lyrics_online,
             commands::songs::fetch_online_lyrics,

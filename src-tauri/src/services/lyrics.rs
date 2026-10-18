@@ -26,6 +26,41 @@ fn label_from_line(line: &str) -> Option<String> {
     Some(rest.trim().to_string())
 }
 
+fn is_chord_token(token: &str) -> bool {
+    let clean = token.trim_matches(|c: char| {
+        c == '(' || c == ')' || c == '[' || c == ']' || c == '{' || c == '}' || c == ',' || c == '.' || c == ';'
+    });
+    if clean.is_empty() {
+        return false;
+    }
+    if clean == "%" || clean == "N.C." || clean == "NC" {
+        return true;
+    }
+    let first = clean.chars().next().unwrap();
+    if !('A'..='G').contains(&first) {
+        return false;
+    }
+    clean.chars().all(|c| {
+        c.is_alphanumeric()
+            || c == '#'
+            || c == '/'
+            || c == '+'
+            || c == '-'
+            || c == '('
+            || c == ')'
+            || c == '^'
+    })
+}
+
+pub fn is_chord_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with("##") {
+        return false;
+    }
+    let tokens: Vec<&str> = trimmed.split_whitespace().collect();
+    !tokens.is_empty() && tokens.iter().all(|t| is_chord_token(t))
+}
+
 pub fn parse_sections(text: &str) -> Vec<SongSection> {
     let normalized = normalize(text);
     let mut sections = Vec::new();
@@ -33,20 +68,34 @@ pub fn parse_sections(text: &str) -> Vec<SongSection> {
     let mut label: Option<SectionType> = None;
 
     for raw in normalized.lines() {
-        let line = raw.trim();
-        if line.is_empty() {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            if lines.is_empty() {
+                continue;
+            }
+            // Se as linhas até agora contêm apenas comentários, permite que a linha
+            // em branco seja apenas espaçamento entre o comentário e a letra
+            if lines.iter().all(|l| l.trim().starts_with("//")) {
+                continue;
+            }
             flush(&mut sections, &mut lines, &mut label);
             continue;
         }
-        if line.starts_with("//") {
-            continue;
-        }
-        if let Some(name) = label_from_line(line) {
+
+        if let Some(name) = label_from_line(trimmed) {
+            // Comentários que imediatamente antecedem um rótulo ## (como //Primeira Estrofe em Holyrics)
+            // são cabeçalhos descritivos e não pertencem ao bloco anterior
+            lines.retain(|l| !l.trim().starts_with("//"));
             flush(&mut sections, &mut lines, &mut label);
             label = SectionType::from_label(&name);
             continue;
         }
-        lines.push(line.to_string());
+
+        if is_chord_line(raw) {
+            lines.push(raw.trim_end().to_string());
+        } else {
+            lines.push(trimmed.to_string());
+        }
     }
 
     flush(&mut sections, &mut lines, &mut label);
@@ -60,8 +109,8 @@ pub fn sections_to_text(sections: &[SongSection]) -> String {
         let lines: Vec<&str> = section
             .lines
             .iter()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty())
+            .map(|line| line.trim_end())
+            .filter(|line| !line.trim().is_empty())
             .collect();
         if lines.is_empty() {
             continue;
@@ -143,11 +192,11 @@ mod tests {
     }
 
     #[test]
-    fn comentarios_com_barras_sao_ignorados() {
+    fn comentarios_com_barras_sao_preservados_para_retorno() {
         let sections = parse_sections("//Primeira Estrofe\n##(Verso 1)\na\n//anotação\nb");
         assert_eq!(
             sections,
-            blocks(vec![(Some(SectionType::Verse), vec!["a", "b"])])
+            blocks(vec![(Some(SectionType::Verse), vec!["a", "//anotação", "b"])])
         );
     }
 
@@ -192,7 +241,6 @@ mod tests {
     fn texto_sem_conteudo_nao_gera_blocos() {
         assert!(parse_sections("").is_empty());
         assert!(parse_sections("\n\n\n").is_empty());
-        assert!(parse_sections("// só comentário").is_empty());
         assert!(parse_sections("##(Refrão)").is_empty());
     }
 
@@ -265,16 +313,16 @@ mod tests {
         let sections = parse_sections("##(Refrão)\n//comentário\n\nlinha");
         assert_eq!(
             sections,
-            blocks(vec![(Some(SectionType::Chorus), vec!["linha"])])
+            blocks(vec![(Some(SectionType::Chorus), vec!["//comentário", "linha"])])
         );
     }
 
     #[test]
-    fn linhas_com_prefixos_reservados_somem_ao_salvar() {
+    fn comentarios_e_linhas_sao_preservados_ao_salvar() {
         let salvo = sections_to_text(&blocks(vec![(
             None,
-            vec!["//comentário", "##hashtag", "resto"],
+            vec!["//comentário", "resto"],
         )]));
-        assert_eq!(parse_sections(&salvo), blocks(vec![(None, vec!["resto"])]));
+        assert_eq!(parse_sections(&salvo), blocks(vec![(None, vec!["//comentário", "resto"])]));
     }
 }

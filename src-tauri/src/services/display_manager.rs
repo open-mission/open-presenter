@@ -184,7 +184,7 @@ pub fn open_preferences_window(app: &AppHandle) -> Result<(), AppError> {
     let builder = WebviewWindowBuilder::new(
         app,
         "preferences",
-        WebviewUrl::App("/#/preferences".into()),
+        WebviewUrl::App("index.html#/preferences".into()),
     )
     .title("Preferências — Open Presenter")
     .inner_size(880.0, 640.0)
@@ -216,7 +216,7 @@ pub fn open_shortcuts_window(app: &AppHandle) -> Result<(), AppError> {
     let builder = WebviewWindowBuilder::new(
         app,
         "shortcuts",
-        WebviewUrl::App("/#/shortcuts".into()),
+        WebviewUrl::App("index.html#/shortcuts".into()),
     )
     .title("Atalhos de Teclado — Open Presenter")
     .inner_size(700.0, 580.0)
@@ -247,7 +247,7 @@ pub fn open_theme_editor_window(app: &AppHandle, guid: Option<String>) -> Result
     }
 
     let route = format!(
-        "/#/theme-editor?guid={}",
+        "index.html#/theme-editor?guid={}",
         guid.as_deref().unwrap_or("")
     );
     let builder = WebviewWindowBuilder::new(app, "theme-editor", WebviewUrl::App(route.into()))
@@ -260,5 +260,45 @@ pub fn open_theme_editor_window(app: &AppHandle, guid: Option<String>) -> Result
         .decorations(true);
 
     builder.build().map_err(AppError::Tauri)?;
+    Ok(())
+}
+
+pub fn open_song_editor_window(app: &AppHandle, song_id: Option<String>) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("song-editor") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+        let _ = window.emit("song-editor://open", song_id);
+        return Ok(());
+    }
+
+    let route = match &song_id {
+        Some(id) if !id.trim().is_empty() => format!("index.html#/song-editor?id={}", id),
+        _ => "index.html#/song-editor".to_string(),
+    };
+
+    let title = if song_id.is_some() {
+        "Editar Música — Open Presenter"
+    } else {
+        "Nova Música — Open Presenter"
+    };
+
+    let builder = WebviewWindowBuilder::new(app, "song-editor", WebviewUrl::App(route.into()))
+        .title(title)
+        .inner_size(1240.0, 820.0)
+        .min_inner_size(960.0, 600.0)
+        .resizable(true)
+        .center()
+        .focused(true)
+        .decorations(true);
+
+    builder.build().map_err(AppError::Tauri)?;
+    Ok(())
+}
+
+pub fn close_song_editor_window(app: &AppHandle) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("song-editor") {
+        window.close().map_err(AppError::Tauri)?;
+    }
     Ok(())
 }
