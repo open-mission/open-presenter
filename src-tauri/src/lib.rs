@@ -199,6 +199,23 @@ pub fn run() {
                 }
             }
 
+            let remote_token = crate::services::settings::get_setting(&conn, "remote.token")
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+            let remote_enabled = crate::services::settings::get_setting(&conn, "remote.enabled")
+                .ok()
+                .flatten()
+                .map(|value| value != "false")
+                .unwrap_or(true);
+            let remote_state: crate::state::SharedRemoteState =
+                std::sync::Arc::new(std::sync::Mutex::new(crate::state::RemoteSettings {
+                    enabled: remote_enabled,
+                    token: remote_token,
+                    setlist: None,
+                }));
+            app.manage(remote_state.clone());
+
             app.manage(database::Db(std::sync::Mutex::new(conn)));
 
             let media_dir = crate::services::theme_media::media_base_dir(&handle)
@@ -211,6 +228,7 @@ pub fn run() {
                 ws_tx,
                 media_dir,
                 clients: clients.clone(),
+                remote: remote_state.clone(),
             };
             app.manage(clients);
             app.manage(std::sync::Mutex::new(

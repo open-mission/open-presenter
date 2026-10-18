@@ -6,6 +6,7 @@ import ShortcutsView from "./views/ShortcutsView";
 import StageView from "./views/StageView";
 import ThemeEditorView from "./views/ThemeEditorView";
 import SongEditorView from "./views/SongEditorView";
+import RemoteView from "./features/remote/RemoteView";
 import { Toaster } from "@/components/ui/sonner";
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/stage" element={<StageView />} />
         <Route path="/theme-editor" element={<ThemeEditorView />} />
         <Route path="/song-editor" element={<SongEditorView />} />
+        <Route path="/remote" element={<RemoteView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Toaster />

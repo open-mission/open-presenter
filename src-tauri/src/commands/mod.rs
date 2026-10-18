@@ -1,5 +1,6 @@
 pub mod media;
 pub mod outputs;
+pub mod remote;
 pub mod presentation;
 pub mod server;
 pub mod setlists;

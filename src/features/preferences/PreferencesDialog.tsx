@@ -5,6 +5,7 @@ import {
   Music,
   Palette,
   SlidersHorizontal,
+  Smartphone,
   Sparkles,
   X,
 } from "lucide-react";
@@ -13,6 +14,7 @@ import type { PreferencesTab } from "./types";
 import { AppearanceTab } from "./tabs/AppearanceTab";
 import { GeneralTab } from "./tabs/GeneralTab";
 import { OutputsTab } from "./tabs/OutputsTab";
+import { RemoteTab } from "./tabs/RemoteTab";
 import { ThemesTab } from "./tabs/ThemesTab";
 import { SongsTab } from "./tabs/SongsTab";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -50,6 +52,12 @@ const NAV_ITEMS: NavItemConfig[] = [
     label: "Músicas",
     breadcrumb: "Músicas & Grupos",
     icon: Music,
+  },
+  {
+    id: "remote",
+    label: "Controle Remoto",
+    breadcrumb: "Controle Remoto",
+    icon: Smartphone,
   },
   {
     id: "appearance",
@@ -198,6 +206,7 @@ export function PreferencesDialog() {
               {activeTab === "outputs" && <OutputsTab />}
               {activeTab === "themes" && <ThemesTab />}
               {activeTab === "songs" && <SongsTab />}
+              {activeTab === "remote" && <RemoteTab />}
               {activeTab === "general" && <GeneralTab />}
             </div>
           </ScrollArea>

@@ -26,6 +26,7 @@ use crate::services::SharedBroadcaster;
 use crate::state::types::{
     ConnectedClient, OutputTarget, ServerStatus, WsEnvelope, EVENT_CLIENT_HELLO, WS_PATH,
 };
+use crate::state::SharedRemoteState;
 
 /// Navegadores conectados ao `/ws`, por id de conexão.
 pub type Clients = Arc<Mutex<HashMap<String, ConnectedClient>>>;
@@ -44,6 +45,7 @@ pub struct ServerState {
     pub ws_tx: broadcast::Sender<String>,
     pub media_dir: PathBuf,
     pub clients: Clients,
+    pub remote: SharedRemoteState,
 }
 
 /// Controle de ciclo de vida do servidor local de saídas.
@@ -97,6 +99,18 @@ pub fn router(state: ServerState) -> Router {
         .route(WS_PATH, get(ws_handler))
         .route("/health", get(health_handler))
         .route("/api/live", get(live_handler))
+        .route("/api/v1/info", get(crate::server::remote::info))
+        .route("/api/v1/live", get(crate::server::remote::live))
+        .route("/api/v1/setlist", get(crate::server::remote::setlist))
+        .route("/api/v1/present", post(crate::server::remote::present))
+        .route("/api/v1/clear", post(crate::server::remote::clear))
+        .route("/api/v1/blackout", post(crate::server::remote::blackout))
+        .route(
+            "/api/v1/wallpaper",
+            get(crate::server::remote::get_wallpaper)
+                .post(crate::server::remote::toggle_wallpaper),
+        )
+        .route("/api/v1/ws", get(crate::server::remote::ws))
         .route("/theme-media/{*path}", get(theme_media_handler))
         .fallback(static_handler)
         .with_state(Arc::new(state))

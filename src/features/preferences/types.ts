@@ -3,7 +3,8 @@ export type PreferencesTab =
   | "outputs"
   | "themes"
   | "songs"
-  | "general";
+  | "general"
+  | "remote";
 
 export type OutputsSection = "public" | "stage" | "server" | "devices";
 
