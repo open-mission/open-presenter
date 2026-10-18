@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlignLeft,
   Eye,
@@ -14,11 +14,18 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { mediaKindLabel } from "@/core/lib/media";
 import { buildMediaSlides } from "@/core/lib/media";
+import {
+  appendSlideNumberDigit,
+  isSlideNumberKey,
+  removeLastSlideNumberDigit,
+  resolveSlideNumberIndex,
+} from "@/core/lib/slideNumbers";
 import type { EventItem, MediaKind } from "@/core/types";
 import { useMediaBaseUrl } from "@/features/presentation/useMediaBaseUrl";
 import { usePresentationStore } from "@/features/presentation/store";
 import { resolveMediaLibraryUrl } from "@/features/theme-editor/media";
 import { MediaDialog } from "./MediaDialog";
+import { SlideNumberIndicator } from "./SlideNumberIndicator";
 import { TextEditorDialog } from "./TextEditorDialog";
 import { useSetlistStore } from "./store";
 
@@ -48,6 +55,8 @@ export function MediaSlidesColumn({
   const base = useMediaBaseUrl();
 
   const [previewIndex, setPreviewIndex] = useState(0);
+  const [numberBuffer, setNumberBuffer] = useState("");
+  const slideRefs = useRef<(HTMLElement | null)[]>([]);
   const [editOpen, setEditOpen] = useState(false);
   const [textEditOpen, setTextEditOpen] = useState(false);
 
@@ -79,10 +88,27 @@ export function MediaSlidesColumn({
         !live.blackout &&
         live.content.kind !== "blank";
 
+      if (e.key === "Backspace" && numberBuffer.length > 0) {
+        e.preventDefault();
+        setNumberBuffer(removeLastSlideNumberDigit(numberBuffer));
+        return;
+      }
+
       if (e.key === "Escape") {
+        if (numberBuffer.length > 0) {
+          e.preventDefault();
+          setNumberBuffer("");
+          return;
+        }
         e.preventDefault();
         void usePresentationStore.getState().clearLive();
         useSetlistStore.setState({ runnerIndex: null });
+        return;
+      }
+
+      if (isSlideNumberKey(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setNumberBuffer(appendSlideNumberDigit(numberBuffer, e.key));
         return;
       }
 
@@ -108,13 +134,28 @@ export function MediaSlidesColumn({
 
       if (e.key === "Enter") {
         e.preventDefault();
+        if (numberBuffer.length > 0) {
+          const targetIdx = resolveSlideNumberIndex(numberBuffer, slides.length);
+          setNumberBuffer("");
+          if (targetIdx !== null) {
+            setPreviewIndex(targetIdx);
+            usePresentationStore.getState().setPreview(slides[targetIdx]?.slide ?? null);
+            if (isLive) void projectSection(item.id, targetIdx);
+            slideRefs.current[targetIdx]?.scrollIntoView({
+              block: "nearest",
+              behavior: "smooth",
+            });
+          }
+          return;
+        }
         void projectSection(item.id, previewIndex);
+        return;
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [item.id, previewIndex, projectSection, runnerIndex, slides]);
+  }, [item.id, previewIndex, projectSection, runnerIndex, slides, numberBuffer]);
 
   if (!media) return null;
 
@@ -145,7 +186,7 @@ export function MediaSlidesColumn({
   }
 
   return (
-    <section className="flex h-full w-80 min-h-0 flex-col border-r border-border bg-background sm:w-96 shrink-0 select-none overflow-hidden">
+    <section className="relative flex h-full w-80 min-h-0 flex-col border-r border-border bg-background sm:w-96 shrink-0 select-none overflow-hidden" onClick={() => setNumberBuffer("")}>
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3.5">
         <div className="flex min-w-0 flex-1 items-center gap-2.5 pr-3">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-500">
@@ -232,6 +273,9 @@ export function MediaSlidesColumn({
                 <button
                   key={entry.slide.id}
                   type="button"
+                  ref={(el) => {
+                    slideRefs.current[entry.index] = el;
+                  }}
                   onClick={() => handlePreview(entry.index)}
                   onDoubleClick={() => handlePresent(entry.index)}
                   className={`group relative aspect-video overflow-hidden rounded-lg border bg-black transition-all cursor-pointer ${
@@ -271,6 +315,9 @@ export function MediaSlidesColumn({
                 <button
                   key={entry.slide.id}
                   type="button"
+                  ref={(el) => {
+                    slideRefs.current[entry.index] = el;
+                  }}
                   onClick={() => handlePreview(entry.index)}
                   onDoubleClick={() => handlePresent(entry.index)}
                   className={`group flex w-full flex-col gap-2 rounded-xl border p-3.5 text-left transition-all cursor-pointer ${
@@ -340,6 +387,9 @@ export function MediaSlidesColumn({
         ) : (
           <div className="space-y-2.5">
             <div
+              ref={(el) => {
+                slideRefs.current[0] = el;
+              }}
               className={`relative overflow-hidden rounded-xl border bg-black transition-all ${
                 runnerIndex === 0
                   ? "border-emerald-500 ring-2 ring-emerald-500/40"
@@ -407,6 +457,8 @@ export function MediaSlidesColumn({
           itemId={item.id}
         />
       )}
+
+      <SlideNumberIndicator buffer={numberBuffer} />
     </section>
   );
 }
