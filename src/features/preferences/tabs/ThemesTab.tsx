@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronDown,
@@ -111,6 +111,7 @@ function newBlankTheme(
     return {
       guid: crypto.randomUUID(),
       title,
+      category: "theme",
       css: { background: "#000000" },
       elements: [
         {
@@ -160,6 +161,7 @@ function newBlankTheme(
   return {
     guid: crypto.randomUUID(),
     title,
+    category: "theme",
     css: { background: "#000000" },
     elements: [
       {
@@ -246,12 +248,16 @@ export function ThemesTab() {
     );
   }, [load]);
 
+  const templateThemes = useMemo(() => {
+    return themes.filter((t) => t.category !== "presentation");
+  }, [themes]);
+
   async function handleCreate(kind: "lyric" | "text" = "lyric") {
     setError(null);
     try {
       const typeLabel = kind === "text" ? "Texto" : "Música";
       const theme = newBlankTheme(
-        `Novo Tema de ${typeLabel} ${themes.length + 1}`,
+        `Novo Tema de ${typeLabel} ${templateThemes.length + 1}`,
         kind,
       );
       await save(theme);
@@ -268,6 +274,7 @@ export function ThemesTab() {
         ...theme,
         guid: crypto.randomUUID(),
         title: `${theme.title} (cópia)`,
+        category: theme.category ?? "theme",
         elements: theme.elements.map((el) => ({ ...el, css: { ...el.css } })),
       });
     } catch (e: unknown) {
@@ -605,13 +612,13 @@ export function ThemesTab() {
         </div>
 
         {/* Gallery Grid */}
-        {themes.length === 0 ? (
+        {templateThemes.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">
             Nenhum tema encontrado. Crie um novo tema para começar.
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {themes.map((theme) => {
+            {templateThemes.map((theme) => {
               const isStage = stageThemeGuid === theme.guid;
               const isDefaultPublic = bindings.some(
                 (b) => b.themeGuid === theme.guid,
@@ -728,7 +735,7 @@ export function ThemesTab() {
             </div>
 
             {/* List of Themes */}
-            {themes.map((t) => (
+            {templateThemes.map((t) => (
               <div
                 key={t.guid}
                 onClick={() => {

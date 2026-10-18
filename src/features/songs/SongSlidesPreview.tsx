@@ -104,6 +104,10 @@ export function SongSlidesPreview({
   };
 
   const themes = useSlideThemesStore((s) => s.themes);
+  const templateThemes = useMemo(
+    () => themes.filter((t) => t.category !== "presentation"),
+    [themes],
+  );
   const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
   const setBinding = useSlideThemesStore((s) => s.setBinding);
   const loadThemes = useSlideThemesStore((s) => s.load);
@@ -115,7 +119,7 @@ export function SongSlidesPreview({
   );
 
   const [selectedThemeGuid, setSelectedThemeGuid] = useState<string | null>(
-    () => themeGuid ?? defaultTheme?.guid ?? (themes[0]?.guid || null),
+    () => themeGuid ?? defaultTheme?.guid ?? (templateThemes[0]?.guid || null),
   );
 
   useEffect(() => {
@@ -192,7 +196,7 @@ export function SongSlidesPreview({
                   <SelectValue placeholder="Escolher tema..." />
                 </SelectTrigger>
                 <SelectContent align="end" className="w-[180px]">
-                  {themes.map((theme) => (
+                  {templateThemes.map((theme) => (
                     <SelectItem
                       key={theme.guid}
                       value={theme.guid}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, ChevronLeft, ChevronRight, Pencil, Trash2, Zap } from "lucide-react";
 import { kindToAsset } from "@/core/types";
@@ -69,6 +69,10 @@ export function ThemeRail() {
       return !v;
     });
   }
+
+  const templateThemes = useMemo(() => {
+    return themes.filter((t) => t.category !== "presentation");
+  }, [themes]);
 
   const effectiveKind = liveKind === "blank" ? "lyric" : liveKind;
   const asset = kindToAsset(liveKind) ?? "music";
@@ -147,13 +151,13 @@ export function ThemeRail() {
             {error}
           </p>
         )}
-        {themes.length === 0 ? (
+        {templateThemes.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             Nenhum tema. Crie um em Preferências &gt; Temas.
           </p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {themes.map((theme) => {
+            {templateThemes.map((theme) => {
               const isLive = theme.guid === liveGuid;
               return (
                 <li key={theme.guid}>

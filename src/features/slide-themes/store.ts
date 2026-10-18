@@ -211,7 +211,7 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
       ...existing,
       guid: crypto.randomUUID(),
       title: `${existing.title} (Cópia)`,
-      category: existing.category || "presentation",
+      category: existing.category || "theme",
       createdAt: now,
       updatedAt: now,
       elements: existing.elements.map((el) => ({
