@@ -129,6 +129,24 @@ pub fn sections_to_text(sections: &[SongSection]) -> String {
     blocks.join("\n\n")
 }
 
+pub fn split_sections(sections: &[SongSection], lines_per_slide: usize) -> Vec<SongSection> {
+    let per = lines_per_slide.max(1);
+    let mut result = Vec::new();
+    for section in sections {
+        if section.lines.len() <= per {
+            result.push(section.clone());
+            continue;
+        }
+        for (index, chunk) in section.lines.chunks(per).enumerate() {
+            result.push(SongSection {
+                section_type: if index == 0 { section.section_type } else { None },
+                lines: chunk.to_vec(),
+            });
+        }
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -324,5 +342,36 @@ mod tests {
             vec!["//comentário", "resto"],
         )]));
         assert_eq!(parse_sections(&salvo), blocks(vec![(None, vec!["//comentário", "resto"])]));
+    }
+
+    #[test]
+    fn divide_estrofe_e_so_o_primeiro_fragmento_mantem_rotulo() {
+        let original = blocks(vec![(
+            Some(SectionType::Verse),
+            vec!["a", "b", "c", "d", "e"],
+        )]);
+        assert_eq!(
+            split_sections(&original, 2),
+            blocks(vec![
+                (Some(SectionType::Verse), vec!["a", "b"]),
+                (None, vec!["c", "d"]),
+                (None, vec!["e"]),
+            ])
+        );
+    }
+
+    #[test]
+    fn secao_curta_fica_intacta() {
+        let original = blocks(vec![(Some(SectionType::Chorus), vec!["a", "b"])]);
+        assert_eq!(split_sections(&original, 2), original);
+    }
+
+    #[test]
+    fn uma_linha_por_slide_quebra_cada_linha() {
+        let original = blocks(vec![(None, vec!["a", "b", "c"])]);
+        assert_eq!(
+            split_sections(&original, 1),
+            blocks(vec![(None, vec!["a"]), (None, vec!["b"]), (None, vec!["c"])])
+        );
     }
 }
