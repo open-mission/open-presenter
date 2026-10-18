@@ -238,6 +238,51 @@ pub struct SongSummary {
     pub album: Option<String>,
 }
 
+/// Linhas por slide ao importar/salvar letras de músicas.
+/// Valor ausente ou desconhecido equivale a `Two` (`"2"`).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum LinesPerSlide {
+    #[serde(rename = "1")]
+    One,
+    #[serde(rename = "2")]
+    Two,
+    #[serde(rename = "keep")]
+    Keep,
+}
+
+impl LinesPerSlide {
+    pub fn from_setting(value: Option<&str>) -> Self {
+        match value {
+            Some("1") => LinesPerSlide::One,
+            Some("2") => LinesPerSlide::Two,
+            Some("keep") => LinesPerSlide::Keep,
+            _ => LinesPerSlide::Two,
+        }
+    }
+
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            LinesPerSlide::One => "1",
+            LinesPerSlide::Two => "2",
+            LinesPerSlide::Keep => "keep",
+        }
+    }
+
+    pub const fn lines_per_slide(self) -> Option<usize> {
+        match self {
+            LinesPerSlide::One => Some(1),
+            LinesPerSlide::Two => Some(2),
+            LinesPerSlide::Keep => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SongDefaults {
+    pub lines_per_slide: LinesPerSlide,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct EventItem {

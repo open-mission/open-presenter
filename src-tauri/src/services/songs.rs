@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::error::AppError;
-use crate::state::{SectionType, Song, SongSection, SongSummary};
+use crate::services::{lyrics, settings};
+use crate::state::{LinesPerSlide, SectionType, Song, SongDefaults, SongSection, SongSummary};
 
 fn storage_error(err: rusqlite::Error) -> AppError {
     AppError::Storage(err.to_string())
@@ -252,6 +253,26 @@ pub fn insert_new(
     Ok(id)
 }
 
+pub const LINES_PER_SLIDE_KEY: &str = "songs.lines_per_slide";
+
+pub fn song_defaults(conn: &Connection) -> Result<SongDefaults, AppError> {
+    let value = settings::get_setting(conn, LINES_PER_SLIDE_KEY)?;
+    Ok(SongDefaults {
+        lines_per_slide: LinesPerSlide::from_setting(value.as_deref()),
+    })
+}
+
+pub fn save_song_defaults(conn: &Connection, defaults: SongDefaults) -> Result<(), AppError> {
+    settings::set_setting(conn, LINES_PER_SLIDE_KEY, defaults.lines_per_slide.as_str())
+}
+
+pub fn apply_layout(sections: Vec<SongSection>, defaults: SongDefaults) -> Vec<SongSection> {
+    match defaults.lines_per_slide.lines_per_slide() {
+        Some(per) => lyrics::split_sections(&sections, per),
+        None => sections,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -399,5 +420,58 @@ mod tests {
             .unwrap()
             .is_some());
         assert!(find_duplicate(&conn, "outra", "").unwrap().is_none());
+    }
+
+    #[test]
+    fn from_setting_mapeia_valores_com_default_dois() {
+        assert_eq!(LinesPerSlide::from_setting(Some("1")), LinesPerSlide::One);
+        assert_eq!(LinesPerSlide::from_setting(Some("2")), LinesPerSlide::Two);
+        assert_eq!(LinesPerSlide::from_setting(Some("keep")), LinesPerSlide::Keep);
+        assert_eq!(LinesPerSlide::from_setting(Some("x")), LinesPerSlide::Two);
+        assert_eq!(LinesPerSlide::from_setting(Some("")), LinesPerSlide::Two);
+        assert_eq!(LinesPerSlide::from_setting(None), LinesPerSlide::Two);
+    }
+
+    #[test]
+    fn defaults_persistem_com_default_dois_na_ausencia() {
+        let conn = open_in_memory();
+        assert_eq!(song_defaults(&conn).unwrap().lines_per_slide, LinesPerSlide::Two);
+        save_song_defaults(&conn, SongDefaults { lines_per_slide: LinesPerSlide::Keep }).unwrap();
+        assert_eq!(song_defaults(&conn).unwrap().lines_per_slide, LinesPerSlide::Keep);
+        save_song_defaults(&conn, SongDefaults { lines_per_slide: LinesPerSlide::One }).unwrap();
+        assert_eq!(song_defaults(&conn).unwrap().lines_per_slide, LinesPerSlide::One);
+    }
+
+    #[test]
+    fn apply_layout_respeita_keep_e_quebra() {
+        let sections = vec![SongSection {
+            section_type: Some(SectionType::Verse),
+            lines: vec!["a".into(), "b".into(), "c".into()],
+        }];
+        assert_eq!(
+            apply_layout(sections.clone(), SongDefaults { lines_per_slide: LinesPerSlide::Keep }),
+            sections
+        );
+        assert_eq!(
+            apply_layout(sections, SongDefaults { lines_per_slide: LinesPerSlide::Two }).len(),
+            2
+        );
+    }
+
+    #[test]
+    fn serde_espelha_contrato_do_front() {
+        let json = serde_json::to_value(SongDefaults {
+            lines_per_slide: LinesPerSlide::Keep,
+        })
+        .unwrap();
+        assert_eq!(json, serde_json::json!({ "linesPerSlide": "keep" }));
+        assert_eq!(
+            serde_json::to_value(SongDefaults { lines_per_slide: LinesPerSlide::One }).unwrap(),
+            serde_json::json!({ "linesPerSlide": "1" })
+        );
+        assert_eq!(
+            serde_json::from_value::<SongDefaults>(serde_json::json!({ "linesPerSlide": "2" })).unwrap(),
+            SongDefaults { lines_per_slide: LinesPerSlide::Two }
+        );
     }
 }

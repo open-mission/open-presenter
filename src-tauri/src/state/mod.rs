@@ -10,8 +10,8 @@ pub use remote::{
     SharedRemoteState,
 };
 pub use types::{
-    ConnectedClient, EventItem, EventPart, EventSummary, ImportReport, ImportSkip, LiveSlide, LiveThemes,
+    ConnectedClient, EventItem, EventPart, EventSummary, ImportReport, ImportSkip, LinesPerSlide, LiveSlide, LiveThemes,
     MediaItem, MediaKind, MonitorInfo,
     OnlineLyricHit, OutputConfig, OutputMode, OutputRuntime, OutputTarget, SectionType, ServerStatus, StageTimer,
-    ServiceEvent, Song, SongSection, SongSummary, WsEnvelope,
+    ServiceEvent, Song, SongDefaults, SongSection, SongSummary, WsEnvelope,
 };
