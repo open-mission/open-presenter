@@ -46,6 +46,7 @@ pub fn import_holyrics_files(conn: &Connection, paths: &[String]) -> Result<Impo
             Ok(partial) => {
                 report.imported.extend(partial.imported);
                 report.skipped.extend(partial.skipped);
+                report.errors.extend(partial.errors);
             }
             Err(e) => {
                 let name = Path::new(path)
