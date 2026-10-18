@@ -14,8 +14,8 @@
 
 ## Global Constraints
 
-- Antes de cada commit: `cargo test -p open-presenter` e `npm run typecheck` verdes (o front só é tocado de T4 em diante).
-- Comandos rodam da raiz do repositório; crate em `src-tauri/`.
+- Antes de cada commit: `cargo test -p open-presenter --manifest-path src-tauri/Cargo.toml` e `npm run typecheck` verdes (o front só é tocado de T4 em diante).
+- Comandos rodam da raiz do repositório; não há manifest Cargo na raiz — todo comando `cargo` usa `--manifest-path src-tauri/Cargo.toml`.
 - Strings de UI em pt-BR; sem comentários no código salvo lógica não-óbvia; Conventional Commits curtos e no imperativo.
 - Stack pinada — nenhuma dependência nova.
 - Tipos compartilhados Rust↔TS ficam espelhados: `src-tauri/src/state/types.rs` ↔ `src/core/types/index.ts`.
@@ -87,7 +87,7 @@ fn raiz_json_que_nao_e_objeto_nem_array_gera_erro() {
 
 - [ ] **Step 3: Rodar e ver falhar**
 
-Run: `cargo test -p open-presenter services::holyrics`
+Run: `cargo test -p open-presenter --manifest-path src-tauri/Cargo.toml services::holyrics`
 Expected: `parseia_json_de_musica_unica_na_raiz` FAIL (erro "arquivo JSON inválido"); os demais passam.
 
 - [ ] **Step 4: Implementar**
@@ -106,7 +106,7 @@ e iterar `for item in items` (o restante do laço fica como está).
 
 - [ ] **Step 5: Rodar e ver passar**
 
-Run: `cargo test -p open-presenter services::holyrics`
+Run: `cargo test -p open-presenter --manifest-path src-tauri/Cargo.toml services::holyrics`
 Expected: todos os testes do módulo PASS.
 
 - [ ] **Step 6: Commit**
@@ -165,7 +165,7 @@ fn uma_linha_por_slide_quebra_cada_linha() {
 
 - [ ] **Step 2: Rodar e ver falhar**
 
-Run: `cargo test -p open-presenter services::lyrics`
+Run: `cargo test -p open-presenter --manifest-path src-tauri/Cargo.toml services::lyrics`
 Expected: FAIL — `split_sections` não existe.
 
 - [ ] **Step 3: Implementar `split_sections`**
@@ -192,7 +192,7 @@ pub fn split_sections(sections: &[SongSection], lines_per_slide: usize) -> Vec<S
 
 - [ ] **Step 4: Rodar e ver passar**
 
-Run: `cargo test -p open-presenter services::lyrics`
+Run: `cargo test -p open-presenter --manifest-path src-tauri/Cargo.toml services::lyrics`
 Expected: PASS (incluindo os testes antigos do módulo).
 
 - [ ] **Step 5: Commit**
@@ -254,7 +254,7 @@ fn apply_layout_respeita_keep_e_quebra() {
 
 - [ ] **Step 2: Rodar e ver falhar**
 
-Run: `cargo test -p open-presenter services::songs`
+Run: `cargo test -p open-presenter --manifest-path src-tauri/Cargo.toml services::songs`
 Expected: FAIL — tipos/funções não existem.
 
 - [ ] **Step 3: Implementar**
@@ -289,7 +289,7 @@ pub fn apply_layout(sections: Vec<SongSection>, defaults: SongDefaults) -> Vec<S
 
 - [ ] **Step 4: Rodar e ver passar**
 
-Run: `cargo test -p open-presenter services::songs`
+Run: `cargo test -p open-presenter --manifest-path src-tauri/Cargo.toml services::songs`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -368,7 +368,7 @@ Em `SongsTab.tsx`, entre a seção "Importar de outro software de projeção" e 
 
 - [ ] **Step 4: Verificar**
 
-Run: `cargo check -p open-presenter && npm run typecheck`
+Run: `cargo check -p open-presenter --manifest-path src-tauri/Cargo.toml && npm run typecheck`
 Expected: sem erros. Manual (desktop): Preferências → Músicas → trocar para "Estrofe inteira", fechar e reabrir o app, seção mostra "Estrofe inteira".
 
 - [ ] **Step 5: Commit**
@@ -442,7 +442,7 @@ fn layout_keep_nao_quebra_estrofes() {
 
 - [ ] **Step 2: Rodar e ver falhar**
 
-Run: `cargo test -p open-presenter services::import`
+Run: `cargo test -p open-presenter --manifest-path src-tauri/Cargo.toml services::import`
 Expected: `importa_quebrando_estrofes_no_layout_padrao` FAIL (19 ≠ 11); `layout_keep_nao_quebra_estrofes` pode passar por acidente — os outros dois definem a mudança.
 
 - [ ] **Step 3: Implementar**
@@ -460,7 +460,7 @@ let sections = db.with_conn(|conn| {
 
 - [ ] **Step 4: Rodar e ver passar**
 
-Run: `cargo test -p open-presenter services::import` e depois `cargo test -p open-presenter`
+Run: `cargo test -p open-presenter --manifest-path src-tauri/Cargo.toml services::import` e depois `cargo test -p open-presenter --manifest-path src-tauri/Cargo.toml`
 Expected: PASS (todos).
 
 - [ ] **Step 5: Commit**
@@ -518,7 +518,7 @@ fn importa_varios_arquivos_e_reporta_erro_por_arquivo() {
 
 - [ ] **Step 2: Rodar e ver falhar**
 
-Run: `cargo test -p open-presenter services::import`
+Run: `cargo test -p open-presenter --manifest-path src-tauri/Cargo.toml services::import`
 Expected: FAIL — `import_holyrics_files` não existe.
 
 - [ ] **Step 3: Implementar (Rust + front)**
@@ -547,7 +547,7 @@ export async function pickHolyricsFiles(): Promise<string[]> {
 
 - [ ] **Step 4: Verificar**
 
-Run: `cargo test -p open-presenter && npm run typecheck`
+Run: `cargo test -p open-presenter --manifest-path src-tauri/Cargo.toml && npm run typecheck`
 Expected: PASS / sem erros. Manual (desktop): importar `holyrics_array.json` + `holyrics_single.json` juntos → relatório com 4 músicas; importar de novo → 4 puladas; menu "Importar Músicas do Holyrics…" continua funcionando.
 
 - [ ] **Step 5: Commit**
