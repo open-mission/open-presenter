@@ -14,7 +14,7 @@
       {
         "label": "main",
         "title": "Open Presenter",
-        "url": "/",
+        "url": "index.html",
         "width": 1400,
         "height": 900,
         "minWidth": 1024,
