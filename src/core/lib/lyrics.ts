@@ -258,3 +258,18 @@ export function computeSlideGroups(slides: RunnerSlide[]): SlideGroup[] {
 
   return groups;
 }
+
+export function splitSection(section: SongSection, linesPerSlide: 1 | 2): SongSection[] {
+  if (section.lines.length <= linesPerSlide) {
+    return [section];
+  }
+
+  const fragments: SongSection[] = [];
+  for (let i = 0; i < section.lines.length; i += linesPerSlide) {
+    fragments.push({
+      sectionType: fragments.length === 0 ? section.sectionType : null,
+      lines: section.lines.slice(i, i + linesPerSlide),
+    });
+  }
+  return fragments;
+}

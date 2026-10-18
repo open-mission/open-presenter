@@ -22,10 +22,10 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { SECTION_COLOR, SECTION_LABEL } from "@/core/config/lyrics";
-import { buildSongSlides, computeSlideGroups } from "@/core/lib/lyrics";
+import { buildSongSlides, computeSlideGroups, splitSection } from "@/core/lib/lyrics";
 import type { RunnerSlide } from "@/core/lib/lyrics";
 import { saveSong } from "@/core/ipc/commands";
-import type { EventItem, SectionType, ServiceEvent, Song, SongSection } from "@/core/types";
+import type { EventItem, SectionType, ServiceEvent, Song } from "@/core/types";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSongsStore } from "@/features/songs/store";
 import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
@@ -357,13 +357,7 @@ function SongSlidesContent() {
     const target = song.sections[sectionIndex];
     if (!target || target.lines.length <= linesPerSlide) return;
 
-    const newSections: SongSection[] = [];
-    for (let i = 0; i < target.lines.length; i += linesPerSlide) {
-      newSections.push({
-        sectionType: target.sectionType,
-        lines: target.lines.slice(i, i + linesPerSlide),
-      });
-    }
+    const newSections = splitSection(target, linesPerSlide);
 
     const updatedSections = [...song.sections];
     updatedSections.splice(sectionIndex, 1, ...newSections);

@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeSlideGroups } from "./lyrics.ts";
+import { computeSlideGroups, splitSection } from "./lyrics.ts";
 import type { RunnerSlide } from "./lyrics.ts";
-import type { SectionType } from "../types";
+import type { SectionType, SongSection } from "../types";
 
 function slide(
   index: number,
@@ -91,4 +91,31 @@ test("rótulos consecutivos abrem cada um o próprio grupo", () => {
 
 test("lista vazia não gera grupos", () => {
   assert.deepEqual(computeSlideGroups([]), []);
+});
+
+test("divide estrofe e só o primeiro fragmento mantém o rótulo", () => {
+  assert.deepEqual(
+    splitSection({ sectionType: "verse", lines: ["a", "b", "c", "d", "e"] }, 2),
+    [
+      { sectionType: "verse", lines: ["a", "b"] },
+      { sectionType: null, lines: ["c", "d"] },
+      { sectionType: null, lines: ["e"] },
+    ],
+  );
+});
+
+test("seção curta fica intacta", () => {
+  const section: SongSection = { sectionType: "chorus", lines: ["a", "b"] };
+  assert.deepEqual(splitSection(section, 2), [section]);
+});
+
+test("uma linha por slide quebra cada linha", () => {
+  assert.deepEqual(
+    splitSection({ sectionType: null, lines: ["a", "b", "c"] }, 1),
+    [
+      { sectionType: null, lines: ["a"] },
+      { sectionType: null, lines: ["b"] },
+      { sectionType: null, lines: ["c"] },
+    ],
+  );
 });
