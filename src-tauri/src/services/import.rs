@@ -164,4 +164,19 @@ mod tests {
         assert!(segunda_rodada.imported.is_empty());
         assert_eq!(segunda_rodada.skipped.len(), 4);
     }
+
+    #[test]
+    fn importa_arquivo_com_nome_acentuado_e_parenteses() {
+        let conn = open_in_memory();
+        let path = std::env::temp_dir().join(format!(
+            "A Boa Parte (Florianópolis) {}.json",
+            std::process::id()
+        ));
+        std::fs::copy(FIXTURE_SINGLE, &path).unwrap();
+        let report =
+            import_holyrics_files(&conn, &[path.to_string_lossy().into_owned()]).unwrap();
+        assert!(report.imported.contains(&"A Boa Parte".to_string()));
+        assert!(report.errors.is_empty());
+        std::fs::remove_file(&path).ok();
+    }
 }
