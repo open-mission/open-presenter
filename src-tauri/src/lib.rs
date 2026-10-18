@@ -311,6 +311,8 @@ pub fn run() {
             commands::songs::fetch_online_lyrics,
             commands::songs::parse_lyrics,
             commands::songs::lyrics_to_text,
+            commands::songs::get_song_defaults,
+            commands::songs::set_song_defaults,
             commands::themes::list_themes,
             commands::themes::get_theme,
             commands::themes::save_theme,

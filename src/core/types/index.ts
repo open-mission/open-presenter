@@ -150,6 +150,12 @@ export interface SongSummary {
   bpm?: number;
 }
 
+export type LinesPerSlide = "1" | "2" | "keep";
+
+export interface SongDefaults {
+  linesPerSlide: LinesPerSlide;
+}
+
 export interface EventItem {
   id: string;
   songId: string | null;

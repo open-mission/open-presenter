@@ -8,12 +8,15 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { getSongDefaults, setSongDefaults } from "@/core/ipc/commands";
+import type { LinesPerSlide } from "@/core/types";
 import { useSongsStore } from "@/features/songs/store";
 import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
 
@@ -36,6 +39,12 @@ const PRESET_SWATCHES = [
   "#0f172a",
 ];
 
+const LINES_PER_SLIDE_OPTIONS: { value: LinesPerSlide; label: string }[] = [
+  { value: "1", label: "1 linha por slide" },
+  { value: "2", label: "2 linhas por slide" },
+  { value: "keep", label: "Estrofe inteira" },
+];
+
 export function SongsTab() {
   const startHolyricsImport = useSongsStore((s) => s.startHolyricsImport);
   const groups = useSongGroupsStore((s) => s.groups);
@@ -48,6 +57,33 @@ export function SongsTab() {
   const resetDefaults = useSongGroupsStore((s) => s.resetDefaults);
 
   const [recordingGroupId, setRecordingGroupId] = useState<string | null>(null);
+  const [linesPerSlide, setLinesPerSlide] = useState<LinesPerSlide | null>(null);
+
+  // Load persisted lines-per-slide preference
+  useEffect(() => {
+    let cancelled = false;
+    void getSongDefaults()
+      .then((defaults) => {
+        if (!cancelled) setLinesPerSlide(defaults.linesPerSlide);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          toast.error(err instanceof Error ? err.message : String(err));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleLinesPerSlideChange(value: LinesPerSlide) {
+    try {
+      const saved = await setSongDefaults({ linesPerSlide: value });
+      setLinesPerSlide(saved.linesPerSlide);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   // Listen for keypress when recording a shortcut
   useEffect(() => {
@@ -113,6 +149,41 @@ export function SongsTab() {
           <FolderOpen className="size-4 text-primary" />
           <span>Importar músicas (.json, .txt, .pro)</span>
         </button>
+      </div>
+
+      {/* Section: Linhas por Slide */}
+      <div className="flex flex-col gap-3">
+        <div>
+          <h4 className="text-sm font-semibold text-foreground">
+            Linhas por slide
+          </h4>
+          <p className="text-xs text-muted-foreground">
+            Padrão ao importar músicas e ao salvar letras da internet.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1 rounded-xl border border-border/80 bg-card/60 p-2 shadow-2xs">
+          {LINES_PER_SLIDE_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-colors ${
+                linesPerSlide === option.value
+                  ? "bg-primary/5 font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+              }`}
+            >
+              <input
+                type="radio"
+                name="song-lines-per-slide"
+                value={option.value}
+                checked={linesPerSlide === option.value}
+                onChange={() => void handleLinesPerSlideChange(option.value)}
+                className="accent-primary"
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
       </div>
 
       {/* Section: Grupos de Música */}

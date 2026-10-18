@@ -13,7 +13,8 @@ pub use presentation::{
 };
 pub use setlists::{create_event, delete_event, get_event, list_events, save_event};
 pub use songs::{
-    close_song_editor, delete_song, fetch_online_lyrics, get_song, import_holyrics, list_songs,
-    open_song_editor, save_song, search_lyrics_online,
+    close_song_editor, delete_song, fetch_online_lyrics, get_song, get_song_defaults,
+    import_holyrics, list_songs, open_song_editor, save_song, search_lyrics_online,
+    set_song_defaults,
 };
 pub use themes::{delete_theme, get_theme, list_themes, save_theme};

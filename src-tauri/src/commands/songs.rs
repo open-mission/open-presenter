@@ -5,7 +5,7 @@ use tauri::{AppHandle, Emitter, State};
 use crate::error::AppError;
 use crate::services::database::Db;
 use crate::services::{display_manager, import, lrclib, lyrics, songs};
-use crate::state::{ImportReport, OnlineLyricHit, Song, SongSection, SongSummary};
+use crate::state::{ImportReport, OnlineLyricHit, Song, SongDefaults, SongSection, SongSummary};
 
 #[tauri::command]
 pub fn list_songs(db: State<'_, Db>, query: Option<String>) -> Result<Vec<SongSummary>, AppError> {
@@ -80,4 +80,20 @@ pub fn parse_lyrics(text: String) -> Vec<SongSection> {
 #[tauri::command]
 pub fn lyrics_to_text(sections: Vec<SongSection>) -> String {
     lyrics::sections_to_text(&sections)
+}
+
+#[tauri::command]
+pub fn get_song_defaults(db: State<'_, Db>) -> Result<SongDefaults, AppError> {
+    db.with_conn(songs::song_defaults)
+}
+
+#[tauri::command]
+pub fn set_song_defaults(
+    db: State<'_, Db>,
+    defaults: SongDefaults,
+) -> Result<SongDefaults, AppError> {
+    db.with_conn(|conn| {
+        songs::save_song_defaults(conn, defaults)?;
+        songs::song_defaults(conn)
+    })
 }

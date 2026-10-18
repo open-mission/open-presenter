@@ -18,6 +18,7 @@ import type {
   ServiceEvent,
   SlideTheme,
   Song,
+  SongDefaults,
   SongSection,
   SongSummary,
   StageTimer,
@@ -297,6 +298,16 @@ export async function parseLyrics(text: string): Promise<SongSection[]> {
 
 export async function lyricsToText(sections: SongSection[]): Promise<string> {
   return invokeStrict<string>("lyrics_to_text", { sections });
+}
+
+export async function getSongDefaults(): Promise<SongDefaults> {
+  return invokeStrict<SongDefaults>("get_song_defaults");
+}
+
+export async function setSongDefaults(
+  defaults: SongDefaults,
+): Promise<SongDefaults> {
+  return invokeStrict<SongDefaults>("set_song_defaults", { defaults });
 }
 
 export async function listEvents(): Promise<EventSummary[]> {
