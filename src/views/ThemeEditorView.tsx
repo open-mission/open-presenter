@@ -20,7 +20,7 @@ import {
 import type { ThemeAsset, ThemeElement } from "@/core/types";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { exportElementAsImage } from "@/features/theme-editor/exportImage";
+import { exportThemeAsImage } from "@/features/theme-editor/exportImage";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -164,18 +164,18 @@ export default function ThemeEditorView() {
   }
 
   async function handleExport(format: "png" | "jpeg") {
-    const el = document.getElementById("theme-export-target");
-    if (!el) {
-      toast.error("Elemento do slide não encontrado para exportação.");
+    if (!draft) {
+      toast.error("Nenhum tema carregado para exportação.");
       return;
     }
     setExporting(true);
     try {
-      await exportElementAsImage(el, {
-        fileName: draft?.title ? `apresentacao-${draft.title}` : "apresentacao",
+      await exportThemeAsImage(draft, {
+        fileName: draft.title ? `apresentacao-${draft.title}` : "apresentacao",
         format,
         width: resolution.width,
         height: resolution.height,
+        sampleProps: SAMPLES[sampleAsset]?.props ?? {},
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao exportar imagem.");
