@@ -18,11 +18,17 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import type { ThemeAsset, ThemeElement } from "@/core/types";
+import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { exportThemeAsImage } from "@/features/theme-editor/exportImage";
 import { exportThemeAsJson } from "@/features/slide-themes/themeIo";
+import {
+  contextToAsset,
+  getActivePage,
+  materializePage,
+  PAGE_CONTEXTS,
+} from "@/features/slide-themes/pages";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -52,6 +58,7 @@ import {
   type CanvasResolution,
 } from "@/features/theme-editor/Canvas";
 import { LayersPanel } from "@/features/theme-editor/LayersPanel";
+import { PagesBar } from "@/features/theme-editor/PagesBar";
 import { PropertiesPanel } from "@/features/theme-editor/PropertiesPanel";
 import { SymbolsPicker } from "@/features/theme-editor/SymbolsPicker";
 import { useThemeEditorStore } from "@/features/theme-editor/store";
@@ -75,12 +82,18 @@ function baseCss(left: number, top: number, width: number, height: number) {
   };
 }
 
+function viewOf(theme: SlideTheme, activePageId: string | null): SlideTheme {
+  const page = getActivePage(theme, activePageId);
+  return page ? materializePage(theme, page) : theme;
+}
+
 export default function ThemeEditorView() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const guid = searchParams.get("guid") ?? "";
 
   const draft = useThemeEditorStore((s) => s.draft);
+  const activePageId = useThemeEditorStore((s) => s.activePageId);
   const error = useThemeEditorStore((s) => s.error);
   const load = useThemeEditorStore((s) => s.load);
   const setTitle = useThemeEditorStore((s) => s.setTitle);
@@ -136,6 +149,10 @@ export default function ThemeEditorView() {
   }, [load]);
 
   useEffect(() => {
+    setSelectedId(null);
+  }, [activePageId]);
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
@@ -174,12 +191,21 @@ export default function ThemeEditorView() {
     }
     setExporting(true);
     try {
-      await exportThemeAsImage(draft, {
+      const exportTheme = viewOf(
+        draft,
+        useThemeEditorStore.getState().activePageId,
+      );
+      const page = getActivePage(
+        draft,
+        useThemeEditorStore.getState().activePageId,
+      );
+      const exportAsset = page ? contextToAsset(page.context) : sampleAsset;
+      await exportThemeAsImage(exportTheme, {
         fileName: draft.title ? `apresentacao-${draft.title}` : "apresentacao",
         format,
         width: resolution.width,
         height: resolution.height,
-        sampleProps: SAMPLES[sampleAsset]?.props ?? {},
+        sampleProps: SAMPLES[exportAsset]?.props ?? {},
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao exportar imagem.");
@@ -244,7 +270,11 @@ export default function ThemeEditorView() {
 
   function handleAdd(kind: "text" | "color" | "image" | "video") {
     if (!draft) return;
-    const ids = draft.elements.map((el) => el.id);
+    const current = viewOf(
+      draft,
+      useThemeEditorStore.getState().activePageId,
+    );
+    const ids = current.elements.map((el) => el.id);
     let el: ThemeElement;
     switch (kind) {
       case "text":
@@ -309,8 +339,12 @@ export default function ThemeEditorView() {
 
   function handleAddSymbol(symbol: string) {
     if (!draft) return;
+    const current = viewOf(
+      draft,
+      useThemeEditorStore.getState().activePageId,
+    );
     if (selectedId) {
-      const el = draft.elements.find((e) => e.id === selectedId);
+      const el = current.elements.find((e) => e.id === selectedId);
       if (el && el.type === "TEXT") {
         useThemeEditorStore.getState().updateElement(el.id, {
           ...el,
@@ -319,7 +353,7 @@ export default function ThemeEditorView() {
         return;
       }
     }
-    const ids = draft.elements.map((el) => el.id);
+    const ids = current.elements.map((el) => el.id);
     const newEl: ThemeElement = {
       id: uniqueId("simbolo", ids),
       type: "TEXT",
@@ -343,7 +377,11 @@ export default function ThemeEditorView() {
     widget: "clock" | "stopwatch" | "timer" | "next_verse" | "next_preview" | "lyrics",
   ) {
     if (!draft) return;
-    const ids = draft.elements.map((el) => el.id);
+    const current = viewOf(
+      draft,
+      useThemeEditorStore.getState().activePageId,
+    );
+    const ids = current.elements.map((el) => el.id);
     let el: ThemeElement;
     switch (widget) {
       case "clock":
@@ -500,7 +538,12 @@ export default function ThemeEditorView() {
   }
 
   const dirty = isDirty();
-  const sample = SAMPLES[sampleAsset];
+  const currentPage = getActivePage(draft, activePageId);
+  const viewTheme = currentPage ? materializePage(draft, currentPage) : draft;
+  const activeAsset = currentPage
+    ? contextToAsset(currentPage.context)
+    : sampleAsset;
+  const sample = SAMPLES[activeAsset];
   const undoable = canUndo();
   const redoable = canRedo();
 
@@ -735,22 +778,32 @@ export default function ThemeEditorView() {
 
         <div className="flex-1" />
 
-        <span className="text-xs text-muted-foreground mr-1">Amostra:</span>
-        <Select
-          value={sampleAsset}
-          onValueChange={(value) => setSampleAsset(value as ThemeAsset)}
-        >
-          <SelectTrigger size="sm" className="w-32 h-8 text-xs" aria-label="Amostra de conteúdo">
-            <SelectValue placeholder="Amostra" />
-          </SelectTrigger>
-          <SelectContent position="popper">
-            {(Object.keys(SAMPLES) as ThemeAsset[]).map((asset) => (
-              <SelectItem key={asset} value={asset}>
-                {SAMPLES[asset].label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {draft.pages?.length ? (
+          <span className="mr-1 text-xs text-muted-foreground">
+            Página:{" "}
+            {PAGE_CONTEXTS.find((info) => info.context === currentPage?.context)
+              ?.label ?? "—"}
+          </span>
+        ) : (
+          <>
+            <span className="text-xs text-muted-foreground mr-1">Amostra:</span>
+            <Select
+              value={sampleAsset}
+              onValueChange={(value) => setSampleAsset(value as ThemeAsset)}
+            >
+              <SelectTrigger size="sm" className="w-32 h-8 text-xs" aria-label="Amostra de conteúdo">
+                <SelectValue placeholder="Amostra" />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                {(Object.keys(SAMPLES) as ThemeAsset[]).map((asset) => (
+                  <SelectItem key={asset} value={asset}>
+                    {SAMPLES[asset].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        )}
       </div>
 
       {error !== null && (
@@ -868,8 +921,8 @@ export default function ThemeEditorView() {
           {/* Canvas Element */}
           <div className="flex-1 min-h-0 min-w-0 p-3 flex flex-col">
             <Canvas
-              theme={draft}
-              asset={sampleAsset}
+              theme={viewTheme}
+              asset={activeAsset}
               props={sample.props}
               selectedId={selectedId}
               onSelect={setSelectedId}
@@ -884,6 +937,7 @@ export default function ThemeEditorView() {
               resolution={resolution}
             />
           </div>
+          <PagesBar />
         </main>
 
         {/* Resizable Divider Handle */}

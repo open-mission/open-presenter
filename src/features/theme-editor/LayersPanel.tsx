@@ -16,6 +16,7 @@ import type { ThemeElementType } from "@/core/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/core/lib/utils";
+import { getActivePage } from "@/features/slide-themes/pages";
 import { useThemeEditorStore } from "./store";
 
 const TYPE_ICONS: Record<ThemeElementType, LucideIcon> = {
@@ -38,7 +39,11 @@ interface LayersPanelProps {
 }
 
 export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
-  const elements = useThemeEditorStore((s) => s.draft?.elements);
+  const draft = useThemeEditorStore((s) => s.draft);
+  const activePageId = useThemeEditorStore((s) => s.activePageId);
+  const page = getActivePage(draft, activePageId);
+  const elements = page?.elements ?? draft?.elements;
+  const pageMode = Boolean(draft?.pages?.length);
   const removeElement = useThemeEditorStore((s) => s.removeElement);
   const moveElement = useThemeEditorStore((s) => s.moveElement);
   const toggleVisible = useThemeEditorStore((s) => s.toggleVisible);
@@ -64,7 +69,7 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
       </h4>
       {ordered.map((el) => {
         const index = elements.findIndex((e) => e.id === el.id);
-        const isLast = elements.length <= 1;
+        const isLast = !pageMode && elements.length <= 1;
         const isTop = index === elements.length - 1;
         const isBottom = index === 0;
         const selected = el.id === selectedId;
