@@ -1,0 +1,140 @@
+import type {
+  SlideTheme,
+  ThemeAsset,
+  ThemeContext,
+  ThemeElement,
+  ThemePage,
+} from "@/core/types";
+
+export interface PageContextInfo {
+  context: ThemeContext;
+  label: string;
+  asset: ThemeAsset;
+}
+
+export const PAGE_CONTEXTS: readonly PageContextInfo[] = [
+  { context: "music", label: "Música", asset: "music" },
+  { context: "bible", label: "Bíblia", asset: "bible" },
+  { context: "text", label: "Texto", asset: "text" },
+];
+
+export function contextToAsset(context: ThemeContext): ThemeAsset {
+  switch (context) {
+    case "music":
+      return "music";
+    case "bible":
+      return "bible";
+    case "text":
+      return "text";
+  }
+}
+
+export function assetToContext(asset: ThemeAsset): ThemeContext {
+  switch (asset) {
+    case "music":
+      return "music";
+    case "bible":
+      return "bible";
+    case "text":
+      return "text";
+  }
+}
+
+export function getPageForContext(theme: SlideTheme, context: ThemeContext): ThemePage | null {
+  return theme.pages?.find((page) => page.context === context) ?? null;
+}
+
+export function getActivePage(
+  theme: SlideTheme | null,
+  activePageId: string | null,
+): ThemePage | null {
+  if (!theme?.pages?.length) return null;
+  return theme.pages.find((page) => page.id === activePageId) ?? theme.pages[0];
+}
+
+export function materializePage(theme: SlideTheme, page: ThemePage): SlideTheme {
+  return { ...theme, css: page.css, elements: page.elements };
+}
+
+export function previewTheme(
+  theme: SlideTheme,
+  asset: ThemeAsset,
+): { theme: SlideTheme; asset: ThemeAsset } {
+  if (theme.pages?.length) {
+    const page = getPageForContext(theme, assetToContext(asset)) ?? theme.pages[0];
+    return { theme: materializePage(theme, page), asset: contextToAsset(page.context) };
+  }
+  return { theme, asset };
+}
+
+export type ThemeVersion = "v1" | "v2" | "single";
+
+export function themeVersion(theme: SlideTheme): ThemeVersion {
+  if (theme.category === "stage" || theme.category === "presentation") return "single";
+  return theme.pages?.length ? "v2" : "v1";
+}
+
+export function isPublicTheme(theme: SlideTheme): boolean {
+  return theme.category !== "stage" && theme.category !== "presentation";
+}
+
+export function isSingleLayout(theme: SlideTheme): boolean {
+  return !theme.pages?.length;
+}
+
+export function themeCoverage(theme: SlideTheme): ThemeContext[] {
+  return theme.pages?.map((page) => page.context) ?? [];
+}
+
+export function themeCoverageLabel(theme: SlideTheme): string {
+  const contexts = themeCoverage(theme);
+  if (contexts.length === 0) return "Layout único";
+  if (contexts.length === PAGE_CONTEXTS.length) return "3 contextos";
+  return contexts
+    .map((context) => PAGE_CONTEXTS.find((info) => info.context === context)?.label ?? context)
+    .join(" · ");
+}
+
+export function themeElements(theme: SlideTheme): ThemeElement[] {
+  if (!theme.pages?.length) return theme.elements;
+  return theme.pages.flatMap((page) => page.elements);
+}
+
+export function createPage(
+  theme: SlideTheme,
+  context: ThemeContext,
+  mode: "duplicate" | "blank",
+  sourcePage: ThemePage | null,
+): ThemePage {
+  if (mode === "blank") {
+    return { id: crypto.randomUUID(), context, css: { background: "#000000" }, elements: [] };
+  }
+  const sourceCss = sourcePage?.css ?? theme.css;
+  const sourceElements = sourcePage?.elements ?? theme.elements;
+  return {
+    id: crypto.randomUUID(),
+    context,
+    css: { ...sourceCss },
+    elements: sourceElements.map((element) => ({
+      ...structuredClone(element),
+      id: crypto.randomUUID(),
+    })),
+  };
+}
+
+export function cloneTheme(theme: SlideTheme, title = `${theme.title} (Cópia)`): SlideTheme {
+  const now = new Date().toISOString();
+  const cloned = structuredClone(theme);
+  cloned.guid = crypto.randomUUID();
+  cloned.title = title;
+  cloned.category = theme.category ?? "theme";
+  cloned.createdAt = now;
+  cloned.updatedAt = now;
+  cloned.elements = cloned.elements.map((element) => ({ ...element, id: crypto.randomUUID() }));
+  cloned.pages = cloned.pages?.map((page) => ({
+    ...page,
+    id: crypto.randomUUID(),
+    elements: page.elements.map((element) => ({ ...element, id: crypto.randomUUID() })),
+  }));
+  return cloned;
+}
