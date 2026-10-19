@@ -27,6 +27,7 @@ cai no tema definido nas configurações para aquela área.
 - Fallback para o vínculo das configurações.
 - Exportar/importar tema no formato v2 (com páginas), mantendo importação de
   arquivos v1.
+- Badge de versão no editor e atualização de tema v1 para v2.
 - Atualizar a skill `.agents/skills/open-presenter-theme-creator` para o formato
   v2.
 
@@ -136,12 +137,11 @@ de `resolveStageTheme()` nunca devolve um tema só-com-páginas (que renderizari
 vazio). O menu de criação de temas ganha "Tema de Retorno (Stage)", que cria um
 tema de layout único na categoria `stage`.
 
-O tema do evento entra em vigor apenas quando o operador **ativa** o evento:
-seleciona-o na Agenda ou o cria. A seleção automática que o app faz ao abrir
-(próximo evento da agenda) não ativa o tema — até lá vale o vínculo das
-configurações. Depois de ativado, o tema vale para a projeção, inclusive para
-itens avulsos apresentados de outras abas, até que o operador selecione outro
-evento ou vá para a lista temporária.
+O tema do evento entra em vigor sempre que o evento está **selecionado** —
+inclusive quando o app abre e seleciona automaticamente o próximo evento da
+agenda, e quando o operador cria um evento. Ao trocar para a lista temporária ou
+selecionar outro evento, o vínculo muda junto. Se o evento ativo for excluído, o
+app seleciona o próximo (ou cai na lista temporária) e o tema acompanha.
 
 ## Editor de temas
 
@@ -171,6 +171,20 @@ evento ou vá para a lista temporária.
 - O nome aparece na lista; sem nome, usa o rótulo derivado do tipo/id como hoje.
 - Renomear não altera o conteúdo nem o comportamento da camada.
 
+### Versão do tema e atualização
+
+- O cabeçalho do editor mostra um badge com a versão do tema:
+  - **v2** (verde): tema público com `pages`;
+  - **v1** (âmbar): tema público de layout único, sem `pages`;
+  - **Layout único** (neutro): tema de retorno ou apresentação, que não passa
+    por páginas.
+- A versão é inferida da presença de `pages`; não é um campo novo no schema.
+- Tema v1 mostra o botão **"Atualizar para v2"**: pede o contexto
+  (Música/Bíblia/Texto), move `css`/`elements` do topo para uma página nova
+  desse contexto e passa a exibir a barra de páginas. O visual não muda.
+- Arquivos v1 importados entram como tema v1, com o badge e a opção de
+  atualizar; a importação não força a escolha de contexto.
+
 ### Lista de temas e seleção
 
 - Cada card de tema público mostra quais contextos cobre (ex.: "Letra · Bíblia"
@@ -184,8 +198,8 @@ evento ou vá para a lista temporária.
 
 - Campo "Tema do evento" nos diálogos de criar/editar/ver evento da Agenda.
 - O seletor mostra título e cobertura de contextos.
-- Ao selecionar o evento, o tema escolhido passa a valer para a projeção
-  pública.
+- Ao selecionar o evento, inclusive na seleção automática da abertura, o tema
+  escolhido passa a valer para a projeção pública.
 - O evento pode ter tema mesmo sem páginas para todos os contextos; a ausência
   aciona o fallback das configurações.
 - O tema é apenas uma referência: excluir o evento não exclui o tema. O diálogo
@@ -217,12 +231,13 @@ evento ou vá para a lista temporária.
 - Exportar sempre em v2, com `name` das camadas.
 - Temas de layout único (retorno e apresentações) exportam em v2 sem `pages`,
   mantendo `css`/`elements` no topo — o formato v2 aceita os dois modos.
+- Tema público v1 também exporta sem `pages`; ao reimportar, volta como v1 e
+  pode ser atualizado no editor.
 - Importar v2: valida formato, contextos válidos/únicos, elementos e gera novo
   GUID.
-- Importar v1 (arquivo antigo, sem `pages`): se for tema público
-  (`category: "theme"`), abre um seletor de contexto (Música/Bíblia/Texto) e
-  converte o layout único numa página desse contexto; arquivos de retorno ou
-  apresentação importam como layout único, sem seletor.
+- Importar v1 (arquivo antigo, sem `pages`): entra como tema v1 (ou layout
+  único, se for retorno/apresentação), sem forçar escolha de contexto. O badge
+  v1 e o botão "Atualizar para v2" aparecem no editor.
 - Backup em lote (`exportThemesBackup`) também passa a v2.
 
 ### Skill de temas
@@ -233,7 +248,7 @@ Atualizar `.agents/skills/open-presenter-theme-creator`:
 - Exemplos para v2 com páginas.
 - Instruções (`SKILL.md`, prompt para outras IAs) explicando contextos e
   fallback.
-- `scripts/validate-theme.mjs` validando v2 (e aceitando v1 para conversão).
+- `scripts/validate-theme.mjs` validando v2 e reconhecendo v1.
 
 ## Padrões embutidos (seed)
 
@@ -242,7 +257,7 @@ Atualizar `.agents/skills/open-presenter-theme-creator`:
 - Temas padrão de retorno e descanso permanecem, agora com `category: "stage"`.
 - Os vínculos iniciais de letra, Bíblia e texto apontam para o tema padrão.
 - Temas antigos que sobrarem não são migrados; continuam abrindo em modo de
-  página única e podem ser apagados.
+  página única com badge v1 e podem ser atualizados para v2 ou apagados.
 
 ## Mudanças técnicas
 
@@ -291,8 +306,10 @@ Atualizar `.agents/skills/open-presenter-theme-creator`:
 6. Apresentações continuam usando o próprio design; palco/descanso continuam
    independentes.
 7. Exportar/importar v2 preserva páginas, fundos, camadas e nomes; v1 importa
-   com escolha de contexto.
-8. Skill de temas atualizada para v2.
+   como tema v1 e oferece atualização para v2.
+8. O editor mostra o badge de versão (v1, v2 ou Layout único) e permite
+   atualizar tema v1 para v2 escolhendo o contexto.
+9. Skill de temas atualizada para v2.
 
 ## Chamadas do construtor (para conferir na leitura)
 
@@ -304,10 +321,12 @@ Atualizar `.agents/skills/open-presenter-theme-creator`:
 - Seletor de evento lista somente temas públicos com `pages`.
 - Tema do evento ativo vale também para itens avulsos apresentados enquanto o
   evento está selecionado.
-- A seleção automática do próximo evento na abertura do app não ativa o tema;
-  ele só entra em vigor com a seleção explícita (ou criação) do evento.
-- Import v1 pergunta o contexto apenas para temas públicos; retorno e
-  apresentações importam como layout único.
+- A seleção automática do próximo evento na abertura do app ativa o tema do
+  evento.
+- Import v1 preserva o tema como v1, sem seletor de contexto; a conversão
+  acontece pelo botão do editor, que pergunta o contexto.
+- Badge de versão no cabeçalho do editor; "Atualizar para v2" disponível para
+  tema público sem `pages`; retorno e apresentações mostram "Layout único".
 - v2 aceita tema de layout único (sem `pages`) para retorno e apresentações.
 - `media` sem `themeId` e `blank` resolvem `null` (nenhum tema aplicado).
 - `media.themeId` de um tema com páginas usa a página do contexto do item.
