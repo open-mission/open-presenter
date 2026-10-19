@@ -80,6 +80,8 @@ pub struct LiveSlide {
     pub updated_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "nextUp")]
     pub next_up: Option<SlideContent>,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "prevUp")]
+    pub prev_up: Option<SlideContent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -563,3 +565,55 @@ pub fn now_millis() -> u64 {
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BibleVersion {
+    pub id: String,
+    pub name: String,
+    pub abbrev: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BibleBook {
+    pub id: i32,
+    pub book_reference_id: i32,
+    pub testament_reference_id: i32,
+    pub name: String,
+    pub abbrev: String,
+    pub chapter_count: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BibleVerse {
+    pub id: i32,
+    pub book_id: i32,
+    pub chapter: i32,
+    pub verse: i32,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BibleSearchResult {
+    pub book_id: i32,
+    pub book_name: String,
+    pub chapter: i32,
+    pub verse: i32,
+    pub text: String,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BibleVerseCompare {
+    pub version_id: String,
+    pub version_name: String,
+    pub verse: Option<BibleVerse>,
+}
+

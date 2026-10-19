@@ -38,7 +38,10 @@ export interface LiveSlide {
   cleared: boolean;
   updatedAt: string;
   nextUp?: SlideContent;
+  prevUp?: SlideContent;
 }
+
+export * from "./bible";
 
 export interface MonitorInfo {
   id: string;

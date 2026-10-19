@@ -332,6 +332,13 @@ pub fn run() {
             commands::remote::set_remote_token,
             commands::remote::set_remote_enabled,
             commands::remote::set_remote_setlist,
+            commands::bible::list_bible_versions,
+            commands::bible::import_bible,
+            commands::bible::get_bible_books,
+            commands::bible::get_bible_chapter,
+            commands::bible::search_bible_verses,
+            commands::bible::compare_bible_verse,
+            commands::bible::delete_bible,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

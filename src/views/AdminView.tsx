@@ -26,6 +26,7 @@ import { AgendaDialog } from "@/features/events-setlists/AgendaDialog";
 import { CreateEventDialog } from "@/features/events-setlists/CreateEventDialog";
 import { ImagesPage } from "@/features/image-browser/ImagesPage";
 import { StudioPage } from "@/features/studio/StudioPage";
+import { BiblePage } from "@/features/bible/BiblePage";
 import { useRemoteSetlistPublisher } from "@/features/remote/useRemoteSetlistPublisher";
 
 export default function AdminView() {
@@ -101,6 +102,13 @@ export default function AdminView() {
         {activeTab === "songs" && (
           <main className="flex flex-1 overflow-hidden">
             <SongsPage />
+          </main>
+        )}
+
+        {/* View 3: Bíblia Sagrada & Exibição de Versículos */}
+        {activeTab === "bible" && (
+          <main className="flex flex-1 overflow-hidden">
+            <BiblePage />
           </main>
         )}
 

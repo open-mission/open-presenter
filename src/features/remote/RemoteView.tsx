@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  BookOpen,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -31,6 +32,7 @@ import {
 } from "@/features/theme-editor/media";
 import { RemoteSongsTab } from "./RemoteSongsTab";
 import { RemoteImagesTab } from "./RemoteImagesTab";
+import { RemoteBibleTab } from "./RemoteBibleTab";
 
 const TOKEN_KEY = "open_presenter_remote_token";
 const WS_CHANNEL_SLIDE = "presentation://slide";
@@ -128,9 +130,9 @@ export default function RemoteView() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [activeTab, setActiveTab] = useState<"programacao" | "musicas" | "imagens">(
-    "programacao",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "programacao" | "musicas" | "biblia" | "imagens"
+  >("programacao");
 
   function togglePreview() {
     setPreviewCollapsed((previous) => {
@@ -297,7 +299,8 @@ export default function RemoteView() {
       setBusy(true);
       setError(null);
       try {
-        const response = await fetch(`/api/v1/${path}`, {
+        const cleanPath = path.replace(/^\/?(api\/v1\/)?/, "");
+        const response = await fetch(`/api/v1/${cleanPath}`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -705,46 +708,59 @@ export default function RemoteView() {
         {/* Rail de Navegação */}
         <nav
           aria-label="Abas do controle remoto"
-          className="grid grid-cols-3 gap-1 rounded-xl bg-muted/60 p-1 text-xs"
+          className="grid grid-cols-4 gap-1 rounded-xl bg-muted/60 p-1 text-xs"
         >
           <button
             type="button"
             onClick={() => setActiveTab("programacao")}
             className={cn(
-              "flex items-center justify-center gap-2 rounded-lg py-2 font-medium transition-colors cursor-pointer",
+              "flex items-center justify-center gap-1.5 rounded-lg py-2 font-medium transition-colors cursor-pointer",
               activeTab === "programacao"
-                ? "bg-background text-foreground shadow-sm"
+                ? "bg-background text-foreground shadow-sm font-bold"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
             <Radio className="size-3.5" />
-            <span>Programação</span>
+            <span className="truncate">Culto</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("musicas")}
             className={cn(
-              "flex items-center justify-center gap-2 rounded-lg py-2 font-medium transition-colors cursor-pointer",
+              "flex items-center justify-center gap-1.5 rounded-lg py-2 font-medium transition-colors cursor-pointer",
               activeTab === "musicas"
-                ? "bg-background text-foreground shadow-sm"
+                ? "bg-background text-foreground shadow-sm font-bold"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
             <Music className="size-3.5" />
-            <span>Músicas</span>
+            <span className="truncate">Músicas</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("biblia")}
+            className={cn(
+              "flex items-center justify-center gap-1.5 rounded-lg py-2 font-medium transition-colors cursor-pointer",
+              activeTab === "biblia"
+                ? "bg-background text-foreground shadow-sm font-bold"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <BookOpen className="size-3.5" />
+            <span className="truncate">Bíblia</span>
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("imagens")}
             className={cn(
-              "flex items-center justify-center gap-2 rounded-lg py-2 font-medium transition-colors cursor-pointer",
+              "flex items-center justify-center gap-1.5 rounded-lg py-2 font-medium transition-colors cursor-pointer",
               activeTab === "imagens"
-                ? "bg-background text-foreground shadow-sm"
+                ? "bg-background text-foreground shadow-sm font-bold"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
             <Image className="size-3.5" />
-            <span>Imagens</span>
+            <span className="truncate">Imagens</span>
           </button>
         </nav>
 
@@ -937,6 +953,11 @@ export default function RemoteView() {
         {/* Aba Músicas */}
         {activeTab === "musicas" && (
           <RemoteSongsTab token={token} live={live} onPost={post} />
+        )}
+
+        {/* Aba Bíblia */}
+        {activeTab === "biblia" && (
+          <RemoteBibleTab token={token} live={live} onPost={post} />
         )}
 
         {/* Aba Imagens */}

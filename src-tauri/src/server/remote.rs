@@ -173,6 +173,21 @@ fn find_item<'a>(setlist: &'a RemoteSetlist, item_id: &str) -> Option<&'a Remote
         .find(|item| item.id == item_id)
 }
 
+fn prev_content(
+    _setlist: &RemoteSetlist,
+    item: &RemoteItem,
+    index: usize,
+) -> Option<SlideContent> {
+    if index > 0 {
+        item.slides
+            .iter()
+            .find(|slide| slide.index == index - 1)
+            .map(|s| s.content.clone())
+    } else {
+        None
+    }
+}
+
 fn next_content(
     setlist: &RemoteSetlist,
     item: &RemoteItem,
@@ -213,6 +228,7 @@ pub async fn present(
         return (StatusCode::NOT_FOUND, "slide não encontrado").into_response();
     };
 
+    let prev_up = prev_content(&setlist, item, request.index);
     let next_up = next_content(&setlist, item, request.index);
     let current = state.broadcaster.current_slide();
     let live = LiveSlide {
@@ -222,6 +238,7 @@ pub async fn present(
         cleared: false,
         updated_at: now_millis().to_string(),
         next_up,
+        prev_up,
     };
     state.broadcaster.publish_slide(&live);
     Json(live).into_response()
@@ -236,6 +253,7 @@ pub async fn clear(State(state): State<Arc<ServerState>>, headers: HeaderMap) ->
         cleared: true,
         blackout: false,
         next_up: None,
+        prev_up: None,
         updated_at: now_millis().to_string(),
         ..current
     };
@@ -403,6 +421,11 @@ pub async fn present_song(
         return (StatusCode::NOT_FOUND, "slide não encontrado").into_response();
     };
 
+    let prev_up = if request.index > 0 {
+        slides.get(request.index - 1).map(|s| s.content.clone())
+    } else {
+        None
+    };
     let next_up = slides.get(request.index + 1).map(|s| s.content.clone());
     let current = state.broadcaster.current_slide();
     let live = LiveSlide {
@@ -412,6 +435,7 @@ pub async fn present_song(
         cleared: false,
         updated_at: now_millis().to_string(),
         next_up,
+        prev_up,
     };
     state.broadcaster.publish_slide(&live);
 
@@ -504,6 +528,243 @@ pub async fn present_image(
         cleared: false,
         updated_at: now_millis().to_string(),
         next_up: None,
+        prev_up: None,
+    };
+    state.broadcaster.publish_slide(&live);
+    Json(live).into_response()
+}
+
+#[derive(Deserialize)]
+pub struct BibleBooksQuery {
+    pub version: String,
+}
+
+#[derive(Deserialize)]
+pub struct BibleChapterQuery {
+    pub version: String,
+    pub book: i32,
+    pub chapter: i32,
+}
+
+#[derive(Deserialize)]
+pub struct BibleSearchQuery {
+    pub version: String,
+    pub q: String,
+    pub limit: Option<usize>,
+}
+
+#[derive(Deserialize)]
+pub struct BibleCompareQuery {
+    pub book: i32,
+    pub chapter: i32,
+    pub verse: i32,
+    pub versions: String,
+}
+
+#[derive(Deserialize)]
+pub struct PresentBibleRequest {
+    pub version_id: String,
+    pub book_id: i32,
+    pub book_name: String,
+    pub chapter: i32,
+    pub verse: i32,
+    pub text: String,
+    pub part_suffix: Option<String>,
+    pub prev_text: Option<String>,
+    pub next_text: Option<String>,
+}
+
+pub async fn list_bible_versions_endpoint(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let Some(app) = &state.app_handle else {
+        return internal("instância da aplicação indisponível");
+    };
+    match crate::services::bible::list_bible_versions(app) {
+        Ok(versions) => Json(versions).into_response(),
+        Err(err) => internal(&err.to_string()),
+    }
+}
+
+pub async fn get_bible_books_endpoint(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+    Query(query): Query<BibleBooksQuery>,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let Some(app) = &state.app_handle else {
+        return internal("instância da aplicação indisponível");
+    };
+    match crate::services::bible::get_bible_books(app, &query.version) {
+        Ok(books) => Json(books).into_response(),
+        Err(err) => internal(&err.to_string()),
+    }
+}
+
+pub async fn get_bible_chapter_endpoint(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+    Query(query): Query<BibleChapterQuery>,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let Some(app) = &state.app_handle else {
+        return internal("instância da aplicação indisponível");
+    };
+    match crate::services::bible::get_bible_chapter(app, &query.version, query.book, query.chapter) {
+        Ok(verses) => Json(verses).into_response(),
+        Err(err) => internal(&err.to_string()),
+    }
+}
+
+pub async fn search_bible_endpoint(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+    Query(query): Query<BibleSearchQuery>,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let Some(app) = &state.app_handle else {
+        return internal("instância da aplicação indisponível");
+    };
+    match crate::services::bible::search_bible_verses(
+        app,
+        &query.version,
+        &query.q,
+        query.limit.unwrap_or(50),
+    ) {
+        Ok(results) => Json(results).into_response(),
+        Err(err) => internal(&err.to_string()),
+    }
+}
+
+pub async fn compare_bible_endpoint(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+    Query(query): Query<BibleCompareQuery>,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let Some(app) = &state.app_handle else {
+        return internal("instância da aplicação indisponível");
+    };
+    let version_ids: Vec<String> = query
+        .versions
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    match crate::services::bible::compare_bible_verse(
+        app,
+        query.book,
+        query.chapter,
+        query.verse,
+        version_ids,
+    ) {
+        Ok(comps) => Json(comps).into_response(),
+        Err(err) => internal(&err.to_string()),
+    }
+}
+
+pub async fn present_bible(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+    Json(request): Json<PresentBibleRequest>,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let part_suffix = request.part_suffix.as_deref().unwrap_or("");
+    let title = format!(
+        "{} {}:{}{} ({})",
+        request.book_name, request.chapter, request.verse, part_suffix, request.version_id
+    );
+    let section = format!(
+        "{} {}:{}{}",
+        request.book_name, request.chapter, request.verse, part_suffix
+    );
+
+    let next_up = request.next_text.map(|t| SlideContent {
+        id: format!(
+            "bible-{}-{}-{}",
+            request.book_id,
+            request.chapter,
+            request.verse + 1
+        ),
+        kind: SlideKind::Scripture,
+        title: format!(
+            "{} {}:{} ({})",
+            request.book_name,
+            request.chapter,
+            request.verse + 1,
+            request.version_id
+        ),
+        lines: vec![t],
+        notes: None,
+        section: Some(format!(
+            "{} {}:{}",
+            request.book_name,
+            request.chapter,
+            request.verse + 1
+        )),
+        media: None,
+    });
+
+    let prev_up = request.prev_text.map(|t| SlideContent {
+        id: format!(
+            "bible-{}-{}-{}",
+            request.book_id,
+            request.chapter,
+            request.verse.saturating_sub(1)
+        ),
+        kind: SlideKind::Scripture,
+        title: format!(
+            "{} {}:{} ({})",
+            request.book_name,
+            request.chapter,
+            request.verse.saturating_sub(1),
+            request.version_id
+        ),
+        lines: vec![t],
+        notes: None,
+        section: Some(format!(
+            "{} {}:{}",
+            request.book_name,
+            request.chapter,
+            request.verse.saturating_sub(1)
+        )),
+        media: None,
+    });
+
+    let current = state.broadcaster.current_slide();
+    let live = LiveSlide {
+        content: SlideContent {
+            id: format!(
+                "bible-{}-{}-{}",
+                request.book_id, request.chapter, request.verse
+            ),
+            kind: SlideKind::Scripture,
+            title,
+            lines: vec![request.text],
+            notes: None,
+            section: Some(section),
+            media: None,
+        },
+        background: current.background,
+        blackout: false,
+        cleared: false,
+        updated_at: now_millis().to_string(),
+        next_up,
+        prev_up,
     };
     state.broadcaster.publish_slide(&live);
     Json(live).into_response()

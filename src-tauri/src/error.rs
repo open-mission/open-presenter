@@ -10,6 +10,8 @@ pub enum AppError {
     Network(String),
     #[error("não encontrado: {0}")]
     NotFound(String),
+    #[error("validação: {0}")]
+    Validation(String),
 }
 
 impl serde::Serialize for AppError {

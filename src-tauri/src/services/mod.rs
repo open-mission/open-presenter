@@ -1,3 +1,4 @@
+pub mod bible;
 pub mod broadcaster;
 pub mod database;
 pub mod display_manager;

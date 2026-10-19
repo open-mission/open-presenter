@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Calendar, HelpCircle, Images, Music, Settings, Smartphone, Sparkles, Tv } from "lucide-react";
+import { BookOpen, Calendar, HelpCircle, Images, Music, Settings, Smartphone, Sparkles, Tv } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { isTauri } from "@/core/ipc/tauri";
 import { openShortcutsWindow } from "@/core/ipc/commands";
@@ -41,7 +41,7 @@ export function AppDock() {
   const setActiveTab = useNavigationStore((s) => s.setActiveTab);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
 
-  // Global keyboard shortcuts: ⌘1 (Apresentação), ⌘2 (Músicas), ⌘3 (Agenda), ⌘4 (Imagens)
+  // Global keyboard shortcuts: ⌘1 (Apresentação), ⌘2 (Músicas), ⌘3 (Bíblia), ⌘4 (Agenda), ⌘5 (Imagens), ⌘6 (Studio)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
@@ -62,11 +62,14 @@ export function AppDock() {
         setActiveTab("songs");
       } else if (e.key === "3") {
         e.preventDefault();
-        setActiveTab("agenda");
+        setActiveTab("bible");
       } else if (e.key === "4") {
         e.preventDefault();
-        setActiveTab("images");
+        setActiveTab("agenda");
       } else if (e.key === "5") {
+        e.preventDefault();
+        setActiveTab("images");
+      } else if (e.key === "6") {
         e.preventDefault();
         setActiveTab("studio");
       }
@@ -109,11 +112,20 @@ export function AppDock() {
           onClick={() => setActiveTab("songs")}
         />
 
+        {/* Bíblia & Versículos */}
+        <NavButton
+          icon={BookOpen}
+          label="Bíblia & Versículos"
+          shortcut="⌘3"
+          active={activeTab === "bible"}
+          onClick={() => setActiveTab("bible")}
+        />
+
         {/* Agenda & Eventos */}
         <NavButton
           icon={Calendar}
           label="Agenda & Cronograma"
-          shortcut="⌘3"
+          shortcut="⌘4"
           active={activeTab === "agenda"}
           onClick={() => setActiveTab("agenda")}
         />
@@ -122,7 +134,7 @@ export function AppDock() {
         <NavButton
           icon={Images}
           label="Biblioteca de Imagens"
-          shortcut="⌘4"
+          shortcut="⌘5"
           active={activeTab === "images"}
           onClick={() => setActiveTab("images")}
         />
@@ -131,7 +143,7 @@ export function AppDock() {
         <NavButton
           icon={Sparkles}
           label="Studio de Criação"
-          shortcut="⌘5"
+          shortcut="⌘6"
           active={activeTab === "studio"}
           onClick={() => setActiveTab("studio")}
         />
