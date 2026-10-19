@@ -180,6 +180,7 @@ export interface ServiceEvent {
   title: string;
   eventDate: string;
   wallpaper?: string | null;
+  themeGuid?: string | null;
   parts: EventPart[];
 }
 
@@ -188,6 +189,7 @@ export interface EventSummary {
   title: string;
   eventDate: string;
   wallpaper?: string | null;
+  themeGuid?: string | null;
 }
 
 export const TEMPORARY_EVENT_ID = "__temporary__";

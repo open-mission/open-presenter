@@ -317,6 +317,8 @@ pub struct ServiceEvent {
     pub event_date: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wallpaper: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_guid: Option<String>,
     pub parts: Vec<EventPart>,
 }
 
@@ -328,6 +330,8 @@ pub struct EventSummary {
     pub event_date: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wallpaper: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_guid: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
