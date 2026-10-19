@@ -121,6 +121,10 @@ export function EventDetailsDialog({
     }
   }, [open, eventSummary]);
 
+  useEffect(() => {
+    if (!deleteConfirmOpen) setDeleteLinkedTheme(false);
+  }, [deleteConfirmOpen]);
+
   if (!eventSummary) return null;
 
   const dt = formatEventDateTime(fullEvent?.eventDate || eventSummary.eventDate);
