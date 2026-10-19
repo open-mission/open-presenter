@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  BookOpen,
   ChevronDown,
   Copy,
+  Download,
   ExternalLink,
   FileText,
   Music,
@@ -10,12 +12,14 @@ import {
   PenLine,
   Plus,
   Trash2,
+  Upload,
 } from "lucide-react";
 import type {
   SlideKind,
   SlideTheme,
   ThemeAsset,
 } from "@/core/types";
+import { exportThemeAsJson, importThemeFile } from "@/features/slide-themes/themeIo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -105,8 +109,63 @@ const GRID_COLUMNS: GridColumn[] = [
 
 function newBlankTheme(
   title: string,
-  kind: "lyric" | "text" = "lyric",
+  kind: "lyric" | "text" | "scripture" = "lyric",
 ): SlideTheme {
+  if (kind === "scripture") {
+    return {
+      guid: crypto.randomUUID(),
+      title,
+      category: "theme",
+      css: { background: "#000000" },
+      elements: [
+        {
+          id: "referencia",
+          type: "TEXT",
+          x: 8,
+          y: 6,
+          visible: true,
+          locked: false,
+          css: {
+            top: "6%",
+            left: "8%",
+            width: "84%",
+            height: "8%",
+            textAlign: "center",
+            fontSize: "30px",
+            fontWeight: "700",
+            letterSpacing: "2px",
+            textTransform: "uppercase",
+            color: "#60a5fa",
+            textShadow: "0 2px 8px rgba(0,0,0,0.8)",
+          },
+          text: "{titulo}",
+        },
+        {
+          id: "versiculo",
+          type: "TEXT",
+          x: 8,
+          y: 16,
+          visible: true,
+          locked: false,
+          css: {
+            top: "16%",
+            left: "8%",
+            width: "84%",
+            height: "76%",
+            textAlign: "center",
+            fontSize: "52px",
+            fontWeight: "600",
+            lineHeight: "1.35",
+            color: "#ffffff",
+            autoShrink: "true",
+            textShadow: "0 2px 10px rgba(0,0,0,0.8)",
+          },
+          text: "{verso}",
+        },
+      ],
+    };
+  }
+
   if (kind === "text") {
     return {
       guid: crypto.randomUUID(),
@@ -252,10 +311,11 @@ export function ThemesTab() {
     return themes.filter((t) => t.category !== "presentation");
   }, [themes]);
 
-  async function handleCreate(kind: "lyric" | "text" = "lyric") {
+  async function handleCreate(kind: "lyric" | "text" | "scripture" = "lyric") {
     setError(null);
     try {
-      const typeLabel = kind === "text" ? "Texto" : "Música";
+      const typeLabel =
+        kind === "scripture" ? "Bíblia" : kind === "text" ? "Texto" : "Música";
       const theme = newBlankTheme(
         `Novo Tema de ${typeLabel} ${templateThemes.length + 1}`,
         kind,
@@ -264,6 +324,17 @@ export function ThemesTab() {
       navigate(`/theme-editor?guid=${theme.guid}`);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Falha ao criar tema");
+    }
+  }
+
+  async function handleImportTheme() {
+    setError(null);
+    try {
+      const imported = await importThemeFile();
+      if (!imported) return;
+      await save(imported);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Falha ao importar arquivo JSON de tema");
     }
   }
 
@@ -583,6 +654,17 @@ export function ThemesTab() {
               </SelectContent>
             </Select>
 
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 cursor-pointer"
+              onClick={() => void handleImportTheme()}
+              title="Importar tema a partir de arquivo JSON"
+            >
+              <Upload className="size-3.5" />
+              <span>Importar JSON</span>
+            </Button>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" className="gap-1.5 cursor-pointer">
@@ -598,6 +680,13 @@ export function ThemesTab() {
                 >
                   <Music className="size-3.5 text-primary" />
                   <span>Tema para Música (Louvor)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => void handleCreate("scripture")}
+                  className="cursor-pointer gap-2"
+                >
+                  <BookOpen className="size-3.5 text-primary" />
+                  <span>Tema para Bíblia (Versículos)</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => void handleCreate("text")}
@@ -669,6 +758,15 @@ export function ThemesTab() {
                       title="Duplicar tema"
                     >
                       <Copy className="size-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="size-7 p-0"
+                      onClick={() => exportThemeAsJson(theme)}
+                      title="Exportar tema (JSON)"
+                    >
+                      <Download className="size-3" />
                     </Button>
                     <Button
                       size="sm"

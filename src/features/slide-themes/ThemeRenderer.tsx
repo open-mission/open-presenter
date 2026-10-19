@@ -126,8 +126,8 @@ function AutoScaledText({
   const [scaleFactor, setScaleFactor] = useState(1);
 
   const html = renderHtml(element.text, props);
-  const autoShrink = element.css.autoShrink === "true";
-  const autoFit = element.css.autoFit === "true";
+  const autoShrink = (element.css.autoShrink as unknown) !== false && element.css.autoShrink !== "false";
+  const autoFit = (element.css.autoFit as unknown) === true || element.css.autoFit === "true";
 
   const textAlign = (element.css.textAlign as CSSProperties["textAlign"]) || "center";
   const originX = textAlign === "left" ? "left" : textAlign === "right" ? "right" : "center";
@@ -181,12 +181,15 @@ function AutoScaledText({
         const scaleH = ch / sh;
         let targetScale = Math.min(scaleW, scaleH);
 
+        // Aplica margem de segurança de 4% para evitar cortes de ascendentes/descendentes
+        const safeScale = targetScale * 0.96;
+
         if (autoShrink && !autoFit) {
-          targetScale = Math.min(1, targetScale);
+          targetScale = Math.min(1, safeScale);
         } else if (autoFit && !autoShrink) {
-          targetScale = Math.min(1.5, Math.max(0.35, targetScale));
+          targetScale = Math.min(1.5, Math.max(0.35, safeScale));
         } else if (autoShrink && autoFit) {
-          targetScale = Math.min(1.3, targetScale);
+          targetScale = Math.min(1.3, safeScale);
         }
 
         // Respeitar minFontSize se configurado
@@ -241,6 +244,11 @@ function AutoScaledText({
       ref={containerRef}
       style={{
         ...baseContainerStyle,
+        maxHeight:
+          style.maxHeight ??
+          (!element.css.height
+            ? `calc(96% - ${style.top ?? `${element.y}%`})`
+            : undefined),
         display: "flex",
         flexDirection: "column",
         justifyContent: vAlign,
@@ -260,6 +268,9 @@ function AutoScaledText({
             ? "normal"
             : ((element.css.wordBreak as CSSProperties["wordBreak"]) ?? "break-word"),
           overflowWrap: isNoWrap ? "normal" : "break-word",
+          textWrap: isNoWrap
+            ? "nowrap"
+            : ((element.css.textWrap as CSSProperties["textWrap"]) ?? "pretty"),
           textAlign,
           transform: scaleFactor !== 1 ? `scale(${scaleFactor})` : undefined,
           transformOrigin: `${originX} ${originY}`,

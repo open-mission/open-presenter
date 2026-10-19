@@ -89,6 +89,9 @@ mod tests {
             title: title.into(),
             css: HashMap::new(),
             elements: vec![elemento("e1")],
+            category: None,
+            created_at: None,
+            updated_at: None,
         }
     }
 
@@ -113,6 +116,9 @@ mod tests {
             title: "Vazio".into(),
             css: HashMap::new(),
             elements: vec![],
+            category: None,
+            created_at: None,
+            updated_at: None,
         };
         assert!(save_theme(&conn, &vazio).is_err());
     }

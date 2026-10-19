@@ -546,6 +546,7 @@ function TextSection({
           { label: "timer", key: "timer" },
           { label: "lyrics", key: "lyrics" },
           { label: "next_verse", key: "next_verse" },
+          { label: "next_preview", key: "next_preview" },
           { label: "title", key: "title" },
         ].map((v) => (
           <button
@@ -806,9 +807,9 @@ function TextSection({
               value={
                 el.css.autoFit === "true"
                   ? "fit"
-                  : el.css.autoShrink === "true"
-                  ? "shrink"
-                  : "none"
+                  : el.css.autoShrink === "false"
+                  ? "none"
+                  : "shrink"
               }
               onValueChange={(val) => {
                 if (val === "shrink") {
@@ -838,7 +839,7 @@ function TextSection({
           </div>
 
           {/* Tamanho Mínimo da Fonte quando auto-size ativo */}
-          {(el.css.autoShrink === "true" || el.css.autoFit === "true") && (
+          {(el.css.autoShrink !== "false" || el.css.autoFit === "true") && (
             <div className="flex items-center justify-between gap-2 pl-5 pt-0.5">
               <span className="text-[10px] text-muted-foreground">
                 Tam. Mínimo da Fonte (px)

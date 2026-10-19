@@ -23,6 +23,7 @@ export default function StageView() {
 
   const live = usePresentationStore((s) => s.live);
   const nextUp = usePresentationStore((s) => s.live.nextUp);
+  const prevUp = usePresentationStore((s) => s.live.prevUp);
   const { clock24h, showSeconds, nextSlideDisplay, countdownMinutes } =
     useStageConfigStore();
   const timer = useStageTimerStore((s) => s.timer);
@@ -74,6 +75,7 @@ export default function StageView() {
   const stageProps = buildStageProps({
     content: live.content,
     nextUp,
+    prevUp,
     nowMs: now,
     timer,
     clock24h,

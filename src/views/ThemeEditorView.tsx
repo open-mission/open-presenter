@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Clock,
   Download,
+  FileJson,
   Grid3x3,
   Image,
   Film,
@@ -21,6 +22,7 @@ import type { ThemeAsset, ThemeElement } from "@/core/types";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { exportThemeAsImage } from "@/features/theme-editor/exportImage";
+import { exportThemeAsJson } from "@/features/slide-themes/themeIo";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -338,7 +340,7 @@ export default function ThemeEditorView() {
   }
 
   function handleAddWidget(
-    widget: "clock" | "stopwatch" | "timer" | "next_verse" | "lyrics",
+    widget: "clock" | "stopwatch" | "timer" | "next_verse" | "next_preview" | "lyrics",
   ) {
     if (!draft) return;
     const ids = draft.elements.map((el) => el.id);
@@ -420,6 +422,30 @@ export default function ThemeEditorView() {
             autoShrink: "true",
           },
           text: "PRÓXIMO: {next_verse}",
+        };
+        break;
+      case "next_preview":
+        el = {
+          id: uniqueId("proximo_resumo", ids),
+          type: "TEXT",
+          x: 120,
+          y: 860,
+          visible: true,
+          locked: false,
+          css: {
+            ...baseCss(120, 860, 1680, 140),
+            textAlign: "center",
+            fontSize: "30px",
+            fontWeight: "500",
+            lineHeight: "1.3",
+            color: "#94a3b8",
+            borderTopWidth: "1px",
+            borderTopColor: "rgba(255,255,255,0.15)",
+            borderTopStyle: "solid",
+            paddingTop: "14px",
+            autoShrink: "true",
+          },
+          text: "Próximo: {next_preview}",
         };
         break;
       case "lyrics":
@@ -560,6 +586,17 @@ export default function ThemeEditorView() {
               <Download className="mr-2 size-4 text-primary" />
               Exportar como JPG ({resolution.width}×{resolution.height})
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                if (draft) {
+                  exportThemeAsJson(draft);
+                  toast.success("Tema exportado como JSON com sucesso!");
+                }
+              }}
+            >
+              <FileJson className="mr-2 size-4 text-primary" />
+              Exportar Tema (JSON)
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <DropdownMenu>
@@ -576,6 +613,17 @@ export default function ThemeEditorView() {
             <DropdownMenuItem onSelect={() => void handleExport("jpeg")}>
               <Download className="mr-2 size-4" />
               Exportar JPG ({resolution.width}×{resolution.height})
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                if (draft) {
+                  exportThemeAsJson(draft);
+                  toast.success("Tema exportado como JSON com sucesso!");
+                }
+              }}
+            >
+              <FileJson className="mr-2 size-4" />
+              Exportar Tema (JSON)
             </DropdownMenuItem>
             <DropdownMenuItem disabled={!dirty} onSelect={() => revert()}>
               Reverter alterações
@@ -634,6 +682,9 @@ export default function ThemeEditorView() {
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => handleAddWidget("next_verse")}>
               Próximo Slide ({`{next_verse}`})
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleAddWidget("next_preview")}>
+              Próximo (Início com ...) ({`{next_preview}`})
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

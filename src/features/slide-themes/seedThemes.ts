@@ -6,6 +6,65 @@ export const DEFAULT_STAGE_THEME_GUID = "279597e6-9811-497a-8e32-9e5dd189e7d0";
 
 export const DEFAULT_TEXT_THEME_GUID = "c8d198e7-8b89-48ff-b1cc-39eed768d454";
 
+export const DEFAULT_SCRIPTURE_THEME_GUID = "b9e299f7-8b89-49ff-a1cc-49eed768d777";
+
+export const DEFAULT_SCRIPTURE_THEME: SlideTheme = {
+  guid: DEFAULT_SCRIPTURE_THEME_GUID,
+  title: "Bíblia Padrão",
+  category: "theme",
+  css: {
+    background:
+      "radial-gradient(circle at 50% 120%, #1e1b4b 0%, #09090b 60%, #000000 100%)",
+  },
+  elements: [
+    {
+      id: "titulo",
+      type: "TEXT",
+      x: 10,
+      y: 6,
+      visible: true,
+      locked: false,
+      css: {
+        top: "6%",
+        left: "10%",
+        width: "80%",
+        height: "8%",
+        textAlign: "center",
+        fontSize: "28px",
+        fontWeight: "700",
+        letterSpacing: "3px",
+        textTransform: "uppercase",
+        color: "#38bdf8",
+        textShadow: "0 2px 8px rgba(0,0,0,0.8)",
+      },
+      text: "{title}",
+    },
+    {
+      id: "versiculo",
+      type: "TEXT",
+      x: 8,
+      y: 16,
+      visible: true,
+      locked: false,
+      css: {
+        top: "16%",
+        left: "8%",
+        width: "84%",
+        height: "76%",
+        textAlign: "center",
+        fontSize: "52px",
+        fontWeight: "600",
+        lineHeight: "1.35",
+        color: "#ffffff",
+        textShadow: "0 2px 14px rgba(0,0,0,0.9)",
+        whiteSpace: "pre-wrap",
+        autoShrink: "true",
+      },
+      text: "{verse}",
+    },
+  ],
+};
+
 export const DEFAULT_TEXT_THEME: SlideTheme = {
   guid: DEFAULT_TEXT_THEME_GUID,
   title: "Texto Padrão",

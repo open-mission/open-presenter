@@ -9,6 +9,8 @@ import { deleteTheme, listThemes, saveTheme } from "@/core/ipc/commands";
 import {
   DEFAULT_MUSIC_THEME,
   DEFAULT_MUSIC_THEME_GUID,
+  DEFAULT_SCRIPTURE_THEME,
+  DEFAULT_SCRIPTURE_THEME_GUID,
   DEFAULT_STAGE_REST_THEME,
   DEFAULT_STAGE_REST_THEME_GUID,
   DEFAULT_STAGE_THEME,
@@ -148,6 +150,18 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
         themes = [...themes, DEFAULT_STAGE_REST_THEME];
         updated = true;
       }
+      if (
+        !themes.some(
+          (t) =>
+            t.guid === DEFAULT_SCRIPTURE_THEME_GUID ||
+            t.title.toLowerCase().includes("bíblia") ||
+            t.title.toLowerCase().includes("biblia"),
+        )
+      ) {
+        await saveTheme(DEFAULT_SCRIPTURE_THEME);
+        themes = [...themes, DEFAULT_SCRIPTURE_THEME];
+        updated = true;
+      }
       if (updated) {
         set({ themes });
       }
@@ -157,6 +171,13 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
         )
       ) {
         get().setBinding("public", "custom", DEFAULT_TEXT_THEME_GUID);
+      }
+      if (
+        !get().bindings.some(
+          (b) => b.target === "public" && b.asset === "scripture",
+        )
+      ) {
+        get().setBinding("public", "scripture", DEFAULT_SCRIPTURE_THEME_GUID);
       }
       return;
     }
@@ -281,6 +302,16 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
           t.title.toLowerCase().includes("música"),
       );
       if (musicTheme) return musicTheme;
+    } else if (kind === "scripture") {
+      const scriptureTheme = get().themes.find(
+        (t) =>
+          t.guid === DEFAULT_SCRIPTURE_THEME_GUID ||
+          t.title.toLowerCase().includes("bíblia") ||
+          t.title.toLowerCase().includes("biblia") ||
+          t.title.toLowerCase().includes("versiculo") ||
+          t.title.toLowerCase().includes("versículo"),
+      );
+      if (scriptureTheme) return scriptureTheme;
     }
     return get().themes[0] ?? null;
   },

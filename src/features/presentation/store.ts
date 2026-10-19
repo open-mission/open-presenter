@@ -23,7 +23,11 @@ interface PresentationState {
   setBackground(background: BackgroundLayer): void;
   setBlackout(blackout: boolean): void;
   setCleared(cleared: boolean): void;
-  publishLive(slide: SlideContent, nextUp: SlideContent | null): Promise<void>;
+  publishLive(
+    slide: SlideContent,
+    nextUp?: SlideContent | null,
+    prevUp?: SlideContent | null,
+  ): Promise<void>;
   clearLive(): Promise<void>;
   toggleBlackout(): Promise<void>;
   toggleClear(): Promise<void>;
@@ -41,7 +45,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     set((s) => ({ live: { ...s.live, blackout } })),
   setCleared: (cleared) =>
     set((s) => ({ live: { ...s.live, cleared } })),
-  publishLive: async (slide, nextUp) => {
+  publishLive: async (slide, nextUp, prevUp) => {
     const isPresentation = Boolean(slide.media?.themeId);
     const isMedia = slide.kind === "media";
     const shouldResetBg = isPresentation || isMedia;
@@ -54,6 +58,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       cleared: false,
       blackout: false,
       nextUp: nextUp ?? undefined,
+      prevUp: prevUp ?? undefined,
       updatedAt: new Date().toISOString(),
     };
     get().applyRemote(next);
@@ -64,6 +69,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       ...get().live,
       cleared: true,
       nextUp: undefined,
+      prevUp: undefined,
       updatedAt: new Date().toISOString(),
     };
     get().applyRemote(next);
