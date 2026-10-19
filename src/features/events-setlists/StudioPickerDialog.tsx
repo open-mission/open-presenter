@@ -17,6 +17,7 @@ import { openThemeEditor } from "@/core/ipc/commands";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import {
   DEFAULT_MUSIC_THEME_GUID,
+  DEFAULT_PUBLIC_THEME_GUID,
   DEFAULT_STAGE_REST_THEME_GUID,
   DEFAULT_STAGE_THEME_GUID,
   DEFAULT_TEXT_THEME_GUID,
@@ -29,6 +30,7 @@ const SYSTEM_GUIDS = new Set([
   DEFAULT_TEXT_THEME_GUID,
   DEFAULT_STAGE_THEME_GUID,
   DEFAULT_STAGE_REST_THEME_GUID,
+  DEFAULT_PUBLIC_THEME_GUID,
 ]);
 
 interface StudioPickerDialogProps {
@@ -61,7 +63,9 @@ export function StudioPickerDialog({
     return themes.filter(
       (t) =>
         t.category === "presentation" ||
-        (!SYSTEM_GUIDS.has(t.guid) && t.category !== "theme"),
+        (t.category !== "stage" &&
+          !SYSTEM_GUIDS.has(t.guid) &&
+          t.category !== "theme"),
     );
   }, [themes]);
 

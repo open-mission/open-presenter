@@ -52,6 +52,7 @@ import type {
   ThemeAsset,
 } from "@/core/types";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
+import { isPublicTheme, previewTheme } from "@/features/slide-themes/pages";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { SECTION_OPTIONS } from "./songEditorUtils";
@@ -105,7 +106,7 @@ export function SongSlidesPreview({
 
   const themes = useSlideThemesStore((s) => s.themes);
   const templateThemes = useMemo(
-    () => themes.filter((t) => t.category !== "presentation"),
+    () => themes.filter(isPublicTheme),
     [themes],
   );
   const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
@@ -136,9 +137,19 @@ export function SongSlidesPreview({
   }, [themeGuid, defaultTheme, selectedThemeGuid]);
 
   const activeTheme: SlideTheme | null = useMemo(() => {
-    if (!selectedThemeGuid) return defaultTheme ?? themes[0] ?? null;
-    return themes.find((t) => t.guid === selectedThemeGuid) ?? defaultTheme ?? themes[0] ?? null;
-  }, [selectedThemeGuid, themes, defaultTheme]);
+    if (!selectedThemeGuid) return defaultTheme ?? templateThemes[0] ?? null;
+    return (
+      themes.find((t) => t.guid === selectedThemeGuid) ??
+      defaultTheme ??
+      templateThemes[0] ??
+      null
+    );
+  }, [selectedThemeGuid, themes, defaultTheme, templateThemes]);
+
+  const activePreview = useMemo(
+    () => (activeTheme ? previewTheme(activeTheme, effectiveAsset) : null),
+    [activeTheme, effectiveAsset],
+  );
 
   const isCurrentThemeDefault =
     activeTheme && defaultTheme && activeTheme.guid === defaultTheme.guid;
@@ -467,11 +478,11 @@ export function SongSlidesPreview({
                   </div>
 
                   {/* Conteúdo do Slide */}
-                  {themePreviewActive && activeTheme ? (
+                  {themePreviewActive && activePreview ? (
                     <div className="relative aspect-video w-full overflow-hidden rounded border border-border/80 bg-black shadow-inner">
                       <ScaledStage
-                        theme={activeTheme}
-                        asset={effectiveAsset}
+                        theme={activePreview.theme}
+                        asset={activePreview.asset}
                         props={slideProps}
                         showBackground={true}
                       />

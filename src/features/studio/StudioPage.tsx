@@ -40,10 +40,16 @@ import type { SlideContent, SlideTheme } from "@/core/types";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import {
   DEFAULT_MUSIC_THEME_GUID,
+  DEFAULT_PUBLIC_THEME_GUID,
   DEFAULT_STAGE_REST_THEME_GUID,
   DEFAULT_STAGE_THEME_GUID,
   DEFAULT_TEXT_THEME_GUID,
 } from "@/features/slide-themes/seedThemes";
+import {
+  isPublicTheme,
+  previewTheme,
+  themeElements,
+} from "@/features/slide-themes/pages";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useSetlistStore } from "@/features/events-setlists/store";
 import { usePresentationStore } from "@/features/presentation/store";
@@ -55,6 +61,7 @@ const SYSTEM_GUIDS = new Set([
   DEFAULT_TEXT_THEME_GUID,
   DEFAULT_STAGE_THEME_GUID,
   DEFAULT_STAGE_REST_THEME_GUID,
+  DEFAULT_PUBLIC_THEME_GUID,
 ]);
 
 const BG_PRESETS = [
@@ -125,15 +132,17 @@ export function StudioPage() {
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
     return themes.filter((t) => {
-      const isSystem = SYSTEM_GUIDS.has(t.guid);
-      const isPresentation = t.category === "presentation" || (!isSystem && t.category !== "theme");
+      const isPresentation = t.category === "presentation";
+      const isTemplate = isPublicTheme(t);
 
       if (activeFilter === "presentations" && !isPresentation) return false;
-      if (activeFilter === "templates" && isPresentation) return false;
+      if (activeFilter === "templates" && !isTemplate) return false;
 
       if (!q) return true;
       if (t.title.toLowerCase().includes(q)) return true;
-      return t.elements.some((el) => (el.text ?? "").toLowerCase().includes(q));
+      return themeElements(t).some((el) =>
+        (el.text ?? "").toLowerCase().includes(q),
+      );
     });
   }, [themes, search, activeFilter]);
 
@@ -141,10 +150,8 @@ export function StudioPage() {
     let presentations = 0;
     let templates = 0;
     for (const t of themes) {
-      const isSystem = SYSTEM_GUIDS.has(t.guid);
-      const isPresentation = t.category === "presentation" || (!isSystem && t.category !== "theme");
-      if (isPresentation) presentations++;
-      else templates++;
+      if (t.category === "presentation") presentations++;
+      else if (isPublicTheme(t)) templates++;
     }
     return { presentations, templates, all: themes.length };
   }, [themes]);
@@ -228,7 +235,8 @@ export function StudioPage() {
   }
 
   async function handleExportCardImage(theme: SlideTheme, format: "png" | "jpeg") {
-    await exportThemeAsImage(theme, {
+    const preview = previewTheme(theme, "text");
+    await exportThemeAsImage(preview.theme, {
       fileName: `apresentacao-${theme.title}`,
       format,
       width: 1920,
@@ -411,6 +419,7 @@ export function StudioPage() {
                 !live.cleared &&
                 !live.blackout &&
                 live.content.kind !== "blank";
+              const preview = previewTheme(theme, "text");
 
               return (
                 <div
@@ -428,8 +437,8 @@ export function StudioPage() {
                     title="1 clique: ver detalhes · 2 cliques: apresentar ao vivo"
                   >
                     <ScaledStage
-                      theme={theme}
-                      asset="text"
+                      theme={preview.theme}
+                      asset={preview.asset}
                       props={{
                         title: theme.title,
                         titulo: theme.title,
@@ -493,7 +502,7 @@ export function StudioPage() {
                       </p>
                       <div className="flex items-center gap-1.5 mt-1">
                         <span className="text-[10px] text-muted-foreground font-mono">
-                          {theme.elements.length} {theme.elements.length === 1 ? "elemento" : "elementos"}
+                          {themeElements(theme).length} {themeElements(theme).length === 1 ? "elemento" : "elementos"}
                         </span>
                         {theme.category && (
                           <span className="rounded bg-muted px-1 py-0.2 text-[9px] text-muted-foreground uppercase tracking-wide">
@@ -586,6 +595,7 @@ export function StudioPage() {
                 !live.cleared &&
                 !live.blackout &&
                 live.content.kind !== "blank";
+              const preview = previewTheme(theme, "text");
 
               return (
                 <div
@@ -602,8 +612,8 @@ export function StudioPage() {
                       onClick={() => void openThemeEditor(theme.guid)}
                     >
                       <ScaledStage
-                        theme={theme}
-                        asset="text"
+                        theme={preview.theme}
+                        asset={preview.asset}
                         props={{
                           title: theme.title,
                           titulo: theme.title,
@@ -629,7 +639,7 @@ export function StudioPage() {
                         )}
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {theme.elements.length} elementos · {theme.category || "Apresentação"}
+                        {themeElements(theme).length} elementos · {theme.category || "Apresentação"}
                       </p>
                     </div>
                   </div>

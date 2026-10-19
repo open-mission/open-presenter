@@ -5,6 +5,7 @@ import { kindToAsset } from "@/core/types";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSlideThemesStore } from "./store";
 import { ScaledStage } from "./ScaledStage";
+import { isPublicTheme, previewTheme } from "./pages";
 import { SAMPLES } from "./samples";
 
 const RAIL_KEY = "open_presenter_theme_rail_open";
@@ -71,12 +72,11 @@ export function ThemeRail() {
   }
 
   const templateThemes = useMemo(() => {
-    return themes.filter((t) => t.category !== "presentation");
+    return themes.filter(isPublicTheme);
   }, [themes]);
 
   const effectiveKind = liveKind === "blank" ? "lyric" : liveKind;
   const asset = kindToAsset(liveKind) ?? "music";
-  const sample = SAMPLES[asset];
   const liveGuid =
     bindings.find((b) => b.target === "public" && b.asset === effectiveKind)
       ?.themeGuid ?? null;
@@ -159,6 +159,7 @@ export function ThemeRail() {
           <ul className="flex flex-col gap-2">
             {templateThemes.map((theme) => {
               const isLive = theme.guid === liveGuid;
+              const preview = previewTheme(theme, asset);
               return (
                 <li key={theme.guid}>
                   <button
@@ -178,9 +179,9 @@ export function ThemeRail() {
                   >
                     <span className="relative block aspect-video w-full overflow-hidden rounded-md">
                       <ScaledStage
-                        theme={theme}
-                        asset={asset}
-                        props={sample.props}
+                        theme={preview.theme}
+                        asset={preview.asset}
+                        props={SAMPLES[preview.asset].props}
                       />
                       {isLive && (
                         <span className="absolute top-1 left-1 flex items-center gap-0.5 rounded bg-primary px-1 py-px text-[9px] font-bold text-primary-foreground">
