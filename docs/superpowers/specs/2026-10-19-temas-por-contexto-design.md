@@ -1,7 +1,7 @@
 # Temas por contexto (páginas) — desenho
 
 Data: 2026-10-19
-Status: aguardando aprovação
+Status: aprovado
 
 ## Intenção e porquê
 
@@ -128,6 +128,12 @@ Ordem de resolução para o telão público:
 O tema resolvido é materializado como um `SlideTheme` efêmero
 (`{ ...tema, css: page.css, elements: page.elements }`), de modo que renderer,
 transições e saídas continuem consumindo o mesmo formato de hoje.
+
+Tema público v1 (sem `pages`) é universal: quando vinculado nas configurações
+ou definido num evento, aplica-se a qualquer contexto, preservando o
+comportamento antigo. O seletor de evento lista apenas temas com páginas, mas
+vínculos antigos de v1 continuam funcionando até serem atualizados ou
+substituídos.
 
 O monitor de palco continua usando `resolveStageTheme()` e o evento não
 interfere nele. Como os temas públicos passam a ter páginas, o palco ganha
