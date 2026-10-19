@@ -1,0 +1,100 @@
+{
+  "$schema": "https://openpresenter.dev/schemas/theme-v1.json",
+  "format": "open-presenter-theme",
+  "version": 1,
+  "exportedAt": "2026-10-19T13:25:00.000Z",
+  "theme": {
+    "title": "Bíblia Moderna com Próximo Versículo",
+    "category": "theme",
+    "css": {
+      "background": "radial-gradient(circle at 50% 120%, #1e1b4b 0%, #09090b 60%, #000000 100%)"
+    },
+    "elements": [
+      {
+        "id": "referencia",
+        "type": "TEXT",
+        "x": 8,
+        "y": 6,
+        "visible": true,
+        "locked": false,
+        "text": "{title}",
+        "css": {
+          "top": "6%",
+          "left": "8%",
+          "width": "84%",
+          "height": "8%",
+          "textAlign": "center",
+          "fontSize": "30px",
+          "fontWeight": "700",
+          "letterSpacing": "3px",
+          "textTransform": "uppercase",
+          "color": "#38bdf8",
+          "textShadow": "0 2px 8px rgba(0,0,0,0.8)"
+        }
+      },
+      {
+        "id": "versiculo",
+        "type": "TEXT",
+        "x": 8,
+        "y": 16,
+        "visible": true,
+        "locked": false,
+        "text": "{verse}",
+        "css": {
+          "top": "16%",
+          "left": "8%",
+          "width": "84%",
+          "height": "66%",
+          "textAlign": "center",
+          "fontSize": "52px",
+          "fontWeight": "600",
+          "lineHeight": "1.35",
+          "color": "#ffffff",
+          "textShadow": "0 2px 14px rgba(0,0,0,0.9)",
+          "whiteSpace": "pre-wrap",
+          "autoShrink": "true"
+        }
+      },
+      {
+        "id": "fundo-proximo",
+        "type": "RECTANGLE",
+        "x": 10,
+        "y": 86,
+        "visible": true,
+        "locked": false,
+        "css": {
+          "top": "86%",
+          "left": "10%",
+          "width": "80%",
+          "height": "7%",
+          "background": "rgba(255, 255, 255, 0.06)",
+          "borderRadius": "8px",
+          "border": "1px solid rgba(255, 255, 255, 0.12)"
+        }
+      },
+      {
+        "id": "proximo-versiculo",
+        "type": "TEXT",
+        "x": 12,
+        "y": 87,
+        "visible": true,
+        "locked": false,
+        "text": "📖 A Seguir: {next_preview}",
+        "css": {
+          "top": "87%",
+          "left": "12%",
+          "width": "76%",
+          "height": "5%",
+          "textAlign": "center",
+          "fontSize": "20px",
+          "fontWeight": "500",
+          "color": "rgba(255, 255, 255, 0.75)",
+          "whiteSpace": "nowrap",
+          "overflow": "hidden",
+          "textOverflow": "ellipsis",
+          "textShadow": "0 1px 4px rgba(0,0,0,0.8)"
+        }
+      }
+    ]
+  }
+}

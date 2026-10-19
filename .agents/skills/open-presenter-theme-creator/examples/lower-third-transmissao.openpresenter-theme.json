@@ -1,0 +1,76 @@
+{
+  "$schema": "https://openpresenter.dev/schemas/theme-v1.json",
+  "format": "open-presenter-theme",
+  "version": 1,
+  "exportedAt": "2026-10-19T13:25:00.000Z",
+  "theme": {
+    "title": "Lower Third Transmissão (OBS)",
+    "category": "theme",
+    "css": {
+      "background": "transparent"
+    },
+    "elements": [
+      {
+        "id": "barra-fundo",
+        "type": "RECTANGLE",
+        "x": 6,
+        "y": 74,
+        "visible": true,
+        "locked": false,
+        "css": {
+          "top": "74%",
+          "left": "6%",
+          "width": "88%",
+          "height": "20%",
+          "background": "rgba(10, 10, 15, 0.88)",
+          "borderRadius": "14px",
+          "borderLeft": "6px solid #38bdf8",
+          "boxShadow": "0 8px 32px rgba(0,0,0,0.5)"
+        }
+      },
+      {
+        "id": "rotulo-superior",
+        "type": "TEXT",
+        "x": 8,
+        "y": 76,
+        "visible": true,
+        "locked": false,
+        "text": "{title}",
+        "css": {
+          "top": "76%",
+          "left": "8%",
+          "width": "84%",
+          "height": "4%",
+          "textAlign": "left",
+          "fontSize": "20px",
+          "fontWeight": "700",
+          "letterSpacing": "2px",
+          "textTransform": "uppercase",
+          "color": "#38bdf8"
+        }
+      },
+      {
+        "id": "conteudo-principal",
+        "type": "TEXT",
+        "x": 8,
+        "y": 81,
+        "visible": true,
+        "locked": false,
+        "text": "{lyrics}{verse}{text}",
+        "css": {
+          "top": "81%",
+          "left": "8%",
+          "width": "84%",
+          "height": "11%",
+          "textAlign": "left",
+          "fontSize": "34px",
+          "fontWeight": "600",
+          "lineHeight": "1.25",
+          "color": "#ffffff",
+          "whiteSpace": "pre-wrap",
+          "autoShrink": "true"
+        }
+      }
+    ]
+  }
+}
