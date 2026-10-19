@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useStageConfigStore } from "@/features/stage-display/configStore";
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { isSingleLayout } from "@/features/slide-themes/pages";
 
 export function StageTab() {
   const navigate = useNavigate();
@@ -24,7 +25,9 @@ export function StageTab() {
   const resolvedStageTheme = useSlideThemesStore((s) => s.resolveStageTheme());
 
   const templateThemes = useMemo(() => {
-    return themes.filter((t) => t.category !== "presentation");
+    return themes.filter(
+      (theme) => theme.category !== "presentation" && isSingleLayout(theme),
+    );
   }, [themes]);
 
   return (
