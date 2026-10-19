@@ -13,7 +13,7 @@ import {
   getActivePage,
   getPageForContext,
   materializePage,
-  PAGE_CONTEXTS,
+  pageContextsForTheme,
 } from "@/features/slide-themes/pages";
 import { cn } from "@/core/lib/utils";
 import { useThemeEditorStore } from "./store";
@@ -36,6 +36,7 @@ export function PagesBar() {
 
   if (!theme?.pages?.length) return null;
 
+  const contexts = pageContextsForTheme(theme);
   const current = getActivePage(theme, activePageId);
   const toggle = () => {
     setCollapsed((value) => {
@@ -66,7 +67,7 @@ export function PagesBar() {
 
       {collapsed ? (
         <div className="flex items-center gap-3 px-3 pb-2">
-          {PAGE_CONTEXTS.map((info) => {
+          {contexts.map((info) => {
             const page = getPageForContext(theme, info.context);
             return (
               <span
@@ -87,7 +88,7 @@ export function PagesBar() {
         </div>
       ) : (
         <div className="flex gap-2 overflow-x-auto px-3 pb-2">
-          {PAGE_CONTEXTS.map((info) => {
+          {contexts.map((info) => {
             const page = getPageForContext(theme, info.context);
             if (!page) {
               return (

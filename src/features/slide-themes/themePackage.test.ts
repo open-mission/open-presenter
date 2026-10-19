@@ -63,6 +63,42 @@ test("rejeita contexto duplicado e página sem contexto válido", () => {
   assert.throws(() => parseThemeFromJson(invalid), /contexto/i);
 });
 
+test("importa página de descanso do palco", () => {
+  const pkg = buildThemePackage({ ...v2(), category: "stage" });
+  pkg.theme.pages = [
+    { id: "rest", context: "rest", css: { background: "#050505" }, elements: [] },
+  ];
+  const imported = parseThemeFromJson(pkg);
+  assert.equal(imported.pages?.[0].context, "rest");
+});
+
+test("rejeita descanso em tema público", () => {
+  const pkg = buildThemePackage(v2());
+  pkg.theme.pages = [
+    { id: "rest", context: "rest", css: { background: "#050505" }, elements: [] },
+  ];
+  assert.throws(() => parseThemeFromJson(pkg), /palco/);
+});
+
+test("aceita página de descanso em tema de palco", () => {
+  const theme: SlideTheme = {
+    guid: "stage",
+    title: "Palco",
+    category: "stage",
+    css: {},
+    elements: [],
+    pages: [
+      { id: "rest", context: "rest", css: { background: "#000" }, elements: [] },
+      { id: "music", context: "music", css: { background: "#111" }, elements: [] },
+    ],
+  };
+  const imported = parseThemeFromJson(buildThemePackage(theme));
+  assert.deepEqual(
+    imported.pages?.map((page) => page.context),
+    ["rest", "music"],
+  );
+});
+
 test("backup usa v2", () => {
   const backup = buildThemesBackup([v2()]);
   assert.equal(backup.version, 2);

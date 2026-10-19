@@ -12,11 +12,28 @@ export interface PageContextInfo {
   asset: ThemeAsset;
 }
 
-export const PAGE_CONTEXTS: readonly PageContextInfo[] = [
+export const PUBLIC_PAGE_CONTEXTS: readonly PageContextInfo[] = [
   { context: "music", label: "Música", asset: "music" },
   { context: "bible", label: "Bíblia", asset: "bible" },
   { context: "text", label: "Texto", asset: "text" },
 ];
+
+export const STAGE_PAGE_CONTEXTS: readonly PageContextInfo[] = [
+  { context: "rest", label: "Descanso", asset: "rest" },
+  { context: "music", label: "Música", asset: "music" },
+  { context: "bible", label: "Bíblia", asset: "bible" },
+  { context: "text", label: "Texto", asset: "text" },
+];
+
+export function pageContextsForCategory(
+  category: SlideTheme["category"],
+): readonly PageContextInfo[] {
+  return category === "stage" ? STAGE_PAGE_CONTEXTS : PUBLIC_PAGE_CONTEXTS;
+}
+
+export function pageContextsForTheme(theme: SlideTheme): readonly PageContextInfo[] {
+  return pageContextsForCategory(theme.category);
+}
 
 export function contextToAsset(context: ThemeContext): ThemeAsset {
   switch (context) {
@@ -26,6 +43,8 @@ export function contextToAsset(context: ThemeContext): ThemeAsset {
       return "bible";
     case "text":
       return "text";
+    case "rest":
+      return "rest";
   }
 }
 
@@ -37,6 +56,8 @@ export function assetToContext(asset: ThemeAsset): ThemeContext {
       return "bible";
     case "text":
       return "text";
+    case "rest":
+      return "rest";
   }
 }
 
@@ -70,12 +91,24 @@ export function previewTheme(
 export type ThemeVersion = "v1" | "v2" | "single";
 
 export function themeVersion(theme: SlideTheme): ThemeVersion {
-  if (theme.category === "stage" || theme.category === "presentation") return "single";
-  return theme.pages?.length ? "v2" : "v1";
+  if (theme.category === "presentation") return "single";
+  if (theme.pages?.length) return "v2";
+  return theme.category === "stage" ? "single" : "v1";
 }
 
 export function isPublicTheme(theme: SlideTheme): boolean {
   return theme.category !== "stage" && theme.category !== "presentation";
+}
+
+export function isStageTheme(theme: SlideTheme): boolean {
+  return theme.category === "stage";
+}
+
+export function isStageCandidate(theme: SlideTheme): boolean {
+  return (
+    theme.category !== "presentation" &&
+    (theme.category === "stage" || isSingleLayout(theme))
+  );
 }
 
 export function isSingleLayout(theme: SlideTheme): boolean {
@@ -89,9 +122,13 @@ export function themeCoverage(theme: SlideTheme): ThemeContext[] {
 export function themeCoverageLabel(theme: SlideTheme): string {
   const contexts = themeCoverage(theme);
   if (contexts.length === 0) return "Layout único";
-  if (contexts.length === PAGE_CONTEXTS.length) return "3 contextos";
-  return contexts
-    .map((context) => PAGE_CONTEXTS.find((info) => info.context === context)?.label ?? context)
+  const available = pageContextsForTheme(theme);
+  if (contexts.length >= available.length) {
+    return theme.category === "stage" ? "4 momentos" : "3 contextos";
+  }
+  return available
+    .filter((info) => contexts.includes(info.context))
+    .map((info) => info.label)
     .join(" · ");
 }
 

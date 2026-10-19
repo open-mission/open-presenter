@@ -39,4 +39,9 @@ test("tema público padrão tem uma página para cada contexto", () => {
 
 test("temas de retorno usam a categoria stage", () => {
   assert.equal(DEFAULT_STAGE_THEME.category, "stage");
+  assert.deepEqual(
+    DEFAULT_STAGE_THEME.pages?.map((page) => page.context),
+    ["rest", "music", "bible", "text"],
+  );
+  assert.equal(DEFAULT_STAGE_THEME.elements.length, 0);
 });

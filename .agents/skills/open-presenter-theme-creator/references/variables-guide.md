@@ -55,14 +55,19 @@ Para temas com categoria `"category": "stage"`, usados em monitores de chão ou 
 | `{stopwatch}` | `{cronometro}` | Tempo decorrido de cronômetro | `05:22` |
 | `{timer}`, `{countdown}`| `{timer}` | Tempo regressivo configurado ou tempo decorrido | `14:38` |
 | `{lyrics}`, `{text}` | `{letra}`, `{verso}` | Letra ou versículo atual | *(conteúdo principal)* |
+| `{current_verse}` | `{versiculo_corrente}` | Texto do versículo atual | *(versículo)* |
+| `{current_reference}` | `{referencia_corrente}` | Referência bíblica atual | `Salmos 23:1` |
 | `{title}` | `{titulo}` | Título da canção ou referência do versículo | `Salmos 23:1` |
 | `{section}` | `{secao}` | Seção musical da canção | `Ponte` |
 | `{next_preview}` | `{proximo_resumo}` | Trecho resumido da próxima estrofe com `...` | `O Senhor é o meu pastor...` |
 | `{next_first_line}`| `{proxima_linha}` | Primeira linha da próxima estrofe | `O Senhor é o meu pastor` |
 | `{next_verse}` | `{proximo_versiculo}`| Conteúdo do próximo slide | *(próximo conteúdo)* |
+| `{next_reference}` | `{proxima_referencia}`| Referência do próximo versículo | `Salmos 23:2` |
 | `{next_title}` | `{proxima_referencia}`| Título do próximo item da playlist | `Próximo: Bondade de Deus` |
 | `{prev_verse}` | `{versiculo_anterior}`| Slide anterior | *(slide que acabou de passar)* |
 | `{prev_title}` | `{referencia_corrente}`| Título do slide anterior | `Salmos 22:31` |
+
+> **Página `rest`:** use `{clock}` e `{timer}` para a tela de espera/descanso. O palco escolhe automaticamente a página `rest` quando não há conteúdo ao vivo, `music` para letras, `bible` para escrituras e `text` para avisos/ministração.
 
 ---
 

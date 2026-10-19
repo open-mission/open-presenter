@@ -16,12 +16,19 @@ import {
   DEFAULT_STAGE_THEME_GUID,
   createEmptyStudioTheme,
 } from "./seedThemes";
-import { cloneTheme, isSingleLayout } from "./pages";
+import {
+  cloneTheme,
+  getPageForContext,
+  isSingleLayout,
+  isStageCandidate,
+  materializePage,
+} from "./pages";
 import { resolveLiveTheme } from "./themeResolution";
 
 const BINDINGS_KEY = "open_presenter_theme_bindings";
 const STAGE_THEME_KEY = "open_presenter_stage_theme";
 const STAGE_REST_THEME_KEY = "open_presenter_stage_rest_theme";
+const stageRestPageCache = new WeakMap<SlideTheme, SlideTheme>();
 
 function bindingKey(target: OutputTarget, asset: SlideKind): string {
   return `${target}:${asset}`;
@@ -230,13 +237,12 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
   resolveStageTheme: () => {
     const guid = get().stageThemeGuid ?? DEFAULT_STAGE_THEME_GUID;
     const found = get().themes.find(
-      (t) => t.guid === guid && t.category !== "presentation" && isSingleLayout(t),
+      (t) => t.guid === guid && isStageCandidate(t),
     );
     if (found) return found;
     const fallback = get().themes.find(
       (t) =>
-        t.category !== "presentation" &&
-        isSingleLayout(t) &&
+        isStageCandidate(t) &&
         (t.title.toLowerCase().includes("retorno") ||
           t.title.toLowerCase().includes("palco") ||
           t.title.toLowerCase().includes("stage")),
@@ -244,6 +250,18 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
     return fallback ?? DEFAULT_STAGE_THEME;
   },
   resolveStageRestTheme: () => {
+    const stageTheme = get().resolveStageTheme() ?? DEFAULT_STAGE_THEME;
+    if (stageTheme.pages?.length) {
+      const page = getPageForContext(stageTheme, "rest");
+      if (page) {
+        let cached = stageRestPageCache.get(stageTheme);
+        if (!cached) {
+          cached = materializePage(stageTheme, page);
+          stageRestPageCache.set(stageTheme, cached);
+        }
+        return cached;
+      }
+    }
     const guid = get().stageRestThemeGuid ?? DEFAULT_STAGE_REST_THEME_GUID;
     const found = get().themes.find(
       (t) => t.guid === guid && t.category !== "presentation" && isSingleLayout(t),

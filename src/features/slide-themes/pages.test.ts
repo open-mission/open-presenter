@@ -6,6 +6,7 @@ import {
   getActivePage,
   getPageForContext,
   materializePage,
+  pageContextsForTheme,
   previewTheme,
   themeCoverageLabel,
   themeVersion,
@@ -61,6 +62,35 @@ test("classifica versão e cobertura", () => {
     themeCoverageLabel(base({ pages: [{ id: "p", context: "music", css: {}, elements: [] }] })),
     "Música",
   );
+  assert.equal(
+    themeCoverageLabel(
+      base({
+        pages: [
+          { id: "t", context: "text", css: {}, elements: [] },
+          { id: "m", context: "music", css: {}, elements: [] },
+        ],
+      }),
+    ),
+    "Música · Texto",
+  );
+});
+
+test("tema de palco usa páginas de descanso, música, bíblia e texto", () => {
+  const theme = base({
+    category: "stage",
+    pages: [
+      { id: "r", context: "rest", css: {}, elements: [] },
+      { id: "m", context: "music", css: {}, elements: [] },
+      { id: "b", context: "bible", css: {}, elements: [] },
+      { id: "t", context: "text", css: {}, elements: [] },
+    ],
+  });
+  assert.deepEqual(
+    pageContextsForTheme(theme).map((info) => info.context),
+    ["rest", "music", "bible", "text"],
+  );
+  assert.equal(themeVersion(theme), "v2");
+  assert.equal(themeCoverageLabel(theme), "4 momentos");
 });
 
 test("cria página duplicada com ids novos e página em branco sem elementos", () => {

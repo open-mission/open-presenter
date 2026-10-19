@@ -28,7 +28,7 @@ import {
   contextToAsset,
   getActivePage,
   materializePage,
-  PAGE_CONTEXTS,
+  pageContextsForCategory,
   themeVersion,
 } from "@/features/slide-themes/pages";
 import { cn } from "@/core/lib/utils";
@@ -65,6 +65,7 @@ import { PagesBar } from "@/features/theme-editor/PagesBar";
 import { PropertiesPanel } from "@/features/theme-editor/PropertiesPanel";
 import { SymbolsPicker } from "@/features/theme-editor/SymbolsPicker";
 import { useThemeEditorStore } from "@/features/theme-editor/store";
+import { useSlideThemesStore } from "@/features/slide-themes/store";
 
 function uniqueId(prefix: string, existing: string[]): string {
   let n = existing.length + 1;
@@ -97,6 +98,10 @@ export default function ThemeEditorView() {
 
   const draft = useThemeEditorStore((s) => s.draft);
   const activePageId = useThemeEditorStore((s) => s.activePageId);
+  const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
+  const resolvedStageThemeGuid = useSlideThemesStore(
+    (s) => s.resolveStageTheme()?.guid ?? null,
+  );
   const error = useThemeEditorStore((s) => s.error);
   const load = useThemeEditorStore((s) => s.load);
   const setTitle = useThemeEditorStore((s) => s.setTitle);
@@ -544,6 +549,12 @@ export default function ThemeEditorView() {
   }
 
   const dirty = isDirty();
+  const isStageTheme =
+    draft.category === "stage" ||
+    draft.guid === stageThemeGuid ||
+    draft.guid === resolvedStageThemeGuid;
+  const contexts = pageContextsForCategory(isStageTheme ? "stage" : "theme");
+  const upgradeable = draft.category !== "presentation" && !draft.pages?.length;
   const currentPage = getActivePage(draft, activePageId);
   const viewTheme = currentPage ? materializePage(draft, currentPage) : draft;
   const activeAsset = currentPage
@@ -599,13 +610,16 @@ export default function ThemeEditorView() {
               >
                 {label}
               </Badge>
-              {version === "v1" && (
+              {upgradeable && (
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => setUpgradeOpen(true)}
+                  onClick={() => {
+                    setUpgradeContext(isStageTheme ? "rest" : "music");
+                    setUpgradeOpen(true);
+                  }}
                 >
-                  Atualizar para v2
+                  {isStageTheme ? "Adicionar páginas" : "Atualizar para v2"}
                 </Button>
               )}
             </>
@@ -818,7 +832,7 @@ export default function ThemeEditorView() {
         {draft.pages?.length ? (
           <span className="mr-1 text-xs text-muted-foreground">
             Página:{" "}
-            {PAGE_CONTEXTS.find((info) => info.context === currentPage?.context)
+            {contexts.find((info) => info.context === currentPage?.context)
               ?.label ?? "—"}
           </span>
         ) : (
@@ -999,7 +1013,11 @@ export default function ThemeEditorView() {
       <Dialog open={upgradeOpen} onOpenChange={setUpgradeOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Atualizar tema para v2</DialogTitle>
+            <DialogTitle>
+              {isStageTheme
+                ? "Adicionar páginas ao tema de palco"
+                : "Atualizar tema para v2"}
+            </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-2 text-xs text-muted-foreground">
             <p>
@@ -1018,7 +1036,7 @@ export default function ThemeEditorView() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {PAGE_CONTEXTS.map((info) => (
+                  {contexts.map((info) => (
                     <SelectItem key={info.context} value={info.context}>
                       {info.label}
                     </SelectItem>
@@ -1033,9 +1051,12 @@ export default function ThemeEditorView() {
             </Button>
             <Button
               onClick={() => {
-                upgradeToV2(upgradeContext);
+                upgradeToV2(
+                  upgradeContext,
+                  isStageTheme ? "stage" : "theme",
+                );
                 setUpgradeOpen(false);
-                toast.success("Tema atualizado para v2. Salve para aplicar.");
+                toast.success("Tema atualizado para páginas. Salve para aplicar.");
               }}
             >
               Atualizar

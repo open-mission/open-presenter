@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePresentationStore } from "@/features/presentation/store";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { buildProps, buildStageProps } from "@/features/slide-themes/themeTemplate";
@@ -8,6 +8,10 @@ import {
 } from "@/features/slide-themes/seedThemes";
 import { useLiveThemesStore } from "@/features/slide-themes/liveThemesStore";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import {
+  resolveStageRenderTheme,
+  resolveStageRestRenderTheme,
+} from "@/features/slide-themes/themeResolution";
 import { SlideCanvas } from "@/features/presentation/SlideCanvas";
 import { useStageConfigStore } from "./configStore";
 import { useStageTimerStore } from "./timerStore";
@@ -20,10 +24,20 @@ export function StageMiniPreview() {
   const timer = useStageTimerStore((s) => s.timer);
 
   const themes = useSlideThemesStore((s) => s.themes);
+  const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
+  const stageRestThemeGuid = useSlideThemesStore((s) => s.stageRestThemeGuid);
+  const resolveStageTheme = useSlideThemesStore((s) => s.resolveStageTheme);
+  const resolveStageRestTheme = useSlideThemesStore((s) => s.resolveStageRestTheme);
   const broadcastStageTheme = useLiveThemesStore((s) => s.themes.stage);
   const broadcastPublicTheme = useLiveThemesStore((s) => s.themes.public);
-  const localStageTheme = useSlideThemesStore((s) => s.resolveStageTheme());
-  const localStageRestTheme = useSlideThemesStore((s) => s.resolveStageRestTheme());
+  const localStageTheme = useMemo(
+    () => resolveStageTheme(),
+    [resolveStageTheme, themes, stageThemeGuid],
+  );
+  const localStageRestTheme = useMemo(
+    () => resolveStageRestTheme(),
+    [resolveStageRestTheme, themes, stageThemeGuid, stageRestThemeGuid],
+  );
 
   const isPresentation = Boolean(live.content.media?.themeId);
   const isMedia = live.content.kind === "media" && Boolean(live.content.media);
@@ -36,9 +50,18 @@ export function StageMiniPreview() {
       live.content.lines.length === 0 &&
       !live.content.title);
 
-  const stageTheme = isIdle
-    ? (localStageRestTheme ?? DEFAULT_STAGE_REST_THEME)
-    : (broadcastStageTheme ?? localStageTheme ?? DEFAULT_STAGE_THEME);
+  const stageTheme = broadcastStageTheme ?? localStageTheme ?? DEFAULT_STAGE_THEME;
+  const restTheme = resolveStageRestRenderTheme(
+    stageTheme,
+    localStageRestTheme ?? DEFAULT_STAGE_REST_THEME,
+  );
+  const liveTheme =
+    resolveStageRenderTheme(
+      stageTheme,
+      live.content.kind,
+      live.content.media?.kind,
+      DEFAULT_STAGE_THEME,
+    ) ?? { theme: DEFAULT_STAGE_THEME, asset: "music" as const };
 
   const presentationTheme = isPresentation
     ? (themes.find((t) => t.guid === live.content.media?.themeId) ??
@@ -48,7 +71,7 @@ export function StageMiniPreview() {
        (broadcastStageTheme?.guid === live.content.media?.themeId
          ? broadcastStageTheme
          : null) ??
-       stageTheme)
+       liveTheme.theme)
     : null;
 
   const [now, setNow] = useState(() => Date.now());
@@ -77,8 +100,8 @@ export function StageMiniPreview() {
         <div className="absolute inset-0 bg-black" />
       ) : isIdle ? (
         <ScaledStage
-          theme={stageTheme}
-          asset="music"
+          theme={restTheme.theme}
+          asset={restTheme.asset}
           props={stageProps}
           className="absolute inset-0"
         />
@@ -94,8 +117,8 @@ export function StageMiniPreview() {
         <SlideCanvas slide={live} showBackground={true} />
       ) : (
         <ScaledStage
-          theme={stageTheme}
-          asset="music"
+          theme={liveTheme.theme}
+          asset={liveTheme.asset}
           props={stageProps}
           className="absolute inset-0"
         />

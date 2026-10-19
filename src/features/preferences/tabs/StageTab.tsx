@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useStageConfigStore } from "@/features/stage-display/configStore";
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
-import { isSingleLayout } from "@/features/slide-themes/pages";
+import { isStageCandidate, themeCoverageLabel } from "@/features/slide-themes/pages";
 
 export function StageTab() {
   const navigate = useNavigate();
@@ -24,10 +24,8 @@ export function StageTab() {
   const setStageTheme = useSlideThemesStore((s) => s.setStageTheme);
   const resolvedStageTheme = useSlideThemesStore((s) => s.resolveStageTheme());
 
-  const templateThemes = useMemo(() => {
-    return themes.filter(
-      (theme) => theme.category !== "presentation" && isSingleLayout(theme),
-    );
+  const stageThemes = useMemo(() => {
+    return themes.filter(isStageCandidate);
   }, [themes]);
 
   return (
@@ -65,7 +63,7 @@ export function StageTab() {
                 onChange={(e) => setStageTheme(e.target.value || null)}
                 className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
               >
-                {templateThemes.map((t) => (
+                {stageThemes.map((t) => (
                   <option key={t.guid} value={t.guid}>
                     {t.title}
                   </option>
@@ -73,7 +71,9 @@ export function StageTab() {
               </select>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Define fontes, tamanhos, cores e posições dos widgets na tela dos músicos.
+              {resolvedStageTheme?.pages?.length
+                ? `${themeCoverageLabel(resolvedStageTheme)} configurados. O palco troca de página automaticamente conforme o conteúdo (descanso, música, Bíblia ou texto).`
+                : "Tema de layout único. Adicione páginas no editor para ter telas diferentes em cada momento."}
             </p>
           </div>
 

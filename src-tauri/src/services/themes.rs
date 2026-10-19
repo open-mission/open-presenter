@@ -41,13 +41,19 @@ pub fn save_theme(conn: &Connection, theme: &SlideTheme) -> Result<(), AppError>
         if pages.is_empty() {
             return Err(AppError::Storage("tema deve ter ao menos uma página".into()));
         }
+        let is_stage = theme.category.as_deref() == Some("stage");
         let mut contextos = std::collections::HashSet::new();
         for page in pages {
-            if !["music", "bible", "text"].contains(&page.context.as_str()) {
+            if !["rest", "music", "bible", "text"].contains(&page.context.as_str()) {
                 return Err(AppError::Storage(format!(
                     "contexto de página inválido: {}",
                     page.context
                 )));
+            }
+            if page.context == "rest" && !is_stage {
+                return Err(AppError::Storage(
+                    "contexto 'rest' é exclusivo de temas de palco".into(),
+                ));
             }
             if !contextos.insert(page.context.as_str()) {
                 return Err(AppError::Storage(format!(
@@ -134,6 +140,25 @@ mod tests {
         save_theme(&conn, &tema).unwrap();
         let salvo = get_theme(&conn, "g-pages").unwrap().unwrap();
         assert_eq!(salvo.pages.unwrap().len(), 2);
+    }
+
+    #[test]
+    fn aceita_descanso_em_tema_de_palco() {
+        let conn = open_in_memory();
+        let mut tema = tema("g-stage", "Palco");
+        tema.category = Some("stage".into());
+        tema.pages = Some(vec![pagina("rest"), pagina("music")]);
+        tema.elements = vec![];
+        assert!(save_theme(&conn, &tema).is_ok());
+    }
+
+    #[test]
+    fn rejeita_descanso_em_tema_publico() {
+        let conn = open_in_memory();
+        let mut tema = tema("g-public", "Público");
+        tema.pages = Some(vec![pagina("rest"), pagina("music")]);
+        tema.elements = vec![];
+        assert!(save_theme(&conn, &tema).is_err());
     }
 
     #[test]

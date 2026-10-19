@@ -3,10 +3,11 @@ import type {
   OutputTarget,
   SlideKind,
   SlideTheme,
+  ThemeAsset,
   ThemeBinding,
   ThemeContext,
 } from "@/core/types";
-import { materializePage } from "./pages.ts";
+import { contextToAsset, getPageForContext, materializePage } from "./pages.ts";
 
 export interface ResolveLiveThemeInput {
   kind: SlideKind;
@@ -45,7 +46,58 @@ export function contextToKind(context: ThemeContext): SlideKind {
       return "scripture";
     case "text":
       return "custom";
+    case "rest":
+      return "blank";
   }
+}
+
+export function contextForStage(
+  kind: SlideKind,
+  mediaKind?: MediaKind | null,
+): ThemeContext {
+  return contextForSlide(kind, mediaKind) ?? "rest";
+}
+
+export interface StageRenderTheme {
+  theme: SlideTheme;
+  asset: ThemeAsset;
+}
+
+export function resolveStageRenderTheme(
+  theme: SlideTheme | null | undefined,
+  kind: SlideKind,
+  mediaKind?: MediaKind | null,
+  fallback?: SlideTheme | null,
+): StageRenderTheme | null {
+  const context = contextForStage(kind, mediaKind);
+  return resolveRenderPage(theme, context, fallback);
+}
+
+export function resolveStageRestRenderTheme(
+  theme: SlideTheme | null | undefined,
+  fallback: SlideTheme,
+): StageRenderTheme {
+  if (theme?.pages?.length) {
+    const page = getPageForContext(theme, "rest");
+    if (page) return { theme: materializePage(theme, page), asset: "rest" };
+  }
+  return { theme: fallback, asset: "rest" };
+}
+
+function resolveRenderPage(
+  theme: SlideTheme | null | undefined,
+  context: ThemeContext,
+  fallback?: SlideTheme | null,
+): StageRenderTheme | null {
+  if (!theme) {
+    return fallback ? resolveRenderPage(fallback, context, null) : null;
+  }
+  if (!theme.pages?.length) {
+    return { theme, asset: contextToAsset(context) };
+  }
+  const page = getPageForContext(theme, context);
+  if (page) return { theme: materializePage(theme, page), asset: contextToAsset(page.context) };
+  return fallback ? resolveRenderPage(fallback, context, null) : null;
 }
 
 function findByGuid(
@@ -61,10 +113,8 @@ export function resolveThemePage(
   context: ThemeContext,
 ): SlideTheme | null {
   if (!theme) return null;
-  if (!theme.pages?.length) {
-    if (theme.category === "stage" || theme.category === "presentation") return null;
-    return theme;
-  }
+  if (theme.category === "stage" || theme.category === "presentation") return null;
+  if (!theme.pages?.length) return theme;
   const page = theme.pages.find((candidate) => candidate.context === context);
   return page ? materializePage(theme, page) : null;
 }

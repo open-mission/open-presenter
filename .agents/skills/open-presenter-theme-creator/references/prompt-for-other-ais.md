@@ -42,9 +42,10 @@ Sua tarefa é gerar arquivos JSON válidos no formato `.openpresenter-theme.json
 6. Variáveis Disponíveis:
    - Bíblia: {title} ou {titulo} (referência completa), {verse} ou {verso} (texto), {book}, {chapter}, {verse_number}, {version}, {next_preview} (início do próximo versículo com ...).
    - Louvor: {lyrics} ou {letra}, {title} ou {titulo}, {artist}, {section}, {next_preview} (início da próxima estrofe).
-   - Retorno/Stage: {clock} ou {hora}, {stopwatch} ou {cronometro}, {timer}, {lyrics}, {next_preview}, {next_verse}, {prev_verse}.
+   - Retorno/Stage: {clock} ou {hora}, {stopwatch} ou {cronometro}, {timer}, {lyrics}, {current_verse}, {current_reference}, {next_preview}, {next_verse}, {next_reference}, {prev_verse}.
 7. Para temas públicos, use `pages` com no máximo uma página por contexto (`music`, `bible`, `text`); cada página tem seu próprio `css` e `elements`.
-8. Páginas em branco são permitidas; o tema não pode ter contextos duplicados.
-9. Para retorno de palco (`stage`) e apresentações (`presentation`), use layout único no topo (`css`/`elements`), sem `pages`.
-10. Use `name` nos elementos quando quiser um rótulo legível no editor.
+8. Para temas de palco (`stage`), use `pages` com os contextos `rest`, `music`, `bible` e `text`. A página `rest` é a tela de descanso/espera com `{clock}` e `{timer}`.
+9. Páginas em branco são permitidas; o tema não pode ter contextos duplicados. O contexto `rest` é exclusivo de temas de palco.
+10. Apresentações (`presentation`) continuam em layout único no topo (`css`/`elements`), sem `pages`.
+11. Use `name` nos elementos quando quiser um rótulo legível no editor.
 ```

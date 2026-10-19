@@ -1,7 +1,12 @@
 import type { SlideTheme, ThemeContext, ThemeElement, ThemePage } from "@/core/types";
 
 export const THEME_PACKAGE_VERSION = 2;
-export const THEME_CONTEXTS: readonly ThemeContext[] = ["music", "bible", "text"];
+export const THEME_CONTEXTS: readonly ThemeContext[] = [
+  "rest",
+  "music",
+  "bible",
+  "text",
+];
 
 export interface ThemePackageV2 {
   $schema?: string;
@@ -135,6 +140,8 @@ export function parseThemeFromJson(rawJson: string | unknown, regenerateGuid = t
     throw new Error("Tema inválido: campo 'title' é obrigatório.");
   }
 
+  const category =
+    typeof rawTheme.category === "string" ? rawTheme.category : "theme";
   const hasPages = Array.isArray(rawTheme.pages);
   const pages = hasPages
     ? (rawTheme.pages as unknown[]).map((page, index) => parsePage(page, index))
@@ -147,6 +154,11 @@ export function parseThemeFromJson(rawJson: string | unknown, regenerateGuid = t
     for (const page of pages) {
       if (seen.has(page.context)) {
         throw new Error(`Tema inválido: contexto duplicado "${page.context}".`);
+      }
+      if (page.context === "rest" && category !== "stage") {
+        throw new Error(
+          'Tema inválido: o contexto "rest" é exclusivo de temas de palco.',
+        );
       }
       seen.add(page.context);
     }
@@ -165,7 +177,7 @@ export function parseThemeFromJson(rawJson: string | unknown, regenerateGuid = t
       ? crypto.randomUUID()
       : (typeof rawTheme.guid === "string" && rawTheme.guid ? rawTheme.guid : crypto.randomUUID()),
     title: rawTheme.title.trim(),
-    category: typeof rawTheme.category === "string" ? rawTheme.category : "theme",
+    category,
     css: pages ? {} : parseCss(rawTheme.css),
     elements: pages ? [] : elements,
     pages,

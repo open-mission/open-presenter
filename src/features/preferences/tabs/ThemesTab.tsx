@@ -25,13 +25,16 @@ import { exportThemeAsJson, importThemeFile } from "@/features/slide-themes/them
 import {
   cloneTheme,
   isPublicTheme,
-  isSingleLayout,
-  PAGE_CONTEXTS,
+  isStageCandidate,
   previewTheme,
+  PUBLIC_PAGE_CONTEXTS,
   themeCoverageLabel,
   themeVersion,
 } from "@/features/slide-themes/pages";
-import { DEFAULT_STAGE_THEME } from "@/features/slide-themes/seedThemes";
+import {
+  DEFAULT_PUBLIC_THEME,
+  DEFAULT_STAGE_THEME,
+} from "@/features/slide-themes/seedThemes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -119,180 +122,28 @@ const GRID_COLUMNS: GridColumn[] = [
   },
 ];
 
-function newBlankTheme(
+function newPublicTheme(
   title: string,
-  kind: "lyric" | "text" | "scripture" = "lyric",
+  focusContext?: ThemeContext,
 ): SlideTheme {
-  if (kind === "scripture") {
-    return {
-      guid: crypto.randomUUID(),
-      title,
-      category: "theme",
-      css: { background: "#000000" },
-      elements: [
-        {
-          id: "referencia",
-          type: "TEXT",
-          x: 8,
-          y: 6,
-          visible: true,
-          locked: false,
-          css: {
-            top: "6%",
-            left: "8%",
-            width: "84%",
-            height: "8%",
-            textAlign: "center",
-            fontSize: "30px",
-            fontWeight: "700",
-            letterSpacing: "2px",
-            textTransform: "uppercase",
-            color: "#60a5fa",
-            textShadow: "0 2px 8px rgba(0,0,0,0.8)",
-          },
-          text: "{titulo}",
-        },
-        {
-          id: "versiculo",
-          type: "TEXT",
-          x: 8,
-          y: 16,
-          visible: true,
-          locked: false,
-          css: {
-            top: "16%",
-            left: "8%",
-            width: "84%",
-            height: "76%",
-            textAlign: "center",
-            fontSize: "52px",
-            fontWeight: "600",
-            lineHeight: "1.35",
-            color: "#ffffff",
-            autoShrink: "true",
-            textShadow: "0 2px 10px rgba(0,0,0,0.8)",
-          },
-          text: "{verso}",
-        },
-      ],
-    };
+  const theme = cloneTheme(DEFAULT_PUBLIC_THEME, title);
+  theme.category = "theme";
+  if (focusContext && theme.pages) {
+    const focused = theme.pages.find((page) => page.context === focusContext);
+    if (focused) {
+      theme.pages = [focused, ...theme.pages.filter((page) => page !== focused)];
+    }
   }
-
-  if (kind === "text") {
-    return {
-      guid: crypto.randomUUID(),
-      title,
-      category: "theme",
-      css: { background: "#000000" },
-      elements: [
-        {
-          id: "titulo",
-          type: "TEXT",
-          x: 10,
-          y: 8,
-          visible: true,
-          locked: false,
-          css: {
-            top: "8%",
-            left: "10%",
-            width: "80%",
-            textAlign: "center",
-            fontSize: "28px",
-            fontWeight: "600",
-            letterSpacing: "3px",
-            textTransform: "uppercase",
-            color: "#a1a1aa",
-          },
-          text: "{titulo}",
-        },
-        {
-          id: "texto",
-          type: "TEXT",
-          x: 10,
-          y: 26,
-          visible: true,
-          locked: false,
-          css: {
-            top: "26%",
-            left: "10%",
-            width: "80%",
-            textAlign: "center",
-            fontSize: "52px",
-            fontWeight: "600",
-            lineHeight: "1.35",
-            color: "#ffffff",
-            textShadow: "0 2px 10px rgba(0,0,0,0.8)",
-          },
-          text: "{texto}",
-        },
-      ],
-    };
-  }
-
-  return {
-    guid: crypto.randomUUID(),
-    title,
-    category: "theme",
-    css: { background: "#000000" },
-    elements: [
-      {
-        id: "letra",
-        type: "TEXT",
-        x: 10,
-        y: 30,
-        visible: true,
-        locked: false,
-        css: {
-          top: "30%",
-          left: "10%",
-          width: "80%",
-          textAlign: "center",
-          fontSize: "56px",
-          fontWeight: "700",
-          lineHeight: "1.25",
-          color: "#ffffff",
-        },
-        text: "{letra}",
-      },
-    ],
-  };
-}
-
-const STAGE_RES_KEY = "open_presenter_stage_ref_res";
-
-function newPageTheme(title: string, context: ThemeContext): SlideTheme {
-  const kind =
-    context === "music" ? "lyric" : context === "bible" ? "scripture" : "text";
-  const base = newBlankTheme(title, kind);
-  return {
-    ...base,
-    guid: crypto.randomUUID(),
-    category: "theme",
-    css: {},
-    elements: [],
-    pages: [
-      {
-        id: crypto.randomUUID(),
-        context,
-        css: { ...base.css },
-        elements: base.elements,
-      },
-    ],
-  };
+  return theme;
 }
 
 function newStageTheme(title: string): SlideTheme {
-  const now = new Date().toISOString();
-  const theme = structuredClone(DEFAULT_STAGE_THEME);
-  return {
-    ...theme,
-    guid: crypto.randomUUID(),
-    title,
-    category: "stage",
-    createdAt: now,
-    updatedAt: now,
-  };
+  const theme = cloneTheme(DEFAULT_STAGE_THEME, title);
+  theme.category = "stage";
+  return theme;
 }
+
+const STAGE_RES_KEY = "open_presenter_stage_ref_res";
 
 function loadStoredStageRes(): { width: number; height: number } {
   try {
@@ -353,21 +204,19 @@ export function ThemesTab() {
     );
   }, [load]);
 
-  const templateThemes = useMemo(() => themes.filter(isPublicTheme), [themes]);
-  const stageThemes = useMemo(
-    () =>
-      themes.filter(
-        (theme) => theme.category !== "presentation" && isSingleLayout(theme),
-      ),
+  const publicThemes = useMemo(() => themes.filter(isPublicTheme), [themes]);
+  const stageThemes = useMemo(() => themes.filter(isStageCandidate), [themes]);
+  const galleryThemes = useMemo(
+    () => themes.filter((theme) => theme.category !== "presentation"),
     [themes],
   );
 
   async function handleCreatePublic(context: ThemeContext) {
     setError(null);
     try {
-      const info = PAGE_CONTEXTS.find((item) => item.context === context)!;
-      const theme = newPageTheme(
-        `Novo Tema de ${info.label} ${templateThemes.length + 1}`,
+      const info = PUBLIC_PAGE_CONTEXTS.find((item) => item.context === context)!;
+      const theme = newPublicTheme(
+        `Novo Tema de ${info.label} ${publicThemes.length + 1}`,
         context,
       );
       await save(theme);
@@ -438,7 +287,7 @@ export function ThemesTab() {
   }
 
   const pickerThemes =
-    pickerTarget?.type === "stage" ? stageThemes : templateThemes;
+    pickerTarget?.type === "stage" ? stageThemes : publicThemes;
 
   return (
     <div className="flex flex-col gap-7 select-none">
@@ -691,7 +540,8 @@ export function ThemesTab() {
               Galeria de temas
             </h3>
             <p className="text-xs text-muted-foreground">
-              Crie, duplique ou edite temas visuais para o telão e palco.
+              Crie, duplique ou edite temas para o telão e o palco. Novos temas
+              já começam com um modelo visual completo; ajuste o que precisar.
             </p>
           </div>
 
@@ -737,28 +587,28 @@ export function ThemesTab() {
                   className="cursor-pointer gap-2"
                 >
                   <Music className="size-3.5 text-primary" />
-                  <span>Tema para Música (Louvor)</span>
+                  <span>Modelo público — Música</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => void handleCreatePublic("bible")}
                   className="cursor-pointer gap-2"
                 >
                   <BookOpen className="size-3.5 text-primary" />
-                  <span>Tema para Bíblia (Versículos)</span>
+                  <span>Modelo público — Bíblia</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => void handleCreatePublic("text")}
                   className="cursor-pointer gap-2"
                 >
                   <FileText className="size-3.5 text-primary" />
-                  <span>Tema para Texto (Avisos / Ministração)</span>
+                  <span>Modelo público — Texto</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => void handleCreateStage()}
                   className="cursor-pointer gap-2"
                 >
                   <Monitor className="size-3.5 text-primary" />
-                  <span>Tema de Retorno (Stage)</span>
+                  <span>Modelo de palco — 4 momentos</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -766,14 +616,16 @@ export function ThemesTab() {
         </div>
 
         {/* Gallery Grid */}
-        {templateThemes.length === 0 ? (
+        {galleryThemes.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">
             Nenhum tema encontrado. Crie um novo tema para começar.
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {templateThemes.map((theme) => {
-              const isStage = stageThemeGuid === theme.guid;
+            {galleryThemes.map((theme) => {
+              const isStage =
+                stageThemeGuid === theme.guid ||
+                resolvedStageTheme?.guid === theme.guid;
               const isDefaultPublic = bindings.some(
                 (b) => b.themeGuid === theme.guid,
               );
@@ -805,11 +657,11 @@ export function ThemesTab() {
                         Telão
                       </Badge>
                     )}
-                    {isPublicTheme(theme) && (
+                    {theme.pages?.length ? (
                       <Badge variant="outline" className="text-[9px]">
                         {themeCoverageLabel(theme)}
                       </Badge>
-                    )}
+                    ) : null}
                     {themeVersion(theme) === "v1" && (
                       <Badge
                         variant="outline"

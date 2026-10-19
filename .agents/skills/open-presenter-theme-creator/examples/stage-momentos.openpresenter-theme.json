@@ -1,0 +1,468 @@
+{
+  "$schema": "https://openpresenter.dev/schemas/theme-v2.json",
+  "format": "open-presenter-theme",
+  "version": 2,
+  "exportedAt": "2026-10-19T13:30:00.000Z",
+  "theme": {
+    "title": "Retorno de Palco por Momentos",
+    "category": "stage",
+    "pages": [
+      {
+        "id": "rest",
+        "context": "rest",
+        "css": {
+          "background": "radial-gradient(circle at 50% 0%, rgba(251,191,36,0.10), transparent 46%), linear-gradient(160deg, #0b0b0f 0%, #050507 58%, #000000 100%)"
+        },
+        "elements": [
+          {
+            "id": "relogio",
+            "name": "Relógio",
+            "type": "TEXT",
+            "x": 8,
+            "y": 22,
+            "visible": true,
+            "locked": false,
+            "text": "{clock}",
+            "css": {
+              "top": "22%",
+              "left": "8%",
+              "width": "84%",
+              "height": "26%",
+              "textAlign": "center",
+              "fontSize": "180px",
+              "fontWeight": "700",
+              "fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace",
+              "letterSpacing": "4px",
+              "color": "#ffffff",
+              "textShadow": "0 4px 28px rgba(0,0,0,0.9)",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "timer",
+            "name": "Tempo",
+            "type": "TEXT",
+            "x": 20,
+            "y": 53,
+            "visible": true,
+            "locked": false,
+            "text": "{timer}",
+            "css": {
+              "top": "53%",
+              "left": "20%",
+              "width": "60%",
+              "height": "12%",
+              "textAlign": "center",
+              "fontSize": "56px",
+              "fontWeight": "700",
+              "fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace",
+              "color": "#fbbf24",
+              "textShadow": "0 2px 16px rgba(0,0,0,0.8)",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "status",
+            "name": "Status",
+            "type": "TEXT",
+            "x": 20,
+            "y": 73,
+            "visible": true,
+            "locked": false,
+            "text": "PALCO EM ESPERA",
+            "css": {
+              "top": "73%",
+              "left": "20%",
+              "width": "60%",
+              "height": "6%",
+              "textAlign": "center",
+              "fontSize": "20px",
+              "fontWeight": "600",
+              "letterSpacing": "8px",
+              "textTransform": "uppercase",
+              "color": "#71717a",
+              "autoShrink": "true"
+            }
+          }
+        ]
+      },
+      {
+        "id": "music",
+        "context": "music",
+        "css": {
+          "background": "radial-gradient(circle at 82% 6%, rgba(251,191,36,0.14), transparent 42%), linear-gradient(140deg, #17120c 0%, #0a0a0c 58%, #000000 100%)"
+        },
+        "elements": [
+          {
+            "id": "relogio",
+            "name": "Relógio",
+            "type": "TEXT",
+            "x": 3,
+            "y": 4,
+            "visible": true,
+            "locked": false,
+            "text": "{clock}",
+            "css": {
+              "top": "4%",
+              "left": "3%",
+              "width": "20%",
+              "height": "7%",
+              "textAlign": "left",
+              "fontSize": "36px",
+              "fontWeight": "700",
+              "fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace",
+              "color": "#fbbf24",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "timer",
+            "name": "Tempo",
+            "type": "TEXT",
+            "x": 77,
+            "y": 4,
+            "visible": true,
+            "locked": false,
+            "text": "{timer}",
+            "css": {
+              "top": "4%",
+              "left": "77%",
+              "width": "20%",
+              "height": "7%",
+              "textAlign": "right",
+              "fontSize": "36px",
+              "fontWeight": "700",
+              "fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace",
+              "color": "#38bdf8",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "titulo",
+            "name": "Título",
+            "type": "TEXT",
+            "x": 8,
+            "y": 10,
+            "visible": true,
+            "locked": false,
+            "text": "{title}",
+            "css": {
+              "top": "10%",
+              "left": "8%",
+              "width": "84%",
+              "height": "5%",
+              "textAlign": "center",
+              "fontSize": "24px",
+              "fontWeight": "600",
+              "letterSpacing": "5px",
+              "textTransform": "uppercase",
+              "color": "#fcd34d",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "letra",
+            "name": "Letra",
+            "type": "TEXT",
+            "x": 6,
+            "y": 19,
+            "visible": true,
+            "locked": false,
+            "text": "{lyrics}",
+            "css": {
+              "top": "19%",
+              "left": "6%",
+              "width": "88%",
+              "height": "52%",
+              "textAlign": "center",
+              "fontSize": "72px",
+              "fontWeight": "700",
+              "lineHeight": "1.22",
+              "color": "#ffffff",
+              "textShadow": "0 3px 20px rgba(0,0,0,0.75)",
+              "whiteSpace": "pre-wrap",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "proximo",
+            "name": "Próximo",
+            "type": "TEXT",
+            "x": 6,
+            "y": 77,
+            "visible": true,
+            "locked": false,
+            "text": "A SEGUIR  ·  {next_preview}",
+            "css": {
+              "top": "77%",
+              "left": "6%",
+              "width": "88%",
+              "height": "15%",
+              "textAlign": "center",
+              "fontSize": "30px",
+              "fontWeight": "500",
+              "lineHeight": "1.3",
+              "color": "#a1a1aa",
+              "borderTopWidth": "1px",
+              "borderTopColor": "rgba(255,255,255,0.15)",
+              "borderTopStyle": "solid",
+              "paddingTop": "18px",
+              "whiteSpace": "pre-wrap",
+              "autoShrink": "true"
+            }
+          }
+        ]
+      },
+      {
+        "id": "bible",
+        "context": "bible",
+        "css": {
+          "background": "radial-gradient(circle at 78% 6%, rgba(56,189,248,0.14), transparent 42%), linear-gradient(145deg, #08131f 0%, #060a11 55%, #000000 100%)"
+        },
+        "elements": [
+          {
+            "id": "relogio",
+            "name": "Relógio",
+            "type": "TEXT",
+            "x": 3,
+            "y": 4,
+            "visible": true,
+            "locked": false,
+            "text": "{clock}",
+            "css": {
+              "top": "4%",
+              "left": "3%",
+              "width": "20%",
+              "height": "7%",
+              "textAlign": "left",
+              "fontSize": "36px",
+              "fontWeight": "700",
+              "fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace",
+              "color": "#fbbf24",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "timer",
+            "name": "Tempo",
+            "type": "TEXT",
+            "x": 77,
+            "y": 4,
+            "visible": true,
+            "locked": false,
+            "text": "{timer}",
+            "css": {
+              "top": "4%",
+              "left": "77%",
+              "width": "20%",
+              "height": "7%",
+              "textAlign": "right",
+              "fontSize": "36px",
+              "fontWeight": "700",
+              "fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace",
+              "color": "#38bdf8",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "referencia",
+            "name": "Referência",
+            "type": "TEXT",
+            "x": 8,
+            "y": 9,
+            "visible": true,
+            "locked": false,
+            "text": "{current_reference}",
+            "css": {
+              "top": "9%",
+              "left": "8%",
+              "width": "84%",
+              "height": "6%",
+              "textAlign": "center",
+              "fontSize": "34px",
+              "fontWeight": "700",
+              "letterSpacing": "3px",
+              "color": "#7dd3fc",
+              "textShadow": "0 2px 16px rgba(0,0,0,0.7)",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "versiculo",
+            "name": "Versículo",
+            "type": "TEXT",
+            "x": 7,
+            "y": 18,
+            "visible": true,
+            "locked": false,
+            "text": "{current_verse}",
+            "css": {
+              "top": "18%",
+              "left": "7%",
+              "width": "86%",
+              "height": "52%",
+              "textAlign": "center",
+              "fontSize": "58px",
+              "fontWeight": "600",
+              "lineHeight": "1.38",
+              "color": "#f8fafc",
+              "textShadow": "0 3px 20px rgba(0,0,0,0.8)",
+              "whiteSpace": "pre-wrap",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "proximo",
+            "name": "Próximo",
+            "type": "TEXT",
+            "x": 7,
+            "y": 77,
+            "visible": true,
+            "locked": false,
+            "text": "A SEGUIR  ·  {next_reference}",
+            "css": {
+              "top": "77%",
+              "left": "7%",
+              "width": "86%",
+              "height": "15%",
+              "textAlign": "center",
+              "fontSize": "30px",
+              "fontWeight": "500",
+              "lineHeight": "1.3",
+              "color": "#94a3b8",
+              "borderTopWidth": "1px",
+              "borderTopColor": "rgba(255,255,255,0.15)",
+              "borderTopStyle": "solid",
+              "paddingTop": "18px",
+              "autoShrink": "true"
+            }
+          }
+        ]
+      },
+      {
+        "id": "text",
+        "context": "text",
+        "css": {
+          "background": "radial-gradient(circle at 16% 88%, rgba(167,139,250,0.12), transparent 42%), linear-gradient(150deg, #100b18 0%, #08060d 56%, #000000 100%)"
+        },
+        "elements": [
+          {
+            "id": "relogio",
+            "name": "Relógio",
+            "type": "TEXT",
+            "x": 3,
+            "y": 4,
+            "visible": true,
+            "locked": false,
+            "text": "{clock}",
+            "css": {
+              "top": "4%",
+              "left": "3%",
+              "width": "20%",
+              "height": "7%",
+              "textAlign": "left",
+              "fontSize": "36px",
+              "fontWeight": "700",
+              "fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace",
+              "color": "#fbbf24",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "timer",
+            "name": "Tempo",
+            "type": "TEXT",
+            "x": 77,
+            "y": 4,
+            "visible": true,
+            "locked": false,
+            "text": "{timer}",
+            "css": {
+              "top": "4%",
+              "left": "77%",
+              "width": "20%",
+              "height": "7%",
+              "textAlign": "right",
+              "fontSize": "36px",
+              "fontWeight": "700",
+              "fontFamily": "ui-monospace, SFMono-Regular, Menlo, monospace",
+              "color": "#38bdf8",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "titulo",
+            "name": "Título",
+            "type": "TEXT",
+            "x": 8,
+            "y": 10,
+            "visible": true,
+            "locked": false,
+            "text": "{title}",
+            "css": {
+              "top": "10%",
+              "left": "8%",
+              "width": "84%",
+              "height": "6%",
+              "textAlign": "center",
+              "fontSize": "38px",
+              "fontWeight": "700",
+              "color": "#ffffff",
+              "textShadow": "0 2px 16px rgba(0,0,0,0.7)",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "texto",
+            "name": "Texto",
+            "type": "TEXT",
+            "x": 8,
+            "y": 20,
+            "visible": true,
+            "locked": false,
+            "text": "{text}",
+            "css": {
+              "top": "20%",
+              "left": "8%",
+              "width": "84%",
+              "height": "52%",
+              "textAlign": "center",
+              "fontSize": "54px",
+              "fontWeight": "600",
+              "lineHeight": "1.35",
+              "color": "#e4e4e7",
+              "textShadow": "0 3px 20px rgba(0,0,0,0.75)",
+              "whiteSpace": "pre-wrap",
+              "autoShrink": "true"
+            }
+          },
+          {
+            "id": "proximo",
+            "name": "Próximo",
+            "type": "TEXT",
+            "x": 8,
+            "y": 77,
+            "visible": true,
+            "locked": false,
+            "text": "A SEGUIR  ·  {next_preview}",
+            "css": {
+              "top": "77%",
+              "left": "8%",
+              "width": "84%",
+              "height": "12%",
+              "textAlign": "center",
+              "fontSize": "28px",
+              "fontWeight": "500",
+              "color": "#a1a1aa",
+              "borderTopWidth": "1px",
+              "borderTopColor": "rgba(255,255,255,0.15)",
+              "borderTopStyle": "solid",
+              "paddingTop": "16px",
+              "autoShrink": "true"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

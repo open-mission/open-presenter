@@ -9,7 +9,7 @@ if (!filePath) {
 }
 
 const allowedTypes = new Set(["TEXT", "IMAGE", "VIDEO", "RECTANGLE"]);
-const allowedContexts = new Set(["music", "bible", "text"]);
+const allowedContexts = new Set(["rest", "music", "bible", "text"]);
 
 function validateElements(elements, label, allowEmpty) {
   if (!Array.isArray(elements)) {
@@ -38,6 +38,9 @@ try {
 
   const candidate = parsed.theme || parsed;
   const version = Number(parsed.version || candidate.version || 1);
+  const category = candidate.category || "theme";
+  const contextsForCategory =
+    category === "stage" ? allowedContexts : new Set(["music", "bible", "text"]);
 
   if (typeof candidate.title !== "string" || !candidate.title.trim()) {
     throw new Error("Campo 'title' ausente ou vazio.");
@@ -53,8 +56,10 @@ try {
       if (!page || typeof page !== "object") {
         throw new Error(`Página #${idx + 1} inválida.`);
       }
-      if (!allowedContexts.has(page.context)) {
-        throw new Error(`Página #${idx + 1}: contexto inválido '${page.context}'.`);
+      if (!contextsForCategory.has(page.context)) {
+        throw new Error(
+          `Página #${idx + 1}: contexto '${page.context}' inválido para a categoria '${category}'.`,
+        );
       }
       if (seen.has(page.context)) {
         throw new Error(`Contexto duplicado '${page.context}'.`);

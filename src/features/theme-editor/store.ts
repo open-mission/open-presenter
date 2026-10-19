@@ -38,7 +38,7 @@ interface ThemeEditorState {
   selectPage(pageId: string): void;
   addPage(context: ThemeContext, mode: "duplicate" | "blank"): void;
   removePage(pageId: string): void;
-  upgradeToV2(context: ThemeContext): void;
+  upgradeToV2(context: ThemeContext, category?: SlideTheme["category"]): void;
   undo(): void;
   redo(): void;
   canUndo(): boolean;
@@ -170,17 +170,19 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
     },
 
     toggleVisible: (id) => {
-      const { draft } = get();
+      const { draft, activePageId } = get();
       if (!draft) return;
-      const el = draft.elements.find((e) => e.id === id);
+      const page = getActivePage(draft, activePageId);
+      const el = (page?.elements ?? draft.elements).find((e) => e.id === id);
       if (!el) return;
       get().updateElement(id, { visible: !el.visible });
     },
 
     toggleLocked: (id) => {
-      const { draft } = get();
+      const { draft, activePageId } = get();
       if (!draft) return;
-      const el = draft.elements.find((e) => e.id === id);
+      const page = getActivePage(draft, activePageId);
+      const el = (page?.elements ?? draft.elements).find((e) => e.id === id);
       if (!el) return;
       get().updateElement(id, { locked: !el.locked });
     },
@@ -222,7 +224,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       set({ activePageId: nextActive });
     },
 
-    upgradeToV2: (context) => {
+    upgradeToV2: (context, category) => {
       const { draft } = get();
       if (!draft || draft.pages?.length) return;
       const page: ThemePage = {
@@ -234,6 +236,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       const guid = draft.guid;
       const next = cloneTheme(draft, draft.title);
       next.guid = guid;
+      next.category = category ?? draft.category ?? "theme";
       next.pages = [page];
       next.css = {};
       next.elements = [];

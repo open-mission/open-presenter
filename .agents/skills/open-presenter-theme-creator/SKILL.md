@@ -39,21 +39,25 @@ They can be imported and exported via the Themes Gallery in **Preferências > Te
 
 ## 1.1 Páginas por contexto (v2)
 
-Temas públicos v2 organizam o visual em `pages`, uma por contexto:
+Temas v2 organizam o visual em `pages`, uma por contexto:
 
+- `rest` — descanso do palco: relógio, cronômetro/regressivo e status (exclusivo de `category: "stage"`)
 - `music` — letra de música (variáveis `{lyrics}`, `{title}`, `{section}`, ...)
-- `bible` — escritura (variáveis `{verse}`, `{title}`, ...)
+- `bible` — escritura (variáveis `{verse}`, `{title}`, `{current_reference}`, ...)
 - `text` — avisos, ministração e textos livres (variáveis `{texto}`, `{titulo}`, ...)
 
 Regras:
 
+- Temas públicos usam `music`, `bible` e `text`. Temas de palco usam `rest`, `music`, `bible` e `text`.
 - Cada página tem `id`, `context`, `css` (inclui o `background`) e `elements`.
 - Não pode haver duas páginas com o mesmo contexto.
 - Uma página pode ter zero elementos (página em branco).
 - O topo do tema pode omitir `css`/`elements` quando `pages` existe.
-- O fallback ao vivo é: tema do evento → vínculo das configurações → tema padrão embutido.
-- `category: "stage"` (retorno) e `"presentation"` (Studio) continuam em layout único, sem `pages`.
+- O fallback público ao vivo é: tema do evento → vínculo das configurações → tema padrão embutido.
+- O palco troca de página automaticamente conforme o conteúdo ao vivo (descanso, música, Bíblia ou texto).
+- `"presentation"` (Studio) continua em layout único, sem `pages`.
 - Tema público v1 (sem `pages`) continua válido e é universal até ser atualizado no editor.
+- Tema de palco v1 (layout único, sem `pages`) continua válido e pode ser atualizado para páginas no editor.
 
 --------------------------------------------------------------------------------
 
@@ -94,10 +98,14 @@ Elements with `type: "TEXT"` parse placeholders `{variable}` dynamically during 
 - `{clock}` ou `{hora}`: Relógio de parede do sistema (ex: `19:45`)
 - `{stopwatch}` ou `{cronometro}`: Cronômetro progressivo (`MM:SS`)
 - `{timer}` ou `{countdown}`: Cronômetro regressivo
-- `{lyrics}` ou `{letra}`: Conteúdo principal atual
+- `{lyrics}` ou `{letra}`: Conteúdo principal atual (música ou texto)
+- `{current_verse}`: Texto do versículo atual
+- `{current_reference}`: Referência bíblica atual
 - `{next_verse}` ou `{proximo_versiculo}`: Conteúdo completo do próximo slide
 - `{next_preview}`: Resumo inicial da próxima estrofe com `...`
+- `{next_reference}`: Referência do próximo versículo
 - `{prev_verse}`: Conteúdo do slide anterior
+- Na página `rest`, use `{clock}` e `{timer}` para a tela de espera.
 
 *Para o catálogo detalhado, consulte [variables-guide.md](./references/variables-guide.md).*
 
@@ -125,16 +133,18 @@ When creating themes, adhere to the following projection principles:
 ## 5. Workflow: Generating and Validating a Theme
 
 1. **Determine Category & Purpose:**
-   - Telão / Projeção: `"category": "theme"`
-   - Retorno de Palco: `"category": "stage"`
+   - Telão / Projeção: `"category": "theme"`, com páginas `music`, `bible` e `text`
+   - Retorno de Palco: `"category": "stage"`, com páginas `rest`, `music`, `bible` e `text`
    - Lower Third (OBS): `"category": "theme"`, `"css": { "background": "transparent" }`
 2. **Draft the JSON Package:**
    - Follow the schema in [theme-schema.json](./references/theme-schema.json).
+   - New themes in the app already start from elegant public/stage templates; the JSON examples are references for custom designs.
    - Or start from one of the reference examples:
      - [Tema com páginas por contexto](./examples/tema-paginas.openpresenter-theme.json)
      - [Bíblia com Preview](./examples/biblia-moderna-com-preview.openpresenter-theme.json)
      - [Louvor Clean Minimal](./examples/louvor-clean-minimal.openpresenter-theme.json)
-     - [Retorno de Palco Completo](./examples/stage-monitor-completo.openpresenter-theme.json)
+     - [Retorno de Palco por Momentos (v2)](./examples/stage-momentos.openpresenter-theme.json)
+     - [Retorno de Palco Completo (legado v1)](./examples/stage-monitor-completo.openpresenter-theme.json)
      - [Lower Third Transmissão](./examples/lower-third-transmissao.openpresenter-theme.json)
 3. **Validate:**
    - Run the validation script:

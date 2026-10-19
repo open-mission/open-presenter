@@ -268,9 +268,9 @@ export interface ImageTreeNode {
 
 export type ThemeElementType = "TEXT" | "IMAGE" | "VIDEO" | "RECTANGLE";
 
-export type ThemeAsset = "music" | "bible" | "text";
+export type ThemeAsset = "music" | "bible" | "text" | "rest";
 
-export type ThemeContext = "music" | "bible" | "text";
+export type ThemeContext = "music" | "bible" | "text" | "rest";
 
 export interface ThemeElement {
   id: string;
