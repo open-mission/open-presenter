@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createEmptyStudioTheme } from "./seedThemes.ts";
+import {
+  createEmptyStudioTheme,
+  DEFAULT_PUBLIC_THEME,
+  DEFAULT_STAGE_THEME,
+} from "./seedThemes.ts";
 
 test("createEmptyStudioTheme cria apresentação com categoria, datas e elementos padrão", () => {
   const presentation = createEmptyStudioTheme("Aviso de Domingo");
@@ -22,4 +26,17 @@ test("createEmptyStudioTheme respeita gradiente ou fundo customizado", () => {
   assert.equal(presentation.title, "Ceia do Senhor");
   assert.equal(presentation.css?.background, customBg);
   assert.equal(presentation.category, "presentation");
+});
+
+test("tema público padrão tem uma página para cada contexto", () => {
+  assert.equal(DEFAULT_PUBLIC_THEME.category, "theme");
+  assert.deepEqual(
+    DEFAULT_PUBLIC_THEME.pages?.map((page) => page.context),
+    ["music", "bible", "text"],
+  );
+  assert.equal(DEFAULT_PUBLIC_THEME.elements.length, 0);
+});
+
+test("temas de retorno usam a categoria stage", () => {
+  assert.equal(DEFAULT_STAGE_THEME.category, "stage");
 });

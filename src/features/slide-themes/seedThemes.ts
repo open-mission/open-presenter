@@ -4,6 +4,8 @@ export const DEFAULT_MUSIC_THEME_GUID = "a7c799c6-7f78-47ff-b0bb-28ffd657c343";
 
 export const DEFAULT_STAGE_THEME_GUID = "279597e6-9811-497a-8e32-9e5dd189e7d0";
 
+export const DEFAULT_PUBLIC_THEME_GUID = "5f0c3a2e-9d4b-4e8a-8c1f-2a7b6d9e4c10";
+
 export const DEFAULT_TEXT_THEME_GUID = "c8d198e7-8b89-48ff-b1cc-39eed768d454";
 
 export const DEFAULT_SCRIPTURE_THEME_GUID = "b9e299f7-8b89-49ff-a1cc-49eed768d777";
@@ -172,10 +174,36 @@ export const DEFAULT_MUSIC_THEME: SlideTheme = {
   ],
 };
 
+function themePage(
+  id: string,
+  context: "music" | "bible" | "text",
+  source: SlideTheme,
+) {
+  return {
+    id,
+    context,
+    css: { ...source.css },
+    elements: structuredClone(source.elements),
+  };
+}
+
+export const DEFAULT_PUBLIC_THEME: SlideTheme = {
+  guid: DEFAULT_PUBLIC_THEME_GUID,
+  title: "Tema Padrão",
+  category: "theme",
+  css: {},
+  elements: [],
+  pages: [
+    themePage("default-music", "music", DEFAULT_MUSIC_THEME),
+    themePage("default-bible", "bible", DEFAULT_SCRIPTURE_THEME),
+    themePage("default-text", "text", DEFAULT_TEXT_THEME),
+  ],
+};
+
 export const DEFAULT_STAGE_THEME: SlideTheme = {
   guid: DEFAULT_STAGE_THEME_GUID,
   title: "Retorno Padrão",
-  category: "theme",
+  category: "stage",
   css: {
     background: "#000000",
   },
@@ -293,7 +321,7 @@ export const DEFAULT_STAGE_REST_THEME_GUID = "38e928f7-9912-40ee-b0cc-49ffc779d8
 export const DEFAULT_STAGE_REST_THEME: SlideTheme = {
   guid: DEFAULT_STAGE_REST_THEME_GUID,
   title: "Retorno - Descanso / Relógio",
-  category: "theme",
+  category: "stage",
   css: {
     background: "#080808",
   },
