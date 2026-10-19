@@ -51,3 +51,4 @@ command-code-session-*.html
 # Misc
 coverage/
 .nyc_output/
+.superpowers/
