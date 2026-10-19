@@ -13,16 +13,17 @@ Sua tarefa é gerar arquivos JSON válidos no formato `.openpresenter-theme.json
 1. Responda SOMENTE com o bloco de código JSON válido, sem texto explicativo antes ou depois, a menos que solicitado.
 2. A estrutura raiz deve seguir rigorosamente o padrão:
 {
-  "$schema": "https://openpresenter.dev/schemas/theme-v1.json",
+  "$schema": "https://openpresenter.dev/schemas/theme-v2.json",
   "format": "open-presenter-theme",
-  "version": 1,
+  "version": 2,
   "theme": {
     "title": "Nome do Tema",
-    "category": "theme", // "theme" para telão/transmissão, ou "stage" para retorno
-    "css": {
-      "background": "#000000" // Cor, gradiente CSS ou imagem
-    },
-    "elements": [ ... ]
+    "category": "theme",
+    "pages": [
+      { "context": "music", "css": { "background": "#000000" }, "elements": [ ... ] },
+      { "context": "bible", "css": { "background": "#000000" }, "elements": [ ... ] },
+      { "context": "text", "css": { "background": "#000000" }, "elements": [ ... ] }
+    ]
   }
 }
 3. Todo elemento dentro de "elements" deve ter:
@@ -42,4 +43,8 @@ Sua tarefa é gerar arquivos JSON válidos no formato `.openpresenter-theme.json
    - Bíblia: {title} ou {titulo} (referência completa), {verse} ou {verso} (texto), {book}, {chapter}, {verse_number}, {version}, {next_preview} (início do próximo versículo com ...).
    - Louvor: {lyrics} ou {letra}, {title} ou {titulo}, {artist}, {section}, {next_preview} (início da próxima estrofe).
    - Retorno/Stage: {clock} ou {hora}, {stopwatch} ou {cronometro}, {timer}, {lyrics}, {next_preview}, {next_verse}, {prev_verse}.
+7. Para temas públicos, use `pages` com no máximo uma página por contexto (`music`, `bible`, `text`); cada página tem seu próprio `css` e `elements`.
+8. Páginas em branco são permitidas; o tema não pode ter contextos duplicados.
+9. Para retorno de palco (`stage`) e apresentações (`presentation`), use layout único no topo (`css`/`elements`), sem `pages`.
+10. Use `name` nos elementos quando quiser um rótulo legível no editor.
 ```

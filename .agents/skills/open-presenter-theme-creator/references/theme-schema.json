@@ -14,7 +14,7 @@
     },
     "version": {
       "type": "integer",
-      "const": 1
+      "const": 2
     },
     "exportedAt": {
       "type": "string",
@@ -27,7 +27,7 @@
   "definitions": {
     "SlideTheme": {
       "type": "object",
-      "required": ["title", "elements"],
+      "required": ["title"],
       "properties": {
         "guid": {
           "type": "string",
@@ -53,9 +53,17 @@
         },
         "elements": {
           "type": "array",
-          "minItems": 1,
+          "description": "Camadas do layout único (stage/presentation) e de temas v1. Quando 'pages' existe, o topo é ignorado.",
           "items": {
             "$ref": "#/definitions/ThemeElement"
+          }
+        },
+        "pages": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Páginas por contexto. Presente em temas públicos v2.",
+          "items": {
+            "$ref": "#/definitions/ThemePage"
           }
         },
         "createdAt": {
@@ -66,6 +74,37 @@
         }
       }
     },
+    "ThemeContext": {
+      "type": "string",
+      "enum": ["music", "bible", "text"]
+    },
+    "ThemePage": {
+      "type": "object",
+      "required": ["context", "css", "elements"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "UUID da página; gerado na importação se omitido."
+        },
+        "context": {
+          "$ref": "#/definitions/ThemeContext"
+        },
+        "css": {
+          "type": "object",
+          "description": "Fundo e estilos da página.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "elements": {
+          "type": "array",
+          "description": "Camadas da página. Pode ser vazio (página em branco).",
+          "items": {
+            "$ref": "#/definitions/ThemeElement"
+          }
+        }
+      }
+    },
     "ThemeElement": {
       "type": "object",
       "required": ["id", "type"],
@@ -73,6 +112,10 @@
         "id": {
           "type": "string",
           "description": "Identificador único do elemento dentro do tema (ex: 'titulo', 'verso', 'relogio')."
+        },
+        "name": {
+          "type": "string",
+          "description": "Nome cosmético da camada no editor. O id continua sendo a chave."
         },
         "type": {
           "type": "string",

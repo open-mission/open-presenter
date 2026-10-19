@@ -22,45 +22,38 @@ They can be imported and exported via the Themes Gallery in **Preferências > Te
 
 ```json
 {
-  "$schema": "https://openpresenter.dev/schemas/theme-v1.json",
+  "$schema": "https://openpresenter.dev/schemas/theme-v2.json",
   "format": "open-presenter-theme",
-  "version": 1,
+  "version": 2,
   "exportedAt": "2026-10-19T13:30:00.000Z",
   "theme": {
-    "guid": "optional-uuid-v4",
-    "title": "Nome do Tema",
+    "title": "Tema da Festividade",
     "category": "theme",
-    "css": {
-      "background": "#000000"
-    },
-    "elements": [
-      {
-        "id": "texto-principal",
-        "type": "TEXT",
-        "x": 8,
-        "y": 15,
-        "visible": true,
-        "locked": false,
-        "text": "{verse}",
-        "css": {
-          "top": "15%",
-          "left": "8%",
-          "width": "84%",
-          "height": "70%",
-          "textAlign": "center",
-          "fontSize": "52px",
-          "fontWeight": "600",
-          "lineHeight": "1.35",
-          "color": "#ffffff",
-          "textShadow": "0 2px 12px rgba(0,0,0,0.85)",
-          "whiteSpace": "pre-wrap",
-          "autoShrink": "true"
-        }
-      }
+    "pages": [
+      { "id": "music", "context": "music", "css": { "background": "#000" }, "elements": [] },
+      { "id": "bible", "context": "bible", "css": { "background": "#000" }, "elements": [] }
     ]
   }
 }
 ```
+
+## 1.1 Páginas por contexto (v2)
+
+Temas públicos v2 organizam o visual em `pages`, uma por contexto:
+
+- `music` — letra de música (variáveis `{lyrics}`, `{title}`, `{section}`, ...)
+- `bible` — escritura (variáveis `{verse}`, `{title}`, ...)
+- `text` — avisos, ministração e textos livres (variáveis `{texto}`, `{titulo}`, ...)
+
+Regras:
+
+- Cada página tem `id`, `context`, `css` (inclui o `background`) e `elements`.
+- Não pode haver duas páginas com o mesmo contexto.
+- Uma página pode ter zero elementos (página em branco).
+- O topo do tema pode omitir `css`/`elements` quando `pages` existe.
+- O fallback ao vivo é: tema do evento → vínculo das configurações → tema padrão embutido.
+- `category: "stage"` (retorno) e `"presentation"` (Studio) continuam em layout único, sem `pages`.
+- Tema público v1 (sem `pages`) continua válido e é universal até ser atualizado no editor.
 
 --------------------------------------------------------------------------------
 
@@ -138,6 +131,7 @@ When creating themes, adhere to the following projection principles:
 2. **Draft the JSON Package:**
    - Follow the schema in [theme-schema.json](./references/theme-schema.json).
    - Or start from one of the reference examples:
+     - [Tema com páginas por contexto](./examples/tema-paginas.openpresenter-theme.json)
      - [Bíblia com Preview](./examples/biblia-moderna-com-preview.openpresenter-theme.json)
      - [Louvor Clean Minimal](./examples/louvor-clean-minimal.openpresenter-theme.json)
      - [Retorno de Palco Completo](./examples/stage-monitor-completo.openpresenter-theme.json)
