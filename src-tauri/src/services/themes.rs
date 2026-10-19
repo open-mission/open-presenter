@@ -37,7 +37,26 @@ pub fn get_theme(conn: &Connection, guid: &str) -> Result<Option<SlideTheme>, Ap
 }
 
 pub fn save_theme(conn: &Connection, theme: &SlideTheme) -> Result<(), AppError> {
-    if theme.elements.is_empty() {
+    if let Some(pages) = &theme.pages {
+        if pages.is_empty() {
+            return Err(AppError::Storage("tema deve ter ao menos uma página".into()));
+        }
+        let mut contextos = std::collections::HashSet::new();
+        for page in pages {
+            if !["music", "bible", "text"].contains(&page.context.as_str()) {
+                return Err(AppError::Storage(format!(
+                    "contexto de página inválido: {}",
+                    page.context
+                )));
+            }
+            if !contextos.insert(page.context.as_str()) {
+                return Err(AppError::Storage(format!(
+                    "contexto de página duplicado: {}",
+                    page.context
+                )));
+            }
+        }
+    } else if theme.elements.is_empty() {
         return Err(AppError::Storage("tema deve ter ao menos um elemento".into()));
     }
     let definition =
@@ -63,7 +82,7 @@ pub fn delete_theme(conn: &Connection, guid: &str) -> Result<(), AppError> {
 mod tests {
     use super::*;
     use crate::services::database::open_in_memory;
-    use crate::state::types::{ThemeElement, ThemeElementType};
+    use crate::state::types::{ThemeElement, ThemeElementType, ThemePage};
     use std::collections::HashMap;
 
     fn elemento(id: &str) -> ThemeElement {
@@ -75,6 +94,7 @@ mod tests {
             visible: true,
             locked: false,
             css: HashMap::new(),
+            name: None,
             text: Some("texto".into()),
             src: None,
             asset_type_visibility: None,
@@ -89,10 +109,60 @@ mod tests {
             title: title.into(),
             css: HashMap::new(),
             elements: vec![elemento("e1")],
+            pages: None,
             category: None,
             created_at: None,
             updated_at: None,
         }
+    }
+
+    fn pagina(context: &str) -> ThemePage {
+        ThemePage {
+            id: format!("page-{context}"),
+            context: context.into(),
+            css: HashMap::new(),
+            elements: vec![elemento("e1")],
+        }
+    }
+
+    #[test]
+    fn salva_tema_com_paginas() {
+        let conn = open_in_memory();
+        let mut tema = tema("g-pages", "Com páginas");
+        tema.pages = Some(vec![pagina("music"), pagina("bible")]);
+        tema.elements = vec![];
+        save_theme(&conn, &tema).unwrap();
+        let salvo = get_theme(&conn, "g-pages").unwrap().unwrap();
+        assert_eq!(salvo.pages.unwrap().len(), 2);
+    }
+
+    #[test]
+    fn rejeita_contexto_repetido() {
+        let conn = open_in_memory();
+        let mut tema = tema("g-dup", "Duplicado");
+        tema.pages = Some(vec![pagina("music"), pagina("music")]);
+        tema.elements = vec![];
+        assert!(save_theme(&conn, &tema).is_err());
+    }
+
+    #[test]
+    fn rejeita_contexto_invalido() {
+        let conn = open_in_memory();
+        let mut tema = tema("g-inv", "Inválido");
+        tema.pages = Some(vec![pagina("agenda")]);
+        tema.elements = vec![];
+        assert!(save_theme(&conn, &tema).is_err());
+    }
+
+    #[test]
+    fn aceita_pagina_em_branco() {
+        let conn = open_in_memory();
+        let mut tema = tema("g-blank", "Em branco");
+        let mut page = pagina("text");
+        page.elements = vec![];
+        tema.pages = Some(vec![page]);
+        tema.elements = vec![];
+        assert!(save_theme(&conn, &tema).is_ok());
     }
 
     #[test]
@@ -116,6 +186,7 @@ mod tests {
             title: "Vazio".into(),
             css: HashMap::new(),
             elements: vec![],
+            pages: None,
             category: None,
             created_at: None,
             updated_at: None,

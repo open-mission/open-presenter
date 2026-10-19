@@ -268,6 +268,8 @@ export type ThemeElementType = "TEXT" | "IMAGE" | "VIDEO" | "RECTANGLE";
 
 export type ThemeAsset = "music" | "bible" | "text";
 
+export type ThemeContext = "music" | "bible" | "text";
+
 export interface ThemeElement {
   id: string;
   type: ThemeElementType;
@@ -276,6 +278,7 @@ export interface ThemeElement {
   visible: boolean;
   locked: boolean;
   css: Record<string, string>;
+  name?: string;
   text?: string;
   src?: string;
   assetTypeVisibility?: string[];
@@ -283,11 +286,19 @@ export interface ThemeElement {
   url?: string;
 }
 
+export interface ThemePage {
+  id: string;
+  context: ThemeContext;
+  css: Record<string, string>;
+  elements: ThemeElement[];
+}
+
 export interface SlideTheme {
   guid: string;
   title: string;
   css: Record<string, string>;
   elements: ThemeElement[];
+  pages?: ThemePage[];
   category?: "presentation" | "theme" | string;
   createdAt?: string;
   updatedAt?: string;

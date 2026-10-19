@@ -462,6 +462,8 @@ pub struct ThemeElement {
     pub locked: bool,
     pub css: HashMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub src: Option<String>,
@@ -478,11 +480,21 @@ pub struct ThemeElement {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemePage {
+    pub id: String,
+    pub context: String,
+    pub css: HashMap<String, String>,
+    pub elements: Vec<ThemeElement>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlideTheme {
     pub guid: String,
     pub title: String,
     pub css: HashMap<String, String>,
     pub elements: Vec<ThemeElement>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pages: Option<Vec<ThemePage>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
