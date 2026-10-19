@@ -18,7 +18,8 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
+import type { SlideTheme, ThemeAsset, ThemeContext, ThemeElement } from "@/core/types";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { exportThemeAsImage } from "@/features/theme-editor/exportImage";
@@ -28,7 +29,9 @@ import {
   getActivePage,
   materializePage,
   PAGE_CONTEXTS,
+  themeVersion,
 } from "@/features/slide-themes/pages";
+import { cn } from "@/core/lib/utils";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -105,6 +108,7 @@ export default function ThemeEditorView() {
   const save = useThemeEditorStore((s) => s.save);
   const revert = useThemeEditorStore((s) => s.revert);
   const addElement = useThemeEditorStore((s) => s.addElement);
+  const upgradeToV2 = useThemeEditorStore((s) => s.upgradeToV2);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sampleAsset, setSampleAsset] = useState<ThemeAsset>("music");
@@ -128,6 +132,8 @@ export default function ThemeEditorView() {
   // Rename theme dialog
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [upgradeContext, setUpgradeContext] = useState<ThemeContext>("music");
 
   useEffect(() => {
     if (guid) void load(guid);
@@ -575,6 +581,37 @@ export default function ThemeEditorView() {
           </Button>
         </div>
 
+        {(() => {
+          const version = themeVersion(draft);
+          const label =
+            version === "v2" ? "v2" : version === "v1" ? "v1" : "Layout único";
+          return (
+            <>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-[10px]",
+                  version === "v2" &&
+                    "border-emerald-500/40 bg-emerald-500/10 text-emerald-500",
+                  version === "v1" &&
+                    "border-amber-500/40 bg-amber-500/10 text-amber-500",
+                )}
+              >
+                {label}
+              </Badge>
+              {version === "v1" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setUpgradeOpen(true)}
+                >
+                  Atualizar para v2
+                </Button>
+              )}
+            </>
+          );
+        })()}
+
         <div className="flex-1" />
 
         <Button
@@ -957,6 +994,55 @@ export default function ThemeEditorView() {
           <PropertiesPanel selectedId={selectedId} />
         </aside>
       </div>
+
+      {/* Upgrade Theme Dialog */}
+      <Dialog open={upgradeOpen} onOpenChange={setUpgradeOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Atualizar tema para v2</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2 text-xs text-muted-foreground">
+            <p>
+              O layout atual será movido para a página do contexto escolhido. O visual
+              não muda e você poderá adicionar as outras páginas depois.
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-foreground">
+                Contexto da página
+              </label>
+              <Select
+                value={upgradeContext}
+                onValueChange={(value) => setUpgradeContext(value as ThemeContext)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_CONTEXTS.map((info) => (
+                    <SelectItem key={info.context} value={info.context}>
+                      {info.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUpgradeOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                upgradeToV2(upgradeContext);
+                setUpgradeOpen(false);
+                toast.success("Tema atualizado para v2. Salve para aplicar.");
+              }}
+            >
+              Atualizar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Rename Theme Dialog */}
       <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
