@@ -19,6 +19,7 @@ import {
   type MonthlyRecurrenceMode,
 } from "./store";
 import { formatEventDateTime } from "./dateUtils";
+import { EventThemeSelect } from "./EventThemeSelect";
 
 const WEEKDAYS = [
   { short: "D", label: "Dom", full: "Domingo", value: 0 },
@@ -111,6 +112,7 @@ export function CreateEventDialog() {
   const [endMode, setEndMode] = useState<"until_date" | "count">("until_date");
   const [untilDate, setUntilDate] = useState("");
   const [count, setCount] = useState<number>(6);
+  const [themeGuid, setThemeGuid] = useState<string | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -127,6 +129,7 @@ export function CreateEventDialog() {
       setEndMode("until_date");
       setCount(6);
       setCustomMonthly(false);
+      setThemeGuid(null);
       setSubmitting(false);
 
       const d = new Date(`${parsed.date}T${parsed.startTime || "00:00"}`);
@@ -260,6 +263,7 @@ export function CreateEventDialog() {
         endMode,
         untilDate,
         count,
+        themeGuid,
       });
 
       if (ids.length > 1) {
@@ -308,6 +312,16 @@ export function CreateEventDialog() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-foreground">
+              Tema do evento (opcional)
+            </label>
+            <EventThemeSelect value={themeGuid} onChange={setThemeGuid} />
+            <p className="text-[11px] text-muted-foreground">
+              Vale para os cultos criados nesta série. Contextos ausentes usam o tema das configurações.
+            </p>
           </div>
 
           {/* Data, Horário de Início e Término */}

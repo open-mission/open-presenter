@@ -33,6 +33,7 @@ import {
 import { cn } from "@/core/lib/utils";
 import type { EventItem, EventPart } from "@/core/types";
 import { useSongsStore } from "@/features/songs/store";
+import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { SongPickerDialog } from "./SongPickerDialog";
 import { useSetlistStore } from "./store";
 
@@ -53,6 +54,7 @@ export function SetlistPanel() {
   const [creating, setCreating] = useState(false);
   const [newEventTitle, setNewEventTitle] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteLinkedTheme, setDeleteLinkedTheme] = useState(false);
 
   useEffect(() => {
     void load();
@@ -60,6 +62,7 @@ export function SetlistPanel() {
 
   useEffect(() => {
     setConfirmDelete(false);
+    setDeleteLinkedTheme(false);
   }, [activeEventId]);
 
   const handleCreate = () => {
@@ -70,14 +73,20 @@ export function SetlistPanel() {
     void createEvent(title);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (event === null) return;
     if (!confirmDelete) {
       setConfirmDelete(true);
       return;
     }
+    const linkedTheme = event.themeGuid ?? null;
+    const shouldDeleteTheme = deleteLinkedTheme;
     setConfirmDelete(false);
-    void deleteEvent(event.id);
+    setDeleteLinkedTheme(false);
+    await deleteEvent(event.id);
+    if (shouldDeleteTheme && linkedTheme) {
+      await useSlideThemesStore.getState().remove(linkedTheme);
+    }
   };
 
   return (
@@ -117,10 +126,21 @@ export function SetlistPanel() {
             <Button
               size="sm"
               variant={confirmDelete ? "destructive" : "outline"}
-              onClick={handleDelete}
+              onClick={() => void handleDelete()}
             >
               {confirmDelete ? "Confirmar?" : "Excluir evento"}
             </Button>
+          )}
+          {confirmDelete && event?.themeGuid && (
+            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={deleteLinkedTheme}
+                onChange={(e) => setDeleteLinkedTheme(e.target.checked)}
+                className="size-3.5 accent-destructive"
+              />
+              Excluir tema junto
+            </label>
           )}
         </div>
         {error !== null && <p className="text-sm text-destructive">{error}</p>}

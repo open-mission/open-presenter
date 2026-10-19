@@ -8,6 +8,7 @@ import {
   FolderPlus,
   Image as ImageIcon,
   Music,
+  Palette,
   Plus,
   Repeat,
   Trash2,
@@ -36,6 +37,8 @@ import { parseMediaWithFit, resolveThemeMediaUrl } from "@/features/theme-editor
 import { useSetlistStore } from "./store";
 import { formatEventDateTime } from "./dateUtils";
 import { EditEventDialog } from "./EditEventDialog";
+import { EventThemeSelect } from "./EventThemeSelect";
+import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { SongPickerDialog } from "./SongPickerDialog";
 import type { EventItem, EventPart, EventSummary, ServiceEvent, SongSummary } from "@/core/types";
 
@@ -83,6 +86,7 @@ export function EventDetailsDialog({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteSeriesChoice, setDeleteSeriesChoice] = useState<"single" | "series">("single");
   const [wallpaperScope, setWallpaperScope] = useState<"single" | "series">("single");
+  const [deleteLinkedTheme, setDeleteLinkedTheme] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "4:3">("16:9");
   const [uploadingWp, setUploadingWp] = useState(false);
   const mediaPort = useMediaPort();
@@ -104,6 +108,7 @@ export function EventDetailsDialog({
   // Load full event when opened
   useEffect(() => {
     if (open && eventSummary) {
+      setDeleteLinkedTheme(false);
       setLoading(true);
       void getEvent(eventSummary.id)
         .then((ev) => {
@@ -112,6 +117,7 @@ export function EventDetailsDialog({
         .finally(() => setLoading(false));
     } else {
       setFullEvent(null);
+      setDeleteLinkedTheme(false);
     }
   }, [open, eventSummary]);
 
@@ -119,6 +125,22 @@ export function EventDetailsDialog({
 
   const dt = formatEventDateTime(fullEvent?.eventDate || eventSummary.eventDate);
   const currentWallpaper = fullEvent?.wallpaper || eventSummary.wallpaper || null;
+  const linkedThemeGuid = fullEvent?.themeGuid ?? eventSummary.themeGuid ?? null;
+
+  async function handleThemeChange(themeGuid: string | null) {
+    if (!eventSummary) return;
+    try {
+      await updateEventDetails(eventSummary.id, { themeGuid });
+      setFullEvent((prev) => (prev ? { ...prev, themeGuid } : prev));
+      toast.success(
+        themeGuid
+          ? "Tema do evento atualizado!"
+          : "Evento usando o tema das configurações.",
+      );
+    } catch {
+      toast.error("Erro ao aplicar tema do evento.");
+    }
+  }
 
   async function handleSelectActive() {
     if (!eventSummary) return;
@@ -130,6 +152,8 @@ export function EventDetailsDialog({
 
   async function handleDelete() {
     if (!eventSummary) return;
+    const shouldDeleteTheme = deleteLinkedTheme;
+    const linkedTheme = linkedThemeGuid;
     try {
       if (deleteSeriesChoice === "series" && isSeries) {
         await deleteRecurringSeries(eventSummary.title);
@@ -137,6 +161,9 @@ export function EventDetailsDialog({
       } else {
         await deleteEvent(eventSummary.id);
         toast.success(`Evento "${eventSummary.title}" excluído.`);
+      }
+      if (shouldDeleteTheme && linkedTheme) {
+        await useSlideThemesStore.getState().remove(linkedTheme);
       }
       setDeleteConfirmOpen(false);
       onClose();
@@ -457,6 +484,27 @@ export function EventDetailsDialog({
                       </span>
                     </div>
                   </div>
+                </div>
+
+                <div className="rounded-xl border border-border/80 bg-card p-4 flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
+                      <Palette className="size-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-semibold text-foreground">Tema do Evento</h4>
+                      <p className="text-[11px] text-muted-foreground">
+                        Define a identidade visual da projeção enquanto este culto está selecionado.
+                      </p>
+                    </div>
+                  </div>
+                  <EventThemeSelect
+                    value={fullEvent?.themeGuid ?? eventSummary.themeGuid ?? null}
+                    onChange={(guid) => void handleThemeChange(guid)}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Contextos sem página neste tema usam o vínculo das configurações.
+                  </p>
                 </div>
 
                 {/* Seção Plano de Fundo / Papel de Parede do Culto */}
@@ -1046,6 +1094,18 @@ export function EventDetailsDialog({
             <div className="py-2 text-xs text-muted-foreground">
               O evento &ldquo;{eventSummary.title}&rdquo; e seu repertório associado serão permanentemente removidos.
             </div>
+          )}
+
+          {linkedThemeGuid && (
+            <label className="flex items-center gap-2 rounded-lg border border-border/70 bg-muted/20 p-2.5 text-xs text-foreground">
+              <input
+                type="checkbox"
+                checked={deleteLinkedTheme}
+                onChange={(event) => setDeleteLinkedTheme(event.target.checked)}
+                className="size-4 accent-destructive"
+              />
+              Excluir também o tema vinculado
+            </label>
           )}
 
           <DialogFooter className="mt-2 flex items-center justify-end gap-2">
