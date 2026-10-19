@@ -25,7 +25,12 @@ export default function PublicView() {
   const broadcastTheme = useLiveThemesStore((s) => s.themes.public);
   const mediaThemeId = live.content.media?.themeId;
   const localTheme = useSlideThemesStore((s) =>
-    s.resolveTheme("public", live.content.kind, mediaThemeId),
+    s.resolveTheme(
+      "public",
+      live.content.kind,
+      mediaThemeId,
+      live.content.media?.kind,
+    ),
   );
   const customTheme = mediaThemeId
     ? (themes.find((t) => t.guid === mediaThemeId) ??

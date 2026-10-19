@@ -41,11 +41,20 @@ export function useLiveThemesPublisher(): void {
   const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
   const liveKind = usePresentationStore((s) => s.live.content.kind);
   const liveMediaThemeId = usePresentationStore((s) => s.live.content.media?.themeId);
+  const liveMediaKind = usePresentationStore(
+    (s) => s.live.content.media?.kind ?? null,
+  );
+  const eventThemeGuid = useSlideThemesStore((s) => s.eventThemeGuid);
 
   useEffect(() => {
     if (!isTauri()) return;
     const store = useSlideThemesStore.getState();
-    const publicTheme = store.resolveTheme("public", liveKind, liveMediaThemeId);
+    const publicTheme = store.resolveTheme(
+      "public",
+      liveKind,
+      liveMediaThemeId,
+      liveMediaKind,
+    );
     const stageTheme =
       liveMediaThemeId && publicTheme
         ? publicTheme
@@ -54,5 +63,13 @@ export function useLiveThemesPublisher(): void {
       public: publicTheme,
       stage: stageTheme,
     });
-  }, [themes, bindings, stageThemeGuid, liveKind, liveMediaThemeId]);
+  }, [
+    themes,
+    bindings,
+    stageThemeGuid,
+    liveKind,
+    liveMediaThemeId,
+    liveMediaKind,
+    eventThemeGuid,
+  ]);
 }

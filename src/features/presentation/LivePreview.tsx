@@ -77,14 +77,24 @@ export function LivePreview() {
       const found = s.themes.find((t) => t.guid === preview.media?.themeId);
       if (found) return found;
     }
-    return s.resolveTheme("public", preview.kind, preview.media?.themeId);
+    return s.resolveTheme(
+      "public",
+      preview.kind,
+      preview.media?.themeId,
+      preview.media?.kind,
+    );
   });
   const liveTheme = useSlideThemesStore((s) => {
     if (live.content.media?.themeId) {
       const found = s.themes.find((t) => t.guid === live.content.media?.themeId);
       if (found) return found;
     }
-    return s.resolveTheme("public", live.content.kind, live.content.media?.themeId);
+    return s.resolveTheme(
+      "public",
+      live.content.kind,
+      live.content.media?.themeId,
+      live.content.media?.kind,
+    );
   });
 
   const effectiveBackground: BackgroundLayer = useMemo(() => {
