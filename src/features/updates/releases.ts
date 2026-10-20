@@ -37,6 +37,58 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: "0.3.7",
+    date: "2026-10-20",
+    title: "Agrupamento de Camadas em Temas e Correção de Auto-shrink",
+    summary:
+      "Release de correção trazendo suporte completo a agrupamento e renomeação de camadas no Editor de Temas, movimentação conjunta no Canvas, novo motor de auto-shrink/auto-fit de texto por tamanho de fonte sem corte de palavras e unificação visual de estrofes na programação do culto.",
+    highlights: [
+      {
+        icon: "layers",
+        title: "Agrupamento de Camadas",
+        description:
+          "Selecione múltiplas camadas no painel para agrupá-las com um clique. Renomeie o grupo, alterne visibilidade ou bloqueio em lote e mova todos os elementos juntos diretamente no Canvas.",
+      },
+      {
+        icon: "palette",
+        title: "Auto-shrink de Texto Preciso",
+        description:
+          "Refatoração completa do motor de redimensionamento para calibrar o tamanho da fonte (fontSize) e altura de linha diretamente, garantindo que frases longas de hinos e versículos nunca sejam cortadas.",
+      },
+      {
+        icon: "book",
+        title: "Cards Unificados na Programação",
+        description:
+          "Estrofes e seções com múltiplos slides agora aparecem envolvidas em um único card com cabeçalho compartilhado e contador, eliminando bordas e rótulos duplicados.",
+      },
+    ],
+    sections: [
+      {
+        title: "Editor de Temas & Camadas",
+        items: [
+          "Seleção múltipla de camadas via Ctrl/Cmd + clique ou Shift + clique.",
+          "Criação e desmanche de grupos através dos botões Agrupar e Desagrupar.",
+          "Renomeação inline rápida com duplo-clique sobre o nome do grupo.",
+          "Controles em lote no cabeçalho do grupo para visibilidade, bloqueio, reordenação e exclusão.",
+          "Arrastar qualquer elemento agrupado no Canvas move todos os membros do grupo simultaneamente em tempo real.",
+        ],
+      },
+      {
+        title: "Motor de Renderização",
+        items: [
+          "Substituição de CSS transform scale por busca binária iterativa em fontSize e lineHeight.",
+          "Quebra de linha natural mantendo conformidade estrita com a largura e altura do container.",
+          "Suporte aprimorado tanto para textos multilinhas quanto linha única com respeito a minFontSize.",
+        ],
+      },
+    ],
+    fixes: [
+      "Eliminado o corte vertical e horizontal em frases longas ao usar Reduzir para Caber ou Preencher Caixa.",
+      "Corrigida a repetição de rótulos e bordas individuais em múltiplos slides pertencentes à mesma estrofe na lista do culto.",
+    ],
+    changelogUrl: `${CHANGELOG_URL}#037---2026-10-20`,
+  },
+  {
     version: "0.3.6",
     date: "2026-10-20",
     title: "Controle Remoto Moderno, Layout Responsivo e Melhorias em Temas",

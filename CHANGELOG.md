@@ -5,6 +5,51 @@ Todas as mudanças relevantes do Open Presenter são documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.3.7] - 2026-10-20
+
+Release de correção com suporte completo a agrupamento e renomeação de camadas no
+Editor de Temas, movimentação sincronizada de elementos agrupados no canvas,
+refatoração do motor de auto-shrink/auto-fit de texto por tamanho de fonte real e
+unificação visual de estrofes e seções de slides na programação do culto.
+
+### Adicionado
+
+#### Editor de Temas & Camadas
+
+- **Agrupamento de Camadas:** Seleção múltipla de camadas no painel através de
+  `Ctrl + Clique`, `Cmd + Clique` ou `Shift + Clique`, com botão direto `Agrupar (N)`.
+- **Gerenciamento Completo de Grupos:**
+  - Renomeação inline com duplo-clique no título do grupo.
+  - Ações em lote no cabeçalho do grupo: ocultar/mostrar todas as camadas do grupo,
+    bloquear/desbloquear em lote, reordenar a pilha (subir/descer) e excluir o grupo.
+  - Recolhimento e expansão de itens do grupo com ícone de pasta.
+  - Ação `Desagrupar` para desfazer o agrupamento mantendo os elementos individuais.
+- **Movimentação Sincronizada no Canvas:** Arrastar qualquer elemento de um grupo
+  translada simultaneamente todos os elementos desbloqueados daquele grupo com preview
+  em tempo real e persistência atômica das coordenadas.
+- **Sincronização Rust / TypeScript:** Campos `groupId` e `groupName` adicionados ao
+  modelo de dados `ThemeElement` no shared kernel TS e backend Rust.
+
+### Corrigido
+
+#### Renderização de Slides & Auto-shrink de Texto
+
+- **Reduzir para Caber e Preencher Caixa:** O algoritmo anterior baseado em
+  `transform: scale(...)` foi substituído por busca binária rápida que calibra
+  diretamente o `fontSize` e `lineHeight` proporcional.
+  - O texto agora quebra naturalmente na largura real do container (`targetW = cw * 0.98`),
+    garantindo que frases longas de hinos e leituras não sejam cortadas vertical ou
+    horizontalmente.
+  - Compatível com textos de linha única (`nowrap`) e parágrafos multilinhas (`pretty` /
+    `pre-wrap`), respeitando com precisão a propriedade `minFontSize`.
+
+#### Programação do Culto (Events / Setlists)
+
+- **Agrupamento Visual de Slides:** Estrofes e seções com múltiplos slides (ex: `Refrão`)
+  agora são agrupadas em um card unificado e envolvente, com cabeçalho único contendo o
+  nome da seção e indicador de quantidade de slides, eliminando bordas repetidas e
+  rótulos duplicados para cada slide da mesma estrofe.
+
 ## [0.3.6] - 2026-10-20
 
 Release com reformulação ergonômica da barra inferior e drawer do controle remoto,

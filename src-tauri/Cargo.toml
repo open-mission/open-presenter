@@ -1,6 +1,6 @@
 [package]
 name = "open-presenter"
-version = "0.3.6"
+version = "0.3.7"
 description = "Software desktop open source e leve para apresentação em igrejas e eventos"
 edition = "2021"
 rust-version = "1.90.0"
