@@ -18,7 +18,7 @@ import { outputHttpUrl } from "@/core/config/app";
 import { toast } from "sonner";
 import { DEFAULT_STREAM_THEME, DEFAULT_STREAM_THEME_GUID } from "@/features/slide-themes/seedThemes";
 import { cloneTheme } from "@/features/slide-themes/pages";
-import { getNdiStatus, setNdiActive } from "@/core/ipc/commands";
+import { getNdiStatus } from "@/core/ipc/commands";
 import type { NdiStatus } from "@/core/types";
 import { cn } from "@/core/lib/utils";
 
@@ -40,16 +40,6 @@ export function StreamTab() {
       if (status) setNdiStatus(status);
     });
   }, []);
-
-  async function toggleNdi(active: boolean) {
-    const updated = await setNdiActive(active);
-    if (updated) {
-      setNdiStatus(updated);
-      toast.success(
-        active ? "Saída NDI ativada na rede!" : "Saída NDI desativada.",
-      );
-    }
-  }
 
   // Tema atualmente vinculado à transmissão para louvor/letras
   const currentStreamThemeGuid = useMemo(() => {
@@ -244,21 +234,13 @@ export function StreamTab() {
                 <Radio className="size-3.5 text-purple-400" />
                 Transmissão via NDI
               </span>
-              {ndiStatus?.available ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400 border border-emerald-500/30">
-                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  NDI Disponível
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground border border-border/40">
-                  NDI não detectado
-                </span>
-              )}
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400 border border-amber-500/30">
+                Em desenvolvimento
+              </span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              O protocolo <strong>NDI® (Network Device Interface)</strong> envia o sinal
-              de vídeo das letras e versículos com <strong>canal alfa (transparência nativa)</strong>{" "}
-              diretamente pela rede local (LAN).
+              O protocolo <strong>NDI® (Network Device Interface)</strong> transmite vídeo com transparência pela rede local.
+              Para o OBS Studio, a integração recomendada e oficial hoje é via <strong>Fonte de Navegador (Browser Source)</strong> com a URL ao lado.
             </p>
             <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-3 flex flex-col gap-2">
               <div className="flex items-center justify-between">
@@ -266,29 +248,18 @@ export function StreamTab() {
                   <span
                     className={cn(
                       "size-2 rounded-full",
-                      ndiStatus?.active
-                        ? "bg-purple-400 animate-pulse"
+                      ndiStatus?.available
+                        ? "bg-amber-400"
                         : "bg-muted-foreground",
                     )}
                   />
                   <span className="text-xs font-medium text-foreground">
-                    Nome da Fonte NDI:
+                    Status do Driver NDI:
                   </span>
                 </div>
-                {ndiStatus?.available && (
-                  <button
-                    type="button"
-                    onClick={() => void toggleNdi(!ndiStatus.active)}
-                    className={cn(
-                      "rounded px-2 py-0.5 text-[10px] font-medium transition-colors cursor-pointer border",
-                      ndiStatus.active
-                        ? "border-purple-500/40 bg-purple-500/20 text-purple-300 hover:bg-purple-500/30"
-                        : "border-border bg-muted/50 text-muted-foreground hover:bg-muted",
-                    )}
-                  >
-                    {ndiStatus.active ? "Ativo" : "Inativo"}
-                  </button>
-                )}
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {ndiStatus?.available ? "Runtime Detectado" : "Não instalado"}
+                </span>
               </div>
               <code className="text-[11px] font-mono text-purple-300 font-semibold pl-4">
                 {ndiStatus?.streamName ?? "Open Presenter — Transmissão"}
@@ -303,8 +274,7 @@ export function StreamTab() {
               )}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              No OBS Studio com o plugin <strong>obs-ndi</strong> ou no vMix,
-              adicione a fonte <em>NDI™ Source</em> e selecione o Open Presenter.
+              Para usar no OBS Studio ou vMix agora, adicione a fonte <strong>Navegador (Browser)</strong> apontando para a URL da transmissão.
             </p>
           </div>
 
