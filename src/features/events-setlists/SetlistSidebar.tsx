@@ -8,7 +8,6 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
-  FolderOpen,
   FolderPlus,
   GripVertical,
   Image as ImageIcon,
@@ -34,9 +33,6 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
@@ -44,9 +40,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -70,6 +63,11 @@ import { SongPickerDialog } from "./SongPickerDialog";
 import { StudioPickerDialog } from "./StudioPickerDialog";
 import { BibleVersePickerDialog } from "./BibleVersePickerDialog";
 import { formatEventDateTime } from "./dateUtils";
+import {
+  AddItemContextItems,
+  AddItemDropdown,
+  type AddItemMenuHandlers,
+} from "./AddItemMenu";
 
 const MEDIA_ICONS: Record<MediaKind, typeof AlignLeft> = {
   text: AlignLeft,
@@ -77,16 +75,6 @@ const MEDIA_ICONS: Record<MediaKind, typeof AlignLeft> = {
   folder: Images,
   video: Video,
 };
-
-const MEDIA_KIND_OPTIONS: Array<{
-  kind: VisualMediaKind;
-  label: string;
-  icon: typeof ImageIcon;
-}> = [
-  { kind: "image", label: "Imagem", icon: ImageIcon },
-  { kind: "folder", label: "Pasta de imagens", icon: Images },
-  { kind: "video", label: "Vídeo", icon: Video },
-];
 
 function ItemKindIcon({ item }: { item: EventItem }) {
   if (item.scripture) {
@@ -382,7 +370,6 @@ export function SetlistSidebar({
     if (event.parts.length === 0) {
       const newPartId = addPart("");
       setPickerPartId(newPartId);
-      void save();
     } else {
       const untitled = event.parts.find((p) => p.title.trim() === "");
       setPickerPartId(untitled ? untitled.id : event.parts[0].id);
@@ -398,7 +385,6 @@ export function SetlistSidebar({
     if (event.parts.length === 0) {
       const newPartId = addPart("");
       setStudioPickerPartId(newPartId);
-      void save();
     } else {
       const untitled = event.parts.find((p) => p.title.trim() === "");
       setStudioPickerPartId(untitled ? untitled.id : event.parts[0].id);
@@ -411,7 +397,6 @@ export function SetlistSidebar({
     if (!partId) {
       const newPartId = addPart("");
       setBiblePickerPartId(newPartId);
-      void save();
       return;
     }
     setBiblePickerPartId(partId);
@@ -422,6 +407,23 @@ export function SetlistSidebar({
     if (!event || event.parts.length === 0) return "";
     const untitled = event.parts.find((p) => p.title.trim() === "");
     return untitled ? untitled.id : event.parts[0].id;
+  }
+
+  function addItemHandlers(targetPartId?: string): AddItemMenuHandlers {
+    return {
+      addMusic: () => handleAddMusic(targetPartId),
+      searchOnline: () => useSongsStore.getState().openOnlineSearch(),
+      newSong: () => useSongsStore.getState().startNewSong(),
+      addScripture: () => handleAddScripture(targetPartId),
+      addText: () => handleAddMedia(targetPartId, "text"),
+      addMedia: (kind) => handleAddMedia(targetPartId, kind),
+      addSection: () => setNewPartDialogOpen(true),
+      insertStudio: () => handleOpenStudioPicker(targetPartId),
+      createStudio: () => void handleAddPresentation(targetPartId),
+      openMediaLibrary: () => void handleOpenMediaLibrary(),
+      save: () => void save(),
+      dirty,
+    };
   }
 
   function handleAddMedia(targetPartId?: string, kind: MediaKind = "text") {
@@ -500,7 +502,10 @@ export function SetlistSidebar({
   }
 
 
-  const totalItems = event?.parts.reduce((acc, p) => acc + p.items.length, 0) ?? 0;
+  const hasVisibleParts =
+    event?.parts.some(
+      (part) => part.items.length > 0 || part.title.trim() !== "",
+    ) ?? false;
 
   if (collapsed) {
     return (
@@ -695,8 +700,8 @@ export function SetlistSidebar({
           </Button>
 
           {/* Plus Action Button */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <AddItemDropdown
+            trigger={
               <Button
                 type="button"
                 variant="outline"
@@ -706,100 +711,9 @@ export function SetlistSidebar({
               >
                 <Plus className="size-4 text-foreground" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem
-                onSelect={() => handleAddMusic()}
-                className="text-xs cursor-pointer"
-              >
-                <Music className="size-3.5 mr-2 text-primary" />
-                Adicionar Música
-              </DropdownMenuItem>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="text-xs cursor-pointer font-medium">
-                  <Sparkles className="size-3.5 mr-2 text-amber-500" />
-                  Apresentação (Studio)
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-56">
-                  <DropdownMenuItem
-                    onSelect={() => handleOpenStudioPicker()}
-                    className="text-xs cursor-pointer font-medium"
-                  >
-                    <Search className="size-3.5 mr-2 text-amber-500" />
-                    Inserir Salva da Biblioteca...
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => void handleAddPresentation()}
-                    className="text-xs cursor-pointer"
-                  >
-                    <Plus className="size-3.5 mr-2 text-primary" />
-                    Criar Nova no Studio...
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuItem
-                onSelect={() => handleAddMedia(undefined, "text")}
-                className="text-xs cursor-pointer"
-              >
-                <AlignLeft className="size-3.5 mr-2 text-sky-500" />
-                Adicionar Texto
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => handleAddScripture()}
-                className="text-xs cursor-pointer"
-              >
-                <BookOpen className="size-3.5 mr-2 text-emerald-500" />
-                Adicionar Versículo
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => setNewPartDialogOpen(true)}
-                className="text-xs cursor-pointer"
-              >
-                <FolderPlus className="size-3.5 mr-2 text-primary" />
-                Adicionar Seção
-              </DropdownMenuItem>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger className="text-xs cursor-pointer">
-                  <ImageIcon className="size-3.5 mr-2 text-sky-500" />
-                  Adicionar Mídia
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-52">
-                  {MEDIA_KIND_OPTIONS.map((option) => {
-                    const Icon = option.icon;
-                    return (
-                      <DropdownMenuItem
-                        key={option.kind}
-                        onSelect={() => handleAddMedia(undefined, option.kind)}
-                        className="text-xs cursor-pointer"
-                      >
-                        <Icon className="size-3.5 mr-2 text-sky-500" />
-                        {option.label}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuItem
-                onSelect={() => void handleOpenMediaLibrary()}
-                className="text-xs cursor-pointer"
-              >
-                <FolderOpen className="size-3.5 mr-2 text-muted-foreground" />
-                Abrir Pasta de Mídias
-              </DropdownMenuItem>
-              {dirty && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={() => void save()}
-                    className="text-xs font-semibold text-primary cursor-pointer"
-                  >
-                    <Check className="size-3.5 mr-2" />
-                    Salvar Programação
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            }
+            handlers={addItemHandlers()}
+          />
         </div>
       </div>
 
@@ -821,7 +735,7 @@ export function SetlistSidebar({
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2 space-y-4 [scrollbar-gutter:stable]">
-            {!event || totalItems === 0 ? (
+            {!event || !hasVisibleParts ? (
               <div className="flex h-72 flex-col items-center justify-center gap-3 p-4 text-center select-none">
                 <div className="flex size-12 items-center justify-center rounded-2xl bg-muted/60 border border-border/80 text-muted-foreground shadow-2xs">
                   <Music className="size-6 opacity-60" />
@@ -1001,8 +915,8 @@ export function SetlistSidebar({
                         </div>
 
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                          <AddItemDropdown
+                            trigger={
                               <button
                                 type="button"
                                 className="rounded p-1 hover:bg-black/10 dark:hover:bg-white/10 text-muted-foreground hover:text-foreground cursor-pointer"
@@ -1010,74 +924,10 @@ export function SetlistSidebar({
                               >
                                 <Plus className="size-3" />
                               </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-52">
-                              <DropdownMenuItem
-                                onSelect={() => setPickerPartId(part.id)}
-                                className="text-xs cursor-pointer"
-                              >
-                                <Music className="size-3.5 mr-2 text-primary" />
-                                Adicionar Música
-                              </DropdownMenuItem>
-                              <DropdownMenuSub>
-                                <DropdownMenuSubTrigger className="text-xs cursor-pointer font-medium">
-                                  <Sparkles className="size-3.5 mr-2 text-amber-500" />
-                                  Apresentação (Studio)
-                                </DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent className="w-56">
-                                  <DropdownMenuItem
-                                    onSelect={() => handleOpenStudioPicker(part.id)}
-                                    className="text-xs cursor-pointer font-medium"
-                                  >
-                                    <Search className="size-3.5 mr-2 text-amber-500" />
-                                    Inserir Salva da Biblioteca...
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onSelect={() => void handleAddPresentation(part.id)}
-                                    className="text-xs cursor-pointer"
-                                  >
-                                    <Plus className="size-3.5 mr-2 text-primary" />
-                                    Criar Nova no Studio...
-                                  </DropdownMenuItem>
-                                </DropdownMenuSubContent>
-                              </DropdownMenuSub>
-                              <DropdownMenuItem
-                                onSelect={() => handleAddMedia(part.id, "text")}
-                                className="text-xs cursor-pointer"
-                              >
-                                <AlignLeft className="size-3.5 mr-2 text-sky-500" />
-                                Adicionar Texto
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onSelect={() => handleAddScripture(part.id)}
-                                className="text-xs cursor-pointer"
-                              >
-                                <BookOpen className="size-3.5 mr-2 text-emerald-500" />
-                                Adicionar Versículo
-                              </DropdownMenuItem>
-                              <DropdownMenuSub>
-                                <DropdownMenuSubTrigger className="text-xs cursor-pointer">
-                                  <ImageIcon className="size-3.5 mr-2 text-sky-500" />
-                                  Adicionar Mídia
-                                </DropdownMenuSubTrigger>
-                                <DropdownMenuSubContent className="w-52">
-                                  {MEDIA_KIND_OPTIONS.map((option) => {
-                                    const Icon = option.icon;
-                                    return (
-                                      <DropdownMenuItem
-                                        key={option.kind}
-                                        onSelect={() => handleAddMedia(part.id, option.kind)}
-                                        className="text-xs cursor-pointer"
-                                      >
-                                        <Icon className="size-3.5 mr-2 text-sky-500" />
-                                        {option.label}
-                                      </DropdownMenuItem>
-                                    );
-                                  })}
-                                </DropdownMenuSubContent>
-                              </DropdownMenuSub>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                            }
+                            contentClassName="w-56"
+                            handlers={addItemHandlers(part.id)}
+                          />
                           <button
                             type="button"
                             onClick={() => openColorDialog(part)}
@@ -1437,96 +1287,7 @@ export function SetlistSidebar({
 
         {/* Background Context Menu for empty area */}
         <ContextMenuContent className="min-w-44 whitespace-nowrap text-xs">
-          <ContextMenuItem
-            onClick={() => handleAddMusic()}
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <Music className="size-3.5 text-primary" />
-            <span>Adicionar Música</span>
-          </ContextMenuItem>
-          <ContextMenuSub>
-            <ContextMenuSubTrigger className="flex items-center gap-2 cursor-pointer font-medium">
-              <Sparkles className="size-3.5 text-amber-500" />
-              <span>Apresentação (Studio)</span>
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="w-56 text-xs">
-              <ContextMenuItem
-                onClick={() => handleOpenStudioPicker()}
-                className="flex items-center gap-2 cursor-pointer font-medium"
-              >
-                <Search className="size-3.5 text-amber-500" />
-                <span>Inserir Salva da Biblioteca...</span>
-              </ContextMenuItem>
-              <ContextMenuItem
-                onClick={() => void handleAddPresentation()}
-                className="flex items-center gap-2 cursor-pointer"
-              >
-                <Plus className="size-3.5 text-primary" />
-                <span>Criar Nova no Studio...</span>
-              </ContextMenuItem>
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-          <ContextMenuItem
-            onClick={() => handleAddMedia(undefined, "text")}
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <AlignLeft className="size-3.5 text-sky-500" />
-            <span>Adicionar Texto</span>
-          </ContextMenuItem>
-          <ContextMenuItem
-            onClick={() => handleAddScripture()}
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <BookOpen className="size-3.5 text-emerald-500" />
-            <span>Adicionar Versículo</span>
-          </ContextMenuItem>
-          <ContextMenuItem
-            onClick={() => setNewPartDialogOpen(true)}
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <FolderPlus className="size-3.5 text-primary" />
-            <span>Adicionar Seção</span>
-          </ContextMenuItem>
-          <ContextMenuSub>
-            <ContextMenuSubTrigger className="flex items-center gap-2 cursor-pointer">
-              <ImageIcon className="size-3.5 text-sky-500" />
-              <span>Adicionar Mídia</span>
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="w-52">
-              {MEDIA_KIND_OPTIONS.map((option) => {
-                const Icon = option.icon;
-                return (
-                  <ContextMenuItem
-                    key={option.kind}
-                    onClick={() => handleAddMedia(undefined, option.kind)}
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    <Icon className="size-3.5 text-sky-500" />
-                    <span>{option.label}</span>
-                  </ContextMenuItem>
-                );
-              })}
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-          <ContextMenuItem
-            onClick={() => void handleOpenMediaLibrary()}
-            className="flex items-center gap-2 cursor-pointer"
-          >
-            <FolderOpen className="size-3.5 text-muted-foreground" />
-            <span>Abrir Pasta de Mídias</span>
-          </ContextMenuItem>
-          {dirty && (
-            <>
-              <ContextMenuSeparator />
-              <ContextMenuItem
-                onClick={() => void save()}
-                className="flex items-center gap-2 font-medium text-primary cursor-pointer"
-              >
-                <Check className="size-3.5" />
-                <span>Salvar Programação</span>
-              </ContextMenuItem>
-            </>
-          )}
+          <AddItemContextItems handlers={addItemHandlers()} />
         </ContextMenuContent>
       </ContextMenu>
 

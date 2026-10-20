@@ -170,6 +170,21 @@ export default function RemoteView() {
     });
   }
 
+  useEffect(() => {
+    const meta = document.querySelector<HTMLMetaElement>(
+      'meta[name="viewport"]',
+    );
+    if (!meta) return;
+    const previous = meta.getAttribute("content");
+    meta.setAttribute(
+      "content",
+      "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+    );
+    return () => {
+      if (previous !== null) meta.setAttribute("content", previous);
+    };
+  }, []);
+
   const fetchRemoteState = useCallback(async (value: string) => {
     const [setlistResponse, wallpaperResponse] = await Promise.all([
       fetch("/api/v1/setlist", {
@@ -441,7 +456,7 @@ export default function RemoteView() {
 
   if (isTauri()) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
+      <div className="remote-view flex min-h-screen items-center justify-center bg-background p-6 text-foreground">
         <div className="max-w-md space-y-2 text-center">
           <Smartphone className="mx-auto size-10 text-primary" />
           <h1 className="text-lg font-semibold">Controle Remoto Web</h1>
@@ -456,7 +471,7 @@ export default function RemoteView() {
 
   if (!token || authFailed) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4 text-foreground">
+      <div className="remote-view flex min-h-screen items-center justify-center bg-background p-4 text-foreground">
         <div className="w-full max-w-md space-y-4 rounded-2xl border border-border bg-card p-5 shadow-lg">
           <div className="flex items-center gap-3">
             <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -532,7 +547,7 @@ export default function RemoteView() {
     setlist?.parts.reduce((total, part) => total + part.items.length, 0) ?? 0;
 
   return (
-    <div className="min-h-screen bg-background pb-12 text-foreground">
+    <div className="remote-view min-h-screen bg-background pb-12 text-foreground">
       {/* Top Header */}
       <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">

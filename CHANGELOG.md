@@ -16,6 +16,11 @@ versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
   a Bíblia do painel sincronizada com o texto que está no ar.
 - O controle remoto ganhou o botão **Encerrar** para cancelar a apresentação e
   liberar o telão.
+- O menu de adicionar itens da programação foi reorganizado em grupos
+  (Músicas, Bíblia, Mídias e Studio), sem opções duplicadas.
+- O **EventDetailsDialog** agora oferece os mesmos tipos de item da barra
+  lateral: músicas, versículos, textos, imagens, vídeos, pastas, seções e
+  apresentações do Studio.
 
 ### Corrigido
 
@@ -34,6 +39,12 @@ versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Os cabeçalhos dos painéis da apresentação foram padronizados em 56 px, com o
   toggle da programação ao lado das abas e o cabeçalho do trilho de temas
   refinado.
+- O controle remoto não aplica mais zoom por pinça/double-tap e evita o
+  auto-zoom dos navegadores móveis ao focar campos de texto.
+- A lista de eventos da programação passou a ser ordenada por data ascendente,
+  do evento mais próximo para o mais distante.
+- A adição do primeiro item a um evento vazio agora atualiza a lista e persiste
+  imediatamente, tanto na barra lateral quanto no **EventDetailsDialog**.
 
 ## [0.3.1] - 2026-10-19
 

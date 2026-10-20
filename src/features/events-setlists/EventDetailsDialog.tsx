@@ -1,7 +1,8 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import {
   ArrowDown,
   ArrowUp,
+  BookOpen,
   Calendar,
   Clock,
   Edit3,
@@ -29,17 +30,30 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getEvent, saveEvent, saveThemeMedia } from "@/core/ipc/commands";
+import {
+  getEvent,
+  openMediaLibrary,
+  openThemeEditor,
+  saveEvent,
+  saveThemeMedia,
+} from "@/core/ipc/commands";
 import { isCssColor, isCssGradient } from "@/core/lib/cssValue";
 import { useMediaPort } from "@/core/config/mediaPort";
 import { mediaKindLabel } from "@/core/lib/media";
 import { parseMediaWithFit, resolveThemeMediaUrl } from "@/features/theme-editor/media";
+import { useSongsStore } from "@/features/songs/store";
+import { createEmptyStudioTheme } from "@/features/slide-themes/seedThemes";
 import { useSetlistStore } from "./store";
 import { formatEventDateTime } from "./dateUtils";
 import { EditEventDialog } from "./EditEventDialog";
 import { EventThemeSelect } from "./EventThemeSelect";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { SongPickerDialog } from "./SongPickerDialog";
+import { MediaDialog, type VisualMediaKind } from "./MediaDialog";
+import { TextEditorDialog } from "./TextEditorDialog";
+import { BibleVersePickerDialog } from "./BibleVersePickerDialog";
+import { StudioPickerDialog } from "./StudioPickerDialog";
+import { AddItemDropdown, type AddItemMenuHandlers } from "./AddItemMenu";
 import type { EventItem, EventPart, EventSummary, ServiceEvent, SongSummary } from "@/core/types";
 
 interface EventDetailsDialogProps {
@@ -97,6 +111,17 @@ export function EventDetailsDialog({
   const [newPartDialogOpen, setNewPartDialogOpen] = useState(false);
   const [newPartTitle, setNewPartTitle] = useState("");
 
+  const [biblePickerOpen, setBiblePickerOpen] = useState(false);
+  const [biblePartId, setBiblePartId] = useState<string | null>(null);
+  const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
+  const [mediaPartId, setMediaPartId] = useState<string | null>(null);
+  const [mediaInitialKind, setMediaInitialKind] =
+    useState<VisualMediaKind>("image");
+  const [textEditorOpen, setTextEditorOpen] = useState(false);
+  const [textEditorPartId, setTextEditorPartId] = useState<string | null>(null);
+  const [studioPickerOpen, setStudioPickerOpen] = useState(false);
+  const [studioPartId, setStudioPartId] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isActive = eventSummary?.id === activeEventId;
@@ -104,6 +129,16 @@ export function EventDetailsDialog({
   // Check if part of a recurring series
   const seriesEvents = events.filter((e) => eventSummary && e.title === eventSummary.title);
   const isSeries = seriesEvents.length > 1;
+
+  const refreshFullEvent = useCallback(async () => {
+    const eventId = eventSummary?.id;
+    if (!eventId) return;
+    const fresh = await getEvent(eventId);
+    setFullEvent(fresh);
+    if (useSetlistStore.getState().event?.id === eventId) {
+      useSetlistStore.setState({ event: fresh });
+    }
+  }, [eventSummary?.id]);
 
   // Load full event when opened
   useEffect(() => {
@@ -238,6 +273,99 @@ export function EventDetailsDialog({
 
   // --- Setlist items & moments manipulation handlers ---
 
+  async function ensureActiveForAdd(): Promise<boolean> {
+    if (!eventSummary) return false;
+    const storeEvent = useSetlistStore.getState().event;
+    if (
+      useSetlistStore.getState().activeEventId !== eventSummary.id ||
+      storeEvent?.id !== eventSummary.id
+    ) {
+      await selectEvent(eventSummary.id);
+      await refreshFullEvent();
+    }
+    return true;
+  }
+
+  function resolveStorePartId(targetPartId?: string): string {
+    if (targetPartId) return targetPartId;
+    const current = useSetlistStore.getState().event;
+    if (!current) return "";
+    if (current.parts.length === 0) {
+      return useSetlistStore.getState().addPart("");
+    }
+    return current.parts[0].id;
+  }
+
+  async function openBiblePicker(targetPartId?: string) {
+    if (!(await ensureActiveForAdd())) return;
+    setBiblePartId(resolveStorePartId(targetPartId));
+    setBiblePickerOpen(true);
+  }
+
+  async function openMediaDialog(kind: VisualMediaKind, targetPartId?: string) {
+    if (!(await ensureActiveForAdd())) return;
+    setMediaPartId(resolveStorePartId(targetPartId));
+    setMediaInitialKind(kind);
+    setMediaDialogOpen(true);
+  }
+
+  async function openTextEditor(targetPartId?: string) {
+    if (!(await ensureActiveForAdd())) return;
+    setTextEditorPartId(resolveStorePartId(targetPartId));
+    setTextEditorOpen(true);
+  }
+
+  async function openStudioPicker(targetPartId?: string) {
+    if (!(await ensureActiveForAdd())) return;
+    setStudioPartId(resolveStorePartId(targetPartId));
+    setStudioPickerOpen(true);
+  }
+
+  async function addStudioPresentation(targetPartId?: string) {
+    if (!(await ensureActiveForAdd())) return;
+    const partId = resolveStorePartId(targetPartId);
+    try {
+      const theme = createEmptyStudioTheme("Aviso / Comunicado");
+      await useSlideThemesStore.getState().save(theme);
+      useSetlistStore.getState().addMedia(partId, {
+        kind: "text",
+        title: theme.title,
+        text: "",
+        themeId: theme.guid,
+      });
+      await useSetlistStore.getState().save();
+      await refreshFullEvent();
+      toast.success("Apresentação criada no Studio!");
+      await openThemeEditor(theme.guid);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Falha ao criar apresentação.",
+      );
+    }
+  }
+
+  async function handleOpenMediaLibrary() {
+    try {
+      await openMediaLibrary();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  function buildAddItemHandlers(targetPartId?: string): AddItemMenuHandlers {
+    return {
+      addMusic: () => void handleOpenPicker(targetPartId),
+      searchOnline: () => useSongsStore.getState().openOnlineSearch(),
+      newSong: () => useSongsStore.getState().startNewSong(),
+      addScripture: () => void openBiblePicker(targetPartId),
+      addText: () => void openTextEditor(targetPartId),
+      addMedia: (kind) => void openMediaDialog(kind, targetPartId),
+      insertStudio: () => void openStudioPicker(targetPartId),
+      createStudio: () => void addStudioPresentation(targetPartId),
+      openMediaLibrary: () => void handleOpenMediaLibrary(),
+    };
+  }
+
   async function handleOpenPicker(targetPartId?: string) {
     if (!fullEvent) return;
 
@@ -255,10 +383,7 @@ export function EventDetailsDialog({
         parts: [initialPart],
       };
       await saveEvent(updated);
-      setFullEvent(updated);
-      if (useSetlistStore.getState().event?.id === fullEvent.id) {
-        useSetlistStore.setState({ event: updated });
-      }
+      await refreshFullEvent();
       setPickerPartId(initialPart.id);
     } else {
       const partId = targetPartId || fullEvent.parts[fullEvent.parts.length - 1].id;
@@ -307,10 +432,7 @@ export function EventDetailsDialog({
 
     try {
       await saveEvent(updated);
-      setFullEvent(updated);
-      if (useSetlistStore.getState().event?.id === fullEvent.id) {
-        useSetlistStore.setState({ event: updated });
-      }
+      await refreshFullEvent();
       toast.success(`"${song.title}" adicionada ao setlist!`);
     } catch {
       toast.error("Erro ao salvar música no setlist.");
@@ -334,10 +456,7 @@ export function EventDetailsDialog({
 
     try {
       await saveEvent(updated);
-      setFullEvent(updated);
-      if (useSetlistStore.getState().event?.id === fullEvent.id) {
-        useSetlistStore.setState({ event: updated });
-      }
+      await refreshFullEvent();
       setNewPartTitle("");
       setNewPartDialogOpen(false);
       toast.success(`Momento "${title}" criado.`);
@@ -359,10 +478,7 @@ export function EventDetailsDialog({
     };
     try {
       await saveEvent(updated);
-      setFullEvent(updated);
-      if (useSetlistStore.getState().event?.id === fullEvent.id) {
-        useSetlistStore.setState({ event: updated });
-      }
+      await refreshFullEvent();
       toast.success("Música removida do culto.");
     } catch {
       toast.error("Erro ao remover música.");
@@ -378,10 +494,7 @@ export function EventDetailsDialog({
     };
     try {
       await saveEvent(updated);
-      setFullEvent(updated);
-      if (useSetlistStore.getState().event?.id === fullEvent.id) {
-        useSetlistStore.setState({ event: updated });
-      }
+      await refreshFullEvent();
       toast.success("Momento removido do setlist.");
     } catch {
       toast.error("Erro ao remover momento.");
@@ -408,10 +521,7 @@ export function EventDetailsDialog({
     };
     try {
       await saveEvent(updated);
-      setFullEvent(updated);
-      if (useSetlistStore.getState().event?.id === fullEvent.id) {
-        useSetlistStore.setState({ event: updated });
-      }
+      await refreshFullEvent();
     } catch {
       toast.error("Erro ao reordenar música.");
     }
@@ -419,7 +529,7 @@ export function EventDetailsDialog({
 
   // Count items
   const totalParts = fullEvent?.parts.length ?? 0;
-  const totalSongs = fullEvent?.parts.reduce((acc, p) => acc + p.items.length, 0) ?? 0;
+  const totalItems = fullEvent?.parts.reduce((acc, p) => acc + p.items.length, 0) ?? 0;
 
   return (
     <>
@@ -710,7 +820,7 @@ export function EventDetailsDialog({
                       Programação do Culto
                     </h3>
                     <span className="text-[10px] text-muted-foreground">
-                      {totalSongs} {totalSongs === 1 ? "música" : "músicas"}{totalParts > 0 ? ` · ${totalParts} ${totalParts === 1 ? "momento" : "momentos"}` : ""}
+                      {totalItems} {totalItems === 1 ? "item" : "itens"}{totalParts > 0 ? ` · ${totalParts} ${totalParts === 1 ? "momento" : "momentos"}` : ""}
                     </span>
                   </div>
                 </div>
@@ -729,15 +839,19 @@ export function EventDetailsDialog({
                     <FolderPlus className="size-3" />
                     <span>Novo Momento</span>
                   </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="h-7 px-2.5 text-[11px] gap-1 cursor-pointer font-semibold"
-                    onClick={() => void handleOpenPicker()}
-                  >
-                    <Plus className="size-3.5" />
-                    <span>Adicionar Música</span>
-                  </Button>
+                  <AddItemDropdown
+                    trigger={
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 px-2.5 text-[11px] gap-1 cursor-pointer font-semibold"
+                      >
+                        <Plus className="size-3.5" />
+                        <span>Adicionar</span>
+                      </Button>
+                    }
+                    handlers={buildAddItemHandlers()}
+                  />
                 </div>
               </div>
 
@@ -747,30 +861,34 @@ export function EventDetailsDialog({
                   <div className="py-8 text-center text-xs text-muted-foreground">
                     Carregando músicas do setlist…
                   </div>
-                ) : !fullEvent || fullEvent.parts.length === 0 || totalSongs === 0 ? (
+                ) : !fullEvent || fullEvent.parts.length === 0 ? (
                   <div className="h-full min-h-[220px] rounded-xl border border-dashed border-border/80 bg-muted/15 p-6 flex flex-col items-center justify-center text-center gap-3">
                     <div className="size-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                       <Music className="size-5" />
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-foreground">
-                        Nenhuma música adicionada ainda
+                        Nenhum item adicionado ainda
                       </p>
                       <p className="text-[11px] text-muted-foreground max-w-xs mt-1">
-                        Você já pode montar o repertório deste culto agora mesmo.
+                        Monte o repertório deste culto com músicas, versículos, mídias e apresentações.
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2 pt-1">
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-8 gap-1.5 text-xs cursor-pointer font-semibold"
-                        onClick={() => void handleOpenPicker()}
-                      >
-                        <Plus className="size-3.5" />
-                        <span>Adicionar Música</span>
-                      </Button>
+                      <AddItemDropdown
+                        trigger={
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-8 gap-1.5 text-xs cursor-pointer font-semibold"
+                          >
+                            <Plus className="size-3.5" />
+                            <span>Adicionar Item</span>
+                          </Button>
+                        }
+                        handlers={buildAddItemHandlers()}
+                      />
                       <Button
                         type="button"
                         variant="outline"
@@ -809,16 +927,20 @@ export function EventDetailsDialog({
                           </div>
 
                           <div className="flex items-center gap-1 shrink-0">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 px-1.5 text-[10px] gap-1 hover:bg-background/60 cursor-pointer"
-                              onClick={() => void handleOpenPicker(part.id)}
-                            >
-                              <Plus className="size-3" />
-                              <span>Música</span>
-                            </Button>
+                            <AddItemDropdown
+                              trigger={
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-1.5 text-[10px] gap-1 hover:bg-background/60 cursor-pointer"
+                                >
+                                  <Plus className="size-3" />
+                                  <span>Adicionar</span>
+                                </Button>
+                              }
+                              handlers={buildAddItemHandlers(part.id)}
+                            />
                             <Button
                               type="button"
                               variant="ghost"
@@ -835,17 +957,21 @@ export function EventDetailsDialog({
                         {/* Part Items */}
                         {part.items.length === 0 ? (
                           <div className="p-3 text-[11px] text-muted-foreground flex items-center justify-between">
-                            <span className="italic">Nenhuma música neste momento.</span>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-6 text-[10px] gap-1 cursor-pointer"
-                              onClick={() => void handleOpenPicker(part.id)}
-                            >
-                              <Plus className="size-2.5" />
-                              <span>Adicionar</span>
-                            </Button>
+                            <span className="italic">Nenhum item neste momento.</span>
+                            <AddItemDropdown
+                              trigger={
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-6 text-[10px] gap-1 cursor-pointer"
+                                >
+                                  <Plus className="size-2.5" />
+                                  <span>Adicionar</span>
+                                </Button>
+                              }
+                              handlers={buildAddItemHandlers(part.id)}
+                            />
                           </div>
                         ) : (
                           <div className="divide-y divide-border/30">
@@ -859,16 +985,27 @@ export function EventDetailsDialog({
                                     {itemIdx + 1}
                                   </span>
                                   <div className="flex flex-col min-w-0">
-                                    <span className="font-semibold text-foreground truncate">
-                                      {item.media?.title ||
-                                        item.song?.title ||
-                                        "Música sem título"}
+                                    <span className="flex items-center gap-1.5 font-semibold text-foreground truncate">
+                                      {item.scripture && (
+                                        <BookOpen className="size-3 shrink-0 text-emerald-500" />
+                                      )}
+                                      <span className="truncate">
+                                        {item.scripture
+                                          ? `${item.scripture.bookName} ${item.scripture.chapter}:${item.scripture.verse}`
+                                          : item.media?.title ||
+                                            item.song?.title ||
+                                            "Item sem título"}
+                                      </span>
                                     </span>
-                                    {(item.media || item.song?.artist) && (
+                                    {(item.scripture ||
+                                      item.media ||
+                                      item.song?.artist) && (
                                       <span className="text-[11px] text-muted-foreground truncate">
-                                        {item.media
-                                          ? mediaKindLabel(item.media.kind)
-                                          : item.song?.artist}
+                                        {item.scripture
+                                          ? `Bíblia · ${item.scripture.versionId}`
+                                          : item.media
+                                            ? mediaKindLabel(item.media.kind)
+                                            : item.song?.artist}
                                       </span>
                                     )}
                                   </div>
@@ -973,6 +1110,45 @@ export function EventDetailsDialog({
             void handleAddSong(pickerPartId, song);
           }
         }}
+      />
+
+      <MediaDialog
+        open={mediaDialogOpen}
+        onOpenChange={(next) => {
+          setMediaDialogOpen(next);
+          if (!next) void refreshFullEvent();
+        }}
+        partId={mediaPartId ?? ""}
+        itemId={null}
+        initialKind={mediaInitialKind}
+      />
+
+      <TextEditorDialog
+        open={textEditorOpen}
+        onOpenChange={(next) => {
+          setTextEditorOpen(next);
+          if (!next) void refreshFullEvent();
+        }}
+        partId={textEditorPartId ?? ""}
+        itemId={null}
+      />
+
+      <BibleVersePickerDialog
+        open={biblePickerOpen}
+        onOpenChange={(next) => {
+          setBiblePickerOpen(next);
+          if (!next) void refreshFullEvent();
+        }}
+        partId={biblePartId ?? ""}
+      />
+
+      <StudioPickerDialog
+        open={studioPickerOpen}
+        onOpenChange={(next) => {
+          setStudioPickerOpen(next);
+          if (!next) void refreshFullEvent();
+        }}
+        partId={studioPartId ?? ""}
       />
 
       {/* New Part / Moment Dialog */}

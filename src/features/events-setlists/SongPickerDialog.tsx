@@ -26,6 +26,7 @@ export function SongPickerDialog({
   onSelectSong,
 }: SongPickerDialogProps) {
   const addSong = useSetlistStore((s) => s.addSong);
+  const save = useSetlistStore((s) => s.save);
 
   const [query, setQuery] = useState("");
   const [catalog, setCatalog] = useState<SongSummary[]>([]);
@@ -100,6 +101,7 @@ export function SongPickerDialog({
                     onSelectSong(song);
                   } else {
                     addSong(partId, song);
+                    void save();
                   }
                   onOpenChange(false);
                 }}

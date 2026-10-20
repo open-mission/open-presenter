@@ -80,7 +80,7 @@ pub fn list(conn: &Connection) -> Result<Vec<EventSummary>, AppError> {
                     json_extract(setlist_json, '$.themeGuid')
              FROM service_events
              WHERE id != ?1
-             ORDER BY event_date DESC, title",
+             ORDER BY event_date ASC, title",
         )
         .map_err(storage_error)?;
     let events = stmt
@@ -348,6 +348,35 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].id, "e-culto");
         assert!(!events.iter().any(|e| e.id == TEMPORARY_EVENT_ID));
+    }
+
+    #[test]
+    fn list_ordena_eventos_por_data_ascendente() {
+        let conn = open_in_memory();
+        for (id, date) in [
+            ("e-depois", "2026-10-25"),
+            ("e-antes", "2026-10-17"),
+            ("e-meio", "2026-10-18"),
+        ] {
+            create(
+                &conn,
+                &ServiceEvent {
+                    id: id.into(),
+                    title: id.into(),
+                    event_date: date.into(),
+                    wallpaper: None,
+                    theme_guid: None,
+                    parts: vec![],
+                },
+            )
+            .unwrap();
+        }
+
+        let events = list(&conn).unwrap();
+        assert_eq!(
+            events.iter().map(|event| event.id.as_str()).collect::<Vec<_>>(),
+            vec!["e-antes", "e-meio", "e-depois"]
+        );
     }
 
     #[test]
