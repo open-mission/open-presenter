@@ -29,6 +29,7 @@ const SHORTCUTS: ShortcutItem[] = [
   { key: "⌘ ,", action: "Abrir configurações e preferências", scope: "Geral" },
   { key: "B", action: "Blackout (escurecer projeção ao vivo)", scope: "Apresentação" },
   { key: "C", action: "Limpar texto mantendo plano de fundo", scope: "Apresentação" },
+  { key: "F", action: "Apresentar o plano de fundo", scope: "Apresentação" },
   { key: "Espaço / →", action: "Avançar para o próximo slide", scope: "Navegação" },
   { key: "Shift+Espaço / ←", action: "Retornar ao slide anterior", scope: "Navegação" },
   { key: "Enter", action: "Projetar slide selecionado", scope: "Navegação" },

@@ -129,6 +129,17 @@ function pxOf(value: string | undefined): number {
   return match ? Number(match[1]) : 0;
 }
 
+type FitModeValue = "fixed" | "shrink" | "fit";
+
+function fitModeOf(css: Record<string, string | undefined>): FitModeValue {
+  if (css.fitMode === "fixed" || css.fitMode === "shrink" || css.fitMode === "fit") {
+    return css.fitMode;
+  }
+  if (css.autoFit === "true") return "fit";
+  if (css.autoShrink === "false") return "fixed";
+  return "shrink";
+}
+
 function asHex(value: string | undefined, fallback: string): string {
   const trimmed = (value ?? "").trim();
   if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) return trimmed;
@@ -482,6 +493,10 @@ function TextSection({
     updateElement(el.id, { css });
   }
 
+  const fitMode = fitModeOf(el.css);
+  const baseFont = pxOf(el.css.fontSize) || 48;
+  const defaultMaxFont = Math.round(baseFont * 2.5);
+
   function insertVariable(key: string) {
     const tag = `{${key}}`;
     const area = areaRef.current;
@@ -828,28 +843,21 @@ function TextSection({
               </span>
             </div>
             <Select
-              value={
-                el.css.autoFit === "true"
-                  ? "fit"
-                  : el.css.autoShrink === "false"
-                  ? "none"
-                  : "shrink"
-              }
+              value={fitMode}
               onValueChange={(val) => {
-                if (val === "shrink") {
-                  setCss({ autoShrink: "true", autoFit: "false" });
-                } else if (val === "fit") {
-                  setCss({ autoShrink: "true", autoFit: "true" });
-                } else {
-                  setCss({ autoShrink: "false", autoFit: "false" });
-                }
+                const mode = val as FitModeValue;
+                setCss({
+                  fitMode: mode,
+                  autoShrink: mode === "fixed" ? "false" : "true",
+                  autoFit: mode === "fit" ? "true" : "false",
+                });
               }}
             >
               <SelectTrigger className="w-[160px] h-7 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent position="popper">
-                <SelectItem value="none" className="text-xs">
+                <SelectItem value="fixed" className="text-xs">
                   Fixo (Desativado)
                 </SelectItem>
                 <SelectItem value="shrink" className="text-xs">
@@ -862,26 +870,55 @@ function TextSection({
             </Select>
           </div>
 
-          {/* Tamanho Mínimo da Fonte quando auto-size ativo */}
-          {(el.css.autoShrink !== "false" || el.css.autoFit === "true") && (
-            <div className="flex items-center justify-between gap-2 pl-5 pt-0.5">
-              <span className="text-[10px] text-muted-foreground">
-                Tam. Mínimo da Fonte (px)
-              </span>
-              <Input
-                type="number"
-                min={8}
-                max={120}
-                className="h-7 w-20 font-mono text-xs text-right"
-                placeholder="20"
-                value={pxOf(el.css.minFontSize) || 20}
-                onChange={(e) => {
-                  const num = Number(e.target.value);
-                  if (Number.isFinite(num) && num > 0) {
-                    setCss({ minFontSize: `${num}px` });
-                  }
-                }}
-              />
+          <p className="pl-5 text-[10px] text-muted-foreground">
+            {fitMode === "shrink" && "O tamanho base é o máximo; o texto só diminui."}
+            {fitMode === "fit" && "O texto cresce somente até o tamanho máximo."}
+            {fitMode === "fixed" && "O tamanho base é aplicado sem ajuste."}
+          </p>
+
+          {fitMode !== "fixed" && (
+            <div className="flex flex-col gap-1 pl-5 pt-0.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] text-muted-foreground">
+                  Tam. mínimo da fonte (px)
+                </span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={500}
+                  className="h-7 w-20 font-mono text-xs text-right"
+                  placeholder="16"
+                  value={pxOf(el.css.minFontSize) || 16}
+                  onChange={(e) => {
+                    const num = Number(e.target.value);
+                    if (Number.isFinite(num) && num > 0) {
+                      setCss({ minFontSize: `${num}px` });
+                    }
+                  }}
+                />
+              </div>
+
+              {fitMode === "fit" && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] text-muted-foreground">
+                    Tam. máximo da fonte (px)
+                  </span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={500}
+                    className="h-7 w-20 font-mono text-xs text-right"
+                    placeholder={String(defaultMaxFont)}
+                    value={pxOf(el.css.maxFontSize) || defaultMaxFont}
+                    onChange={(e) => {
+                      const num = Number(e.target.value);
+                      if (Number.isFinite(num) && num > 0) {
+                        setCss({ maxFontSize: `${num}px` });
+                      }
+                    }}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

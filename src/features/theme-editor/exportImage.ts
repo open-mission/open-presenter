@@ -1,5 +1,17 @@
 import { toast } from "sonner";
 import type { SlideTheme, ThemeElement } from "../../core/types";
+import {
+  fitFontSize,
+  lineHeightPx,
+  parseFontPx,
+  parsePadding,
+  resolveFitBounds,
+  resolveLineHeightRatio,
+} from "../slide-themes/fitText.ts";
+import {
+  measurePlainText,
+  typographyFromCss,
+} from "../slide-themes/textMeasure.ts";
 
 function renderThemeText(
   template: string,
@@ -174,6 +186,20 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
+function htmlToPlainText(value: string): string {
+  if (!/[<>]/.test(value)) return value;
+  return value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:div|p)>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
 function drawTextElement(
   ctx: CanvasRenderingContext2D,
   element: ThemeElement,
@@ -182,13 +208,15 @@ function drawTextElement(
   sampleProps: Record<string, string>,
 ) {
   const rawText = element.text ?? "";
-  let text = renderThemeText(rawText, sampleProps);
-  if (!text) return;
+  let text = htmlToPlainText(renderThemeText(rawText, sampleProps));
+  if (!text.trim()) return;
 
   if (element.css.textTransform === "uppercase") {
     text = text.toUpperCase();
   } else if (element.css.textTransform === "lowercase") {
     text = text.toLowerCase();
+  } else if (element.css.textTransform === "capitalize") {
+    text = text.replace(/\b\p{L}/gu, (char) => char.toUpperCase());
   }
 
   const boxX =
@@ -206,19 +234,59 @@ function drawTextElement(
   const boxH =
     element.css.height !== undefined
       ? parseDimension(element.css.height, h, h * 0.3)
-      : h * 0.3;
+      : Math.max(0, h - boxY - h * 0.05);
+
+  const padding = parsePadding(element.css);
+  const contentX = boxX + padding.left;
+  const contentY = boxY + padding.top;
+  const contentW = Math.max(0, boxW - padding.left - padding.right);
+  const contentH = Math.max(0, boxH - padding.top - padding.bottom);
+  if (contentW <= 0 || contentH <= 0) return;
 
   ctx.save();
+  ctx.beginPath();
+  ctx.rect(contentX, contentY, contentW, contentH);
+  ctx.clip();
 
-  let fontSize = parseDimension(element.css.fontSize, h, 48);
-  const fontWeight = element.css.fontWeight || "600";
+  const fontWeight = element.css.fontWeight || "400";
+  const fontStyle = element.css.fontStyle === "italic" ? "italic" : "normal";
   const fontFamily =
     element.css.fontFamily ||
     "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
   const fontColor = element.css.color || "#ffffff";
-  const textAlign = (element.css.textAlign as CanvasTextAlign) || "center";
-  const lineHeightMult = parseFloat(element.css.lineHeight || "1.25") || 1.25;
+  const rawTextAlign = element.css.textAlign || "center";
+  const canvasTextAlign: CanvasTextAlign =
+    rawTextAlign === "justify" ? "left" : (rawTextAlign as CanvasTextAlign);
   const isNoWrap = element.css.whiteSpace === "nowrap";
+  const baseFontSize = parseFontPx(element.css.fontSize, 48);
+  const lineHeightRatio = resolveLineHeightRatio(
+    element.css.lineHeight,
+    baseFontSize,
+  );
+
+  const typography = typographyFromCss(element.css, {
+    whiteSpace: isNoWrap ? "nowrap" : (element.css.whiteSpace ?? "pre-wrap"),
+    wordBreak: isNoWrap ? "normal" : element.css.wordBreak,
+    overflowWrap: isNoWrap ? "normal" : element.css.overflowWrap,
+    textWrap: isNoWrap ? "nowrap" : (element.css.textWrap ?? "pretty"),
+    textTransform: "none",
+  });
+
+  const bounds = resolveFitBounds(element.css);
+  const fit = fitFontSize(
+    (size) =>
+      measurePlainText(
+        text,
+        contentW,
+        typography,
+        size,
+        lineHeightPx(size, lineHeightRatio),
+      ),
+    { width: contentW, height: contentH },
+    bounds,
+  );
+  let fontSize = fit.size;
+  let lineHeight = lineHeightPx(fontSize, lineHeightRatio);
 
   if (element.css.textShadow && element.css.textShadow !== "none") {
     const shadowMatch = element.css.textShadow.match(
@@ -236,60 +304,93 @@ function drawTextElement(
     }
   }
 
-  const autoShrink = element.css.autoShrink === "true";
-  const autoFit = element.css.autoFit === "true";
+  const fontSpec = (size: number) =>
+    `${fontStyle} ${fontWeight} ${size}px ${fontFamily}`;
 
-  const getLines = (fSize: number): string[] => {
-    ctx.font = `${fontWeight} ${fSize}px ${fontFamily}`;
+  const getLines = (size: number): string[] => {
+    ctx.font = fontSpec(size);
     const paragraphs = text.split("\n");
     const result: string[] = [];
     for (const para of paragraphs) {
-      if (isNoWrap || !para.includes(" ")) {
+      if (isNoWrap) {
         result.push(para);
         continue;
       }
-      const words = para.split(" ");
-      let current = "";
-      for (const word of words) {
-        const testLine = current ? `${current} ${word}` : word;
-        if (ctx.measureText(testLine).width > boxW && current) {
-          result.push(current);
-          current = word;
-        } else {
-          current = testLine;
-        }
+      const words = para.split(/\s+/).filter(Boolean);
+      if (words.length === 0) {
+        result.push("");
+        continue;
       }
-      if (current) result.push(current);
+      let current = "";
+      const flush = () => {
+        if (current) result.push(current);
+        current = "";
+      };
+      for (const word of words) {
+        const candidate = current ? `${current} ${word}` : word;
+        if (ctx.measureText(candidate).width <= contentW) {
+          current = candidate;
+          continue;
+        }
+        if (current) {
+          result.push(current);
+          current = "";
+        }
+        if (ctx.measureText(word).width <= contentW) {
+          current = word;
+          continue;
+        }
+        // Palavra sozinha maior que a caixa: quebra por caractere.
+        let chunk = "";
+        for (const char of word) {
+          const next = chunk + char;
+          if (ctx.measureText(next).width > contentW && chunk) {
+            result.push(chunk);
+            chunk = char;
+          } else {
+            chunk = next;
+          }
+        }
+        current = chunk;
+      }
+      flush();
     }
     return result;
   };
 
   let lines = getLines(fontSize);
+  ctx.font = fontSpec(fontSize);
 
-  if (autoShrink || autoFit) {
-    const minFont = parseFloat(element.css.minFontSize || "16") || 16;
-    let attempts = 0;
-    while (attempts < 25 && fontSize > minFont) {
-      const lineHeight = fontSize * lineHeightMult;
-      const totalH = lines.length * lineHeight;
-      const maxLineWidth = Math.max(...lines.map((l) => ctx.measureText(l).width));
+  // O browser e o canvas podem quebrar linhas de forma ligeiramente diferente;
+  // o canvas é o árbitro final para não exportar texto cortado.
+  while (fontSize > bounds.min) {
+    const widest = lines.reduce(
+      (max, line) => Math.max(max, ctx.measureText(line).width),
+      0,
+    );
+    if (lines.length * lineHeight <= contentH + 0.5 && widest <= contentW + 0.5) {
+      break;
+    }
+    fontSize -= 1;
+    lineHeight = lineHeightPx(fontSize, lineHeightRatio);
+    lines = getLines(fontSize);
+    ctx.font = fontSpec(fontSize);
+  }
 
-      if (maxLineWidth > boxW || totalH > boxH) {
-        fontSize = Math.max(minFont, fontSize * 0.92);
-        lines = getLines(fontSize);
-      } else {
-        break;
-      }
-      attempts++;
+  ctx.fillStyle = fontColor;
+  ctx.textAlign = canvasTextAlign;
+  ctx.textBaseline = "middle";
+
+  const letterSpacing = element.css.letterSpacing;
+  if (letterSpacing && letterSpacing.endsWith("px")) {
+    try {
+      (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing =
+        letterSpacing;
+    } catch {
+      // Navegador sem suporte a letterSpacing no canvas.
     }
   }
 
-  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
-  ctx.fillStyle = fontColor;
-  ctx.textAlign = textAlign;
-  ctx.textBaseline = "middle";
-
-  const lineHeight = fontSize * lineHeightMult;
   const totalH = lines.length * lineHeight;
 
   const rawVAlign =
@@ -300,20 +401,20 @@ function drawTextElement(
 
   let startY: number;
   if (rawVAlign === "flex-start" || rawVAlign === "start" || rawVAlign === "top") {
-    startY = boxY + lineHeight / 2;
+    startY = contentY + lineHeight / 2;
   } else if (rawVAlign === "flex-end" || rawVAlign === "end" || rawVAlign === "bottom") {
-    startY = boxY + boxH - totalH + lineHeight / 2;
+    startY = contentY + contentH - totalH + lineHeight / 2;
   } else {
-    startY = boxY + (boxH - totalH) / 2 + lineHeight / 2;
+    startY = contentY + (contentH - totalH) / 2 + lineHeight / 2;
   }
 
   let lineX: number;
-  if (textAlign === "left" || textAlign === "start") {
-    lineX = boxX;
-  } else if (textAlign === "right" || textAlign === "end") {
-    lineX = boxX + boxW;
+  if (rawTextAlign === "left" || rawTextAlign === "start" || rawTextAlign === "justify") {
+    lineX = contentX;
+  } else if (rawTextAlign === "right" || rawTextAlign === "end") {
+    lineX = contentX + contentW;
   } else {
-    lineX = boxX + boxW / 2;
+    lineX = contentX + contentW / 2;
   }
 
   for (let i = 0; i < lines.length; i++) {

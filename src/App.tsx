@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import AdminView from "./views/AdminView";
 import PreferencesView from "./views/PreferencesView";
@@ -10,9 +11,12 @@ import SongEditorView from "./views/SongEditorView";
 import RemoteView from "./features/remote/RemoteView";
 import { Toaster } from "@/components/ui/sonner";
 import { useMediaPortSync } from "@/core/config/mediaPort";
+import { initSongGroupsSync } from "@/features/songs/songGroupsStore";
 
 export default function App() {
   useMediaPortSync();
+
+  useEffect(() => initSongGroupsSync(), []);
 
   return (
     <HashRouter>

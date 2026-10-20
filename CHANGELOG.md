@@ -5,6 +5,31 @@ Todas as mudanças relevantes do Open Presenter são documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.3.8] - 2026-10-20
+
+### Corrigido
+
+#### Editor de Temas & Auto-scale
+
+- **Auto-scale com mínimo e máximo reais:** o teste de largura comparava
+  `scrollWidth` de um bloco `100%` com `98%` da mesma largura, forçando todo texto
+  multilinha ao tamanho mínimo. A medição agora usa as linhas reais do texto
+  (`Range.getClientRects`) em um medidor oculto, com busca binária inteira entre
+  `minFontSize` e `maxFontSize`.
+- **Paridade entre palco e export:** o PNG passou a usar o mesmo resolvedor de
+  tamanho do palco, respeitando padding, line-height e clipping da caixa.
+
+#### Atalhos de Seção
+
+- **Atualização imediata dos rótulos:** os grupos de música agora sincronizam entre
+  a janela principal e a janela de Preferências (evento Tauri, `BroadcastChannel` e
+  `storage`). Mudar o atalho nas Preferências atualiza os badges da letra sem
+  reiniciar o aplicativo.
+- **Prioridade contextual:** os atalhos de seção configurados têm prioridade sobre
+  os atalhos globais `B`/`C`/`F` quando há uma música com seções no painel de letras,
+  evitando que `C` (Refrão) também limpe o texto. As Preferências destacam conflitos
+  com os atalhos globais.
+
 ## [0.3.7] - 2026-10-20
 
 Release de correção com suporte completo a agrupamento e renomeação de camadas no
