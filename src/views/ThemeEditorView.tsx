@@ -119,6 +119,7 @@ export default function ThemeEditorView() {
   const revert = useThemeEditorStore((s) => s.revert);
   const addElement = useThemeEditorStore((s) => s.addElement);
   const addElements = useThemeEditorStore((s) => s.addElements);
+  const removeElement = useThemeEditorStore((s) => s.removeElement);
   const upgradeToV2 = useThemeEditorStore((s) => s.upgradeToV2);
   const setCategory = useThemeEditorStore((s) => s.setCategory);
 
@@ -179,6 +180,36 @@ export default function ThemeEditorView() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+
+      // On macOS/WebKit, pressing Backspace when no input is focused triggers history.back()
+      // which closes/exits the view. We prevent default and delete the selected element.
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (!isInput) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (selectedId) {
+            removeElement(selectedId);
+            setSelectedId(null);
+          }
+          return;
+        }
+      }
+
+      if (e.key === "Escape" && !isInput) {
+        if (selectedId) {
+          e.preventDefault();
+          setSelectedId(null);
+        }
+        return;
+      }
+
       const mod = e.ctrlKey || e.metaKey;
       if (!mod) return;
       const key = e.key.toLowerCase();
@@ -195,7 +226,7 @@ export default function ThemeEditorView() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [selectedId, removeElement, undo, redo]);
 
   async function handleSave() {
     setSaving(true);

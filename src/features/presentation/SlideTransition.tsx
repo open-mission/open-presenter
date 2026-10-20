@@ -45,11 +45,17 @@ export function SlideTransition({
   durationMs = 300,
   transitionBackground = false,
 }: SlideTransitionProps) {
-  const isThemeMode = Boolean(theme && asset && slide.content.kind !== "media");
+  const effectiveAsset =
+    asset ?? (slide.content.media?.kind === "text" ? "text" : null);
+  const isThemeMode = Boolean(
+    theme &&
+      effectiveAsset &&
+      (slide.content.kind !== "media" || slide.content.media?.kind === "text"),
+  );
   const mediaKey =
     slide.content.kind === "media" ? slide.updatedAt : "";
   const currentKey = isThemeMode
-    ? `${theme?.guid ?? ""}_${asset ?? ""}_${slide.content.kind}`
+    ? `${theme?.guid ?? ""}_${effectiveAsset ?? ""}_${slide.content.kind}`
     : `${slide.content.id}_${slide.content.title}_${slide.content.section ?? ""}_${slide.content.lines.join("\n")}_${theme?.guid ?? ""}_${mediaKey}`;
 
   const [active, setActive] = useState<{
@@ -61,7 +67,7 @@ export function SlideTransition({
     key: currentKey,
     slide,
     theme,
-    asset,
+    asset: effectiveAsset,
   });
 
   const [outgoing, setOutgoing] = useState<{
@@ -74,7 +80,7 @@ export function SlideTransition({
   useEffect(() => {
     if (currentKey !== active.key) {
       setOutgoing(active);
-      setActive({ key: currentKey, slide, theme, asset });
+      setActive({ key: currentKey, slide, theme, asset: effectiveAsset });
 
       const timer = setTimeout(() => {
         setOutgoing(null);
@@ -82,9 +88,9 @@ export function SlideTransition({
 
       return () => clearTimeout(timer);
     } else {
-      setActive({ key: currentKey, slide, theme, asset });
+      setActive({ key: currentKey, slide, theme, asset: effectiveAsset });
     }
-  }, [currentKey, slide, theme, asset, durationMs]);
+  }, [currentKey, slide, theme, effectiveAsset, durationMs]);
 
   return (
     <div

@@ -6,6 +6,7 @@ import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 import { ShaderCanvas } from "@/features/media-shaders/ShaderCanvas";
 import { renderTemplate } from "./themeTemplate";
 import { hasNoiseLayer } from "./noiseGenerator";
+import { getAnimationNames } from "./transitions";
 
 const BACKGROUND_KEYS = new Set([
   "background",
@@ -137,6 +138,15 @@ function AutoScaledText({
   } | null>(null);
   const isFirstMount = useRef(true);
 
+  const isPersistent =
+    element.css.isPersistent === "true" || (element.css.isPersistent as unknown) === true;
+  const transitionType = isPersistent ? "none" : (element.css.transitionType ?? "fade");
+  const durationMs =
+    transitionType === "none"
+      ? 0
+      : parseInt(element.css.transitionDuration ?? "250ms", 10) || 250;
+  const { inAnimation, outAnimation } = getAnimationNames(transitionType);
+
   const autoShrink = (element.css.autoShrink as unknown) !== false && element.css.autoShrink !== "false";
   const autoFit = (element.css.autoFit as unknown) === true || element.css.autoFit === "true";
 
@@ -165,7 +175,7 @@ function AutoScaledText({
       return;
     }
     if (html !== currentHtml) {
-      if (currentHtml.trim()) {
+      if (transitionType !== "none" && durationMs > 0 && currentHtml.trim()) {
         setOutgoing({
           html: currentHtml,
           scale: scaleFactor,
@@ -174,13 +184,17 @@ function AutoScaledText({
       }
       setCurrentHtml(html);
 
-      const timer = setTimeout(() => {
-        setOutgoing(null);
-      }, 250);
+      if (transitionType !== "none" && durationMs > 0) {
+        const timer = setTimeout(() => {
+          setOutgoing(null);
+        }, durationMs);
 
-      return () => clearTimeout(timer);
+        return () => clearTimeout(timer);
+      } else {
+        setOutgoing(null);
+      }
     }
-  }, [html, currentHtml, scaleFactor]);
+  }, [html, currentHtml, scaleFactor, transitionType, durationMs]);
 
   useLayoutEffect(() => {
     if (!autoShrink && !autoFit) {
@@ -292,7 +306,7 @@ function AutoScaledText({
         position: style.position ?? "absolute",
       }}
     >
-      {outgoing && (
+      {outgoing && outAnimation !== "none" && (
         <div
           key={outgoing.key}
           style={{
@@ -303,7 +317,7 @@ function AutoScaledText({
             justifyContent: vAlign,
             alignItems: "stretch",
             pointerEvents: "none",
-            animation: "slideFadeOut 250ms ease-in-out forwards",
+            animation: `${outAnimation} ${durationMs}ms cubic-bezier(0.16, 1, 0.3, 1) forwards`,
           }}
         >
           <div
@@ -331,30 +345,42 @@ function AutoScaledText({
       )}
 
       <div
-        ref={contentRef}
+        key={`act-${currentHtml}`}
         style={{
-          width: isNoWrap ? "max-content" : "100%",
-          maxWidth: isNoWrap ? "none" : "100%",
-          whiteSpace: isNoWrap
-            ? "nowrap"
-            : ((style.whiteSpace as CSSProperties["whiteSpace"]) ?? "pre-wrap"),
-          wordBreak: isNoWrap
-            ? "normal"
-            : ((element.css.wordBreak as CSSProperties["wordBreak"]) ?? "break-word"),
-          overflowWrap: isNoWrap ? "normal" : "break-word",
-          textWrap: isNoWrap
-            ? "nowrap"
-            : ((element.css.textWrap as CSSProperties["textWrap"]) ?? "pretty"),
-          textAlign,
-          transform: scaleFactor !== 1 ? `scale(${scaleFactor})` : undefined,
-          transformOrigin: `${originX} ${originY}`,
-          transition: "transform 0.08s ease-out",
-          animation: outgoing
-            ? "slideFadeIn 250ms ease-in-out forwards"
-            : undefined,
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: vAlign,
+          alignItems: "stretch",
+          animation:
+            outgoing && inAnimation !== "none"
+              ? `${inAnimation} ${durationMs}ms cubic-bezier(0.16, 1, 0.3, 1) forwards`
+              : undefined,
         }}
-        dangerouslySetInnerHTML={{ __html: currentHtml }}
-      />
+      >
+        <div
+          ref={contentRef}
+          style={{
+            width: isNoWrap ? "max-content" : "100%",
+            maxWidth: isNoWrap ? "none" : "100%",
+            whiteSpace: isNoWrap
+              ? "nowrap"
+              : ((style.whiteSpace as CSSProperties["whiteSpace"]) ?? "pre-wrap"),
+            wordBreak: isNoWrap
+              ? "normal"
+              : ((element.css.wordBreak as CSSProperties["wordBreak"]) ?? "break-word"),
+            overflowWrap: isNoWrap ? "normal" : "break-word",
+            textWrap: isNoWrap
+              ? "nowrap"
+              : ((element.css.textWrap as CSSProperties["textWrap"]) ?? "pretty"),
+            textAlign,
+            transform: scaleFactor !== 1 ? `scale(${scaleFactor})` : undefined,
+            transformOrigin: `${originX} ${originY}`,
+            transition: "transform 0.08s ease-out",
+          }}
+          dangerouslySetInnerHTML={{ __html: currentHtml }}
+        />
+      </div>
     </div>
   );
 }

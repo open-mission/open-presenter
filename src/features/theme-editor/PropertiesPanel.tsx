@@ -10,7 +10,13 @@ import {
   AlignVerticalJustifyStart,
   AlignVerticalJustifyCenter,
   AlignVerticalJustifyEnd,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Ban,
   ChevronDown,
+  Clock,
   Eye,
   EyeOff,
   Film,
@@ -26,6 +32,7 @@ import {
   Type,
   Unlock,
   WrapText,
+  Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ThemeElement } from "@/core/types";
@@ -232,6 +239,7 @@ export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
         />
       )}
       <AppearanceSection el={selected} updateElement={updateElement} />
+      <TransitionsSection el={selected} updateElement={updateElement} />
       <AdvancedCssSection el={selected} updateElement={updateElement} />
     </div>
   );
@@ -1317,6 +1325,195 @@ function AppearanceSection({
             }}
           />
         </Field>
+      </div>
+    </Section>
+  );
+}
+
+function TransitionsSection({
+  el,
+  updateElement,
+}: {
+  el: ThemeElement;
+  updateElement: UpdateElement;
+}) {
+  const isPersistent =
+    el.css.isPersistent === "true" ||
+    (el.css.isPersistent as unknown) === true;
+  const rawType =
+    el.css.transitionType ?? (el.type === "RECTANGLE" ? "none" : "fade");
+  const transitionType = isPersistent ? "none" : rawType;
+  const duration = el.css.transitionDuration ?? "250ms";
+
+  function setTransition(type: string) {
+    if (type === "none") {
+      updateElement(el.id, {
+        css: {
+          ...el.css,
+          transitionType: "none",
+          isPersistent: "true",
+        },
+      });
+    } else {
+      updateElement(el.id, {
+        css: {
+          ...el.css,
+          transitionType: type,
+          isPersistent: "false",
+        },
+      });
+    }
+  }
+
+  function setDuration(dur: string) {
+    updateElement(el.id, {
+      css: {
+        ...el.css,
+        transitionDuration: dur,
+      },
+    });
+  }
+
+  const TRANSITION_TYPES = [
+    {
+      value: "none",
+      label: "Fixo",
+      icon: Ban,
+      title: "Nenhum / Fixo",
+      desc: "Permanece estático na troca de slides",
+    },
+    {
+      value: "fade",
+      label: "Fade",
+      icon: Sparkles,
+      title: "Fade",
+      desc: "Esmaecer suavemente no lugar",
+    },
+    {
+      value: "fade-up",
+      label: "Subir",
+      icon: ArrowUp,
+      title: "Fade para Cima",
+      desc: "Entra subindo suavemente",
+    },
+    {
+      value: "fade-down",
+      label: "Descer",
+      icon: ArrowDown,
+      title: "Fade para Baixo",
+      desc: "Entra descendo suavemente",
+    },
+    {
+      value: "fade-left",
+      label: "Esquerda",
+      icon: ArrowLeft,
+      title: "Fade para Esquerda",
+      desc: "Entra da esquerda para a direita",
+    },
+    {
+      value: "fade-right",
+      label: "Direita",
+      icon: ArrowRight,
+      title: "Fade para Direita",
+      desc: "Entra da direita para a esquerda",
+    },
+  ];
+
+  const DURATION_PRESETS = [
+    { value: "150ms", label: "150ms" },
+    { value: "250ms", label: "250ms" },
+    { value: "400ms", label: "400ms" },
+    { value: "600ms", label: "600ms" },
+  ];
+
+  const activeTransition =
+    TRANSITION_TYPES.find((t) => t.value === transitionType) ??
+    TRANSITION_TYPES[1];
+
+  return (
+    <Section title="TRANSIÇÃO & ANIMAÇÃO" icon={Zap} defaultOpen={true}>
+      <div className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-foreground">
+            Efeito ao Mudar Slide
+          </span>
+          <span className="text-[11px] font-mono text-muted-foreground">
+            {activeTransition.title}
+          </span>
+        </div>
+
+        {/* Grid de Efeitos */}
+        <div className="grid grid-cols-3 gap-1 rounded-md border border-border/70 p-1 bg-muted/20">
+          {TRANSITION_TYPES.map((t) => {
+            const Icon = t.icon;
+            const selected = transitionType === t.value;
+            return (
+              <button
+                key={t.value}
+                type="button"
+                title={t.desc}
+                onClick={() => setTransition(t.value)}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer",
+                  selected
+                    ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                )}
+              >
+                <Icon className="size-4 shrink-0" />
+                <span className="truncate w-full text-center">{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Descrição contextual */}
+        <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/30 p-2 rounded border border-border/40">
+          {transitionType === "none" ? (
+            <>
+              <strong>Camada Fixa / Persistente:</strong> este elemento permanece estável na tela e não pisca ao trocar os versos da música, textos ou versículos. Ideal para retângulos de fundo, tarjas e molduras.
+            </>
+          ) : (
+            <>
+              <strong>{activeTransition.title}:</strong> {activeTransition.desc}. Ao trocar de slide, o texto anterior sai com transição direcional suave.
+            </>
+          )}
+        </p>
+
+        {/* Seletor de Duração (visível quando animado) */}
+        {transitionType !== "none" && (
+          <div className="flex flex-col gap-1.5 pt-2 border-t border-border/40">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-foreground flex items-center gap-1">
+                <Clock className="size-3 text-muted-foreground" />
+                Duração da Transição
+              </span>
+              <span className="text-[11px] font-mono text-primary font-medium">
+                {duration}
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-1">
+              {DURATION_PRESETS.map((p) => {
+                const selected = duration === p.value;
+                return (
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => setDuration(p.value)}
+                    className={cn(
+                      "py-1 px-1.5 text-xs rounded border transition-colors cursor-pointer text-center font-mono",
+                      selected
+                        ? "border-primary bg-primary/10 text-primary font-semibold"
+                        : "border-border/60 hover:bg-muted/50 text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </Section>
   );
