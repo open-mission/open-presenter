@@ -133,7 +133,7 @@ export function ThemeRail() {
       aria-label="Trilho de temas"
       className="flex w-44 shrink-0 flex-col border-l border-border bg-card/40"
     >
-      <div className="flex items-center justify-between border-b border-border px-2 py-1.5">
+      <div className="flex h-14 items-center justify-between border-b border-border px-2">
         <span className="text-[11px] font-semibold text-foreground">Temas</span>
         <button
           type="button"

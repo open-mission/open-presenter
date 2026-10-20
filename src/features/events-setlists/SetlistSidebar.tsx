@@ -497,7 +497,7 @@ export function SetlistSidebar() {
   return (
     <aside className="flex h-full w-72 min-h-0 flex-col border-r border-border bg-muted/20 sm:w-80 shrink-0 select-none overflow-hidden">
       {/* List Mode Switcher: Culto / Evento | Temporário */}
-      <div className="p-2 border-b border-border bg-background/50 shrink-0">
+      <div className="flex h-14 shrink-0 items-center border-b border-border bg-background/50 p-2">
         <div className="grid grid-cols-2 p-0.5 rounded-lg bg-muted/60 text-xs font-medium">
           <button
             type="button"

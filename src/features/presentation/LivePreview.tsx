@@ -176,7 +176,7 @@ export function LivePreview() {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-background">
       {/* Barra de Ferramentas dos Monitores de Prévia */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border bg-muted/20 px-3 py-2">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-muted/20 px-3">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-semibold text-foreground mr-1 hidden sm:inline">
             Monitores
