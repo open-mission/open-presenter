@@ -12,6 +12,7 @@ import {
   GripVertical,
   Image as ImageIcon,
   Images,
+  ListX,
   MoreVertical,
   Music,
   Palette,
@@ -40,18 +41,22 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { mediaKindLabel } from "@/core/lib/media";
 import { openMediaLibrary, openThemeEditor } from "@/core/ipc/commands";
-import type { EventItem, EventPart, MediaKind } from "@/core/types";
+import type { EventItem, EventPart, EventSummary, MediaKind } from "@/core/types";
 import { useSongsStore } from "@/features/songs/store";
 import { createEmptyStudioTheme } from "@/features/slide-themes/seedThemes";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
@@ -130,6 +135,63 @@ function itemSubtitle(item: EventItem): string {
   return item.song?.artist || "Louvor";
 }
 
+interface EventGroup {
+  title: string;
+  events: EventSummary[];
+}
+
+function groupEventsByTitle(events: EventSummary[]): EventGroup[] {
+  const groups = new Map<string, EventSummary[]>();
+  for (const summary of events) {
+    const key = summary.title.trim();
+    const bucket = groups.get(key);
+    if (bucket) {
+      bucket.push(summary);
+    } else {
+      groups.set(key, [summary]);
+    }
+  }
+  return Array.from(groups, ([title, items]) => ({ title, events: items }));
+}
+
+function itemCountLabel(count: number): string {
+  if (count === 0) return "sem itens";
+  return `${count} ${count === 1 ? "item" : "itens"}`;
+}
+
+function EventMenuItem({
+  event: eventSummary,
+  selected,
+}: {
+  event: EventSummary;
+  selected: boolean;
+}) {
+  const dt = formatEventDateTime(eventSummary.eventDate);
+  return (
+    <DropdownMenuItem
+      onSelect={() => void useSetlistStore.getState().selectEvent(eventSummary.id)}
+      className={`flex items-center justify-between gap-2 py-2 px-2.5 text-xs cursor-pointer ${
+        selected ? "bg-accent/60 font-semibold" : ""
+      }`}
+    >
+      <div className="flex flex-col min-w-0 pr-2">
+        <span className="font-semibold text-foreground truncate">
+          {eventSummary.title}
+        </span>
+        {dt.displaySummary && (
+          <span className="text-[11px] text-muted-foreground truncate">
+            {dt.displaySummary}
+          </span>
+        )}
+        <span className="text-[11px] text-muted-foreground truncate">
+          {itemCountLabel(eventSummary.itemCount ?? 0)}
+        </span>
+      </div>
+      {selected && <Check className="size-4 text-primary shrink-0" />}
+    </DropdownMenuItem>
+  );
+}
+
 const LABEL_COLOR_PRESETS = [
   { label: "Padrão", value: "" },
   { label: "Branco", value: "#ffffff" },
@@ -169,7 +231,6 @@ export function SetlistSidebar({
   const event = useSetlistStore((s) => s.event);
   const selectedItemId = useSetlistStore((s) => s.selectedItemId);
   const selectItem = useSetlistStore((s) => s.selectItem);
-  const selectEvent = useSetlistStore((s) => s.selectEvent);
   const createEvent = useSetlistStore((s) => s.createEvent);
   const deleteEvent = useSetlistStore((s) => s.deleteEvent);
   const addPart = useSetlistStore((s) => s.addPart);
@@ -187,6 +248,7 @@ export function SetlistSidebar({
   const listMode = useSetlistStore((s) => s.listMode);
   const switchListMode = useSetlistStore((s) => s.switchListMode);
   const clearTemporary = useSetlistStore((s) => s.clearTemporary);
+  const clearEventItems = useSetlistStore((s) => s.clearEventItems);
   const moveItemToOtherList = useSetlistStore((s) => s.moveItemToOtherList);
 
   async function handleMoveItem(itemId: string) {
@@ -203,6 +265,13 @@ export function SetlistSidebar({
   async function handleClearTemporary() {
     await clearTemporary();
     toast.success("Lista temporária limpa.");
+  }
+
+  function handleClearEventItems() {
+    clearEventItems();
+    setClearListDialogOpen(false);
+    void save();
+    toast.success("Programação do culto limpa.");
   }
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -222,6 +291,7 @@ export function SetlistSidebar({
   const [textEditorPartId, setTextEditorPartId] = useState("");
   const [textEditorItemId, setTextEditorItemId] = useState<string | null>(null);
   const [eventDetailsOpen, setEventDetailsOpen] = useState(false);
+  const [clearListDialogOpen, setClearListDialogOpen] = useState(false);
 
   // Collapse, color and rename section states
   const [collapsedParts, setCollapsedParts] = useState<Record<string, boolean>>({});
@@ -507,6 +577,11 @@ export function SetlistSidebar({
       (part) => part.items.length > 0 || part.title.trim() !== "",
     ) ?? false;
 
+  const totalEventItems =
+    event?.parts.reduce((total, part) => total + part.items.length, 0) ?? 0;
+
+  const eventGroups = groupEventsByTitle(events);
+
   if (collapsed) {
     return (
       <aside className="flex h-full w-10 shrink-0 flex-col items-center border-r border-border bg-muted/20 py-2 select-none">
@@ -623,31 +698,53 @@ export function SetlistSidebar({
             <div className="px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
               Cultos & Eventos
             </div>
-            {events.map((ev) => {
-              const dt = formatEventDateTime(ev.eventDate);
-              const isSelected = ev.id === activeEventId;
-              return (
-                <DropdownMenuItem
-                  key={ev.id}
-                  onSelect={() => void selectEvent(ev.id)}
-                  className={`flex items-center justify-between py-2 px-2.5 text-xs cursor-pointer ${
-                    isSelected ? "bg-accent/60 font-semibold" : ""
-                  }`}
-                >
-                  <div className="flex flex-col min-w-0 pr-2">
-                    <span className="font-semibold text-foreground truncate">{ev.title}</span>
-                    {dt.displaySummary && (
-                      <span className="text-[11px] text-muted-foreground truncate">
-                        {dt.displaySummary}
-                      </span>
-                    )}
-                  </div>
-                  {isSelected && (
-                    <Check className="size-4 text-primary shrink-0" />
-                  )}
-                </DropdownMenuItem>
-              );
-            })}
+            {eventGroups.map((group) =>
+              group.events.length === 1 ? (
+                <EventMenuItem
+                  key={group.events[0].id}
+                  event={group.events[0]}
+                  selected={group.events[0].id === activeEventId}
+                />
+              ) : (
+                <DropdownMenuSub key={group.title}>
+                  <DropdownMenuSubTrigger
+                    className={`flex items-center gap-2 px-2.5 py-2 text-xs cursor-pointer outline-none ${
+                      group.events.some((ev) => ev.id === activeEventId)
+                        ? "bg-accent/60"
+                        : ""
+                    }`}
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <div className="flex min-w-0 flex-col">
+                        <span className="font-semibold text-foreground truncate">
+                          {group.title}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground truncate">
+                          {group.events.length}{" "}
+                          {group.events.length === 1 ? "data" : "datas"}
+                        </span>
+                      </div>
+                      {group.events.some((ev) => ev.id === activeEventId) && (
+                        <Check className="size-4 text-primary shrink-0" />
+                      )}
+                    </div>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent
+                    align="start"
+                    sideOffset={4}
+                    className="w-64 max-h-[60vh] overflow-y-auto"
+                  >
+                    {group.events.map((ev) => (
+                      <EventMenuItem
+                        key={ev.id}
+                        event={ev}
+                        selected={ev.id === activeEventId}
+                      />
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              ),
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => useSetlistStore.getState().openAgenda()}
@@ -670,6 +767,18 @@ export function SetlistSidebar({
               >
                 <ImageIcon className="size-3.5 mr-2 text-primary" />
                 <span>Plano de Fundo do Culto…</span>
+              </DropdownMenuItem>
+            )}
+            {event && (
+              <DropdownMenuSeparator />
+            )}
+            {event && (
+              <DropdownMenuItem
+                onSelect={() => setClearListDialogOpen(true)}
+                className="text-xs text-destructive focus:text-destructive cursor-pointer py-1.5"
+              >
+                <ListX className="size-3.5 mr-2" />
+                <span>Limpar Programação</span>
               </DropdownMenuItem>
             )}
             {event && (
@@ -1411,6 +1520,42 @@ export function SetlistSidebar({
             </Button>
             <Button type="button" size="sm" onClick={handleCreateEvent}>
               Criar Culto
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog for Clearing the Event Programming */}
+      <Dialog open={clearListDialogOpen} onOpenChange={setClearListDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ListX className="size-4 text-destructive" />
+              <span>Limpar Programação</span>
+            </DialogTitle>
+            <DialogDescription>
+              Todos os {totalEventItems} itens de "
+              {event?.title ?? "Programação do Culto"}" serão removidos. As
+              seções da programação são mantidas.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setClearListDialogOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={totalEventItems === 0}
+              onClick={handleClearEventItems}
+            >
+              Limpar
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -30,6 +30,7 @@ import { usePresentationStore } from "@/features/presentation/store";
 import { useRemoteStore } from "@/features/remote/store";
 import { useSongsStore } from "@/features/songs/store";
 import { useSetlistStore } from "@/features/events-setlists/store";
+import { HeaderTimerControls } from "@/features/stage-display/HeaderTimerControls";
 
 function statusTitle(
   label: string,
@@ -176,6 +177,11 @@ export function AppTopBar() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+      </div>
+
+      {/* Center: Stage Timer & Countdown Controls */}
+      <div className="flex items-center">
+        <HeaderTimerControls />
       </div>
 
       {/* Right section: Output status indicators, quick blackout/clear, and settings */}

@@ -77,7 +77,12 @@ pub fn list(conn: &Connection) -> Result<Vec<EventSummary>, AppError> {
     let mut stmt = conn
         .prepare(
             "SELECT id, title, event_date, json_extract(setlist_json, '$.wallpaper'),
-                    json_extract(setlist_json, '$.themeGuid')
+                    json_extract(setlist_json, '$.themeGuid'),
+                    CASE WHEN json_valid(setlist_json) THEN (
+                        SELECT COUNT(*)
+                        FROM json_each(service_events.setlist_json, '$.parts') AS part,
+                             json_each(part.value, '$.items')
+                    ) ELSE 0 END
              FROM service_events
              WHERE id != ?1
              ORDER BY event_date ASC, title",
@@ -91,6 +96,7 @@ pub fn list(conn: &Connection) -> Result<Vec<EventSummary>, AppError> {
                 event_date: row.get(2)?,
                 wallpaper: row.get::<_, Option<String>>(3).unwrap_or(None),
                 theme_guid: row.get::<_, Option<String>>(4).unwrap_or(None),
+                item_count: row.get(5)?,
             })
         })
         .map_err(storage_error)?
@@ -377,6 +383,77 @@ mod tests {
             events.iter().map(|event| event.id.as_str()).collect::<Vec<_>>(),
             vec!["e-antes", "e-meio", "e-depois"]
         );
+    }
+
+    #[test]
+    fn list_conta_itens_programados_de_cada_evento() {
+        let conn = open_in_memory();
+        let event = ServiceEvent {
+            id: "e-cheio".into(),
+            title: "Culto".into(),
+            event_date: "2026-10-18".into(),
+            wallpaper: None,
+            theme_guid: None,
+            parts: vec![
+                EventPart {
+                    id: "p1".into(),
+                    title: "Louvor".into(),
+                    items: vec![
+                        EventItem {
+                            id: "i1".into(),
+                            song_id: None,
+                            next_item_id: None,
+                            song: None,
+                            media: None,
+                            scripture: None,
+                        },
+                        EventItem {
+                            id: "i2".into(),
+                            song_id: None,
+                            next_item_id: None,
+                            song: None,
+                            media: None,
+                            scripture: None,
+                        },
+                    ],
+                    color: None,
+                    bg_color: None,
+                },
+                EventPart {
+                    id: "p2".into(),
+                    title: "Ofertório".into(),
+                    items: vec![EventItem {
+                        id: "i3".into(),
+                        song_id: None,
+                        next_item_id: None,
+                        song: None,
+                        media: None,
+                        scripture: None,
+                    }],
+                    color: None,
+                    bg_color: None,
+                },
+            ],
+        };
+        create(&conn, &event).unwrap();
+        create(
+            &conn,
+            &ServiceEvent {
+                id: "e-vazio".into(),
+                title: "Vazio".into(),
+                event_date: "2026-10-19".into(),
+                wallpaper: None,
+                theme_guid: None,
+                parts: vec![],
+            },
+        )
+        .unwrap();
+
+        let events = list(&conn).unwrap();
+        let cheio = events.iter().find(|e| e.id == "e-cheio").unwrap();
+        let vazio = events.iter().find(|e| e.id == "e-vazio").unwrap();
+        assert_eq!(cheio.item_count, 3);
+        assert_eq!(vazio.item_count, 0);
     }
 
     #[test]

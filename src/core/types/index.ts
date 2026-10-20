@@ -54,7 +54,7 @@ export interface LiveSlide {
   prevUp?: SlideContent;
 }
 
-export * from "./bible";
+export * from "./bible.ts";
 
 export interface MonitorInfo {
   id: string;
@@ -115,12 +115,19 @@ export interface StageTimer {
   running: boolean;
   elapsedSecs: number;
   startedAtMillis?: number | null;
+  countdownSecs?: number;
 }
 
 export function stageTimerElapsed(timer: StageTimer, nowMillis: number): number {
   const base = Math.max(0, Math.floor(timer.elapsedSecs));
   if (!timer.running || timer.startedAtMillis == null) return base;
   return base + Math.max(0, Math.floor((nowMillis - timer.startedAtMillis) / 1000));
+}
+
+export function stageTimerRemaining(timer: StageTimer, nowMillis: number): number {
+  const elapsed = stageTimerElapsed(timer, nowMillis);
+  if (!timer.countdownSecs || timer.countdownSecs <= 0) return elapsed;
+  return Math.max(0, timer.countdownSecs - elapsed);
 }
 
 export interface SyncEnvelope<T> {
@@ -167,6 +174,7 @@ export interface SongSummary {
 }
 
 export type LinesPerSlide = "1" | "2" | "keep";
+export type WeekStart = "sunday" | "monday";
 
 export interface SongDefaults {
   linesPerSlide: LinesPerSlide;
@@ -204,6 +212,7 @@ export interface EventSummary {
   eventDate: string;
   wallpaper?: string | null;
   themeGuid?: string | null;
+  itemCount?: number;
 }
 
 export const TEMPORARY_EVENT_ID = "__temporary__";
@@ -237,9 +246,18 @@ export interface ImportedFolder {
   files: ImportedMedia[];
 }
 
+export interface SongGroupConfig {
+  id: string;
+  name: string;
+  color: string;
+  shortcut: string;
+  typeKey?: SectionType;
+}
+
 export interface RemoteSlide {
   index: number;
   label?: string | null;
+  sectionType?: SectionType | null;
   content: SlideContent;
 }
 
@@ -263,6 +281,7 @@ export interface RemoteSetlist {
   title: string;
   eventDate: string;
   parts: RemotePart[];
+  groups?: SongGroupConfig[];
 }
 
 export interface RemoteConfig {

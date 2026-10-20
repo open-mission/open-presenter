@@ -2,41 +2,63 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BookOpen,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   ChevronUp,
   EyeOff,
+  Hourglass,
   Image,
   Loader2,
   Moon,
   Music,
+  Pause,
+  Play,
   Radio,
+  RotateCcw,
   SkipBack,
   SkipForward,
   Smartphone,
   Square,
+  Timer as TimerIcon,
   X,
 } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { isTauri } from "@/core/ipc/tauri";
 import { cn } from "@/core/lib/utils";
+import { formatElapsed } from "@/core/lib/format";
 import {
   buildBiblePresentationPayload,
   stepBibleVerse,
 } from "@/core/lib/biblePresentation";
-import type {
-  BibleVerse,
-  LiveSlide,
-  RemoteItem,
-  RemoteSetlist,
-  SlideContent,
+import { computeSlideGroups } from "@/core/lib/lyrics";
+import { songGroupColor, songGroupShortcut } from "@/core/lib/songGroups";
+import {
+  stageTimerElapsed,
+  stageTimerRemaining,
+  type BibleVerse,
+  type LiveSlide,
+  type RemoteItem,
+  type RemoteSetlist,
+  type SlideContent,
+  type StageTimer,
 } from "@/core/types";
 import {
   parseMediaWithFit,
   resolveMediaLibraryUrl,
 } from "@/features/theme-editor/media";
+import { DEFAULT_SONG_GROUPS } from "@/features/songs/songGroupsStore";
 import { RemoteSongsTab } from "./RemoteSongsTab";
 import { RemoteImagesTab } from "./RemoteImagesTab";
 import { RemoteBibleTab } from "./RemoteBibleTab";
@@ -45,6 +67,18 @@ const TOKEN_KEY = "open_presenter_remote_token";
 const WS_CHANNEL_SLIDE = "presentation://slide";
 const WS_CHANNEL_SETLIST = "remote://setlist";
 const WS_CHANNEL_WALLPAPER = "presentation://wallpaper";
+const WS_CHANNEL_TIMER = "stage://timer";
+
+const COUNTDOWN_PRESETS = [
+  { label: "Cronômetro (00:00)", secs: 0 },
+  { label: "5 minutos", secs: 5 * 60 },
+  { label: "10 minutos", secs: 10 * 60 },
+  { label: "15 minutos", secs: 15 * 60 },
+  { label: "20 minutos", secs: 20 * 60 },
+  { label: "30 minutos", secs: 30 * 60 },
+  { label: "45 minutos", secs: 45 * 60 },
+  { label: "60 minutos", secs: 60 * 60 },
+];
 
 function tokenFromUrl(): string {
   if (typeof window === "undefined") return "";
@@ -137,6 +171,18 @@ export default function RemoteView() {
   const [setlist, setSetlist] = useState<RemoteSetlist | null>(null);
   const [live, setLive] = useState<LiveSlide | null>(null);
   const [wallpaper, setWallpaper] = useState<string | null>(null);
+  const [timer, setTimer] = useState<StageTimer>({
+    running: false,
+    elapsedSecs: 0,
+    startedAtMillis: null,
+    countdownSecs: 0,
+  });
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
   const [previewCollapsed, setPreviewCollapsed] = useState<boolean>(() => {
     try {
       return (
@@ -186,11 +232,14 @@ export default function RemoteView() {
   }, []);
 
   const fetchRemoteState = useCallback(async (value: string) => {
-    const [setlistResponse, wallpaperResponse] = await Promise.all([
+    const [setlistResponse, wallpaperResponse, timerResponse] = await Promise.all([
       fetch("/api/v1/setlist", {
         headers: { Authorization: `Bearer ${value}` },
       }),
       fetch("/api/v1/wallpaper", {
+        headers: { Authorization: `Bearer ${value}` },
+      }).catch(() => null),
+      fetch("/api/v1/timer", {
         headers: { Authorization: `Bearer ${value}` },
       }).catch(() => null),
     ]);
@@ -210,6 +259,13 @@ export default function RemoteView() {
       } | null;
       if (wpData && "wallpaper" in wpData) {
         setWallpaper(wpData.wallpaper ?? null);
+      }
+    }
+
+    if (timerResponse && timerResponse.ok) {
+      const timerData = (await timerResponse.json().catch(() => null)) as StageTimer | null;
+      if (timerData) {
+        setTimer(timerData);
       }
     }
   }, []);
@@ -248,6 +304,8 @@ export default function RemoteView() {
             setSetlist(envelope.payload as RemoteSetlist | null);
           } else if (envelope.channel === WS_CHANNEL_WALLPAPER) {
             setWallpaper((envelope.payload as string | null) ?? null);
+          } else if (envelope.channel === WS_CHANNEL_TIMER) {
+            setTimer(envelope.payload as StageTimer);
           }
         } catch {
           // ignora mensagens inválidas
@@ -426,6 +484,43 @@ export default function RemoteView() {
     : Boolean(previousSlide) && !busy;
   const canGoNext = isBibleLive ? !busy : Boolean(nextSlide) && !busy;
 
+  const goPrevious = useCallback(() => {
+    if (isBibleLive) {
+      void stepBible(-1);
+    } else if (previousSlide) {
+      void present(previousSlide.itemId, previousSlide.index);
+    }
+  }, [isBibleLive, stepBible, previousSlide, present]);
+
+  const goNext = useCallback(() => {
+    if (isBibleLive) {
+      void stepBible(1);
+    } else if (nextSlide) {
+      void present(nextSlide.itemId, nextSlide.index);
+    }
+  }, [isBibleLive, stepBible, nextSlide, present]);
+
+  const timerToggle = useCallback(async () => {
+    await post(timer.running ? "timer/pause" : "timer/start");
+  }, [post, timer.running]);
+
+  const timerResetAction = useCallback(async () => {
+    await post("timer/reset");
+  }, [post]);
+
+  const timerSetCountdownAction = useCallback(
+    async (secs: number) => {
+      await post("timer/countdown", { secs });
+    },
+    [post],
+  );
+
+  const isTimerCountdown = Boolean(timer.countdownSecs && timer.countdownSecs > 0);
+  const formattedRemoteTimer = isTimerCountdown
+    ? formatElapsed(stageTimerRemaining(timer, now))
+    : formatElapsed(stageTimerElapsed(timer, now));
+  const isTimerZero = isTimerCountdown && stageTimerRemaining(timer, now) === 0;
+
   function connectWithToken() {
     const next = tokenDraft.trim();
     if (!next) {
@@ -546,15 +641,41 @@ export default function RemoteView() {
   const totalItems =
     setlist?.parts.reduce((total, part) => total + part.items.length, 0) ?? 0;
 
+  const songGroups = setlist?.groups ?? DEFAULT_SONG_GROUPS;
+
+  const liveSlide = liveItem?.slides.find(
+    (slide) => slide.content.id === live?.content.id,
+  );
+  const liveSlideIndex = liveSlide?.index ?? -1;
+
+  const liveSongGroups = useMemo(() => {
+    if (!liveItem || liveItem.kind !== "song") return [];
+    return computeSlideGroups(liveItem.slides).filter(
+      (group) => group.label !== null,
+    );
+  }, [liveItem]);
+
+  const currentGroupLabel =
+    liveSongGroups.find((group) =>
+      group.indices.includes(liveSlideIndex),
+    )?.label ?? null;
+
+  const liveSectionColor = live?.content.section
+    ? songGroupColor(songGroups, liveSlide?.sectionType, live.content.section)
+    : null;
+
+  const showSectionToolbar = liveSongGroups.length > 0;
+
   return (
-    <div className="remote-view min-h-screen bg-background pb-12 text-foreground">
+    <div
+      className={`remote-view min-h-screen bg-background text-foreground ${
+        showSectionToolbar ? "pb-24" : "pb-12"
+      }`}
+    >
       {/* Top Header */}
       <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Smartphone className="size-4" />
-            </span>
             <div className="min-w-0">
               <h1 className="flex items-center gap-1.5 truncate text-sm font-semibold">
                 <BrandMark className="size-3.5 shrink-0 text-primary" />
@@ -624,7 +745,16 @@ export default function RemoteView() {
               {live?.content.section && (
                 <Badge
                   variant="outline"
-                  className="h-4 shrink-0 px-1 font-mono text-[9px] uppercase text-muted-foreground"
+                  className="h-4 shrink-0 px-1 font-mono text-[9px] uppercase"
+                  style={
+                    liveSectionColor
+                      ? {
+                          borderColor: `${liveSectionColor}66`,
+                          backgroundColor: `${liveSectionColor}15`,
+                          color: liveSectionColor,
+                        }
+                      : undefined
+                  }
                 >
                   {live.content.section}
                 </Badge>
@@ -813,6 +943,122 @@ export default function RemoteView() {
               <Moon className="size-3.5" />
               Tela preta
             </Button>
+          </div>
+
+          {/* Timer & Cronômetro do Palco */}
+          <div className="flex items-center justify-between border-t border-border/60 bg-muted/20 px-3 py-2">
+            <div className="flex items-center gap-2">
+              {isTimerCountdown ? (
+                <Hourglass
+                  className={`size-4 ${
+                    timer.running ? "text-amber-500 animate-pulse" : "text-amber-500/80"
+                  }`}
+                />
+              ) : (
+                <TimerIcon
+                  className={`size-4 ${
+                    timer.running ? "text-emerald-500 animate-pulse" : "text-primary"
+                  }`}
+                />
+              )}
+              <span
+                className={`font-mono text-sm font-bold tabular-nums ${
+                  isTimerZero
+                    ? "text-destructive font-black animate-pulse"
+                    : "text-foreground"
+                }`}
+              >
+                {formattedRemoteTimer}
+              </span>
+              <span className="text-[11px] text-muted-foreground hidden xs:inline">
+                {isTimerCountdown
+                  ? `Contagem (${Math.round((timer.countdownSecs ?? 0) / 60)}m)`
+                  : "Cronômetro"}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <Drawer>
+                <DrawerTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7.5 px-2 text-[11px] font-medium gap-1 cursor-pointer"
+                  >
+                    <span>Presets</span>
+                    <ChevronDown className="size-3 text-muted-foreground" />
+                  </Button>
+                </DrawerTrigger>
+                <DrawerContent className="mx-auto max-w-md">
+                  <DrawerHeader className="text-center pb-2">
+                    <DrawerTitle className="text-sm font-semibold">
+                      Modo do Timer no Palco
+                    </DrawerTitle>
+                    <DrawerDescription className="text-xs">
+                      Escolha contagem regressiva ou cronômetro crescente.
+                    </DrawerDescription>
+                  </DrawerHeader>
+                  <div className="grid grid-cols-2 gap-2 p-4">
+                    {COUNTDOWN_PRESETS.map((p) => {
+                      const isCurrent =
+                        (p.secs === 0 && !isTimerCountdown) ||
+                        (p.secs > 0 && timer.countdownSecs === p.secs);
+                      return (
+                        <Button
+                          key={p.secs}
+                          type="button"
+                          variant={isCurrent ? "secondary" : "outline"}
+                          className={cn(
+                            "h-11 text-xs justify-between cursor-pointer",
+                            isCurrent && "border-primary ring-1 ring-primary font-bold",
+                          )}
+                          onClick={() => void timerSetCountdownAction(p.secs)}
+                        >
+                          <span>{p.label}</span>
+                          {isCurrent && (
+                            <span className="size-1.5 rounded-full bg-primary" />
+                          )}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </DrawerContent>
+              </Drawer>
+
+              <Button
+                type="button"
+                size="sm"
+                variant={timer.running ? "secondary" : "default"}
+                className="h-7.5 px-2.5 text-xs font-semibold gap-1.5 cursor-pointer"
+                onClick={() => void timerToggle()}
+                title={timer.running ? "Pausar cronômetro" : "Iniciar cronômetro"}
+              >
+                {timer.running ? (
+                  <>
+                    <Pause className="size-3.5" />
+                    <span>Pausar</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="size-3.5 fill-current" />
+                    <span>Iniciar</span>
+                  </>
+                )}
+              </Button>
+
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7.5 px-2 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                onClick={() => void timerResetAction()}
+                title="Zerar cronômetro"
+                aria-label="Zerar cronômetro"
+              >
+                <RotateCcw className="size-3.5" />
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -1063,7 +1309,12 @@ export default function RemoteView() {
 
         {/* Aba Músicas */}
         {activeTab === "musicas" && (
-          <RemoteSongsTab token={token} live={live} onPost={post} />
+          <RemoteSongsTab
+            token={token}
+            live={live}
+            onPost={post}
+            groups={songGroups}
+          />
         )}
 
         {/* Aba Bíblia */}
@@ -1076,6 +1327,131 @@ export default function RemoteView() {
           <RemoteImagesTab token={token} live={live} onPost={post} />
         )}
       </main>
+
+      {/* Barra fixa colapsável de atalhos das seções da música ao vivo */}
+      {showSectionToolbar && liveItem && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-3 py-2 backdrop-blur">
+          <div className="mx-auto flex max-w-3xl items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-12 w-12 shrink-0 rounded-full border-border bg-card shadow-xs transition-transform active:scale-95 cursor-pointer"
+              disabled={!canGoPrevious}
+              onClick={goPrevious}
+              title="Slide anterior (<)"
+              aria-label="Slide anterior"
+            >
+              <ChevronLeft className="size-6 text-foreground" />
+            </Button>
+
+            <Drawer>
+              <DrawerTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex h-12 flex-1 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold text-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground active:scale-[0.98]"
+                >
+                  <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="shrink-0">Seções</span>
+                  <span className="truncate text-muted-foreground">
+                    {currentGroupLabel ?? live?.content.title}
+                  </span>
+                </button>
+              </DrawerTrigger>
+              <DrawerContent className="mx-auto max-w-3xl">
+                <DrawerHeader className="items-center pb-1 text-center">
+                  <DrawerTitle className="truncate text-base">
+                    {live?.content.title}
+                  </DrawerTitle>
+                  <DrawerDescription className="text-[11px]">
+                    Toque na seção para ir direto a ela no telão.
+                  </DrawerDescription>
+                </DrawerHeader>
+
+                <div className="grid grid-cols-2 gap-2 px-4 pb-2 sm:grid-cols-3">
+                  {liveSongGroups.map((group) => {
+                    const color =
+                      songGroupColor(
+                        songGroups,
+                        group.sectionType,
+                        group.label,
+                      ) ?? "#3b82f6";
+                    const shortcut = songGroupShortcut(
+                      songGroups,
+                      group.sectionType,
+                      group.label,
+                    );
+                    const isCurrent = group.indices.includes(liveSlideIndex);
+                    return (
+                      <button
+                        key={group.startIndex}
+                        type="button"
+                        onClick={() => void present(liveItem.id, group.startIndex)}
+                        className={cn(
+                          "inline-flex h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-base font-semibold transition-transform active:scale-95",
+                          isCurrent ? "ring-2 ring-emerald-500" : "",
+                        )}
+                        style={{
+                          backgroundColor: `${color}1f`,
+                          borderColor: `${color}66`,
+                          color,
+                        }}
+                        title={`Ir para ${group.label ?? ""}`}
+                      >
+                        <span className="truncate">{group.label}</span>
+                        {shortcut && (
+                          <kbd className="shrink-0 rounded bg-black/25 px-1.5 py-0.5 font-mono text-[10px] font-bold">
+                            {shortcut}
+                          </kbd>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <DrawerFooter className="pt-1 pb-4 border-t">
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    className="h-12 w-full cursor-pointer gap-2 text-base"
+                    onClick={() => void post("clear")}
+                    disabled={busy || Boolean(live?.cleared)}
+                  >
+                    <Square className="size-4 fill-current" />
+                    Encerrar apresentação
+                  </Button>
+                </DrawerFooter>
+              </DrawerContent>
+            </Drawer>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-12 w-12 shrink-0 rounded-full border-border bg-card shadow-xs transition-transform active:scale-95 cursor-pointer"
+              disabled={!canGoNext}
+              onClick={goNext}
+              title="Próximo slide (>)"
+              aria-label="Próximo slide"
+            >
+              <ChevronRight className="size-6 text-foreground" />
+            </Button>
+
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="h-12 shrink-0 cursor-pointer gap-1.5 px-3 sm:px-4 text-sm sm:text-base rounded-full"
+              onClick={() => void post("clear")}
+              disabled={busy || Boolean(live?.cleared)}
+              title="Encerrar a apresentação e liberar o telão"
+            >
+              <Square className="size-4 fill-current" />
+              <span className="hidden xs:inline">Encerrar</span>
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

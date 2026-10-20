@@ -105,10 +105,7 @@ export function isStageTheme(theme: SlideTheme): boolean {
 }
 
 export function isStageCandidate(theme: SlideTheme): boolean {
-  return (
-    theme.category !== "presentation" &&
-    (theme.category === "stage" || isSingleLayout(theme))
-  );
+  return theme.category !== "presentation";
 }
 
 export function isSingleLayout(theme: SlideTheme): boolean {

@@ -90,6 +90,12 @@ impl PresentationState {
         }
     }
 
+    pub fn timer_set_countdown(&self, secs: u64) {
+        if let Ok(mut guard) = self.timer.write() {
+            guard.set_countdown_secs(secs);
+        }
+    }
+
     pub fn wallpaper(&self) -> Option<String> {
         self.wallpaper.read().ok().and_then(|w| w.clone())
     }

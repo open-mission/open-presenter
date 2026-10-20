@@ -124,6 +124,7 @@ interface SetlistState {
   temporaryEvent: ServiceEvent | null;
   switchListMode(mode: SetlistListMode): Promise<void>;
   clearTemporary(): Promise<void>;
+  clearEventItems(): void;
   moveItemToOtherList(itemId: string): Promise<void>;
   appendImprevistoSong(songId: string): Promise<void>;
 }
@@ -573,6 +574,19 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       set({ error: errorMessage(err) });
     }
   },
+
+  clearEventItems: () =>
+    set((state) => {
+      const { event } = state;
+      if (event === null) return {};
+      const parts = event.parts.map((part) => ({ ...part, items: [] }));
+      return {
+        event: { ...event, parts },
+        dirty: true,
+        selectedItemId: null,
+        runnerIndex: null,
+      };
+    }),
 
   moveItemToOtherList: async (itemId) => {
     const state = get();

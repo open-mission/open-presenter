@@ -12,6 +12,7 @@ import type {
   RemoteSlide,
   ServiceEvent,
   Song,
+  SongGroupConfig,
 } from "@/core/types";
 
 async function buildScriptureItem(item: EventItem): Promise<RemoteItem> {
@@ -76,6 +77,7 @@ async function buildRemoteItem(
       (entry) => ({
         index: entry.index,
         label: entry.label,
+        sectionType: null,
         content: entry.slide,
       }),
     );
@@ -96,6 +98,7 @@ async function buildRemoteItem(
       const slides: RemoteSlide[] = buildSongSlides(song).map((entry) => ({
         index: entry.index,
         label: entry.label,
+        sectionType: entry.sectionType,
         content: entry.slide,
       }));
 
@@ -123,6 +126,7 @@ async function buildRemoteItem(
 export async function buildRemoteSetlist(
   event: ServiceEvent,
   cache: Record<string, Song> = {},
+  groups: SongGroupConfig[] = [],
 ): Promise<RemoteSetlist> {
   const parts = await Promise.all(
     event.parts.map(async (part) => ({
@@ -139,5 +143,6 @@ export async function buildRemoteSetlist(
     title: event.title,
     eventDate: event.eventDate,
     parts,
+    groups,
   };
 }

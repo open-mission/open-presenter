@@ -50,6 +50,7 @@ pub fn build_song_slides(song: &Song) -> Vec<RemoteSlide> {
             RemoteSlide {
                 index,
                 label: label.clone(),
+                section_type: section.section_type,
                 content: SlideContent {
                     id: format!("{}#{}", song.id, index),
                     kind: SlideKind::Lyric,

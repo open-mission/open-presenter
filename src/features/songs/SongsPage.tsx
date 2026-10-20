@@ -48,7 +48,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getSong } from "@/core/ipc/commands";
-import { SECTION_COLOR, SECTION_LABEL } from "@/core/config/lyrics";
+import { SECTION_LABEL } from "@/core/config/lyrics";
+import { computeSlideGroups, type SlideGroup } from "@/core/lib/lyrics";
+import { songGroupColor } from "@/core/lib/songGroups";
 import {
   buildSongSlides,
   cleanCommentText,
@@ -61,6 +63,7 @@ import { isPublicTheme, previewTheme } from "@/features/slide-themes/pages";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { useSongsStore } from "./store";
+import { useSongGroupsStore } from "./songGroupsStore";
 import { useSetlistStore } from "@/features/events-setlists/store";
 
 export function SongsPage() {
@@ -186,6 +189,16 @@ export function SongsPage() {
     if (!selectedSong) return [];
     return buildSongSlides(selectedSong);
   }, [selectedSong]);
+
+  const songGroups = useSongGroupsStore((s) => s.groups);
+
+  const groupBySlideIndex = useMemo(() => {
+    const map = new Map<number, SlideGroup>();
+    for (const group of computeSlideGroups(slides)) {
+      for (const index of group.indices) map.set(index, group);
+    }
+    return map;
+  }, [slides]);
 
   function handleAddSongToActiveCulto(partId?: string) {
     if (!selectedSong) return;
@@ -665,10 +678,13 @@ export function SongsPage() {
                     }
                   >
                     {slides.map((item) => {
-                      const type = item.sectionType;
+                      const group = groupBySlideIndex.get(item.index);
+                      const type = group?.sectionType ?? item.sectionType;
                       const label =
-                        item.label || (type ? SECTION_LABEL[type] : `Slide ${item.index + 1}`);
-                      const color = type ? SECTION_COLOR[type] : undefined;
+                        item.label ??
+                        group?.label ??
+                        (type ? SECTION_LABEL[type] : `Slide ${item.index + 1}`);
+                      const color = songGroupColor(songGroups, type, label);
 
                       const slideProps = activeTheme
                         ? {
@@ -682,9 +698,12 @@ export function SongsPage() {
                       return (
                         <div
                           key={`slide-${item.index}`}
-                          className={`flex flex-col justify-between overflow-hidden rounded-lg border border-border/70 bg-card/80 p-3 shadow-2xs transition-all hover:border-primary/40 hover:shadow-xs ${
+                          className={`flex flex-col justify-between overflow-hidden rounded-lg border border-border/70 bg-card/80 p-3 shadow-2xs transition-all hover:shadow-xs ${
+                            color ? "" : "hover:border-primary/40"
+                          } ${
                             viewMode === "list" ? "min-h-[80px]" : "min-h-[140px]"
                           }`}
+                          style={color ? { borderColor: `${color}66` } : undefined}
                         >
                           {/* Cabeçalho do Card */}
                           <div className="flex items-center justify-between gap-1.5 mb-2.5">

@@ -20,13 +20,20 @@ use crate::server::ServerState;
 use crate::services::{lrclib, media_library, slide_builder, songs};
 use crate::state::types::{
     now_millis, ClientKind, ConnectedClient, MediaItem, MediaKind, ScriptureRef, SlideContent,
-    SlideKind, EVENT_REMOTE_SETLIST, EVENT_SLIDE, EVENT_WALLPAPER,
+    SlideKind, EVENT_REMOTE_SETLIST, EVENT_SLIDE, EVENT_TIMER, EVENT_WALLPAPER,
 };
 use crate::state::{LiveSlide, RemoteItem, RemoteSetlist};
 
 #[derive(Debug, Deserialize)]
 pub struct RemoteWsQuery {
     token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetCountdownRequest {
+    #[serde(default)]
+    pub secs: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -309,6 +316,89 @@ pub async fn toggle_wallpaper(
     };
     state.broadcaster.publish_slide(&live);
     Json(live).into_response()
+}
+
+pub async fn timer_get(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    Json(state.broadcaster.current_timer()).into_response()
+}
+
+pub async fn timer_start(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    if let Some(app) = &state.app_handle {
+        use tauri::Manager;
+        let pres = app.state::<crate::state::PresentationState>();
+        pres.timer_start();
+        let timer = pres.timer();
+        state.broadcaster.publish_timer(&timer);
+        return Json(timer).into_response();
+    }
+    (StatusCode::INTERNAL_SERVER_ERROR, "app handle indisponível").into_response()
+}
+
+pub async fn timer_pause(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    if let Some(app) = &state.app_handle {
+        use tauri::Manager;
+        let pres = app.state::<crate::state::PresentationState>();
+        pres.timer_pause();
+        let timer = pres.timer();
+        state.broadcaster.publish_timer(&timer);
+        return Json(timer).into_response();
+    }
+    (StatusCode::INTERNAL_SERVER_ERROR, "app handle indisponível").into_response()
+}
+
+pub async fn timer_reset(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    if let Some(app) = &state.app_handle {
+        use tauri::Manager;
+        let pres = app.state::<crate::state::PresentationState>();
+        pres.timer_reset();
+        let timer = pres.timer();
+        state.broadcaster.publish_timer(&timer);
+        return Json(timer).into_response();
+    }
+    (StatusCode::INTERNAL_SERVER_ERROR, "app handle indisponível").into_response()
+}
+
+pub async fn timer_set_countdown(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+    Json(req): Json<SetCountdownRequest>,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    if let Some(app) = &state.app_handle {
+        use tauri::Manager;
+        let pres = app.state::<crate::state::PresentationState>();
+        pres.timer_set_countdown(req.secs);
+        let timer = pres.timer();
+        state.broadcaster.publish_timer(&timer);
+        return Json(timer).into_response();
+    }
+    (StatusCode::INTERNAL_SERVER_ERROR, "app handle indisponível").into_response()
 }
 
 pub async fn list_songs(
@@ -871,6 +961,11 @@ async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>, client
         "payload": state.broadcaster.current_wallpaper(),
         "version": 1,
     });
+    let timer = serde_json::json!({
+        "channel": EVENT_TIMER,
+        "payload": state.broadcaster.current_timer(),
+        "version": 1,
+    });
 
     if sender
         .send(Message::Text(slide.to_string().into()))
@@ -888,6 +983,13 @@ async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>, client
     }
     if sender
         .send(Message::Text(wallpaper.to_string().into()))
+        .await
+        .is_err()
+    {
+        return;
+    }
+    if sender
+        .send(Message::Text(timer.to_string().into()))
         .await
         .is_err()
     {
@@ -914,7 +1016,7 @@ async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>, client
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::types::SlideKind;
+    use crate::state::types::{SectionType, SlideKind};
     use crate::state::{RemotePart, RemoteSlide};
 
     #[test]
@@ -954,6 +1056,7 @@ mod tests {
             event_id: "evt-1".into(),
             title: "Culto de Domingo".into(),
             event_date: "2026-10-18".into(),
+            groups: Vec::new(),
             parts: vec![RemotePart {
                 id: "part-1".into(),
                 title: "Louvor".into(),
@@ -968,6 +1071,7 @@ mod tests {
                             RemoteSlide {
                                 index: 0,
                                 label: Some("V1".into()),
+                                section_type: Some(SectionType::Verse),
                                 content: SlideContent {
                                     id: "item-1#0".into(),
                                     kind: SlideKind::Lyric,
@@ -982,6 +1086,7 @@ mod tests {
                             RemoteSlide {
                                 index: 1,
                                 label: Some("C".into()),
+                                section_type: Some(SectionType::Chorus),
                                 content: SlideContent {
                                     id: "item-1#1".into(),
                                     kind: SlideKind::Lyric,
@@ -1004,6 +1109,7 @@ mod tests {
                         slides: vec![RemoteSlide {
                             index: 0,
                             label: Some("Slide 1".into()),
+                            section_type: None,
                             content: SlideContent {
                                 id: "item-2#0".into(),
                                 kind: SlideKind::Custom,

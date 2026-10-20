@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
-use super::types::SlideContent;
+use super::types::{SectionType, SlideContent, SongGroupConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -10,6 +10,8 @@ pub struct RemoteSlide {
     pub index: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section_type: Option<SectionType>,
     pub content: SlideContent,
 }
 
@@ -41,6 +43,8 @@ pub struct RemoteSetlist {
     pub title: String,
     pub event_date: String,
     pub parts: Vec<RemotePart>,
+    #[serde(default)]
+    pub groups: Vec<SongGroupConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -11,6 +11,7 @@ import {
   Tv,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { isTauri } from "@/core/ipc/tauri";
 import { openShortcutsWindow } from "@/core/ipc/commands";
 import { usePreferencesStore } from "@/features/preferences/store";
@@ -131,15 +132,6 @@ export function AppDock() {
           onClick={() => setActiveTab("bible")}
         />
 
-        {/* Agenda & Eventos */}
-        <NavButton
-          icon={Calendar}
-          label="Agenda & Cronograma"
-          shortcut="⌘4"
-          active={activeTab === "agenda"}
-          onClick={() => setActiveTab("agenda")}
-        />
-
         {/* Biblioteca de Imagens */}
         <NavButton
           icon={Images}
@@ -156,6 +148,20 @@ export function AppDock() {
           shortcut="⌘6"
           active={activeTab === "studio"}
           onClick={() => setActiveTab("studio")}
+        />
+
+        <Separator
+          orientation="horizontal"
+          className="my-1.5 w-8 bg-border/80"
+        />
+
+        {/* Agenda & Eventos */}
+        <NavButton
+          icon={Calendar}
+          label="Agenda & Cronograma"
+          shortcut="⌘4"
+          active={activeTab === "agenda"}
+          onClick={() => setActiveTab("agenda")}
         />
       </div>
 

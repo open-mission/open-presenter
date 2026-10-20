@@ -239,17 +239,25 @@ export interface SlideGroup {
   sectionType: SectionType | null;
 }
 
-export function computeSlideGroups(slides: RunnerSlide[]): SlideGroup[] {
+/** Slide mínimo para agrupar seções (rótulo + tipo da seção). */
+export interface GroupableSlide {
+  index: number;
+  label?: string | null;
+  sectionType?: SectionType | null;
+}
+
+export function computeSlideGroups(slides: GroupableSlide[]): SlideGroup[] {
   const groups: SlideGroup[] = [];
 
   for (const slide of slides) {
     const current = groups[groups.length - 1];
-    if (slide.label !== null || current === undefined) {
+    const label = slide.label ?? null;
+    if (label !== null || current === undefined) {
       groups.push({
         startIndex: slide.index,
         indices: [slide.index],
-        label: slide.label,
-        sectionType: slide.sectionType,
+        label,
+        sectionType: slide.sectionType ?? null,
       });
       continue;
     }

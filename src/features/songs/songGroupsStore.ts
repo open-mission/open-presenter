@@ -1,13 +1,7 @@
 import { create } from "zustand";
-import type { SectionType } from "@/core/types";
+import type { SongGroupConfig } from "@/core/types";
 
-export interface SongGroupConfig {
-  id: string;
-  name: string;
-  color: string;
-  shortcut: string;
-  typeKey?: SectionType;
-}
+export type { SongGroupConfig };
 
 export const DEFAULT_SONG_GROUPS: SongGroupConfig[] = [
   { id: "intro", name: "Introdução", color: "#22c55e", shortcut: "I", typeKey: "intro" },
@@ -53,7 +47,6 @@ interface SongGroupsState {
   setShortcut(id: string, shortcut: string): void;
   clearShortcut(id: string): void;
   resetDefaults(): void;
-  getGroupForSection(sectionType: string | null | undefined, label: string | null | undefined): SongGroupConfig | undefined;
 }
 
 export const useSongGroupsStore = create<SongGroupsState>((set, get) => ({
@@ -116,23 +109,5 @@ export const useSongGroupsStore = create<SongGroupsState>((set, get) => ({
   resetDefaults: () => {
     persistGroups(DEFAULT_SONG_GROUPS);
     set({ groups: DEFAULT_SONG_GROUPS });
-  },
-
-  getGroupForSection: (sectionType, label) => {
-    const groups = get().groups;
-    if (sectionType) {
-      const matchType = groups.find((g) => g.typeKey === sectionType);
-      if (matchType) return matchType;
-    }
-    if (label) {
-      const normLabel = label.toLowerCase();
-      const matchName = groups.find(
-        (g) =>
-          normLabel.includes(g.name.toLowerCase()) ||
-          g.name.toLowerCase().includes(normLabel.replace(/\s*\d+$/, "")),
-      );
-      if (matchName) return matchName;
-    }
-    return undefined;
   },
 }));
