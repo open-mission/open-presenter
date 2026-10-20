@@ -58,6 +58,7 @@ pub fn build_song_slides(song: &Song) -> Vec<RemoteSlide> {
                     notes: None,
                     section: label,
                     media: None,
+                    scripture: None,
                 },
             }
         })

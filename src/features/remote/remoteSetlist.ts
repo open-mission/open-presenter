@@ -1,6 +1,10 @@
-import { getSong } from "@/core/ipc/commands";
+import { getBibleChapter, getSong } from "@/core/ipc/commands";
 import { buildSongSlides } from "@/core/lib/lyrics";
 import { buildMediaSlides, mediaKindLabel } from "@/core/lib/media";
+import {
+  bibleSplitThreshold,
+  buildScriptureSlides,
+} from "@/core/lib/biblePresentation";
 import type {
   EventItem,
   RemoteItem,
@@ -10,10 +14,63 @@ import type {
   Song,
 } from "@/core/types";
 
+async function buildScriptureItem(item: EventItem): Promise<RemoteItem> {
+  const ref = item.scripture!;
+  const title = `${ref.bookName} ${ref.chapter}:${ref.verse}`;
+  try {
+    const verses = await getBibleChapter(
+      ref.versionId,
+      ref.bookId,
+      ref.chapter,
+    );
+    const verse = verses.find((candidate) => candidate.verse === ref.verse);
+    const slides: RemoteSlide[] = verse
+      ? buildScriptureSlides({
+          versionId: ref.versionId,
+          bookId: ref.bookId,
+          bookName: ref.bookName,
+          chapter: ref.chapter,
+          verse: ref.verse,
+          text: verse.text,
+          threshold: bibleSplitThreshold(),
+        }).map((slide, index) => ({
+          index,
+          label:
+            (slide.scripture?.totalParts ?? 1) > 1
+              ? `Parte ${index + 1}/${slide.scripture?.totalParts}`
+              : null,
+          content: slide,
+        }))
+      : [];
+
+    return {
+      id: item.id,
+      kind: "scripture",
+      title,
+      subtitle: ref.versionId,
+      nextItemId: item.nextItemId,
+      slides,
+    };
+  } catch {
+    return {
+      id: item.id,
+      kind: "scripture",
+      title,
+      subtitle: ref.versionId,
+      nextItemId: item.nextItemId,
+      slides: [],
+    };
+  }
+}
+
 async function buildRemoteItem(
   item: EventItem,
   cache: Record<string, Song>,
 ): Promise<RemoteItem> {
+  if (item.scripture) {
+    return buildScriptureItem(item);
+  }
+
   if (item.media) {
     const slides: RemoteSlide[] = buildMediaSlides(item.id, item.media).map(
       (entry) => ({

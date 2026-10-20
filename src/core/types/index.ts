@@ -13,6 +13,18 @@ export interface MediaItem {
   themeId?: string;
 }
 
+/** Referência estruturada a um versículo bíblico (usado por itens de setlist e slides vivos). */
+export interface ScriptureRef {
+  versionId: string;
+  bookId: number;
+  bookName: string;
+  chapter: number;
+  verse: number;
+  /** Índice (0-based) da parte dentro do versículo dividido. */
+  part: number;
+  totalParts: number;
+}
+
 export interface SlideContent {
   id: string;
   kind: SlideKind;
@@ -21,6 +33,7 @@ export interface SlideContent {
   notes?: string;
   section?: string;
   media?: MediaItem;
+  scripture?: ScriptureRef;
 }
 
 export type BackgroundKind = "color" | "image" | "video" | "css" | "isf";
@@ -165,6 +178,7 @@ export interface EventItem {
   nextItemId: string | null;
   song: SongSummary | null;
   media: MediaItem | null;
+  scripture?: ScriptureRef | null;
 }
 
 export interface EventPart {
@@ -231,7 +245,7 @@ export interface RemoteSlide {
 
 export interface RemoteItem {
   id: string;
-  kind: "song" | "media";
+  kind: "song" | "media" | "scripture";
   title: string;
   subtitle?: string | null;
   nextItemId?: string | null;

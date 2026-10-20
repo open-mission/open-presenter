@@ -40,6 +40,22 @@ pub struct MediaItem {
     pub theme_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptureRef {
+    #[serde(rename = "versionId")]
+    pub version_id: String,
+    #[serde(rename = "bookId")]
+    pub book_id: i32,
+    #[serde(rename = "bookName")]
+    pub book_name: String,
+    pub chapter: i32,
+    pub verse: i32,
+    pub part: usize,
+    #[serde(rename = "totalParts")]
+    pub total_parts: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlideContent {
     pub id: String,
@@ -51,6 +67,8 @@ pub struct SlideContent {
     pub section: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub media: Option<MediaItem>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scripture: Option<ScriptureRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -295,6 +313,8 @@ pub struct EventItem {
     pub song: Option<SongSummary>,
     #[serde(default)]
     pub media: Option<MediaItem>,
+    #[serde(default)]
+    pub scripture: Option<ScriptureRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

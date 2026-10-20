@@ -5,6 +5,33 @@ Todas as mudanças relevantes do Open Presenter são documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [Não publicado]
+
+### Adicionado
+
+- Versículos da Bíblia podem ser adicionados à programação do culto pelo menu
+  **Adicionar Versículo** (barra lateral e menus de contexto) ou pelo seletor
+  de versículo, com escolha da seção de destino.
+- Itens de Escritura na setlist abrem a coluna de slides do versículo e mantêm
+  a Bíblia do painel sincronizada com o texto que está no ar.
+- O controle remoto ganhou o botão **Encerrar** para cancelar a apresentação e
+  liberar o telão.
+
+### Corrigido
+
+- Os metadados de referência bíblica (`ScriptureRef`) agora acompanham os
+  slides ao vivo, permitindo que **Anterior/Próximo** no controle remoto
+  naveguem entre partes e versículos em vez de pular para o próximo item da
+  setlist.
+- O editor de temas mede o tamanho real dos elementos ao abrir, inclusive após
+  o carregamento das fontes, usando `ResizeObserver`.
+- O arrastar-e-soltar de seções e itens da programação voltou a funcionar no
+  WebView (`dragDropEnabled: false`).
+- O ícone da bandeja no macOS foi ampliado para ficar alinhado aos ícones do
+  sistema.
+- O logotipo e o botão de ocultar a programação foram trocados de lugar, e o
+  botão **Remote** passou a ser o último do cabeçalho do painel.
+
 ## [0.3.1] - 2026-10-19
 
 Release de identidade visual e sistema de temas da interface, com presets,

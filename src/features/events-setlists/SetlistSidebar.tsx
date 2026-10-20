@@ -3,6 +3,7 @@ import {
   AlignLeft,
   ArrowDown,
   ArrowUp,
+  BookOpen,
   Calendar,
   Check,
   ChevronDown,
@@ -65,6 +66,7 @@ import { TextEditorDialog } from "./TextEditorDialog";
 import { EventDetailsDialog } from "./EventDetailsDialog";
 import { SongPickerDialog } from "./SongPickerDialog";
 import { StudioPickerDialog } from "./StudioPickerDialog";
+import { BibleVersePickerDialog } from "./BibleVersePickerDialog";
 import { formatEventDateTime } from "./dateUtils";
 
 const MEDIA_ICONS: Record<MediaKind, typeof AlignLeft> = {
@@ -85,6 +87,9 @@ const MEDIA_KIND_OPTIONS: Array<{
 ];
 
 function ItemKindIcon({ item }: { item: EventItem }) {
+  if (item.scripture) {
+    return <BookOpen className="size-3.5 mt-0.5 shrink-0 text-emerald-500" />;
+  }
   const media = item.media;
   if (media?.themeId) {
     return <Sparkles className="size-3.5 mt-0.5 shrink-0 text-amber-500" />;
@@ -99,6 +104,11 @@ function ItemKindIcon({ item }: { item: EventItem }) {
   );
 }
 
+function scriptureTitle(item: EventItem): string | null {
+  if (!item.scripture) return null;
+  return `${item.scripture.bookName} ${item.scripture.chapter}:${item.scripture.verse}`;
+}
+
 function itemTitle(item: EventItem): string {
   if (item.media?.themeId) {
     const studioTheme = useSlideThemesStore
@@ -107,6 +117,7 @@ function itemTitle(item: EventItem): string {
     if (studioTheme?.title) return studioTheme.title;
   }
   return (
+    scriptureTitle(item) ||
     item.media?.title ||
     item.song?.title ||
     (item.media ? "Mídia sem título" : "Música sem título")
@@ -114,6 +125,9 @@ function itemTitle(item: EventItem): string {
 }
 
 function itemSubtitle(item: EventItem): string {
+  if (item.scripture) {
+    return `Bíblia · ${item.scripture.versionId}`;
+  }
   if (item.media?.themeId) {
     return "Apresentação (Studio)";
   }
@@ -198,6 +212,7 @@ export function SetlistSidebar() {
   const [searchQuery, setSearchQuery] = useState("");
   const [pickerPartId, setPickerPartId] = useState<string | null>(null);
   const [studioPickerPartId, setStudioPickerPartId] = useState<string | null>(null);
+  const [biblePickerPartId, setBiblePickerPartId] = useState<string | null>(null);
   const [newPartDialogOpen, setNewPartDialogOpen] = useState(false);
   const [newPartTitle, setNewPartTitle] = useState("");
   const [newEventDialogOpen, setNewEventDialogOpen] = useState(false);
@@ -380,6 +395,18 @@ export function SetlistSidebar() {
       const untitled = event.parts.find((p) => p.title.trim() === "");
       setStudioPickerPartId(untitled ? untitled.id : event.parts[0].id);
     }
+  }
+
+  function handleAddScripture(targetPartId?: string) {
+    if (!event) return;
+    const partId = resolvePartId(targetPartId);
+    if (!partId) {
+      const newPartId = addPart("");
+      setBiblePickerPartId(newPartId);
+      void save();
+      return;
+    }
+    setBiblePickerPartId(partId);
   }
 
   function resolvePartId(targetPartId?: string): string {
@@ -683,6 +710,13 @@ export function SetlistSidebar() {
                 Adicionar Texto
               </DropdownMenuItem>
               <DropdownMenuItem
+                onSelect={() => handleAddScripture()}
+                className="text-xs cursor-pointer"
+              >
+                <BookOpen className="size-3.5 mr-2 text-emerald-500" />
+                Adicionar Versículo
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 onSelect={() => setNewPartDialogOpen(true)}
                 className="text-xs cursor-pointer"
               >
@@ -827,11 +861,15 @@ export function SetlistSidebar() {
                   const mediaKind = item.media
                     ? mediaKindLabel(item.media.kind).toLowerCase()
                     : "";
+                  const scripture = item.scripture
+                    ? `${item.scripture.bookName} ${item.scripture.chapter}:${item.scripture.verse} ${item.scripture.versionId}`.toLowerCase()
+                    : "";
                   return (
                     title.includes(needle) ||
                     artist.includes(needle) ||
                     mediaTitle.includes(needle) ||
-                    mediaKind.includes(needle)
+                    mediaKind.includes(needle) ||
+                    scripture.includes(needle)
                   );
                 });
 
@@ -975,6 +1013,13 @@ export function SetlistSidebar() {
                                 <AlignLeft className="size-3.5 mr-2 text-sky-500" />
                                 Adicionar Texto
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() => handleAddScripture(part.id)}
+                                className="text-xs cursor-pointer"
+                              >
+                                <BookOpen className="size-3.5 mr-2 text-emerald-500" />
+                                Adicionar Versículo
+                              </DropdownMenuItem>
                               <DropdownMenuSub>
                                 <DropdownMenuSubTrigger className="text-xs cursor-pointer">
                                   <ImageIcon className="size-3.5 mr-2 text-sky-500" />
@@ -1067,6 +1112,7 @@ export function SetlistSidebar() {
                         const title = itemTitle(item);
                         const artist = itemSubtitle(item);
                         const isMedia = item.media != null;
+                        const isScripture = item.scripture != null;
                         const isBeingDragged =
                           (dragItemRef.current?.itemId ?? draggedItem?.itemId) === item.id;
                         const isHoveredOver = dragOverItem?.itemId === item.id;
@@ -1206,7 +1252,7 @@ export function SetlistSidebar() {
                                             </>
                                           )}
                                         </DropdownMenuItem>
-                                      ) : (
+                                      ) : isScripture ? null : (
                                         <DropdownMenuItem
                                           onSelect={() => {
                                             if (item.songId) {
@@ -1286,7 +1332,7 @@ export function SetlistSidebar() {
                                     </>
                                   )}
                                 </ContextMenuItem>
-                              ) : (
+                              ) : isScripture ? null : (
                                 <ContextMenuItem
                                   onClick={() => {
                                     if (item.songId) {
@@ -1393,6 +1439,13 @@ export function SetlistSidebar() {
             <span>Adicionar Texto</span>
           </ContextMenuItem>
           <ContextMenuItem
+            onClick={() => handleAddScripture()}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <BookOpen className="size-3.5 text-emerald-500" />
+            <span>Adicionar Versículo</span>
+          </ContextMenuItem>
+          <ContextMenuItem
             onClick={() => setNewPartDialogOpen(true)}
             className="flex items-center gap-2 cursor-pointer"
           >
@@ -1482,6 +1535,17 @@ export function SetlistSidebar() {
           open={Boolean(studioPickerPartId)}
           onOpenChange={(open) => {
             if (!open) setStudioPickerPartId(null);
+          }}
+        />
+      )}
+
+      {/* Dialog for adding a Bible verse to the setlist */}
+      {biblePickerPartId && (
+        <BibleVersePickerDialog
+          partId={biblePickerPartId}
+          open
+          onOpenChange={(open) => {
+            if (!open) setBiblePickerPartId(null);
           }}
         />
       )}

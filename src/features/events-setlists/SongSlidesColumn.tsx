@@ -36,6 +36,7 @@ import { usePresentationStore } from "@/features/presentation/store";
 import { useSongsStore } from "@/features/songs/store";
 import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
 import { MediaSlidesColumn } from "./MediaSlidesColumn";
+import { ScriptureSlidesColumn } from "./ScriptureSlidesColumn";
 import { SlideNumberIndicator } from "./SlideNumberIndicator";
 import { findEventItem, useSetlistStore } from "./store";
 
@@ -46,7 +47,12 @@ function resolveNextItem(
   if (item === undefined || item.nextItemId === null) return null;
   const next = findEventItem(event, item.nextItemId);
   if (next === undefined) return null;
-  const title = next.media?.title ?? next.song?.title;
+  const title =
+    next.media?.title ??
+    next.song?.title ??
+    (next.scripture
+      ? `${next.scripture.bookName} ${next.scripture.chapter}:${next.scripture.verse}`
+      : undefined);
   return title ? { id: next.id, title } : null;
 }
 
@@ -55,6 +61,10 @@ export function SongSlidesColumn() {
   const selectedItemId = useSetlistStore((s) => s.selectedItemId);
   const item =
     selectedItemId === null ? undefined : findEventItem(event, selectedItemId);
+
+  if (item?.scripture) {
+    return <ScriptureSlidesColumn item={item} />;
+  }
 
   if (item?.media) {
     const part = event?.parts.find((candidate) =>

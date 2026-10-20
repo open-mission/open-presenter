@@ -242,6 +242,7 @@ function AutoScaledText({
   return (
     <div
       ref={containerRef}
+      data-theme-element-id={element.id}
       style={{
         ...baseContainerStyle,
         maxHeight:
@@ -312,10 +313,11 @@ function ThemeElementView({
     case "TEXT":
       return <AutoScaledText element={element} props={props} style={style} />;
     case "IMAGE":
-      return <img src={resolvedSrc} crossOrigin="anonymous" alt="" style={style} />;
+      return <img data-theme-element-id={element.id} src={resolvedSrc} crossOrigin="anonymous" alt="" style={style} />;
     case "VIDEO":
       return (
         <video
+          data-theme-element-id={element.id}
           src={resolvedSrc}
           crossOrigin="anonymous"
           autoPlay
@@ -329,6 +331,7 @@ function ThemeElementView({
       if (element.fill === "web") {
         return (
           <div
+            data-theme-element-id={element.id}
             style={{
               ...style,
               backgroundImage: `url("${resolvedSrc}")`,
@@ -340,6 +343,7 @@ function ThemeElementView({
       }
       return (
         <div
+          data-theme-element-id={element.id}
           style={
             element.fill
               ? { ...style, background: resolveUrlValue(element.fill, host) }

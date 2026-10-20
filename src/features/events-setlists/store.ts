@@ -3,6 +3,7 @@ import {
   createEvent as createEventCommand,
   deleteEvent as deleteEventCommand,
   getEvent,
+  getBibleChapter,
   getSong,
   getTemporaryEvent,
   listEvents,
@@ -11,10 +12,15 @@ import {
 import { buildSongSlides } from "@/core/lib/lyrics";
 import { buildMediaSlides } from "@/core/lib/media";
 import {
+  bibleSplitThreshold,
+  buildScriptureSlides,
+} from "@/core/lib/biblePresentation";
+import {
   type EventItem,
   type EventPart,
   type EventSummary,
   type MediaItem,
+  type ScriptureRef,
   type ServiceEvent,
   type SetlistListMode,
   type SlideContent,
@@ -95,6 +101,7 @@ interface SetlistState {
   reorderParts(sourceIndex: number, targetIndex: number): void;
   addSong(partId: string, song: SongSummary): string;
   addMedia(partId: string, media: MediaItem): string;
+  addScripture(partId: string, scripture: ScriptureRef): string;
   updateMedia(itemId: string, media: MediaItem): void;
   removeItem(itemId: string): void;
   moveItem(itemId: string, dir: -1 | 1): void;
@@ -172,6 +179,29 @@ export function findEventItem(
     if (item !== undefined) return item;
   }
   return undefined;
+}
+
+export async function buildScriptureItemSlides(
+  item: EventItem,
+): Promise<SlideContent[]> {
+  const ref = item.scripture;
+  if (!ref) return [];
+  try {
+    const verses = await getBibleChapter(ref.versionId, ref.bookId, ref.chapter);
+    const verse = verses.find((candidate) => candidate.verse === ref.verse);
+    if (!verse) return [];
+    return buildScriptureSlides({
+      versionId: ref.versionId,
+      bookId: ref.bookId,
+      bookName: ref.bookName,
+      chapter: ref.chapter,
+      verse: ref.verse,
+      text: verse.text,
+      threshold: bibleSplitThreshold(),
+    });
+  } catch {
+    return [];
+  }
 }
 
 function today(): string {
@@ -960,6 +990,24 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     return id;
   },
 
+  addScripture: (partId, scripture) => {
+    const id = crypto.randomUUID();
+    set((state) => {
+      const { event } = state;
+      if (event === null) return {};
+      const item: EventItem = {
+        id,
+        songId: null,
+        nextItemId: null,
+        song: null,
+        media: null,
+        scripture,
+      };
+      return { event: insertItemInEvent(event, partId, item), dirty: true };
+    });
+    return id;
+  },
+
   updateMedia: (itemId, media) =>
     set((state) => {
       const { event } = state;
@@ -1066,6 +1114,12 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     set({ selectedItemId: itemId, runnerIndex: null });
     if (itemId === null) return;
     const item = findEventItem(get().event, itemId);
+    if (item?.scripture) {
+      void buildScriptureItemSlides(item).then((slides) => {
+        usePresentationStore.getState().setPreview(slides[0] ?? null);
+      });
+      return;
+    }
     if (item?.media) {
       const slides = buildMediaSlides(item.id, item.media);
       usePresentationStore.getState().setPreview(slides[0]?.slide ?? null);
@@ -1119,7 +1173,9 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     if (item === undefined) return;
 
     let slides: SlideContent[];
-    if (item.media != null) {
+    if (item.scripture) {
+      slides = await buildScriptureItemSlides(item);
+    } else if (item.media != null) {
       slides = buildMediaSlides(item.id, item.media).map((entry) => entry.slide);
     } else {
       const song = await get().loadItemSong(itemId);
@@ -1134,7 +1190,9 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     } else if (item.nextItemId !== null) {
       const nextItem = findEventItem(event, item.nextItemId);
       if (nextItem !== undefined) {
-        if (nextItem.media != null) {
+        if (nextItem.scripture) {
+          nextUp = (await buildScriptureItemSlides(nextItem))[0] ?? null;
+        } else if (nextItem.media != null) {
           nextUp = buildMediaSlides(nextItem.id, nextItem.media)[0]?.slide ?? null;
         } else if (nextItem.song != null) {
           const nextSong = await get().loadItemSong(nextItem.id);
@@ -1160,7 +1218,9 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     if (item === undefined) return;
 
     let count: number;
-    if (item.media != null) {
+    if (item.scripture) {
+      count = (await buildScriptureItemSlides(item)).length;
+    } else if (item.media != null) {
       count = buildMediaSlides(item.id, item.media).length;
     } else {
       const song = await get().loadItemSong(selectedItemId);

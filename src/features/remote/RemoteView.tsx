@@ -13,6 +13,7 @@ import {
   SkipBack,
   SkipForward,
   Smartphone,
+  Square,
   X,
 } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
@@ -21,7 +22,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isTauri } from "@/core/ipc/tauri";
 import { cn } from "@/core/lib/utils";
+import {
+  buildBiblePresentationPayload,
+  stepBibleVerse,
+} from "@/core/lib/biblePresentation";
 import type {
+  BibleVerse,
   LiveSlide,
   RemoteItem,
   RemoteSetlist,
@@ -104,7 +110,23 @@ async function responseError(response: Response): Promise<string> {
 }
 
 function mediaLabel(item: RemoteItem): string {
-  return item.kind === "song" ? "Música" : "Mídia";
+  if (item.kind === "song") return "Música";
+  if (item.kind === "scripture") return "Bíblia";
+  return "Mídia";
+}
+
+async function fetchBibleChapter(
+  token: string,
+  versionId: string,
+  bookId: number,
+  chapter: number,
+): Promise<BibleVerse[]> {
+  const response = await fetch(
+    `/api/v1/bible/chapter?version=${encodeURIComponent(versionId)}&book=${bookId}&chapter=${chapter}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  if (!response.ok) throw new Error("Falha ao carregar o capítulo bíblico.");
+  return (await response.json()) as BibleVerse[];
 }
 
 export default function RemoteView() {
@@ -341,6 +363,54 @@ export default function RemoteView() {
     [post],
   );
 
+  const stepBible = useCallback(
+    async (direction: 1 | -1) => {
+      const ref = live?.content.scripture;
+      if (!ref) return;
+      setBusy(true);
+      setError(null);
+      try {
+        const verses = await fetchBibleChapter(
+          token,
+          ref.versionId,
+          ref.bookId,
+          ref.chapter,
+        );
+        const target = stepBibleVerse(
+          verses,
+          ref.verse,
+          ref.part,
+          direction,
+        );
+        if (!target) return;
+        const payload = buildBiblePresentationPayload({
+          versionId: ref.versionId,
+          bookId: ref.bookId,
+          bookName: ref.bookName,
+          chapter: ref.chapter,
+          verses,
+          verseNum: target.verse.verse,
+          partIndex: target.partIndex,
+        });
+        if (!payload) return;
+        await post("present-bible", payload);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [live, token, post],
+  );
+
+  const isBibleLive = Boolean(
+    live?.content.kind === "scripture" && live.content.scripture,
+  );
+  const canGoPrevious = isBibleLive
+    ? !busy
+    : Boolean(previousSlide) && !busy;
+  const canGoNext = isBibleLive ? !busy : Boolean(nextSlide) && !busy;
+
   function connectWithToken() {
     const next = tokenDraft.trim();
     if (!next) {
@@ -546,26 +616,40 @@ export default function RemoteView() {
               )}
             </div>
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-6.5 shrink-0 px-1.5 text-[11px] text-muted-foreground hover:text-foreground gap-1 cursor-pointer"
-              onClick={togglePreview}
-              title={previewCollapsed ? "Expandir prévia" : "Recolher prévia"}
-            >
-              {previewCollapsed ? (
-                <>
-                  <ChevronDown className="size-3.5" />
-                  <span>Expandir</span>
-                </>
-              ) : (
-                <>
-                  <ChevronUp className="size-3.5" />
-                  <span>Recolher</span>
-                </>
-              )}
-            </Button>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6.5 shrink-0 px-1.5 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive gap-1 cursor-pointer"
+                onClick={() => void post("clear")}
+                disabled={busy || Boolean(live?.cleared)}
+                title="Encerrar a apresentação e liberar o telão"
+              >
+                <Square className="size-3 fill-current" />
+                <span className="hidden sm:inline">Encerrar</span>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6.5 shrink-0 px-1.5 text-[11px] text-muted-foreground hover:text-foreground gap-1 cursor-pointer"
+                onClick={togglePreview}
+                title={previewCollapsed ? "Expandir prévia" : "Recolher prévia"}
+              >
+                {previewCollapsed ? (
+                  <>
+                    <ChevronDown className="size-3.5" />
+                    <span>Expandir</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronUp className="size-3.5" />
+                    <span>Recolher</span>
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
           {/* Canvas visual ou resumo compacto colapsado */}
@@ -633,11 +717,14 @@ export default function RemoteView() {
               variant="outline"
               size="sm"
               className="h-9 gap-1.5 text-xs cursor-pointer"
-              disabled={busy || !previousSlide}
-              onClick={() =>
-                previousSlide &&
-                present(previousSlide.itemId, previousSlide.index)
-              }
+              disabled={!canGoPrevious}
+              onClick={() => {
+                if (isBibleLive) {
+                  void stepBible(-1);
+                } else if (previousSlide) {
+                  void present(previousSlide.itemId, previousSlide.index);
+                }
+              }}
             >
               <SkipBack className="size-3.5" />
               Anterior
@@ -647,10 +734,14 @@ export default function RemoteView() {
               variant="outline"
               size="sm"
               className="h-9 gap-1.5 text-xs cursor-pointer"
-              disabled={busy || !nextSlide}
-              onClick={() =>
-                nextSlide && present(nextSlide.itemId, nextSlide.index)
-              }
+              disabled={!canGoNext}
+              onClick={() => {
+                if (isBibleLive) {
+                  void stepBible(1);
+                } else if (nextSlide) {
+                  void present(nextSlide.itemId, nextSlide.index);
+                }
+              }}
             >
               Próximo
               <SkipForward className="size-3.5" />

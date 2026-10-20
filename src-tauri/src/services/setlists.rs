@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 use crate::services::songs;
-use crate::state::{EventItem, EventPart, EventSummary, MediaItem, ServiceEvent, SongSummary};
+use crate::state::{EventItem, EventPart, EventSummary, MediaItem, ScriptureRef, ServiceEvent, SongSummary};
 
 #[derive(Serialize, Deserialize)]
 struct StoredItem {
@@ -14,6 +14,8 @@ struct StoredItem {
     next_item_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     media: Option<MediaItem>,
+    #[serde(rename = "scripture", default, skip_serializing_if = "Option::is_none")]
+    scripture: Option<ScriptureRef>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -60,6 +62,7 @@ fn serialize_setlist(event: &ServiceEvent) -> Result<String, AppError> {
                         song_id: item.song_id.clone(),
                         next_item_id: item.next_item_id.clone(),
                         media: item.media.clone(),
+                        scripture: item.scripture.clone(),
                     })
                     .collect(),
             })
@@ -140,6 +143,7 @@ pub fn get(conn: &Connection, id: &str) -> Result<Option<ServiceEvent>, AppError
                 next_item_id: item.next_item_id,
                 song,
                 media: item.media,
+                scripture: item.scripture,
             });
         }
         parts.push(EventPart {
@@ -226,8 +230,8 @@ mod tests {
         let song_id = songs::insert_new(&conn, "Ousado Amor", "Isaias Saad", &[SongSection { section_type: None, lines: vec!["x".into()] }]).unwrap();
         let event = ServiceEvent { id: "e1".into(), title: "Culto".into(), event_date: "2026-10-18".into(), wallpaper: None, theme_guid: None,
             parts: vec![EventPart { id: "p1".into(), title: "Louvor".into(), items: vec![
-                EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: Some("i2".into()), song: None, media: None },
-                EventItem { id: "i2".into(), song_id: Some(song_id.clone()), next_item_id: None, song: None, media: None },
+                EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: Some("i2".into()), song: None, media: None, scripture: None },
+                EventItem { id: "i2".into(), song_id: Some(song_id.clone()), next_item_id: None, song: None, media: None, scripture: None },
             ], color: None, bg_color: None }] };
         create(&conn, &event).unwrap();
         let loaded = get(&conn, "e1").unwrap().unwrap();
@@ -241,7 +245,7 @@ mod tests {
         let song_id = songs::insert_new(&conn, "T", "", &[SongSection { section_type: None, lines: vec!["l".into()] }]).unwrap();
         let event = ServiceEvent { id: "e1".into(), title: "C".into(), event_date: "2026-10-18".into(), wallpaper: None, theme_guid: None,
             parts: vec![EventPart { id: "p1".into(), title: "P".into(), items: vec![
-                EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: Some("i-que-nao-existe".into()), song: None, media: None }], color: None, bg_color: None }] };
+                EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: Some("i-que-nao-existe".into()), song: None, media: None, scripture: None }], color: None, bg_color: None }] };
         create(&conn, &event).unwrap();
         songs::delete(&conn, &song_id).unwrap();
         let loaded = get(&conn, "e1").unwrap().unwrap();
@@ -276,6 +280,7 @@ mod tests {
                         fit: Some("contain".into()),
                         theme_id: None,
                     }),
+                    scripture: None,
                 }],
                 color: None,
                 bg_color: None,
@@ -302,9 +307,9 @@ mod tests {
         let conn = open_in_memory();
         let song_id = songs::insert_new(&conn, "T", "", &[SongSection { section_type: None, lines: vec!["l".into()] }]).unwrap();
         let mut event = ServiceEvent { id: "e1".into(), title: "C".into(), event_date: "2026-10-18".into(), wallpaper: None, theme_guid: None,
-            parts: vec![EventPart { id: "p1".into(), title: "P".into(), items: vec![EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: None, song: None, media: None }], color: None, bg_color: None }] };
+            parts: vec![EventPart { id: "p1".into(), title: "P".into(), items: vec![EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: None, song: None, media: None, scripture: None }], color: None, bg_color: None }] };
         create(&conn, &event).unwrap();
-        event.parts[0].items.push(EventItem { id: "i2".into(), song_id: Some(song_id), next_item_id: None, song: None, media: None });
+        event.parts[0].items.push(EventItem { id: "i2".into(), song_id: Some(song_id), next_item_id: None, song: None, media: None, scripture: None });
         save(&conn, &event).unwrap();
         assert_eq!(get(&conn, "e1").unwrap().unwrap().parts[0].items.len(), 2);
         assert_eq!(list(&conn).unwrap().len(), 1);
