@@ -67,7 +67,7 @@ export interface MonitorInfo {
   scaleFactor: number;
 }
 
-export type OutputTarget = "public" | "stage";
+export type OutputTarget = "public" | "stage" | "stream";
 
 export type OutputMode = "off" | "native" | "web" | "both";
 
@@ -353,6 +353,7 @@ export interface ThemeBinding {
 export interface LiveThemes {
   public: SlideTheme | null;
   stage: SlideTheme | null;
+  stream: SlideTheme | null;
 }
 
 export function kindToAsset(kind: SlideKind): ThemeAsset | null {

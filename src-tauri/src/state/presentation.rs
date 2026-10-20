@@ -128,6 +128,7 @@ mod tests {
         let themes = state.themes();
         assert!(themes.public.is_none());
         assert!(themes.stage.is_none());
+        assert!(themes.stream.is_none());
     }
 
     #[test]
@@ -136,10 +137,12 @@ mod tests {
         state.set_themes(LiveThemes {
             public: Some(theme("pub")),
             stage: Some(theme("stg")),
+            stream: Some(theme("stm")),
         });
         let themes = state.themes();
         assert_eq!(themes.public.as_ref().map(|t| t.guid.as_str()), Some("pub"));
         assert_eq!(themes.stage.as_ref().map(|t| t.guid.as_str()), Some("stg"));
+        assert_eq!(themes.stream.as_ref().map(|t| t.guid.as_str()), Some("stm"));
     }
 
     #[test]

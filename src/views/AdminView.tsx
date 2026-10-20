@@ -58,7 +58,7 @@ export default function AdminView() {
   useEffect(() => {
     if (!outputsLoaded) return;
     const { configs, monitors, runtime } = useOutputManagerStore.getState();
-    for (const target of ["public", "stage"] as const satisfies OutputTarget[]) {
+    for (const target of ["public", "stage", "stream"] as const satisfies OutputTarget[]) {
       const config = configs[target];
       if (config.mode !== "native" && config.mode !== "both") continue;
       if (runtime[target]?.open) continue;

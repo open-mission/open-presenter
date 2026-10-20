@@ -10,6 +10,8 @@ import { deleteTheme, listThemes, saveTheme } from "@/core/ipc/commands";
 import {
   DEFAULT_PUBLIC_THEME,
   DEFAULT_PUBLIC_THEME_GUID,
+  DEFAULT_STREAM_THEME,
+  DEFAULT_STREAM_THEME_GUID,
   DEFAULT_STAGE_REST_THEME,
   DEFAULT_STAGE_REST_THEME_GUID,
   DEFAULT_STAGE_THEME,
@@ -135,18 +137,34 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
       themes = get().themes;
     }
     if (themes.length > 0) {
+      if (!themes.some((t) => t.guid === DEFAULT_STREAM_THEME_GUID)) {
+        await saveTheme(DEFAULT_STREAM_THEME);
+        themes = [...themes, DEFAULT_STREAM_THEME];
+        get().setBinding("stream", "lyric", DEFAULT_STREAM_THEME_GUID);
+        get().setBinding("stream", "custom", DEFAULT_STREAM_THEME_GUID);
+        get().setBinding("stream", "scripture", DEFAULT_STREAM_THEME_GUID);
+      }
       set({ themes });
       return;
     }
     await saveTheme(DEFAULT_PUBLIC_THEME);
+    await saveTheme(DEFAULT_STREAM_THEME);
     await saveTheme(DEFAULT_STAGE_THEME);
     await saveTheme(DEFAULT_STAGE_REST_THEME);
     set({
-      themes: [DEFAULT_PUBLIC_THEME, DEFAULT_STAGE_THEME, DEFAULT_STAGE_REST_THEME],
+      themes: [
+        DEFAULT_PUBLIC_THEME,
+        DEFAULT_STREAM_THEME,
+        DEFAULT_STAGE_THEME,
+        DEFAULT_STAGE_REST_THEME,
+      ],
     });
     get().setBinding("public", "lyric", DEFAULT_PUBLIC_THEME_GUID);
     get().setBinding("public", "custom", DEFAULT_PUBLIC_THEME_GUID);
     get().setBinding("public", "scripture", DEFAULT_PUBLIC_THEME_GUID);
+    get().setBinding("stream", "lyric", DEFAULT_STREAM_THEME_GUID);
+    get().setBinding("stream", "custom", DEFAULT_STREAM_THEME_GUID);
+    get().setBinding("stream", "scripture", DEFAULT_STREAM_THEME_GUID);
     get().setStageTheme(DEFAULT_STAGE_THEME_GUID);
     get().setStageRestTheme(DEFAULT_STAGE_REST_THEME_GUID);
   },

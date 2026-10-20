@@ -206,3 +206,21 @@ test("palco usa o modelo padrão quando a página do momento não existe", () =>
     "fallback-bible",
   );
 });
+
+test("saída de transmissão (stream) resolve tema vinculado especificamente para stream", () => {
+  const publicThemeItem = publicTheme("pub-1", ["music"]);
+  const streamLowerThird = publicTheme("stream-lower-third", ["music"]);
+  const bindings: ThemeBinding[] = [
+    { target: "public", asset: "lyric", themeGuid: "pub-1" },
+    { target: "stream", asset: "lyric", themeGuid: "stream-lower-third" },
+  ];
+
+  const resolved = resolveLiveTheme({
+    kind: "lyric",
+    themes: [publicThemeItem, streamLowerThird],
+    bindings,
+    target: "stream",
+  });
+
+  assert.equal(resolved?.guid, "stream-lower-third");
+});

@@ -7,7 +7,7 @@ export type PreferencesTab =
   | "remote"
   | "updates";
 
-export type OutputsSection = "public" | "stage" | "server" | "devices";
+export type OutputsSection = "public" | "stage" | "stream" | "server" | "devices";
 
 export interface TabDefinition {
   id: PreferencesTab;

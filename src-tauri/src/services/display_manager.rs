@@ -78,7 +78,8 @@ pub async fn open_output_window(
         .resizable(false)
         .skip_taskbar(true)
         .focused(false)
-        .visible(true);
+        .visible(true)
+        .transparent(target == OutputTarget::Stream);
 
     if let Some(monitor) = chosen_monitor {
         let position = monitor.position();

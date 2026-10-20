@@ -10,6 +10,7 @@ fn config_key(target: OutputTarget) -> &'static str {
     match target {
         OutputTarget::Public => "outputs.public",
         OutputTarget::Stage => "outputs.stage",
+        OutputTarget::Stream => "outputs.stream",
     }
 }
 
