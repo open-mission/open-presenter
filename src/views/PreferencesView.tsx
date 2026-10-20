@@ -9,13 +9,17 @@ import { OutputsTab } from "@/features/preferences/tabs/OutputsTab";
 import { RemoteTab } from "@/features/preferences/tabs/RemoteTab";
 import { ThemesTab } from "@/features/preferences/tabs/ThemesTab";
 import { SongsTab } from "@/features/preferences/tabs/SongsTab";
+import { UpdatesTab } from "@/features/preferences/tabs/UpdatesTab";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { APP_VERSION } from "@/core/config/version";
 import { isTauri } from "@/core/ipc/tauri";
 import { closePreferencesWindow } from "@/core/ipc/commands";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { useOutputsSync } from "@/features/output-manager/useOutputsSync";
+import { UpdateDialog } from "@/features/updates/UpdateDialog";
+import { WhatsNewDialog } from "@/features/updates/WhatsNewDialog";
 
 export default function PreferencesView() {
   const activeTab = usePreferencesStore((s) => s.activeTab);
@@ -117,7 +121,7 @@ export default function PreferencesView() {
         </nav>
 
         <div className="border-t border-border/60 px-3 pt-3 text-[11px] text-muted-foreground/70">
-          Open Presenter v0.1.0
+          Open Presenter v{APP_VERSION}
         </div>
       </aside>
 
@@ -162,9 +166,13 @@ export default function PreferencesView() {
             {activeTab === "songs" && <SongsTab />}
             {activeTab === "remote" && <RemoteTab />}
             {activeTab === "general" && <GeneralTab />}
+            {activeTab === "updates" && <UpdatesTab />}
           </div>
         </ScrollArea>
       </div>
+
+      <UpdateDialog />
+      <WhatsNewDialog />
     </div>
   );
 }

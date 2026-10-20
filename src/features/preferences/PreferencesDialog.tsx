@@ -8,9 +8,13 @@ import { OutputsTab } from "./tabs/OutputsTab";
 import { RemoteTab } from "./tabs/RemoteTab";
 import { ThemesTab } from "./tabs/ThemesTab";
 import { SongsTab } from "./tabs/SongsTab";
+import { UpdatesTab } from "./tabs/UpdatesTab";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { APP_VERSION } from "@/core/config/version";
 import { listenCommand } from "@/core/ipc/tauri";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { UpdateDialog } from "@/features/updates/UpdateDialog";
+import { WhatsNewDialog } from "@/features/updates/WhatsNewDialog";
 
 export function PreferencesDialog() {
   const isOpen = usePreferencesStore((s) => s.isOpen);
@@ -116,7 +120,7 @@ export function PreferencesDialog() {
           </nav>
 
           <div className="border-t border-border/60 px-3 pt-3 text-[11px] text-muted-foreground/70">
-            Open Presenter v0.1.0
+            Open Presenter v{APP_VERSION}
           </div>
         </aside>
 
@@ -153,10 +157,14 @@ export function PreferencesDialog() {
               {activeTab === "songs" && <SongsTab />}
               {activeTab === "remote" && <RemoteTab />}
               {activeTab === "general" && <GeneralTab />}
+              {activeTab === "updates" && <UpdatesTab />}
             </div>
           </ScrollArea>
         </div>
       </div>
+
+      <UpdateDialog />
+      <WhatsNewDialog />
     </div>
   );
 }

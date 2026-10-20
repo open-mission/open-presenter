@@ -4,7 +4,8 @@ export type PreferencesTab =
   | "themes"
   | "songs"
   | "general"
-  | "remote";
+  | "remote"
+  | "updates";
 
 export type OutputsSection = "public" | "stage" | "server" | "devices";
 

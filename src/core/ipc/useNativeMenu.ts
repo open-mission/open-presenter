@@ -5,6 +5,7 @@ import { usePreferencesStore } from "@/features/preferences/store";
 import { useSongsStore } from "@/features/songs/store";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSetlistStore } from "@/features/events-setlists/store";
+import { useUpdatesStore } from "@/features/updates/store";
 
 export function useNativeMenu() {
   useEffect(() => {
@@ -14,6 +15,7 @@ export function useNativeMenu() {
     let unlistenImport: (() => void) | null = null;
     let unlistenPrefs: (() => void) | null = null;
     let unlistenShortcuts: (() => void) | null = null;
+    let unlistenWhatsNew: (() => void) | null = null;
 
     function handleOpenShortcuts() {
       if (isTauri()) {
@@ -58,6 +60,12 @@ export function useNativeMenu() {
       handleOpenShortcuts();
     }).then((fn) => {
       unlistenShortcuts = fn;
+    });
+
+    void listenCommand("whats-new", () => {
+      useUpdatesStore.getState().openWhatsNew();
+    }).then((fn) => {
+      unlistenWhatsNew = fn;
     });
 
     // Keyboard shortcut fallback for browser & desktop environments
@@ -127,6 +135,7 @@ export function useNativeMenu() {
       unlistenImport?.();
       unlistenPrefs?.();
       unlistenShortcuts?.();
+      unlistenWhatsNew?.();
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);

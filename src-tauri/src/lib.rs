@@ -27,6 +27,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .register_asynchronous_uri_scheme_protocol("media", move |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             std::thread::spawn(move || {
@@ -106,11 +108,16 @@ pub fn run() {
                 .item(&quit_item)
                 .build()?;
 
+            let whats_new_item = MenuItemBuilder::with_id("whats-new", "Novidades desta versão…")
+                .build(app)?;
+
             let shortcuts_item = MenuItemBuilder::with_id("shortcuts", "Atalhos de Teclado…")
                 .accelerator("CmdOrCtrl+/")
                 .build(app)?;
 
             let help_menu = SubmenuBuilder::new(app, "Help")
+                .item(&whats_new_item)
+                .separator()
                 .item(&shortcuts_item)
                 .build()?;
 
@@ -129,6 +136,9 @@ pub fn run() {
                     "shortcuts" => {
                         let _ = crate::services::display_manager::open_shortcuts_window(app_handle);
                         let _ = app_handle.emit("open-shortcuts", ());
+                    }
+                    "whats-new" => {
+                        let _ = app_handle.emit("whats-new", ());
                     }
                     "new-event" => {
                         let _ = app_handle.emit("new-event", ());
