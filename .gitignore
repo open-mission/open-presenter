@@ -39,9 +39,12 @@ pnpm-debug.log*
 *.sln
 *.sw?
 
-# Env
+# Env / secrets
 .env
 .env*.local
+*.key
+*.key.password
+.tauri/
 
 # Local tooling state (not part of the project)
 .commandcode/
