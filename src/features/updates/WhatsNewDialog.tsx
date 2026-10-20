@@ -1,10 +1,12 @@
 import {
   BookOpen,
   CheckCircle2,
+  Download,
   ExternalLink,
   Layers,
   Monitor,
   MonitorPlay,
+  Palette,
   RefreshCw,
   Sparkles,
 } from "lucide-react";
@@ -34,6 +36,9 @@ const HIGHLIGHT_ICONS: Record<ReleaseHighlightIcon, typeof BookOpen> = {
   monitor: MonitorPlay,
   refresh: RefreshCw,
   tray: Monitor,
+  palette: Palette,
+  download: Download,
+  brand: Sparkles,
 };
 
 export function WhatsNewDialog() {

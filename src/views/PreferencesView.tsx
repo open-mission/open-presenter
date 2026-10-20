@@ -10,6 +10,7 @@ import { RemoteTab } from "@/features/preferences/tabs/RemoteTab";
 import { ThemesTab } from "@/features/preferences/tabs/ThemesTab";
 import { SongsTab } from "@/features/preferences/tabs/SongsTab";
 import { UpdatesTab } from "@/features/preferences/tabs/UpdatesTab";
+import { BrandMark } from "@/components/BrandMark";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { APP_VERSION } from "@/core/config/version";
@@ -93,8 +94,18 @@ export default function PreferencesView() {
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground select-none">
       {/* Left Sidebar Navigation */}
       <aside className="flex w-56 flex-col border-r border-border/80 bg-muted/30 p-3 sm:w-64 shrink-0">
-        <div className="px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground/80">
-          Preferências
+        <div className="flex items-center gap-2.5 px-3 pb-3 pt-1">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground text-background">
+            <BrandMark className="size-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-semibold text-foreground">
+              Open Presenter
+            </p>
+            <p className="truncate text-[10px] uppercase tracking-wider text-muted-foreground/80">
+              Preferências
+            </p>
+          </div>
         </div>
 
         <nav className="mt-1 flex flex-1 flex-col gap-1">

@@ -1,3 +1,5 @@
+import { applyStoredUiTheme, initUiThemeStorageSync } from "./uiTheme";
+
 export type ThemeMode = "light" | "dark" | "system";
 
 const STORAGE_KEY = "open_presenter_theme";
@@ -41,6 +43,8 @@ export function applyTheme(mode: ThemeMode): void {
     root.classList.remove("dark");
   }
 
+  applyStoredUiTheme(isDark ? "dark" : "light");
+
   // Manage system media query listener
   if (window.matchMedia) {
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
@@ -58,6 +62,7 @@ export function applyTheme(mode: ThemeMode): void {
           } else {
             root.classList.remove("dark");
           }
+          applyStoredUiTheme(e.matches ? "dark" : "light");
         }
       };
       mql.addEventListener("change", mediaQueryListener);
@@ -68,6 +73,7 @@ export function applyTheme(mode: ThemeMode): void {
 export function initTheme(): void {
   const mode = getStoredTheme();
   applyTheme(mode);
+  initUiThemeStorageSync();
 
   if (typeof window !== "undefined") {
     window.addEventListener("storage", (e) => {

@@ -15,6 +15,7 @@ import {
   Smartphone,
   X,
 } from "lucide-react";
+import { BrandMark } from "@/components/BrandMark";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -392,7 +393,10 @@ export default function RemoteView() {
               <Smartphone className="size-5" />
             </span>
             <div>
-              <h1 className="text-base font-semibold">Open Presenter Remote</h1>
+              <h1 className="flex items-center gap-1.5 text-base font-semibold">
+                <BrandMark className="size-3.5 text-primary" />
+                Open Presenter Remote
+              </h1>
               <p className="text-xs text-muted-foreground">
                 Controle a programação e o telão pelo celular.
               </p>
@@ -467,8 +471,9 @@ export default function RemoteView() {
               <Smartphone className="size-4" />
             </span>
             <div className="min-w-0">
-              <h1 className="truncate text-sm font-semibold">
-                Open Presenter Remote
+              <h1 className="flex items-center gap-1.5 truncate text-sm font-semibold">
+                <BrandMark className="size-3.5 shrink-0 text-primary" />
+                <span className="truncate">Open Presenter Remote</span>
               </h1>
               <p className="truncate text-[11px] text-muted-foreground">
                 {setlist?.title ?? "Controle Remoto"}

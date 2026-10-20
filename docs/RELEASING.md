@@ -23,11 +23,15 @@ Presenter, incluindo a atualização automática pelo app.
    - `src-tauri/tauri.conf.json`
 3. Rode `cargo check -p open-presenter` para atualizar o `Cargo.lock`.
 4. Atualize o `CHANGELOG.md` com as mudanças técnicas.
-5. Crie `docs/releases/<versao>.md` com as notas amigáveis para o público final.
-   Esse arquivo vira o corpo da release e as notas exibidas no updater.
-6. Rode as verificações locais:
+5. Crie `docs/releases/<versao>.md` com o changelog técnico da release. Esse
+   arquivo vira o corpo da release no GitHub.
+6. Atualize `src/features/updates/releases.ts` com as novidades amigáveis
+   exibidas no app (modal **Novidades** e tela de atualizações). O texto do app
+   deve ser voltado ao usuário final; o do GitHub pode ser mais técnico.
+7. Rode as verificações locais:
 
    ```bash
+   npm test
    npm run typecheck
    cargo check -p open-presenter
    npm run build
@@ -42,24 +46,24 @@ Presenter, incluindo a atualização automática pelo app.
    npm run tauri:build -- --config src-tauri/tauri.release.conf.json
    ```
 
-7. Faça commit em `develop` e abra o merge para `main`.
-8. Na `main`, crie e envie a tag:
+8. Faça commit em `develop` e abra o merge para `main`.
+9. Na `main`, crie e envie a tag:
 
    ```bash
-   git tag v0.3.0
+   git tag v0.3.1
    git push origin main --tags
    ```
 
-9. O workflow **Release** compila macOS (arm64 e x64), Linux e Windows, assina
-   os artefatos e cria um **rascunho** de release com o `latest.json`.
-10. Revise os assets do rascunho e publique a release.
-11. Confirme que o `latest.json` está acessível:
+10. O workflow **Release** compila macOS (arm64 e x64), Linux e Windows, assina
+    os artefatos e cria um **rascunho** de release com o `latest.json`.
+11. Revise os assets do rascunho e publique a release.
+12. Confirme que o `latest.json` está acessível:
 
     ```text
     https://github.com/open-mission/open-presenter/releases/latest/download/latest.json
     ```
 
-12. Abra uma versão anterior do app e use **Preferências → Atualizações** para
+13. Abra uma versão anterior do app e use **Preferências → Atualizações** para
     validar o fluxo completo.
 
 ## Versionamento

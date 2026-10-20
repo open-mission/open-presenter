@@ -77,8 +77,18 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
             }
         });
 
-    if let Some(icon) = app.default_window_icon() {
-        builder = builder.icon(icon.clone());
+    #[cfg(target_os = "macos")]
+    {
+        let icon =
+            tauri::image::Image::from_bytes(include_bytes!("../../icons/tray-icon.png"))?;
+        builder = builder.icon(icon).icon_as_template(true);
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        if let Some(icon) = app.default_window_icon() {
+            builder = builder.icon(icon.clone());
+        }
     }
 
     builder.build(app)?;
