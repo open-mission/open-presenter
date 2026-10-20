@@ -16,6 +16,8 @@ import {
   MoreVertical,
   Music,
   Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pencil,
   Plus,
   RotateCcw,
@@ -167,7 +169,13 @@ const BG_COLOR_PRESETS = [
   { label: "Índigo", value: "#312e81" },
 ];
 
-export function SetlistSidebar() {
+export function SetlistSidebar({
+  collapsed = false,
+  onToggleSidebar,
+}: {
+  collapsed?: boolean;
+  onToggleSidebar?: () => void;
+}) {
   const events = useSetlistStore((s) => s.events);
   const activeEventId = useSetlistStore((s) => s.activeEventId);
   const event = useSetlistStore((s) => s.event);
@@ -494,11 +502,28 @@ export function SetlistSidebar() {
 
   const totalItems = event?.parts.reduce((acc, p) => acc + p.items.length, 0) ?? 0;
 
+  if (collapsed) {
+    return (
+      <aside className="flex h-full w-10 shrink-0 flex-col items-center border-r border-border bg-muted/20 py-2 select-none">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-8 text-muted-foreground hover:text-foreground"
+          onClick={onToggleSidebar}
+          title="Mostrar Programação"
+        >
+          <PanelLeftOpen className="size-4" />
+        </Button>
+      </aside>
+    );
+  }
+
   return (
     <aside className="flex h-full w-72 min-h-0 flex-col border-r border-border bg-muted/20 sm:w-80 shrink-0 select-none overflow-hidden">
       {/* List Mode Switcher: Culto / Evento | Temporário */}
-      <div className="flex h-14 shrink-0 items-center border-b border-border bg-background/50 p-2">
-        <div className="grid grid-cols-2 p-0.5 rounded-lg bg-muted/60 text-xs font-medium">
+      <div className="flex h-14 shrink-0 items-center gap-1.5 border-b border-border bg-background/50 p-2">
+        <div className="grid min-w-0 flex-1 grid-cols-2 rounded-lg bg-muted/60 p-0.5 text-xs font-medium">
           <button
             type="button"
             onClick={() => void switchListMode("event")}
@@ -524,6 +549,16 @@ export function SetlistSidebar() {
             <span className="truncate">Temporário</span>
           </button>
         </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-8 shrink-0 text-muted-foreground hover:text-foreground"
+          onClick={onToggleSidebar}
+          title="Ocultar Programação"
+        >
+          <PanelLeftClose className="size-4" />
+        </Button>
       </div>
 
       {/* Top Header: Event Title & Action Plus */}

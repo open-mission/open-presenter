@@ -31,6 +31,9 @@ versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
   sistema.
 - O logotipo e o botão de ocultar a programação foram trocados de lugar, e o
   botão **Remote** passou a ser o último do cabeçalho do painel.
+- Os cabeçalhos dos painéis da apresentação foram padronizados em 56 px, com o
+  toggle da programação ao lado das abas e o cabeçalho do trilho de temas
+  refinado.
 
 ## [0.3.1] - 2026-10-19
 

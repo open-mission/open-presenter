@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ChevronLeft, ChevronRight, Pencil, Trash2, Zap } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Palette, Pencil, Trash2, Zap } from "lucide-react";
 import { kindToAsset } from "@/core/types";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSlideThemesStore } from "./store";
@@ -113,17 +113,19 @@ export function ThemeRail() {
     return (
       <aside
         aria-label="Trilho de temas"
-        className="flex w-10 shrink-0 flex-col items-center border-l border-border bg-card/40 py-2"
+        className="flex w-10 shrink-0 flex-col border-l border-border bg-card/40"
       >
-        <button
-          type="button"
-          aria-label="Expandir trilho de temas"
-          title="Temas"
-          onClick={toggleOpen}
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-        >
-          <ChevronLeft className="size-4" />
-        </button>
+        <div className="flex h-14 items-center justify-center border-b border-border bg-muted/20">
+          <button
+            type="button"
+            aria-label="Expandir trilho de temas"
+            title="Temas"
+            onClick={toggleOpen}
+            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+        </div>
       </aside>
     );
   }
@@ -133,15 +135,18 @@ export function ThemeRail() {
       aria-label="Trilho de temas"
       className="flex w-44 shrink-0 flex-col border-l border-border bg-card/40"
     >
-      <div className="flex h-14 items-center justify-between border-b border-border px-2">
-        <span className="text-[11px] font-semibold text-foreground">Temas</span>
+      <div className="flex h-14 items-center justify-between border-b border-border bg-muted/20 px-3">
+        <div className="flex items-center gap-2">
+          <Palette className="size-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold text-foreground">Temas</span>
+        </div>
         <button
           type="button"
           aria-label="Recolher trilho de temas"
           onClick={toggleOpen}
-          className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
         >
-          <ChevronRight className="size-3.5" />
+          <ChevronRight className="size-4" />
         </button>
       </div>
 

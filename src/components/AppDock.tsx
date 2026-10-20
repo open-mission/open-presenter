@@ -5,8 +5,6 @@ import {
   HelpCircle,
   Images,
   Music,
-  PanelLeftClose,
-  PanelLeftOpen,
   Settings,
   Smartphone,
   Sparkles,
@@ -17,11 +15,6 @@ import { isTauri } from "@/core/ipc/tauri";
 import { openShortcutsWindow } from "@/core/ipc/commands";
 import { usePreferencesStore } from "@/features/preferences/store";
 import { useNavigationStore } from "@/features/navigation/store";
-
-interface AppDockProps {
-  sidebarOpen: boolean;
-  onToggleSidebar(): void;
-}
 
 interface NavButtonProps {
   icon: React.ComponentType<{ className?: string }>;
@@ -53,7 +46,7 @@ function NavButton({ icon: Icon, label, shortcut, active, onClick }: NavButtonPr
   );
 }
 
-export function AppDock({ sidebarOpen, onToggleSidebar }: AppDockProps) {
+export function AppDock() {
   const activeTab = useNavigationStore((s) => s.activeTab);
   const setActiveTab = useNavigationStore((s) => s.setActiveTab);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
@@ -111,30 +104,6 @@ export function AppDock({ sidebarOpen, onToggleSidebar }: AppDockProps) {
     >
       {/* Top Primary Navigation Icons */}
       <div className="flex flex-col items-center gap-2">
-        <div className="mb-1 flex flex-col items-center gap-2">
-          {activeTab === "presentation" ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-10 rounded-lg text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-              onClick={onToggleSidebar}
-              title={
-                sidebarOpen ? "Ocultar Programação" : "Mostrar Programação"
-              }
-            >
-              {sidebarOpen ? (
-                <PanelLeftClose className="size-5" />
-              ) : (
-                <PanelLeftOpen className="size-5" />
-              )}
-            </Button>
-          ) : (
-            <div className="size-10" aria-hidden="true" />
-          )}
-          <div className="h-px w-6 bg-border/70" />
-        </div>
-
         {/* Apresentação (Culto ao Vivo) */}
         <NavButton
           icon={Tv}

@@ -80,16 +80,16 @@ export default function AdminView() {
       {/* Main Body: Dock Lateral on the left + Content Views */}
       <div className="flex flex-1 overflow-hidden">
         {/* Dock Lateral Apenas com icone no lado esquerdo */}
-        <AppDock
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen((v) => !v)}
-        />
+        <AppDock />
 
         {/* View 1: Apresentação & Culto ao Vivo */}
         {activeTab === "presentation" && (
           <main className="flex flex-1 overflow-hidden">
             {/* Column 1: Programação do Culto (Collapsible) */}
-            {sidebarOpen && <SetlistSidebar />}
+            <SetlistSidebar
+              collapsed={!sidebarOpen}
+              onToggleSidebar={() => setSidebarOpen((v) => !v)}
+            />
 
             {/* Column 2: Estrofes & Letras da Música Selecionada */}
             <SongSlidesColumn />
