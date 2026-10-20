@@ -37,6 +37,60 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: "0.3.8",
+    date: "2026-10-20",
+    title: "Auto-scale Preciso e Atalhos de Seção Sincronizados",
+    summary:
+      "Release de correção do motor de texto dos temas e dos atalhos de seção. O auto-scale agora mede as linhas reais do texto e respeita mínimo e máximo de fonte, com PNG fiel ao palco. Os atalhos de seção atualizam na hora ao serem alterados nas Preferências e têm prioridade sobre B/C/F no painel de letras.",
+    highlights: [
+      {
+        icon: "palette",
+        title: "Auto-scale com Mínimo e Máximo",
+        description:
+          "O texto passa a ser medido pelas linhas reais (Range.getClientRects) e ajustado por busca binária inteira entre minFontSize e maxFontSize. Letras curtas e longas encontram o maior tamanho que cabe, sem colapsar para o mínimo.",
+      },
+      {
+        icon: "refresh",
+        title: "Atalhos de Seção em Tempo Real",
+        description:
+          "Mudar o atalho de um grupo nas Preferências atualiza imediatamente os badges da letra na janela principal. A sincronização usa evento Tauri, BroadcastChannel e storage, sem reiniciar o aplicativo.",
+      },
+      {
+        icon: "monitor",
+        title: "PNG Fiel ao Palco",
+        description:
+          "O export passou a usar o mesmo resolvedor de tamanho do palco, com padding, line-height e clipping da caixa. O tamanho efetivo da fonte no PNG é o mesmo visto na projeção.",
+      },
+    ],
+    sections: [
+      {
+        title: "Editor de Temas & Auto-scale",
+        items: [
+          "Medição por linhas reais do texto em elemento oculto, com cache e espera de fontes.",
+          "Limites explícitos de fonte: mínimo, máximo e modo Fixo / Reduzir / Preencher.",
+          "Correção do teste de largura que forçava todo texto multilinha ao tamanho mínimo.",
+          "Export PNG com o mesmo tamanho efetivo, padding e clipping do palco.",
+        ],
+      },
+      {
+        title: "Atalhos de Seção & Programação",
+        items: [
+          "Sincronização dos grupos de música entre a janela principal e a de Preferências.",
+          "Atalhos de seção têm prioridade sobre B/C/F enquanto há uma música no painel de letras.",
+          "Aviso nas Preferências quando um atalho de grupo conflita com um atalho global.",
+          "Documentação dos atalhos F (plano de fundo) e da prioridade contextual.",
+        ],
+      },
+    ],
+    fixes: [
+      "Frases longas de hinos e versículos não são mais reduzidas ao mínimo nem cortadas.",
+      "Alterar o atalho de um grupo não exige mais reiniciar o aplicativo para refletir na letra.",
+      "Pressionar C para ir ao Refrão não dispara mais o comando global de limpar texto.",
+      "O tamanho da fonte no PNG exportado agora corresponde ao da projeção.",
+    ],
+    changelogUrl: `${CHANGELOG_URL}#038---2026-10-20`,
+  },
+  {
     version: "0.3.7",
     date: "2026-10-20",
     title: "Agrupamento de Camadas em Temas e Correção de Auto-shrink",
