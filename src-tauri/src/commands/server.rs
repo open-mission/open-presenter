@@ -93,10 +93,13 @@ pub async fn set_server_port(
         db.with_conn(|conn| settings::set_setting(conn, SERVER_PORT_KEY, &port.to_string()))?;
         let status = swap_with_listener(&control, port, listener)?;
         emit_outputs(&app);
+        let _ = crate::services::tray::refresh(&app);
         return Ok(status);
     }
     db.with_conn(|conn| settings::set_setting(conn, SERVER_PORT_KEY, &port.to_string()))?;
-    let status = start_locked(&control, port).await?;
+    let result = start_locked(&control, port).await;
+    let _ = crate::services::tray::refresh(&app);
+    let status = result?;
     emit_outputs(&app);
     Ok(status)
 }
@@ -111,6 +114,7 @@ pub async fn stop_server(
     let status = guard.status();
     drop(guard);
     emit_outputs(&app);
+    let _ = crate::services::tray::refresh(&app);
     Ok(status)
 }
 
@@ -120,7 +124,9 @@ pub async fn start_server(
     control: State<'_, Mutex<ServerControl>>,
 ) -> Result<ServerStatus, AppError> {
     let port = lock(&control)?.port;
-    let status = start_locked(&control, port).await?;
+    let result = start_locked(&control, port).await;
+    let _ = crate::services::tray::refresh(&app);
+    let status = result?;
     emit_outputs(&app);
     Ok(status)
 }

@@ -1,6 +1,7 @@
 pub mod bible;
 pub mod media;
 pub mod outputs;
+pub mod preferences;
 pub mod remote;
 pub mod presentation;
 pub mod server;
