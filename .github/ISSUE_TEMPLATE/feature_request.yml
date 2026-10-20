@@ -1,0 +1,32 @@
+name: Sugerir uma funcionalidade
+description: Descreva a ideia e o problema que ela resolve.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Qual problema isso resolve?
+      description: Conte a situação real em que a funcionalidade faria diferença.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Como você imagina a solução?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      description: Você já tentou contornar de alguma forma?
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto adicional
+      description: Exemplos, referências ou esboços.
+    validations:
+      required: false

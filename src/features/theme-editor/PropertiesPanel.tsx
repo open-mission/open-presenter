@@ -42,6 +42,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { saveThemeMedia } from "@/core/ipc/commands";
 import { resolveCssMediaUrls } from "./media";
 import { VARIABLE_KEYS } from "@/features/slide-themes/samples";
+import { getActivePage, materializePage } from "@/features/slide-themes/pages";
 import { alignToScreen } from "./geometry";
 import type { AlignEdge } from "./geometry";
 import { useThemeEditorStore } from "./store";
@@ -187,6 +188,7 @@ interface PropertiesPanelProps {
 
 export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
   const draft = useThemeEditorStore((s) => s.draft);
+  const activePageId = useThemeEditorStore((s) => s.activePageId);
   const updateCss = useThemeEditorStore((s) => s.updateCss);
   const updateElement = useThemeEditorStore((s) => s.updateElement);
 
@@ -196,10 +198,12 @@ export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
     );
   }
 
-  const selected = draft.elements.find((el) => el.id === selectedId) ?? null;
+  const page = getActivePage(draft, activePageId);
+  const viewTheme = page ? materializePage(draft, page) : draft;
+  const selected = viewTheme.elements.find((el) => el.id === selectedId) ?? null;
 
   if (!selected) {
-    return <ThemeBackground draft={draft} updateCss={updateCss} />;
+    return <ThemeBackground draft={viewTheme} updateCss={updateCss} />;
   }
 
   return (
@@ -546,6 +550,7 @@ function TextSection({
           { label: "timer", key: "timer" },
           { label: "lyrics", key: "lyrics" },
           { label: "next_verse", key: "next_verse" },
+          { label: "next_preview", key: "next_preview" },
           { label: "title", key: "title" },
         ].map((v) => (
           <button
@@ -806,9 +811,9 @@ function TextSection({
               value={
                 el.css.autoFit === "true"
                   ? "fit"
-                  : el.css.autoShrink === "true"
-                  ? "shrink"
-                  : "none"
+                  : el.css.autoShrink === "false"
+                  ? "none"
+                  : "shrink"
               }
               onValueChange={(val) => {
                 if (val === "shrink") {
@@ -838,7 +843,7 @@ function TextSection({
           </div>
 
           {/* Tamanho Mínimo da Fonte quando auto-size ativo */}
-          {(el.css.autoShrink === "true" || el.css.autoFit === "true") && (
+          {(el.css.autoShrink !== "false" || el.css.autoFit === "true") && (
             <div className="flex items-center justify-between gap-2 pl-5 pt-0.5">
               <span className="text-[10px] text-muted-foreground">
                 Tam. Mínimo da Fonte (px)

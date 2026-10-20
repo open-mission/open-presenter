@@ -7,6 +7,7 @@ node_modules/
 dist/
 dist-ssr/
 release-dist/
+dist-releases/
 *.local
 
 # Tauri / Rust
@@ -38,9 +39,12 @@ pnpm-debug.log*
 *.sln
 *.sw?
 
-# Env
+# Env / secrets
 .env
 .env*.local
+*.key
+*.key.password
+.tauri/
 
 # Local tooling state (not part of the project)
 .commandcode/
@@ -50,3 +54,4 @@ command-code-session-*.html
 # Misc
 coverage/
 .nyc_output/
+.superpowers/

@@ -1,0 +1,59 @@
+name: Relatar um bug
+description: Encontrou um comportamento inesperado? Conte os detalhes.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por ajudar a melhorar o Open Presenter. Para vulnerabilidades de segurança, **não use este formulário** — siga o SECURITY.md.
+  - type: textarea
+    id: description
+    attributes:
+      label: O que aconteceu?
+      description: Descreva o problema de forma objetiva.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Passos para reproduzir
+      placeholder: |
+        1. Abra o app
+        2. Vá em ...
+        3. Clique em ...
+        4. Veja o erro
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: O que você esperava que acontecesse?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versão do Open Presenter
+      description: Aparece em Preferências → Atualizações.
+      placeholder: "0.3.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Sistema operacional
+      options:
+        - Windows
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto adicional
+      description: Screenshots, vídeos, logs ou qualquer detalhe que ajude.
+    validations:
+      required: false

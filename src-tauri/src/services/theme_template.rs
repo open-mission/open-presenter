@@ -31,6 +31,30 @@ fn limpar_restantes(text: &str) -> String {
     out
 }
 
+pub fn next_preview_of(text: &str, max_chars: usize) -> String {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let first_line = match trimmed.split_once('\n') {
+        Some((first, _)) => first.trim(),
+        None => trimmed,
+    };
+    if first_line.chars().count() <= max_chars {
+        let clean = first_line.trim_end_matches(|c: char| c == '.' || c == ',' || c == ';' || c == ':' || c.is_whitespace());
+        format!("{clean}...")
+    } else {
+        let chars: Vec<char> = first_line.chars().collect();
+        let slice: String = chars[..max_chars].iter().collect();
+        let cut = match slice.rfind(' ') {
+            Some(space_idx) if space_idx > 20 => &slice[..space_idx],
+            _ => &slice,
+        };
+        let clean = cut.trim_end_matches(|c: char| c == '.' || c == ',' || c == ';' || c == ':' || c.is_whitespace());
+        format!("{clean}...")
+    }
+}
+
 pub fn lyric_props(
     title: &str,
     artist: &str,
@@ -40,6 +64,8 @@ pub fn lyric_props(
     index: usize,
     total: usize,
 ) -> HashMap<String, String> {
+    let next_preview = next_preview_of(next_verse, 75);
+    let next_line = next_verse.split_once('\n').map_or(next_verse, |(f, _)| f).trim();
     HashMap::from([
         ("title".into(), title.into()),
         ("artist".into(), artist.into()),
@@ -48,6 +74,10 @@ pub fn lyric_props(
         ("content".into(), text.into()),
         ("next_verse".into(), next_verse.into()),
         ("next_up".into(), next_verse.into()),
+        ("next_preview".into(), next_preview.clone()),
+        ("next_verse_preview".into(), next_preview.clone()),
+        ("next_snippet".into(), next_preview.clone()),
+        ("next_line".into(), next_line.into()),
         ("section".into(), section.into()),
         ("current_slide".into(), index.to_string()),
         ("total_slides".into(), total.to_string()),
@@ -57,6 +87,11 @@ pub fn lyric_props(
         ("letra".into(), text.into()),
         ("texto".into(), text.into()),
         ("nextVerse".into(), next_verse.into()),
+        ("proximo_resumo".into(), next_preview.clone()),
+        ("proximo_versiculo_resumo".into(), next_preview.clone()),
+        ("proximo_preview".into(), next_preview.clone()),
+        ("proximo_trecho".into(), next_preview),
+        ("proxima_linha".into(), next_line.into()),
         ("secao".into(), section.into()),
         ("currentIndex".into(), index.to_string()),
         ("totalCount".into(), total.to_string()),
@@ -72,22 +107,41 @@ pub fn scripture_props(
     version: &str,
     next_verse: &str,
 ) -> HashMap<String, String> {
+    let next_preview = next_preview_of(next_verse, 75);
+    let next_line = next_verse.split_once('\n').map_or(next_verse, |(f, _)| f).trim();
     HashMap::from([
         ("title".into(), title.into()),
         ("verse".into(), text.into()),
+        ("text".into(), text.into()),
+        ("content".into(), text.into()),
+        ("lyrics".into(), text.into()),
+        ("current_verse".into(), text.into()),
         ("book".into(), book.into()),
         ("chapter".into(), chapter.into()),
         ("verse_number".into(), verse.into()),
         ("version".into(), version.into()),
         ("next_verse".into(), next_verse.into()),
+        ("next_up".into(), next_verse.into()),
+        ("next_preview".into(), next_preview.clone()),
+        ("next_verse_preview".into(), next_preview.clone()),
+        ("next_snippet".into(), next_preview.clone()),
+        ("next_line".into(), next_line.into()),
         // Legacy pt-BR
         ("titulo".into(), title.into()),
         ("verso".into(), text.into()),
+        ("texto".into(), text.into()),
+        ("letra".into(), text.into()),
+        ("versiculo_corrente".into(), text.into()),
         ("livro".into(), book.into()),
         ("capitulo".into(), chapter.into()),
         ("versiculo".into(), verse.into()),
         ("versao".into(), version.into()),
         ("nextVerse".into(), next_verse.into()),
+        ("proximo_resumo".into(), next_preview.clone()),
+        ("proximo_versiculo_resumo".into(), next_preview.clone()),
+        ("proximo_preview".into(), next_preview.clone()),
+        ("proximo_trecho".into(), next_preview),
+        ("proxima_linha".into(), next_line.into()),
     ])
 }
 
@@ -194,6 +248,22 @@ mod tests {
         assert_eq!(p.get("versiculo").map(String::as_str), Some("1"));
         assert_eq!(p.get("versao").map(String::as_str), Some("ACF"));
         assert_eq!(p.get("nextVerse").map(String::as_str), Some("Next"));
+        assert_eq!(p.get("next_preview").map(String::as_str), Some("Next..."));
+        assert_eq!(p.get("proximo_resumo").map(String::as_str), Some("Next..."));
+        assert_eq!(p.get("text").map(String::as_str), Some("O Senhor..."));
+    }
+
+    #[test]
+    fn next_preview_of_trunca_e_adiciona_reticencias() {
+        assert_eq!(next_preview_of("", 50), "");
+        assert_eq!(
+            next_preview_of("No princípio era o Verbo.", 50),
+            "No princípio era o Verbo..."
+        );
+        assert_eq!(
+            next_preview_of("Primeira linha\nSegunda linha", 50),
+            "Primeira linha..."
+        );
     }
 
     #[test]

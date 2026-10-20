@@ -26,7 +26,11 @@ import { AgendaDialog } from "@/features/events-setlists/AgendaDialog";
 import { CreateEventDialog } from "@/features/events-setlists/CreateEventDialog";
 import { ImagesPage } from "@/features/image-browser/ImagesPage";
 import { StudioPage } from "@/features/studio/StudioPage";
+import { BiblePage } from "@/features/bible/BiblePage";
 import { useRemoteSetlistPublisher } from "@/features/remote/useRemoteSetlistPublisher";
+import { UpdateDialog } from "@/features/updates/UpdateDialog";
+import { WhatsNewDialog } from "@/features/updates/WhatsNewDialog";
+import { useUpdateChecker } from "@/features/updates/useUpdateChecker";
 
 export default function AdminView() {
   usePresentationSync("admin");
@@ -37,6 +41,7 @@ export default function AdminView() {
   useThemesSync();
   useLiveThemesPublisher();
   useRemoteSetlistPublisher();
+  useUpdateChecker();
   const loadSetlists = useSetlistStore((s) => s.load);
   const outputsLoaded = useOutputManagerStore((s) => s.loaded);
   const activeTab = useNavigationStore((s) => s.activeTab);
@@ -104,6 +109,13 @@ export default function AdminView() {
           </main>
         )}
 
+        {/* View 3: Bíblia Sagrada & Exibição de Versículos */}
+        {activeTab === "bible" && (
+          <main className="flex flex-1 overflow-hidden">
+            <BiblePage />
+          </main>
+        )}
+
         {/* View 3: Agenda & Cronograma de Eventos */}
         {activeTab === "agenda" && (
           <main className="flex flex-1 overflow-hidden">
@@ -143,6 +155,10 @@ export default function AdminView() {
 
       {/* Agenda Dialog (Modal version) */}
       <AgendaDialog />
+
+      {/* Release notes and in-app update dialogs */}
+      <UpdateDialog />
+      <WhatsNewDialog />
     </div>
   );
 }

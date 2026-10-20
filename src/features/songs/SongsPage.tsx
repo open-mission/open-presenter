@@ -57,6 +57,7 @@ import {
 } from "@/core/lib/lyrics";
 import type { SlideTheme, Song, SongSummary } from "@/core/types";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
+import { isPublicTheme, previewTheme } from "@/features/slide-themes/pages";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { useSongsStore } from "./store";
@@ -101,7 +102,7 @@ export function SongsPage() {
   // Temas de slides
   const themes = useSlideThemesStore((s) => s.themes);
   const templateThemes = useMemo(
-    () => themes.filter((t) => t.category !== "presentation"),
+    () => themes.filter(isPublicTheme),
     [themes],
   );
   const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
@@ -128,14 +129,19 @@ export function SongsPage() {
   }, [defaultTheme, selectedThemeGuid]);
 
   const activeTheme: SlideTheme | null = useMemo(() => {
-    if (!selectedThemeGuid) return defaultTheme ?? themes[0] ?? null;
+    if (!selectedThemeGuid) return defaultTheme ?? templateThemes[0] ?? null;
     return (
       themes.find((t) => t.guid === selectedThemeGuid) ??
       defaultTheme ??
-      themes[0] ??
+      templateThemes[0] ??
       null
     );
-  }, [selectedThemeGuid, themes, defaultTheme]);
+  }, [selectedThemeGuid, themes, defaultTheme, templateThemes]);
+
+  const activePreview = useMemo(
+    () => (activeTheme ? previewTheme(activeTheme, "music") : null),
+    [activeTheme],
+  );
 
   useEffect(() => {
     void loadSongs();
@@ -716,11 +722,11 @@ export function SongsPage() {
                           </div>
 
                           {/* Conteúdo do Slide: Tema Público vs Texto Formatado */}
-                          {themePreviewActive && activeTheme ? (
+                          {themePreviewActive && activePreview ? (
                             <div className="relative aspect-video w-full overflow-hidden rounded border border-border/80 bg-black shadow-inner">
                               <ScaledStage
-                                theme={activeTheme}
-                                asset="music"
+                                theme={activePreview.theme}
+                                asset={activePreview.asset}
                                 props={slideProps}
                                 showBackground={true}
                               />

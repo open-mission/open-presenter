@@ -1,9 +1,9 @@
 [package]
 name = "open-presenter"
-version = "0.2.0"
+version = "0.3.0"
 description = "Software desktop open source e leve para apresentação em igrejas e eventos"
 edition = "2021"
-rust-version = "1.85.0"
+rust-version = "1.90.0"
 
 [lib]
 name = "open_presenter_lib"
@@ -17,6 +17,8 @@ tauri = { version = "2.12.4", features = [] }
 tauri-plugin-dialog = "2.8.3"
 tauri-plugin-fs = "2.7.1"
 tauri-plugin-opener = "2.7.2"
+tauri-plugin-process = "2.4.0"
+tauri-plugin-updater = "2.14.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 axum = { version = "0.8.9", features = ["ws"] }

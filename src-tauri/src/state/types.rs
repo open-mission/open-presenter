@@ -80,6 +80,8 @@ pub struct LiveSlide {
     pub updated_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "nextUp")]
     pub next_up: Option<SlideContent>,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "prevUp")]
+    pub prev_up: Option<SlideContent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -315,6 +317,8 @@ pub struct ServiceEvent {
     pub event_date: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wallpaper: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_guid: Option<String>,
     pub parts: Vec<EventPart>,
 }
 
@@ -326,6 +330,8 @@ pub struct EventSummary {
     pub event_date: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wallpaper: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_guid: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -460,6 +466,8 @@ pub struct ThemeElement {
     pub locked: bool,
     pub css: HashMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub src: Option<String>,
@@ -476,11 +484,21 @@ pub struct ThemeElement {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemePage {
+    pub id: String,
+    pub context: String,
+    pub css: HashMap<String, String>,
+    pub elements: Vec<ThemeElement>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlideTheme {
     pub guid: String,
     pub title: String,
     pub css: HashMap<String, String>,
     pub elements: Vec<ThemeElement>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pages: Option<Vec<ThemePage>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -563,3 +581,55 @@ pub fn now_millis() -> u64 {
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BibleVersion {
+    pub id: String,
+    pub name: String,
+    pub abbrev: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BibleBook {
+    pub id: i32,
+    pub book_reference_id: i32,
+    pub testament_reference_id: i32,
+    pub name: String,
+    pub abbrev: String,
+    pub chapter_count: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BibleVerse {
+    pub id: i32,
+    pub book_id: i32,
+    pub chapter: i32,
+    pub verse: i32,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BibleSearchResult {
+    pub book_id: i32,
+    pub book_name: String,
+    pub chapter: i32,
+    pub verse: i32,
+    pub text: String,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BibleVerseCompare {
+    pub version_id: String,
+    pub version_name: String,
+    pub verse: Option<BibleVerse>,
+}
+

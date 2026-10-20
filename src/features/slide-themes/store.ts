@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  MediaKind,
   OutputTarget,
   SlideKind,
   SlideTheme,
@@ -7,20 +8,27 @@ import type {
 } from "@/core/types";
 import { deleteTheme, listThemes, saveTheme } from "@/core/ipc/commands";
 import {
-  DEFAULT_MUSIC_THEME,
-  DEFAULT_MUSIC_THEME_GUID,
+  DEFAULT_PUBLIC_THEME,
+  DEFAULT_PUBLIC_THEME_GUID,
   DEFAULT_STAGE_REST_THEME,
   DEFAULT_STAGE_REST_THEME_GUID,
   DEFAULT_STAGE_THEME,
   DEFAULT_STAGE_THEME_GUID,
-  DEFAULT_TEXT_THEME,
-  DEFAULT_TEXT_THEME_GUID,
   createEmptyStudioTheme,
 } from "./seedThemes";
+import {
+  cloneTheme,
+  getPageForContext,
+  isSingleLayout,
+  isStageCandidate,
+  materializePage,
+} from "./pages";
+import { resolveLiveTheme } from "./themeResolution";
 
 const BINDINGS_KEY = "open_presenter_theme_bindings";
 const STAGE_THEME_KEY = "open_presenter_stage_theme";
 const STAGE_REST_THEME_KEY = "open_presenter_stage_rest_theme";
+const stageRestPageCache = new WeakMap<SlideTheme, SlideTheme>();
 
 function bindingKey(target: OutputTarget, asset: SlideKind): string {
   return `${target}:${asset}`;
@@ -86,6 +94,7 @@ interface SlideThemesState {
   bindings: ThemeBinding[];
   stageThemeGuid: string | null;
   stageRestThemeGuid: string | null;
+  eventThemeGuid: string | null;
   load(): Promise<void>;
   ensureSeeded(): Promise<void>;
   save(theme: SlideTheme): Promise<void>;
@@ -94,10 +103,12 @@ interface SlideThemesState {
   clearBinding(target: OutputTarget, asset: SlideKind): void;
   setStageTheme(guid: string | null): void;
   setStageRestTheme(guid: string | null): void;
+  setEventThemeGuid(guid: string | null): void;
   resolveTheme(
     target: OutputTarget,
     kind: SlideKind,
     customThemeId?: string | null,
+    mediaKind?: MediaKind | null,
   ): SlideTheme | null;
   resolveStageTheme(): SlideTheme | null;
   resolveStageRestTheme(): SlideTheme | null;
@@ -110,6 +121,7 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
   bindings: loadStoredBindings(),
   stageThemeGuid: loadStoredStageTheme(),
   stageRestThemeGuid: loadStoredStageRestTheme(),
+  eventThemeGuid: null,
   load: async () => {
     try {
       set({ themes: await listThemes() });
@@ -125,55 +137,18 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
       themes = get().themes;
     }
     if (themes.length > 0) {
-      let updated = false;
-      if (
-        !themes.some(
-          (t) =>
-            t.guid === DEFAULT_TEXT_THEME_GUID ||
-            t.title.toLowerCase().includes("texto"),
-        )
-      ) {
-        await saveTheme(DEFAULT_TEXT_THEME);
-        themes = [...themes, DEFAULT_TEXT_THEME];
-        updated = true;
-      }
-      if (
-        !themes.some(
-          (t) =>
-            t.guid === DEFAULT_STAGE_REST_THEME_GUID ||
-            t.title.toLowerCase().includes("descanso"),
-        )
-      ) {
-        await saveTheme(DEFAULT_STAGE_REST_THEME);
-        themes = [...themes, DEFAULT_STAGE_REST_THEME];
-        updated = true;
-      }
-      if (updated) {
-        set({ themes });
-      }
-      if (
-        !get().bindings.some(
-          (b) => b.target === "public" && b.asset === "custom",
-        )
-      ) {
-        get().setBinding("public", "custom", DEFAULT_TEXT_THEME_GUID);
-      }
+      set({ themes });
       return;
     }
-    await saveTheme(DEFAULT_MUSIC_THEME);
-    await saveTheme(DEFAULT_TEXT_THEME);
+    await saveTheme(DEFAULT_PUBLIC_THEME);
     await saveTheme(DEFAULT_STAGE_THEME);
     await saveTheme(DEFAULT_STAGE_REST_THEME);
     set({
-      themes: [
-        DEFAULT_MUSIC_THEME,
-        DEFAULT_TEXT_THEME,
-        DEFAULT_STAGE_THEME,
-        DEFAULT_STAGE_REST_THEME,
-      ],
+      themes: [DEFAULT_PUBLIC_THEME, DEFAULT_STAGE_THEME, DEFAULT_STAGE_REST_THEME],
     });
-    get().setBinding("public", "lyric", DEFAULT_MUSIC_THEME_GUID);
-    get().setBinding("public", "custom", DEFAULT_TEXT_THEME_GUID);
+    get().setBinding("public", "lyric", DEFAULT_PUBLIC_THEME_GUID);
+    get().setBinding("public", "custom", DEFAULT_PUBLIC_THEME_GUID);
+    get().setBinding("public", "scripture", DEFAULT_PUBLIC_THEME_GUID);
     get().setStageTheme(DEFAULT_STAGE_THEME_GUID);
     get().setStageRestTheme(DEFAULT_STAGE_REST_THEME_GUID);
   },
@@ -206,19 +181,7 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
   duplicate: async (guid) => {
     const existing = get().themes.find((t) => t.guid === guid);
     if (!existing) throw new Error("Apresentação não encontrada.");
-    const now = new Date().toISOString();
-    const cloned: SlideTheme = {
-      ...existing,
-      guid: crypto.randomUUID(),
-      title: `${existing.title} (Cópia)`,
-      category: existing.category || "theme",
-      createdAt: now,
-      updatedAt: now,
-      elements: existing.elements.map((el) => ({
-        ...el,
-        id: `${el.id}-${Math.floor(Math.random() * 1000)}`,
-      })),
-    };
+    const cloned = cloneTheme(existing);
     await get().save(cloned);
     return cloned;
   },
@@ -252,37 +215,20 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
     persistStageTheme(guid);
     set({ stageThemeGuid: guid });
   },
-  resolveTheme: (target, kind, customThemeId) => {
-    if (customThemeId) {
-      const foundCustom = get().themes.find((t) => t.guid === customThemeId);
-      if (foundCustom) return foundCustom;
-    }
-    const binding = get().bindings.find(
-      (b) => b.target === target && b.asset === kind,
-    );
-    if (binding) {
-      const found = get().themes.find((t) => t.guid === binding.themeGuid);
-      if (found) return found;
-    }
-    // Fallback inteligente caso não haja binding explícito
-    if (kind === "custom") {
-      const textTheme = get().themes.find(
-        (t) =>
-          t.guid === DEFAULT_TEXT_THEME_GUID ||
-          t.title.toLowerCase().includes("texto") ||
-          t.title.toLowerCase().includes("aviso"),
-      );
-      if (textTheme) return textTheme;
-    } else if (kind === "lyric") {
-      const musicTheme = get().themes.find(
-        (t) =>
-          t.guid === DEFAULT_MUSIC_THEME_GUID ||
-          t.title.toLowerCase().includes("louvor") ||
-          t.title.toLowerCase().includes("música"),
-      );
-      if (musicTheme) return musicTheme;
-    }
-    return get().themes[0] ?? null;
+  setEventThemeGuid: (guid) => {
+    set({ eventThemeGuid: guid });
+  },
+  resolveTheme: (target, kind, customThemeId, mediaKind) => {
+    return resolveLiveTheme({
+      kind,
+      mediaKind: mediaKind ?? null,
+      mediaThemeId: customThemeId ?? null,
+      eventThemeGuid: get().eventThemeGuid,
+      themes: get().themes,
+      bindings: get().bindings,
+      target,
+      defaultTheme: DEFAULT_PUBLIC_THEME,
+    });
   },
   setStageRestTheme: (guid) => {
     persistStageRestTheme(guid);
@@ -290,26 +236,45 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
   },
   resolveStageTheme: () => {
     const guid = get().stageThemeGuid ?? DEFAULT_STAGE_THEME_GUID;
-    const found = get().themes.find((t) => t.guid === guid);
+    const found = get().themes.find(
+      (t) => t.guid === guid && isStageCandidate(t),
+    );
     if (found) return found;
     const fallback = get().themes.find(
       (t) =>
-        t.title.toLowerCase().includes("retorno") ||
-        t.title.toLowerCase().includes("palco") ||
-        t.title.toLowerCase().includes("stage"),
+        isStageCandidate(t) &&
+        (t.title.toLowerCase().includes("retorno") ||
+          t.title.toLowerCase().includes("palco") ||
+          t.title.toLowerCase().includes("stage")),
     );
-    return fallback ?? get().themes[0] ?? DEFAULT_STAGE_THEME;
+    return fallback ?? DEFAULT_STAGE_THEME;
   },
   resolveStageRestTheme: () => {
+    const stageTheme = get().resolveStageTheme() ?? DEFAULT_STAGE_THEME;
+    if (stageTheme.pages?.length) {
+      const page = getPageForContext(stageTheme, "rest");
+      if (page) {
+        let cached = stageRestPageCache.get(stageTheme);
+        if (!cached) {
+          cached = materializePage(stageTheme, page);
+          stageRestPageCache.set(stageTheme, cached);
+        }
+        return cached;
+      }
+    }
     const guid = get().stageRestThemeGuid ?? DEFAULT_STAGE_REST_THEME_GUID;
-    const found = get().themes.find((t) => t.guid === guid);
+    const found = get().themes.find(
+      (t) => t.guid === guid && t.category !== "presentation" && isSingleLayout(t),
+    );
     if (found) return found;
     const fallback = get().themes.find(
       (t) =>
-        t.title.toLowerCase().includes("descanso") ||
-        t.title.toLowerCase().includes("espera") ||
-        t.title.toLowerCase().includes("relogio") ||
-        t.title.toLowerCase().includes("relógio"),
+        t.category !== "presentation" &&
+        isSingleLayout(t) &&
+        (t.title.toLowerCase().includes("descanso") ||
+          t.title.toLowerCase().includes("espera") ||
+          t.title.toLowerCase().includes("relogio") ||
+          t.title.toLowerCase().includes("relógio")),
     );
     return fallback ?? DEFAULT_STAGE_REST_THEME;
   },

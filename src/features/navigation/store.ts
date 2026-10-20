@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type AppViewTab = "presentation" | "songs" | "images" | "agenda" | "studio";
+export type AppViewTab = "presentation" | "songs" | "bible" | "images" | "agenda" | "studio";
 
 interface NavigationState {
   activeTab: AppViewTab;

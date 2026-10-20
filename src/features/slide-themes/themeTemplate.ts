@@ -21,6 +21,38 @@ function nextVerseOf(nextUp: SlideContent | null | undefined): string {
   return lines.length > 0 ? lines.join("\n") : nextUp.lines.join("\n");
 }
 
+export function nextPreviewOf(
+  nextUp: SlideContent | null | undefined,
+  maxChars = 75,
+): string {
+  if (!nextUp) return "";
+  const publicLines = cleanPublicLines(nextUp.lines);
+  const full = publicLines.length > 0 ? publicLines.join("\n") : nextUp.lines.join("\n");
+  const trimmed = full.trim();
+  if (!trimmed) return "";
+
+  const firstLine = trimmed.split("\n")[0].trim();
+  if (firstLine.length <= maxChars) {
+    const clean = firstLine.replace(/[.,;:\s]+$/, "");
+    return `${clean}...`;
+  }
+
+  const slice = firstLine.slice(0, maxChars);
+  const lastSpace = slice.lastIndexOf(" ");
+  const cut = lastSpace > 20 ? slice.slice(0, lastSpace) : slice;
+  const clean = cut.replace(/[.,;:\s]+$/, "");
+  return `${clean}...`;
+}
+
+function nextFirstLineOf(nextUp: SlideContent | null | undefined): string {
+  if (!nextUp) return "";
+  const publicLines = cleanPublicLines(nextUp.lines);
+  const full = publicLines.length > 0 ? publicLines.join("\n") : nextUp.lines.join("\n");
+  const trimmed = full.trim();
+  if (!trimmed) return "";
+  return trimmed.split("\n")[0].trim();
+}
+
 function indexFromId(id: string): string {
   const hash = id.lastIndexOf("#");
   if (hash >= 0) {
@@ -34,10 +66,11 @@ function parseReference(reference: string): {
   livro: string;
   capitulo: string;
   versiculo: string;
+  versao: string;
 } {
-  const m = reference.match(/^(.+?)\s+(\d+)(?::(\d+))?\s*$/);
-  if (!m) return { livro: reference, capitulo: "", versiculo: "" };
-  return { livro: m[1], capitulo: m[2], versiculo: m[3] ?? "" };
+  const m = reference.match(/^(.+?)\s+(\d+)(?:[:.](\d+))?(?:\s*\(([^)]+)\))?\s*$/);
+  if (!m) return { livro: reference, capitulo: "", versiculo: "", versao: "" };
+  return { livro: m[1], capitulo: m[2], versiculo: m[3] ?? "", versao: m[4] ?? "" };
 }
 
 export function buildProps(
@@ -46,6 +79,8 @@ export function buildProps(
   nextUp?: SlideContent | null,
 ): Record<string, string> {
   const nextVerse = nextVerseOf(nextUp);
+  const nextPreview = nextPreviewOf(nextUp);
+  const nextLine = nextFirstLineOf(nextUp);
   const curIdx = indexFromId(content.id);
   switch (kind) {
     case "lyric": {
@@ -60,6 +95,10 @@ export function buildProps(
         content: text,
         next_verse: nextVerse,
         next_up: nextVerse,
+        next_preview: nextPreview,
+        next_verse_preview: nextPreview,
+        next_snippet: nextPreview,
+        next_line: nextLine,
         section: content.section ?? "",
         current_slide: curIdx,
         total_slides: "1",
@@ -69,6 +108,11 @@ export function buildProps(
         letra: text,
         texto: text,
         nextVerse,
+        proximo_resumo: nextPreview,
+        proximo_versiculo_resumo: nextPreview,
+        proximo_preview: nextPreview,
+        proximo_trecho: nextPreview,
+        proxima_linha: nextLine,
         secao: content.section ?? "",
         currentIndex: curIdx,
         totalCount: "1",
@@ -81,19 +125,36 @@ export function buildProps(
         // English
         title: content.title,
         verse: text,
+        text,
+        content: text,
+        lyrics: text,
+        current_verse: text,
         book: ref.livro,
         chapter: ref.capitulo,
         verse_number: ref.versiculo,
-        version: "",
+        version: ref.versao,
         next_verse: nextVerse,
+        next_up: nextVerse,
+        next_preview: nextPreview,
+        next_verse_preview: nextPreview,
+        next_snippet: nextPreview,
+        next_line: nextLine,
         // Legacy pt-BR
         titulo: content.title,
         verso: text,
+        texto: text,
+        letra: text,
+        versiculo_corrente: text,
         livro: ref.livro,
         capitulo: ref.capitulo,
         versiculo: ref.versiculo,
-        versao: "",
+        versao: ref.versao,
         nextVerse,
+        proximo_resumo: nextPreview,
+        proximo_versiculo_resumo: nextPreview,
+        proximo_preview: nextPreview,
+        proximo_trecho: nextPreview,
+        proxima_linha: nextLine,
       };
     }
     case "custom": {
@@ -141,6 +202,7 @@ export function buildProps(
 export function buildStageProps(options: {
   content: SlideContent;
   nextUp?: SlideContent | null;
+  prevUp?: SlideContent | null;
   nowMs: number;
   timer: StageTimer;
   clock24h?: boolean;
@@ -153,6 +215,7 @@ export function buildStageProps(options: {
   const {
     content,
     nextUp,
+    prevUp,
     nowMs,
     timer,
     clock24h = true,
@@ -202,6 +265,14 @@ export function buildStageProps(options: {
   const nextVerse = nextSlideDisplay === "full" ? nextFull : nextFirstLine;
   const nextTitle = nextUp?.title ?? "";
 
+  const prevPublicLines = prevUp ? cleanPublicLines(prevUp.lines) : [];
+  const prevFull = prevPublicLines.join("\n");
+  const prevFirstLine = prevPublicLines.length > 0
+    ? prevPublicLines[0]
+    : (prevUp && prevUp.lines.length > 0 ? prevUp.lines[0] : "");
+  const prevVerse = nextSlideDisplay === "full" ? prevFull : prevFirstLine;
+  const prevTitle = prevUp?.title ?? "";
+
   let letra = formatStageLyrics(content.lines);
   if (blackout) {
     letra = "[BLACKOUT]";
@@ -212,6 +283,8 @@ export function buildStageProps(options: {
   const title = blackout || cleared ? "" : content.title;
   const section = blackout || cleared ? "" : (content.section ?? "");
 
+  const nextPreview = nextPreviewOf(nextUp);
+
   return {
     // English (Canonical)
     title,
@@ -221,9 +294,21 @@ export function buildStageProps(options: {
     text: letra,
     next_verse: nextVerse,
     next_up: nextVerse,
+    next_preview: nextPreview,
+    next_verse_preview: nextPreview,
+    next_snippet: nextPreview,
     next_first_line: nextFirstLine,
     next_full: nextFull,
     next_title: nextTitle,
+    prev_verse: prevVerse,
+    prev_up: prevVerse,
+    prev_first_line: prevFirstLine,
+    prev_full: prevFull,
+    prev_title: prevTitle,
+    current_verse: letra,
+    current_reference: title,
+    next_reference: nextTitle,
+    prev_reference: prevTitle,
     clock: hora,
     time: hora,
     stopwatch: cronometro,
@@ -236,10 +321,24 @@ export function buildStageProps(options: {
     letra,
     texto: letra,
     verso: letra,
+    versiculo_corrente: letra,
     nextVerse,
+    proximo_versiculo: nextVerse,
+    proximo_resumo: nextPreview,
+    proximo_versiculo_resumo: nextPreview,
+    proximo_preview: nextPreview,
+    proximo_trecho: nextPreview,
+    proxima_linha: nextFirstLine,
     nextFirstLine,
     nextFull,
     nextTitle,
+    prevVerse,
+    prevUp: prevVerse,
+    versiculo_anterior: prevVerse,
+    prevTitle,
+    referencia_corrente: title,
+    proxima_referencia: nextTitle,
+    referencia_anterior: prevTitle,
     hora,
     "HH:MM": hhmm,
     horaComSegundos,

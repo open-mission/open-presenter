@@ -1,21 +1,40 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
+  BookOpen,
   ChevronDown,
   Copy,
+  Download,
   ExternalLink,
   FileText,
+  Monitor,
   Music,
   Pencil,
   PenLine,
   Plus,
   Trash2,
+  Upload,
 } from "lucide-react";
 import type {
   SlideKind,
   SlideTheme,
   ThemeAsset,
+  ThemeContext,
 } from "@/core/types";
+import { exportThemeAsJson, importThemeFile } from "@/features/slide-themes/themeIo";
+import {
+  cloneTheme,
+  isPublicTheme,
+  isStageCandidate,
+  previewTheme,
+  PUBLIC_PAGE_CONTEXTS,
+  themeCoverageLabel,
+  themeVersion,
+} from "@/features/slide-themes/pages";
+import {
+  DEFAULT_PUBLIC_THEME,
+  DEFAULT_STAGE_THEME,
+} from "@/features/slide-themes/seedThemes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -103,88 +122,25 @@ const GRID_COLUMNS: GridColumn[] = [
   },
 ];
 
-function newBlankTheme(
+function newPublicTheme(
   title: string,
-  kind: "lyric" | "text" = "lyric",
+  focusContext?: ThemeContext,
 ): SlideTheme {
-  if (kind === "text") {
-    return {
-      guid: crypto.randomUUID(),
-      title,
-      category: "theme",
-      css: { background: "#000000" },
-      elements: [
-        {
-          id: "titulo",
-          type: "TEXT",
-          x: 10,
-          y: 8,
-          visible: true,
-          locked: false,
-          css: {
-            top: "8%",
-            left: "10%",
-            width: "80%",
-            textAlign: "center",
-            fontSize: "28px",
-            fontWeight: "600",
-            letterSpacing: "3px",
-            textTransform: "uppercase",
-            color: "#a1a1aa",
-          },
-          text: "{titulo}",
-        },
-        {
-          id: "texto",
-          type: "TEXT",
-          x: 10,
-          y: 26,
-          visible: true,
-          locked: false,
-          css: {
-            top: "26%",
-            left: "10%",
-            width: "80%",
-            textAlign: "center",
-            fontSize: "52px",
-            fontWeight: "600",
-            lineHeight: "1.35",
-            color: "#ffffff",
-            textShadow: "0 2px 10px rgba(0,0,0,0.8)",
-          },
-          text: "{texto}",
-        },
-      ],
-    };
+  const theme = cloneTheme(DEFAULT_PUBLIC_THEME, title);
+  theme.category = "theme";
+  if (focusContext && theme.pages) {
+    const focused = theme.pages.find((page) => page.context === focusContext);
+    if (focused) {
+      theme.pages = [focused, ...theme.pages.filter((page) => page !== focused)];
+    }
   }
+  return theme;
+}
 
-  return {
-    guid: crypto.randomUUID(),
-    title,
-    category: "theme",
-    css: { background: "#000000" },
-    elements: [
-      {
-        id: "letra",
-        type: "TEXT",
-        x: 10,
-        y: 30,
-        visible: true,
-        locked: false,
-        css: {
-          top: "30%",
-          left: "10%",
-          width: "80%",
-          textAlign: "center",
-          fontSize: "56px",
-          fontWeight: "700",
-          lineHeight: "1.25",
-          color: "#ffffff",
-        },
-        text: "{letra}",
-      },
-    ],
-  };
+function newStageTheme(title: string): SlideTheme {
+  const theme = cloneTheme(DEFAULT_STAGE_THEME, title);
+  theme.category = "stage";
+  return theme;
 }
 
 const STAGE_RES_KEY = "open_presenter_stage_ref_res";
@@ -248,17 +204,20 @@ export function ThemesTab() {
     );
   }, [load]);
 
-  const templateThemes = useMemo(() => {
-    return themes.filter((t) => t.category !== "presentation");
-  }, [themes]);
+  const publicThemes = useMemo(() => themes.filter(isPublicTheme), [themes]);
+  const stageThemes = useMemo(() => themes.filter(isStageCandidate), [themes]);
+  const galleryThemes = useMemo(
+    () => themes.filter((theme) => theme.category !== "presentation"),
+    [themes],
+  );
 
-  async function handleCreate(kind: "lyric" | "text" = "lyric") {
+  async function handleCreatePublic(context: ThemeContext) {
     setError(null);
     try {
-      const typeLabel = kind === "text" ? "Texto" : "Música";
-      const theme = newBlankTheme(
-        `Novo Tema de ${typeLabel} ${templateThemes.length + 1}`,
-        kind,
+      const info = PUBLIC_PAGE_CONTEXTS.find((item) => item.context === context)!;
+      const theme = newPublicTheme(
+        `Novo Tema de ${info.label} ${publicThemes.length + 1}`,
+        context,
       );
       await save(theme);
       navigate(`/theme-editor?guid=${theme.guid}`);
@@ -267,16 +226,33 @@ export function ThemesTab() {
     }
   }
 
+  async function handleCreateStage() {
+    setError(null);
+    try {
+      const theme = newStageTheme(`Novo Tema de Retorno ${themes.length + 1}`);
+      await save(theme);
+      setStageTheme(theme.guid);
+      navigate(`/theme-editor?guid=${theme.guid}`);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Falha ao criar tema");
+    }
+  }
+
+  async function handleImportTheme() {
+    setError(null);
+    try {
+      const imported = await importThemeFile();
+      if (!imported) return;
+      await save(imported);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Falha ao importar arquivo JSON de tema");
+    }
+  }
+
   async function handleDuplicate(theme: SlideTheme) {
     setError(null);
     try {
-      await save({
-        ...theme,
-        guid: crypto.randomUUID(),
-        title: `${theme.title} (cópia)`,
-        category: theme.category ?? "theme",
-        elements: theme.elements.map((el) => ({ ...el, css: { ...el.css } })),
-      });
+      await save(cloneTheme(theme));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Falha ao duplicar tema");
     }
@@ -310,7 +286,8 @@ export function ThemesTab() {
     setRenaming(null);
   }
 
-  const sample = SAMPLES[sampleAsset];
+  const pickerThemes =
+    pickerTarget?.type === "stage" ? stageThemes : publicThemes;
 
   return (
     <div className="flex flex-col gap-7 select-none">
@@ -357,6 +334,7 @@ export function ThemesTab() {
                   : undefined;
 
                 if (boundTheme) {
+                  const preview = previewTheme(boundTheme, col.sampleAsset);
                   return (
                     <div
                       key={col.id}
@@ -364,10 +342,10 @@ export function ThemesTab() {
                     >
                       <div className="size-full pointer-events-none scale-100">
                         <ScaledStage
-                          theme={boundTheme}
-                          asset={col.sampleAsset}
+                          theme={preview.theme}
+                          asset={preview.asset}
                           props={{
-                            ...SAMPLES[col.sampleAsset].props,
+                            ...SAMPLES[preview.asset].props,
                             ...(col.sampleProps || {}),
                           }}
                         />
@@ -562,7 +540,8 @@ export function ThemesTab() {
               Galeria de temas
             </h3>
             <p className="text-xs text-muted-foreground">
-              Crie, duplique ou edite temas visuais para o telão e palco.
+              Crie, duplique ou edite temas para o telão e o palco. Novos temas
+              já começam com um modelo visual completo; ajuste o que precisar.
             </p>
           </div>
 
@@ -583,6 +562,17 @@ export function ThemesTab() {
               </SelectContent>
             </Select>
 
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 cursor-pointer"
+              onClick={() => void handleImportTheme()}
+              title="Importar tema a partir de arquivo JSON"
+            >
+              <Upload className="size-3.5" />
+              <span>Importar JSON</span>
+            </Button>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" className="gap-1.5 cursor-pointer">
@@ -593,18 +583,32 @@ export function ThemesTab() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
-                  onClick={() => void handleCreate("lyric")}
+                  onClick={() => void handleCreatePublic("music")}
                   className="cursor-pointer gap-2"
                 >
                   <Music className="size-3.5 text-primary" />
-                  <span>Tema para Música (Louvor)</span>
+                  <span>Modelo público — Música</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => void handleCreate("text")}
+                  onClick={() => void handleCreatePublic("bible")}
+                  className="cursor-pointer gap-2"
+                >
+                  <BookOpen className="size-3.5 text-primary" />
+                  <span>Modelo público — Bíblia</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => void handleCreatePublic("text")}
                   className="cursor-pointer gap-2"
                 >
                   <FileText className="size-3.5 text-primary" />
-                  <span>Tema para Texto (Avisos / Ministração)</span>
+                  <span>Modelo público — Texto</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => void handleCreateStage()}
+                  className="cursor-pointer gap-2"
+                >
+                  <Monitor className="size-3.5 text-primary" />
+                  <span>Modelo de palco — 4 momentos</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -612,17 +616,20 @@ export function ThemesTab() {
         </div>
 
         {/* Gallery Grid */}
-        {templateThemes.length === 0 ? (
+        {galleryThemes.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">
             Nenhum tema encontrado. Crie um novo tema para começar.
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {templateThemes.map((theme) => {
-              const isStage = stageThemeGuid === theme.guid;
+            {galleryThemes.map((theme) => {
+              const isStage =
+                stageThemeGuid === theme.guid ||
+                resolvedStageTheme?.guid === theme.guid;
               const isDefaultPublic = bindings.some(
                 (b) => b.themeGuid === theme.guid,
               );
+              const preview = previewTheme(theme, sampleAsset);
 
               return (
                 <div
@@ -631,16 +638,16 @@ export function ThemesTab() {
                 >
                   <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-black">
                     <ScaledStage
-                      theme={theme}
-                      asset={sampleAsset}
-                      props={sample.props}
+                      theme={preview.theme}
+                      asset={preview.asset}
+                      props={SAMPLES[preview.asset].props}
                     />
                   </div>
                   <div className="flex items-center gap-2">
                     <p className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
                       {theme.title}
                     </p>
-                    {isStage && (
+                    {(isStage || theme.category === "stage") && (
                       <Badge variant="outline" className="text-[9px]">
                         Retorno
                       </Badge>
@@ -648,6 +655,19 @@ export function ThemesTab() {
                     {isDefaultPublic && (
                       <Badge variant="secondary" className="text-[9px]">
                         Telão
+                      </Badge>
+                    )}
+                    {theme.pages?.length ? (
+                      <Badge variant="outline" className="text-[9px]">
+                        {themeCoverageLabel(theme)}
+                      </Badge>
+                    ) : null}
+                    {themeVersion(theme) === "v1" && (
+                      <Badge
+                        variant="outline"
+                        className="border-amber-500/40 text-[9px] text-amber-500"
+                      >
+                        v1
                       </Badge>
                     )}
                   </div>
@@ -669,6 +689,15 @@ export function ThemesTab() {
                       title="Duplicar tema"
                     >
                       <Copy className="size-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="size-7 p-0"
+                      onClick={() => exportThemeAsJson(theme)}
+                      title="Exportar tema (JSON)"
+                    >
+                      <Download className="size-3" />
                     </Button>
                     <Button
                       size="sm"
@@ -735,33 +764,39 @@ export function ThemesTab() {
             </div>
 
             {/* List of Themes */}
-            {templateThemes.map((t) => (
-              <div
-                key={t.guid}
-                onClick={() => {
-                  if (pickerTarget?.type === "stage") {
-                    setStageTheme(t.guid);
-                  } else if (pickerTarget?.kind) {
-                    setBinding("public", pickerTarget.kind, t.guid);
-                  }
-                  setPickerTarget(null);
-                }}
-                className="group relative flex aspect-video flex-col justify-end overflow-hidden rounded-xl border border-border bg-black p-2.5 transition-all hover:border-primary hover:ring-2 hover:ring-primary/40 cursor-pointer shadow-2xs"
-              >
-                <div className="size-full absolute inset-0 pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity">
-                  <ScaledStage
-                    theme={t}
-                    asset={sampleAsset}
-                    props={sample.props}
-                  />
+            {pickerThemes.map((t) => {
+              const preview = previewTheme(t, sampleAsset);
+              return (
+                <div
+                  key={t.guid}
+                  onClick={() => {
+                    if (pickerTarget?.type === "stage") {
+                      setStageTheme(t.guid);
+                    } else if (pickerTarget?.kind) {
+                      setBinding("public", pickerTarget.kind, t.guid);
+                    }
+                    setPickerTarget(null);
+                  }}
+                  className="group relative flex aspect-video flex-col justify-end overflow-hidden rounded-xl border border-border bg-black p-2.5 transition-all hover:border-primary hover:ring-2 hover:ring-primary/40 cursor-pointer shadow-2xs"
+                >
+                  <div className="size-full absolute inset-0 pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity">
+                    <ScaledStage
+                      theme={preview.theme}
+                      asset={preview.asset}
+                      props={SAMPLES[preview.asset].props}
+                    />
+                  </div>
+                  <div className="relative z-10 rounded bg-black/80 px-2 py-1 text-left backdrop-blur-xs">
+                    <p className="truncate text-xs font-semibold text-white">
+                      {t.title}
+                    </p>
+                    <span className="text-[10px] text-muted-foreground">
+                      {themeCoverageLabel(t)}
+                    </span>
+                  </div>
                 </div>
-                <div className="relative z-10 rounded bg-black/80 px-2 py-1 text-left backdrop-blur-xs">
-                  <p className="truncate text-xs font-semibold text-white">
-                    {t.title}
-                  </p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <DialogFooter>

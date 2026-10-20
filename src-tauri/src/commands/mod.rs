@@ -1,3 +1,4 @@
+pub mod bible;
 pub mod media;
 pub mod outputs;
 pub mod remote;
@@ -7,6 +8,10 @@ pub mod setlists;
 pub mod songs;
 pub mod themes;
 
+pub use bible::{
+    compare_bible_verse, delete_bible, get_bible_books, get_bible_chapter, import_bible,
+    list_bible_versions, search_bible_verses,
+};
 pub use presentation::{
     close_output_window, get_live_slide, get_server_host, go_live, list_monitors,
     open_output_window, set_blackout,
@@ -20,3 +25,4 @@ pub use songs::{
     set_song_defaults,
 };
 pub use themes::{delete_theme, get_theme, list_themes, save_theme};
+

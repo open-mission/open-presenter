@@ -56,6 +56,10 @@ export function LivePreview() {
   const serverRunning = useOutputManagerStore((s) => s.server.running);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
   const loadThemes = useSlideThemesStore((s) => s.load);
+  const themes = useSlideThemesStore((s) => s.themes);
+  const bindings = useSlideThemesStore((s) => s.bindings);
+  const eventThemeGuid = useSlideThemesStore((s) => s.eventThemeGuid);
+  const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
 
   // Layout & Visibility store (persistente)
   const showPreview = usePreviewLayoutStore((s) => s.showPreview);
@@ -71,21 +75,33 @@ export function LivePreview() {
   const resetZoom = usePreviewLayoutStore((s) => s.resetZoom);
   const showAll = usePreviewLayoutStore((s) => s.showAll);
 
-  const previewTheme = useSlideThemesStore((s) => {
+  const previewTheme = useMemo(() => {
     if (!preview) return null;
     if (preview.media?.themeId) {
-      const found = s.themes.find((t) => t.guid === preview.media?.themeId);
+      const found = themes.find((t) => t.guid === preview.media?.themeId);
       if (found) return found;
     }
-    return s.resolveTheme("public", preview.kind, preview.media?.themeId);
-  });
-  const liveTheme = useSlideThemesStore((s) => {
+    return resolveTheme(
+      "public",
+      preview.kind,
+      preview.media?.themeId,
+      preview.media?.kind,
+    );
+  }, [preview, themes, bindings, eventThemeGuid, resolveTheme]);
+  const liveTheme = useMemo(() => {
     if (live.content.media?.themeId) {
-      const found = s.themes.find((t) => t.guid === live.content.media?.themeId);
+      const found = themes.find(
+        (t) => t.guid === live.content.media?.themeId,
+      );
       if (found) return found;
     }
-    return s.resolveTheme("public", live.content.kind, live.content.media?.themeId);
-  });
+    return resolveTheme(
+      "public",
+      live.content.kind,
+      live.content.media?.themeId,
+      live.content.media?.kind,
+    );
+  }, [live.content, themes, bindings, eventThemeGuid, resolveTheme]);
 
   const effectiveBackground: BackgroundLayer = useMemo(() => {
     const isPresentation = Boolean(live.content.media?.themeId);

@@ -1,0 +1,136 @@
+{
+  "$schema": "https://openpresenter.dev/schemas/theme-v1.json",
+  "format": "open-presenter-theme",
+  "version": 1,
+  "exportedAt": "2026-10-19T13:25:00.000Z",
+  "theme": {
+    "title": "Retorno de Palco Completo",
+    "category": "stage",
+    "css": {
+      "background": "#000000"
+    },
+    "elements": [
+      {
+        "id": "relogio",
+        "type": "TEXT",
+        "x": 4,
+        "y": 3,
+        "visible": true,
+        "locked": false,
+        "text": "{clock}",
+        "css": {
+          "top": "3%",
+          "left": "4%",
+          "width": "25%",
+          "height": "8%",
+          "textAlign": "left",
+          "fontSize": "42px",
+          "fontWeight": "800",
+          "color": "#facc15",
+          "fontFamily": "monospace"
+        }
+      },
+      {
+        "id": "cabecalho-faixa",
+        "type": "TEXT",
+        "x": 30,
+        "y": 4,
+        "visible": true,
+        "locked": false,
+        "text": "{title} <span style=\"color:#94a3b8\">({section})</span>",
+        "css": {
+          "top": "4%",
+          "left": "30%",
+          "width": "40%",
+          "height": "6%",
+          "textAlign": "center",
+          "fontSize": "22px",
+          "fontWeight": "700",
+          "color": "#e2e8f0",
+          "textTransform": "uppercase"
+        }
+      },
+      {
+        "id": "cronometro",
+        "type": "TEXT",
+        "x": 71,
+        "y": 3,
+        "visible": true,
+        "locked": false,
+        "text": "{timer}",
+        "css": {
+          "top": "3%",
+          "left": "71%",
+          "width": "25%",
+          "height": "8%",
+          "textAlign": "right",
+          "fontSize": "42px",
+          "fontWeight": "800",
+          "color": "#38bdf8",
+          "fontFamily": "monospace"
+        }
+      },
+      {
+        "id": "estrofe-atual",
+        "type": "TEXT",
+        "x": 5,
+        "y": 15,
+        "visible": true,
+        "locked": false,
+        "text": "{lyrics}",
+        "css": {
+          "top": "15%",
+          "left": "5%",
+          "width": "90%",
+          "height": "62%",
+          "textAlign": "center",
+          "fontSize": "60px",
+          "fontWeight": "700",
+          "lineHeight": "1.25",
+          "color": "#ffffff",
+          "whiteSpace": "pre-wrap",
+          "autoShrink": "true"
+        }
+      },
+      {
+        "id": "painel-proximo",
+        "type": "RECTANGLE",
+        "x": 4,
+        "y": 80,
+        "visible": true,
+        "locked": false,
+        "css": {
+          "top": "80%",
+          "left": "4%",
+          "width": "92%",
+          "height": "16%",
+          "background": "#111827",
+          "borderRadius": "12px",
+          "border": "2px solid #374151"
+        }
+      },
+      {
+        "id": "texto-proximo",
+        "type": "TEXT",
+        "x": 6,
+        "y": 82,
+        "visible": true,
+        "locked": false,
+        "text": "<span style=\"color:#f59e0b;font-weight:700\">A SEGUIR:</span> {next_verse}",
+        "css": {
+          "top": "82%",
+          "left": "6%",
+          "width": "88%",
+          "height": "12%",
+          "textAlign": "left",
+          "fontSize": "26px",
+          "fontWeight": "600",
+          "color": "#9ca3af",
+          "whiteSpace": "nowrap",
+          "overflow": "hidden",
+          "textOverflow": "ellipsis"
+        }
+      }
+    ]
+  }
+}

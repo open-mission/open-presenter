@@ -2,6 +2,7 @@ import {
   Monitor,
   Music,
   Palette,
+  RefreshCw,
   SlidersHorizontal,
   Smartphone,
   Sparkles,
@@ -52,5 +53,11 @@ export const PREFERENCES_NAV_ITEMS: NavItemConfig[] = [
     label: "Aparência",
     breadcrumb: "Aparência",
     icon: Palette,
+  },
+  {
+    id: "updates",
+    label: "Atualizações",
+    breadcrumb: "Atualizações",
+    icon: RefreshCw,
   },
 ];

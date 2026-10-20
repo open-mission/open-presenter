@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { getEvent } from "@/core/ipc/commands";
 import { useSetlistStore } from "./store";
 import type { ServiceEvent } from "@/core/types";
+import { EventThemeSelect } from "./EventThemeSelect";
 
 interface EditEventDialogProps {
   eventId: string | null;
@@ -36,6 +37,7 @@ export function EditEventDialog({ eventId, open, onClose }: EditEventDialogProps
   const [startTime, setStartTime] = useState("18:00");
   const [endTime, setEndTime] = useState("20:00");
   const [applyScope, setApplyScope] = useState<"single" | "series">("single");
+  const [themeGuid, setThemeGuid] = useState<string | null>(null);
 
   // Number of events sharing the original title
   const seriesEvents = events.filter((e) => originalEvent && e.title === originalEvent.title);
@@ -55,6 +57,7 @@ export function EditEventDialog({ eventId, open, onClose }: EditEventDialogProps
       if (!ev) return;
       setOriginalEvent(ev);
       setTitle(ev.title);
+      setThemeGuid(ev.themeGuid ?? null);
 
       const ed = ev.eventDate;
       if (ed.includes("/")) {
@@ -117,6 +120,7 @@ export function EditEventDialog({ eventId, open, onClose }: EditEventDialogProps
         await updateEventDetails(eventId, {
           title: cleanTitle,
           eventDate: fullDateStr,
+          themeGuid,
         });
         toast.success("Evento atualizado com sucesso!");
       }
@@ -254,6 +258,20 @@ export function EditEventDialog({ eventId, open, onClose }: EditEventDialogProps
                 * As datas individuais de cada culto no calendário são preservadas; os horários de início e término serão sincronizados em todas as ocorrências.
               </p>
             )}
+
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-foreground">Tema do evento</label>
+              <EventThemeSelect
+                value={themeGuid}
+                onChange={setThemeGuid}
+                disabled={applyScope === "series"}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                {applyScope === "series"
+                  ? "O tema é individual por culto; altere-o apenas no escopo deste evento."
+                  : "Usado quando este evento está selecionado. Contextos ausentes usam as configurações."}
+              </p>
+            </div>
 
             <DialogFooter className="mt-2 flex items-center justify-end gap-2">
               <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={submitting}>

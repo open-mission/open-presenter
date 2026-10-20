@@ -32,6 +32,8 @@ struct StoredEvent {
     parts: Vec<StoredPart>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     wallpaper: Option<String>,
+    #[serde(rename = "themeGuid", default, skip_serializing_if = "Option::is_none")]
+    theme_guid: Option<String>,
 }
 
 fn storage_error(err: rusqlite::Error) -> AppError {
@@ -41,6 +43,7 @@ fn storage_error(err: rusqlite::Error) -> AppError {
 fn serialize_setlist(event: &ServiceEvent) -> Result<String, AppError> {
     let stored = StoredEvent {
         wallpaper: event.wallpaper.clone(),
+        theme_guid: event.theme_guid.clone(),
         parts: event
             .parts
             .iter()
@@ -70,7 +73,9 @@ pub const TEMPORARY_EVENT_ID: &str = "__temporary__";
 pub fn list(conn: &Connection) -> Result<Vec<EventSummary>, AppError> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, title, event_date, json_extract(setlist_json, '$.wallpaper') FROM service_events
+            "SELECT id, title, event_date, json_extract(setlist_json, '$.wallpaper'),
+                    json_extract(setlist_json, '$.themeGuid')
+             FROM service_events
              WHERE id != ?1
              ORDER BY event_date DESC, title",
         )
@@ -82,6 +87,7 @@ pub fn list(conn: &Connection) -> Result<Vec<EventSummary>, AppError> {
                 title: row.get(1)?,
                 event_date: row.get(2)?,
                 wallpaper: row.get::<_, Option<String>>(3).unwrap_or(None),
+                theme_guid: row.get::<_, Option<String>>(4).unwrap_or(None),
             })
         })
         .map_err(storage_error)?
@@ -150,6 +156,7 @@ pub fn get(conn: &Connection, id: &str) -> Result<Option<ServiceEvent>, AppError
         title,
         event_date,
         wallpaper: stored.wallpaper,
+        theme_guid: stored.theme_guid,
         parts,
     }))
 }
@@ -190,6 +197,7 @@ pub fn get_temporary(conn: &Connection) -> Result<ServiceEvent, AppError> {
         title: "Temporário".to_string(),
         event_date: "".to_string(),
         wallpaper: None,
+        theme_guid: None,
         parts: vec![],
     };
     create(conn, &temp)?;
@@ -216,7 +224,7 @@ mod tests {
     fn create_get_roundtrip_hidrata_musicas_da_setlist() {
         let conn = open_in_memory();
         let song_id = songs::insert_new(&conn, "Ousado Amor", "Isaias Saad", &[SongSection { section_type: None, lines: vec!["x".into()] }]).unwrap();
-        let event = ServiceEvent { id: "e1".into(), title: "Culto".into(), event_date: "2026-10-18".into(), wallpaper: None,
+        let event = ServiceEvent { id: "e1".into(), title: "Culto".into(), event_date: "2026-10-18".into(), wallpaper: None, theme_guid: None,
             parts: vec![EventPart { id: "p1".into(), title: "Louvor".into(), items: vec![
                 EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: Some("i2".into()), song: None, media: None },
                 EventItem { id: "i2".into(), song_id: Some(song_id.clone()), next_item_id: None, song: None, media: None },
@@ -231,7 +239,7 @@ mod tests {
     fn musica_excluida_vira_item_removido_e_next_orfao_nao_quebra() {
         let conn = open_in_memory();
         let song_id = songs::insert_new(&conn, "T", "", &[SongSection { section_type: None, lines: vec!["l".into()] }]).unwrap();
-        let event = ServiceEvent { id: "e1".into(), title: "C".into(), event_date: "2026-10-18".into(), wallpaper: None,
+        let event = ServiceEvent { id: "e1".into(), title: "C".into(), event_date: "2026-10-18".into(), wallpaper: None, theme_guid: None,
             parts: vec![EventPart { id: "p1".into(), title: "P".into(), items: vec![
                 EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: Some("i-que-nao-existe".into()), song: None, media: None }], color: None, bg_color: None }] };
         create(&conn, &event).unwrap();
@@ -249,6 +257,7 @@ mod tests {
             title: "Culto".into(),
             event_date: "2026-10-18".into(),
             wallpaper: None,
+            theme_guid: None,
             parts: vec![EventPart {
                 id: "p1".into(),
                 title: "Avisos".into(),
@@ -292,7 +301,7 @@ mod tests {
     fn save_persiste_ordem_e_delete_remove() {
         let conn = open_in_memory();
         let song_id = songs::insert_new(&conn, "T", "", &[SongSection { section_type: None, lines: vec!["l".into()] }]).unwrap();
-        let mut event = ServiceEvent { id: "e1".into(), title: "C".into(), event_date: "2026-10-18".into(), wallpaper: None,
+        let mut event = ServiceEvent { id: "e1".into(), title: "C".into(), event_date: "2026-10-18".into(), wallpaper: None, theme_guid: None,
             parts: vec![EventPart { id: "p1".into(), title: "P".into(), items: vec![EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: None, song: None, media: None }], color: None, bg_color: None }] };
         create(&conn, &event).unwrap();
         event.parts[0].items.push(EventItem { id: "i2".into(), song_id: Some(song_id), next_item_id: None, song: None, media: None });
@@ -325,6 +334,7 @@ mod tests {
             title: "Culto de Domingo".into(),
             event_date: "2026-10-18".into(),
             wallpaper: None,
+            theme_guid: None,
             parts: vec![],
         };
         create(&conn, &event).unwrap();
@@ -333,6 +343,27 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].id, "e-culto");
         assert!(!events.iter().any(|e| e.id == TEMPORARY_EVENT_ID));
+    }
+
+    #[test]
+    fn salva_e_restaura_tema_do_evento() {
+        let conn = open_in_memory();
+        let mut event = ServiceEvent {
+            id: "e-tema".into(),
+            title: "Culto".into(),
+            event_date: "2026-10-19".into(),
+            wallpaper: None,
+            theme_guid: None,
+            parts: vec![],
+        };
+        create(&conn, &event).unwrap();
+        event.theme_guid = Some("tema-1".into());
+        save(&conn, &event).unwrap();
+
+        let loaded = get(&conn, "e-tema").unwrap().unwrap();
+        assert_eq!(loaded.theme_guid.as_deref(), Some("tema-1"));
+        let summary = list(&conn).unwrap();
+        assert_eq!(summary[0].theme_guid.as_deref(), Some("tema-1"));
     }
 
     #[test]

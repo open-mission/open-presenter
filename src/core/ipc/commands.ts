@@ -1,4 +1,9 @@
 import type {
+  BibleBook,
+  BibleSearchResult,
+  BibleVerse,
+  BibleVerseCompare,
+  BibleVersion,
   ConnectedClient,
   EventSummary,
   ImageTreeNode,
@@ -402,3 +407,70 @@ export async function setRemoteSetlist(
 ): Promise<void> {
   await invokeStrict("set_remote_setlist", { setlist });
 }
+
+export async function listBibleVersions(): Promise<BibleVersion[]> {
+  return (await invokeStrict<BibleVersion[]>("list_bible_versions")) ?? [];
+}
+
+export async function importBible(
+  sourcePath: string,
+  customName?: string,
+): Promise<BibleVersion> {
+  return invokeStrict<BibleVersion>("import_bible", {
+    sourcePath,
+    customName: customName ?? null,
+  });
+}
+
+export async function getBibleBooks(versionId: string): Promise<BibleBook[]> {
+  return (await invokeStrict<BibleBook[]>("get_bible_books", { versionId })) ?? [];
+}
+
+export async function getBibleChapter(
+  versionId: string,
+  bookId: number,
+  chapter: number,
+): Promise<BibleVerse[]> {
+  return (
+    (await invokeStrict<BibleVerse[]>("get_bible_chapter", {
+      versionId,
+      bookId,
+      chapter,
+    })) ?? []
+  );
+}
+
+export async function searchBibleVerses(
+  versionId: string,
+  query: string,
+  limit?: number,
+): Promise<BibleSearchResult[]> {
+  return (
+    (await invokeStrict<BibleSearchResult[]>("search_bible_verses", {
+      versionId,
+      query,
+      limit: limit ?? null,
+    })) ?? []
+  );
+}
+
+export async function compareBibleVerse(
+  bookId: number,
+  chapter: number,
+  verse: number,
+  versionIds: string[],
+): Promise<BibleVerseCompare[]> {
+  return (
+    (await invokeStrict<BibleVerseCompare[]>("compare_bible_verse", {
+      bookId,
+      chapter,
+      verse,
+      versionIds,
+    })) ?? []
+  );
+}
+
+export async function deleteBible(versionId: string): Promise<void> {
+  await invokeStrict("delete_bible", { versionId });
+}
+

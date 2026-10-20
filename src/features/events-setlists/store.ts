@@ -25,6 +25,7 @@ import {
 import { usePresentationStore } from "@/features/presentation/store";
 import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
 import { useOutputManagerStore } from "@/features/output-manager/store";
+import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { appendItemToEvent, transferItemBetweenEvents } from "./temporaryUtils";
 
 export type RecurrenceFrequency = "none" | "weekly" | "biweekly" | "monthly";
@@ -42,6 +43,7 @@ export interface CreateRecurringEventParams {
   endMode?: "until_date" | "count";
   untilDate?: string;
   count?: number;
+  themeGuid?: string | null;
 }
 
 interface SetlistState {
@@ -68,7 +70,12 @@ interface SetlistState {
   updateEventDate(id: string, newDate: string): Promise<void>;
   updateEventDetails(
     id: string,
-    updates: { title?: string; eventDate?: string; wallpaper?: string | null },
+    updates: {
+      title?: string;
+      eventDate?: string;
+      wallpaper?: string | null;
+      themeGuid?: string | null;
+    },
   ): Promise<void>;
   updateRecurringSeries(
     matchTitle: string,
@@ -396,29 +403,22 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
           activeEventId: TEMPORARY_EVENT_ID,
           error: null,
         });
+        useSlideThemesStore.getState().setEventThemeGuid(null);
         return;
       }
 
-      // Se não houver nenhuma programação, cria um temporário/padrão
       if (events.length === 0) {
-        const id = crypto.randomUUID();
-        const defaultEvent: ServiceEvent = {
-          id,
-          title: "Culto de Domingo",
-          eventDate: today(),
-          parts: [],
-        };
-        await createEventCommand(defaultEvent);
-        events = await listEvents();
         set({
           events,
-          event: defaultEvent,
-          activeEventId: id,
-          lastSelectedEventId: id,
+          listMode: "temporary",
+          event: temporaryEvent,
+          activeEventId: TEMPORARY_EVENT_ID,
+          lastSelectedEventId: null,
           dirty: false,
           selectedItemId: null,
           error: null,
         });
+        useSlideThemesStore.getState().setEventThemeGuid(null);
         return;
       }
 
@@ -455,6 +455,7 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
         selectedItemId: null,
         error: null,
       });
+      useSlideThemesStore.getState().setEventThemeGuid(event?.themeGuid ?? null);
 
       // Synchronize event-specific wallpaper or fall back to public default
       if (event?.wallpaper) {
@@ -498,6 +499,7 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
         selectedItemId: null,
         runnerIndex: null,
       });
+      useSlideThemesStore.getState().setEventThemeGuid(null);
 
       if (temp?.wallpaper) {
         useWallpaperStore.getState().applyRemote(temp.wallpaper);
@@ -633,6 +635,7 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
         id,
         title: params.title.trim(),
         eventDate: dateStr,
+        themeGuid: params.themeGuid ?? null,
         parts: [], // Setlist separado e independente
       };
 
@@ -681,6 +684,8 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
           title: updates.title !== undefined ? updates.title.trim() : current.title,
           eventDate: updates.eventDate !== undefined ? updates.eventDate : current.eventDate,
           wallpaper: updates.wallpaper !== undefined ? updates.wallpaper : current.wallpaper,
+          themeGuid:
+            updates.themeGuid !== undefined ? updates.themeGuid : current.themeGuid,
         };
         await saveEvent(updated);
         set({
@@ -692,6 +697,7 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
                   title: updated.title,
                   eventDate: updated.eventDate,
                   wallpaper: updated.wallpaper,
+                  themeGuid: updated.themeGuid,
                 }
               : e,
           ),
@@ -699,6 +705,7 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
         if (updates.wallpaper !== undefined) {
           useWallpaperStore.getState().applyRemote(updates.wallpaper);
         }
+        useSlideThemesStore.getState().setEventThemeGuid(updated.themeGuid ?? null);
       } else {
         const ev = await getEvent(id);
         if (ev) {
@@ -707,6 +714,8 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
             title: updates.title !== undefined ? updates.title.trim() : ev.title,
             eventDate: updates.eventDate !== undefined ? updates.eventDate : ev.eventDate,
             wallpaper: updates.wallpaper !== undefined ? updates.wallpaper : ev.wallpaper,
+            themeGuid:
+              updates.themeGuid !== undefined ? updates.themeGuid : ev.themeGuid,
           };
           await saveEvent(updated);
           set({
@@ -717,12 +726,16 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
                     title: updated.title,
                     eventDate: updated.eventDate,
                     wallpaper: updated.wallpaper,
+                    themeGuid: updated.themeGuid,
                   }
                 : e,
             ),
           });
           if (get().activeEventId === id && updates.wallpaper !== undefined) {
             useWallpaperStore.getState().applyRemote(updates.wallpaper);
+          }
+          if (get().activeEventId === id) {
+            useSlideThemesStore.getState().setEventThemeGuid(updated.themeGuid ?? null);
           }
         }
       }
@@ -804,6 +817,7 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       dirty: false,
       selectedItemId: null,
     });
+    useSlideThemesStore.getState().setEventThemeGuid(null);
     await get().load();
   },
 

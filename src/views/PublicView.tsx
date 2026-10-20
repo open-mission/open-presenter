@@ -22,10 +22,28 @@ export default function PublicView() {
   const wallpaper = useWallpaperStore((s) => s.wallpaper);
   const loadThemes = useSlideThemesStore((s) => s.load);
   const themes = useSlideThemesStore((s) => s.themes);
+  const bindings = useSlideThemesStore((s) => s.bindings);
+  const eventThemeGuid = useSlideThemesStore((s) => s.eventThemeGuid);
+  const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
   const broadcastTheme = useLiveThemesStore((s) => s.themes.public);
   const mediaThemeId = live.content.media?.themeId;
-  const localTheme = useSlideThemesStore((s) =>
-    s.resolveTheme("public", live.content.kind, mediaThemeId),
+  const localTheme = useMemo(
+    () =>
+      resolveTheme(
+        "public",
+        live.content.kind,
+        mediaThemeId,
+        live.content.media?.kind,
+      ),
+    [
+      resolveTheme,
+      themes,
+      bindings,
+      eventThemeGuid,
+      live.content.kind,
+      mediaThemeId,
+      live.content.media?.kind,
+    ],
   );
   const customTheme = mediaThemeId
     ? (themes.find((t) => t.guid === mediaThemeId) ??

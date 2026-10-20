@@ -38,7 +38,10 @@ export interface LiveSlide {
   cleared: boolean;
   updatedAt: string;
   nextUp?: SlideContent;
+  prevUp?: SlideContent;
 }
+
+export * from "./bible";
 
 export interface MonitorInfo {
   id: string;
@@ -177,6 +180,7 @@ export interface ServiceEvent {
   title: string;
   eventDate: string;
   wallpaper?: string | null;
+  themeGuid?: string | null;
   parts: EventPart[];
 }
 
@@ -185,6 +189,7 @@ export interface EventSummary {
   title: string;
   eventDate: string;
   wallpaper?: string | null;
+  themeGuid?: string | null;
 }
 
 export const TEMPORARY_EVENT_ID = "__temporary__";
@@ -263,7 +268,9 @@ export interface ImageTreeNode {
 
 export type ThemeElementType = "TEXT" | "IMAGE" | "VIDEO" | "RECTANGLE";
 
-export type ThemeAsset = "music" | "bible" | "text";
+export type ThemeAsset = "music" | "bible" | "text" | "rest";
+
+export type ThemeContext = "music" | "bible" | "text" | "rest";
 
 export interface ThemeElement {
   id: string;
@@ -273,6 +280,7 @@ export interface ThemeElement {
   visible: boolean;
   locked: boolean;
   css: Record<string, string>;
+  name?: string;
   text?: string;
   src?: string;
   assetTypeVisibility?: string[];
@@ -280,11 +288,19 @@ export interface ThemeElement {
   url?: string;
 }
 
+export interface ThemePage {
+  id: string;
+  context: ThemeContext;
+  css: Record<string, string>;
+  elements: ThemeElement[];
+}
+
 export interface SlideTheme {
   guid: string;
   title: string;
   css: Record<string, string>;
   elements: ThemeElement[];
+  pages?: ThemePage[];
   category?: "presentation" | "theme" | string;
   createdAt?: string;
   updatedAt?: string;

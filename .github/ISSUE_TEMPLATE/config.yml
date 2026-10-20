@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Dúvidas e ideias
+    url: https://github.com/open-mission/open-presenter/discussions
+    about: Use as discussions para conversar sobre o projeto.
+  - name: Segurança
+    url: https://github.com/open-mission/open-presenter/security/policy
+    about: Reporte vulnerabilidades de forma privada.

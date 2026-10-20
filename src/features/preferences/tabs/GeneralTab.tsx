@@ -1,5 +1,6 @@
 import { Database, Globe, Keyboard, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { APP_VERSION } from "@/core/config/version";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 
 interface ShortcutItem {
@@ -50,7 +51,7 @@ export function GeneralTab() {
             </div>
           </div>
           <Badge variant="secondary" className="font-mono text-xs">
-            v0.1.0
+            v{APP_VERSION}
           </Badge>
         </div>
 
