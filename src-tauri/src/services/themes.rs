@@ -106,6 +106,8 @@ mod tests {
             asset_type_visibility: None,
             fill: None,
             url: None,
+            group_id: None,
+            group_name: None,
         }
     }
 

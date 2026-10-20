@@ -1,7 +1,17 @@
 import { create } from "zustand";
-import type { SlideTheme, ThemeContext, ThemeElement, ThemePage } from "@/core/types";
-import { getTheme, saveTheme } from "@/core/ipc/commands";
-import { cloneTheme, createPage, getActivePage } from "@/features/slide-themes/pages";
+import type { SlideTheme, ThemeContext, ThemeElement, ThemePage } from "../../core/types/index.ts";
+import { getTheme, saveTheme } from "../../core/ipc/commands.ts";
+import { cloneTheme, createPage, getActivePage } from "../slide-themes/pages.ts";
+import {
+  groupElementsInList,
+  ungroupElementsInList,
+  renameGroupInList,
+  toggleGroupVisibleInList,
+  toggleGroupLockedInList,
+  moveGroupInList,
+  removeGroupInList,
+  updateElementsInList,
+} from "./groups.ts";
 
 const HISTORY_LIMIT = 50;
 
@@ -29,6 +39,14 @@ interface ThemeEditorState {
   load(guid: string): Promise<void>;
   updateCss(patch: Record<string, string>): void;
   updateElement(id: string, patch: Partial<ThemeElement>): void;
+  updateElements(patches: { id: string; patch: Partial<ThemeElement> }[]): void;
+  groupElements(ids: string[], name?: string): string;
+  ungroupElements(groupId: string): void;
+  renameGroup(groupId: string, name: string): void;
+  toggleGroupVisible(groupId: string): void;
+  toggleGroupLocked(groupId: string): void;
+  moveGroup(groupId: string, dir: 1 | -1): void;
+  removeGroup(groupId: string): void;
   addElement(el: ThemeElement): void;
   addElements(els: ThemeElement[]): void;
   removeElement(id: string): void;
@@ -128,6 +146,90 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
         list.map((el) => (el.id === id ? { ...el, ...patch, id: el.id } : el));
       if (page) page.elements = update(page.elements);
       else next.elements = update(next.elements);
+      mutate(next);
+    },
+
+    updateElements: (patches) => {
+      const { draft, activePageId } = get();
+      if (!draft || patches.length === 0) return;
+      const next = clone(draft);
+      const page = getActivePage(next, activePageId);
+      if (page) page.elements = updateElementsInList(page.elements, patches);
+      else next.elements = updateElementsInList(next.elements, patches);
+      mutate(next);
+    },
+
+    groupElements: (ids, name) => {
+      const { draft, activePageId } = get();
+      if (!draft || ids.length < 2) return "";
+      const next = clone(draft);
+      const page = getActivePage(next, activePageId);
+      const list = page ? page.elements : next.elements;
+      const res = groupElementsInList(list, ids, name);
+      if (!res.groupId) return "";
+      if (page) page.elements = res.elements;
+      else next.elements = res.elements;
+      mutate(next);
+      return res.groupId;
+    },
+
+    ungroupElements: (groupId) => {
+      const { draft, activePageId } = get();
+      if (!draft) return;
+      const next = clone(draft);
+      const page = getActivePage(next, activePageId);
+      if (page) page.elements = ungroupElementsInList(page.elements, groupId);
+      else next.elements = ungroupElementsInList(next.elements, groupId);
+      mutate(next);
+    },
+
+    renameGroup: (groupId, name) => {
+      const { draft, activePageId } = get();
+      if (!draft) return;
+      const next = clone(draft);
+      const page = getActivePage(next, activePageId);
+      if (page) page.elements = renameGroupInList(page.elements, groupId, name);
+      else next.elements = renameGroupInList(next.elements, groupId, name);
+      mutate(next);
+    },
+
+    toggleGroupVisible: (groupId) => {
+      const { draft, activePageId } = get();
+      if (!draft) return;
+      const next = clone(draft);
+      const page = getActivePage(next, activePageId);
+      if (page) page.elements = toggleGroupVisibleInList(page.elements, groupId);
+      else next.elements = toggleGroupVisibleInList(next.elements, groupId);
+      mutate(next);
+    },
+
+    toggleGroupLocked: (groupId) => {
+      const { draft, activePageId } = get();
+      if (!draft) return;
+      const next = clone(draft);
+      const page = getActivePage(next, activePageId);
+      if (page) page.elements = toggleGroupLockedInList(page.elements, groupId);
+      else next.elements = toggleGroupLockedInList(next.elements, groupId);
+      mutate(next);
+    },
+
+    moveGroup: (groupId, dir) => {
+      const { draft, activePageId } = get();
+      if (!draft) return;
+      const next = clone(draft);
+      const page = getActivePage(next, activePageId);
+      if (page) page.elements = moveGroupInList(page.elements, groupId, dir);
+      else next.elements = moveGroupInList(next.elements, groupId, dir);
+      mutate(next);
+    },
+
+    removeGroup: (groupId) => {
+      const { draft, activePageId } = get();
+      if (!draft) return;
+      const next = clone(draft);
+      const page = getActivePage(next, activePageId);
+      if (page) page.elements = removeGroupInList(page.elements, groupId);
+      else next.elements = removeGroupInList(next.elements, groupId);
       mutate(next);
     },
 

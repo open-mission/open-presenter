@@ -642,192 +642,212 @@ function SongSlidesContent() {
               return (
                 <div
                   key={group.startIndex}
-                  className={`space-y-1 rounded-2xl border p-1.5 ${
+                  className={`overflow-hidden rounded-xl border transition-all ${
                     isLabeled ? "" : "border-border/60 bg-muted/20"
                   }`}
                   style={
                     isLabeled && groupColor
                       ? {
                           borderColor: `${groupColor}66`,
-                          backgroundColor: `${groupColor}0d`,
+                          backgroundColor: `${groupColor}08`,
                         }
                       : undefined
                   }
                 >
-                  {group.indices.map((slideIndex, positionInGroup) => {
-                    const block = slides[slideIndex];
-                    const isLive = runnerIndex === block.index;
-                    const isPreview = previewIndex === block.index;
-                    const isBeingDragged =
-                      (dragSlideRef.current ?? draggedSlideIndex) === block.index;
-                    const isHoveredOver = dragOverSlide?.index === block.index;
-                    const badgeLabel = block.label ?? group.label;
+                  {/* Cabeçalho Único do Grupo: Rótulo da Seção, Atalho e Quantidade de Slides */}
+                  <div
+                    className="flex items-center justify-between px-3 py-1.5 border-b border-border/30 bg-muted/30 select-none"
+                    style={
+                      isLabeled && groupColor
+                        ? { borderBottomColor: `${groupColor}25` }
+                        : undefined
+                    }
+                  >
+                    <div className="flex items-center gap-1.5">
+                      {isLabeled ? (
+                        <span
+                          className="rounded-md px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase shadow-2xs text-white flex items-center gap-1.5"
+                          style={{ backgroundColor: groupColor ?? "#3b82f6" }}
+                        >
+                          <span>{group.label}</span>
+                          {groupConfig?.shortcut && (
+                            <kbd className="rounded bg-black/25 px-1 py-0.2 font-mono text-[9px] font-bold">
+                              {groupConfig.shortcut}
+                            </kbd>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground/40 italic">
+                          Sem grupo
+                        </span>
+                      )}
+                    </div>
 
-                    return (
-                      <div
-                        key={block.index}
-                        className={
-                          positionInGroup > 0
-                            ? "border-t border-dashed border-border/50 pt-1.5"
-                            : undefined
-                        }
-                      >
-                        <ContextMenu modal={false}>
-                          <ContextMenuTrigger asChild>
-                            <div
-                              ref={(el) => {
-                                slideRefs.current[block.index] = el;
-                              }}
-                              draggable={true}
-                              onDragStart={(e) => {
-                                e.stopPropagation();
-                                dragSlideRef.current = block.index;
-                                setDraggedSlideIndex(block.index);
-                                e.dataTransfer.effectAllowed = "move";
-                                e.dataTransfer.setData("text/plain", `slide:${block.index}`);
-                              }}
-                              onDragEnd={() => {
-                                dragSlideRef.current = null;
-                                setDraggedSlideIndex(null);
-                                setDragOverSlide(null);
-                              }}
-                              onDragOver={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                e.dataTransfer.dropEffect = "move";
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const position: "before" | "after" =
-                                  e.clientY < rect.top + rect.height / 2 ? "before" : "after";
-                                setDragOverSlide({
-                                  index: block.index,
-                                  position,
-                                });
-                              }}
-                              onDragLeave={(e) => {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                if (
-                                  e.clientX < rect.left ||
-                                  e.clientX >= rect.right ||
-                                  e.clientY < rect.top ||
-                                  e.clientY >= rect.bottom
-                                ) {
-                                  if (dragOverSlide?.index === block.index) {
-                                    setDragOverSlide(null);
+                    {group.indices.length > 1 && (
+                      <span className="text-[10px] font-mono text-muted-foreground/70">
+                        {group.indices.length} slides
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Lista de Slides Pertencentes ao Grupo */}
+                  <div>
+                    {group.indices.map((slideIndex, positionInGroup) => {
+                      const block = slides[slideIndex];
+                      const isLive = runnerIndex === block.index;
+                      const isPreview = previewIndex === block.index;
+                      const isBeingDragged =
+                        (dragSlideRef.current ?? draggedSlideIndex) === block.index;
+                      const isHoveredOver = dragOverSlide?.index === block.index;
+
+                      return (
+                        <div
+                          key={block.index}
+                          className={
+                            positionInGroup > 0
+                              ? "border-t border-border/25"
+                              : undefined
+                          }
+                        >
+                          <ContextMenu modal={false}>
+                            <ContextMenuTrigger asChild>
+                              <div
+                                ref={(el) => {
+                                  slideRefs.current[block.index] = el;
+                                }}
+                                draggable={true}
+                                onDragStart={(e) => {
+                                  e.stopPropagation();
+                                  dragSlideRef.current = block.index;
+                                  setDraggedSlideIndex(block.index);
+                                  e.dataTransfer.effectAllowed = "move";
+                                  e.dataTransfer.setData("text/plain", `slide:${block.index}`);
+                                }}
+                                onDragEnd={() => {
+                                  dragSlideRef.current = null;
+                                  setDraggedSlideIndex(null);
+                                  setDragOverSlide(null);
+                                }}
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  e.dataTransfer.dropEffect = "move";
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const position: "before" | "after" =
+                                    e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+                                  setDragOverSlide({
+                                    index: block.index,
+                                    position,
+                                  });
+                                }}
+                                onDragLeave={(e) => {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  if (
+                                    e.clientX < rect.left ||
+                                    e.clientX >= rect.right ||
+                                    e.clientY < rect.top ||
+                                    e.clientY >= rect.bottom
+                                  ) {
+                                    if (dragOverSlide?.index === block.index) {
+                                      setDragOverSlide(null);
+                                    }
                                   }
-                                }
-                              }}
-                              onDrop={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const srcIdx = dragSlideRef.current ?? draggedSlideIndex;
-                                const position = dragOverSlide?.position ?? "after";
-                                if (srcIdx !== null && srcIdx !== block.index) {
-                                  void handleReorderSlides(srcIdx, block.index, position);
-                                }
-                                dragSlideRef.current = null;
-                                setDraggedSlideIndex(null);
-                                setDragOverSlide(null);
-                              }}
-                              onClick={() => handleSelectPreview(block.index)}
-                              onDoubleClick={() => handlePresent(block.index)}
-                              className={`group relative flex cursor-grab active:cursor-grabbing flex-col gap-2 rounded-xl border p-3.5 transition-all outline-none select-none ${
-                                isLive
-                                  ? "border-emerald-500 bg-emerald-500/5 ring-2 ring-emerald-500/40 shadow-xs"
-                                  : isPreview
-                                  ? "border-primary bg-primary/10 ring-2 ring-primary/30 shadow-2xs"
-                                  : "border-border/80 bg-card/70 hover:border-zinc-400 hover:bg-accent/40 dark:hover:border-zinc-700"
-                              } ${
-                                isBeingDragged ? "opacity-35 scale-[0.98]" : ""
-                              } ${
-                                isHoveredOver && dragOverSlide?.position === "before"
-                                  ? "border-t-2 border-t-primary shadow-xs"
-                                  : ""
-                              } ${
-                                isHoveredOver && dragOverSlide?.position === "after"
-                                  ? "border-b-2 border-b-primary shadow-xs"
-                                  : ""
-                              }`}
-                              title="1 clique: Prévia · 2 cliques: Apresentar · Arraste para reordenar"
-                              style={
-                                isLive || isPreview || !groupColor
-                                  ? undefined
-                                  : { borderColor: `${groupColor}55` }
-                              }
-                            >
-                              {/* Card Header: Section Badge & Status Pills */}
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5">
-                                  {badgeLabel !== null ? (
-                                    <span
-                                      className="rounded-md px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase shadow-2xs text-white flex items-center gap-1.5"
-                                      style={{ backgroundColor: groupColor ?? "#3b82f6" }}
-                                    >
-                                      <span>{badgeLabel}</span>
-                                      {groupConfig?.shortcut && (
-                                        <kbd className="rounded bg-black/25 px-1 py-0.2 font-mono text-[9px] font-bold">
-                                          {groupConfig.shortcut}
-                                        </kbd>
-                                      )}
-                                    </span>
-                                  ) : (
-                                    <span className="text-[10px] text-muted-foreground/40 italic">
-                                      Sem grupo
-                                    </span>
-                                  )}
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  const srcIdx = dragSlideRef.current ?? draggedSlideIndex;
+                                  const position = dragOverSlide?.position ?? "after";
+                                  if (srcIdx !== null && srcIdx !== block.index) {
+                                    void handleReorderSlides(srcIdx, block.index, position);
+                                  }
+                                  dragSlideRef.current = null;
+                                  setDraggedSlideIndex(null);
+                                  setDragOverSlide(null);
+                                }}
+                                onClick={() => handleSelectPreview(block.index)}
+                                onDoubleClick={() => handlePresent(block.index)}
+                                className={`group relative flex cursor-grab active:cursor-grabbing flex-col gap-2 p-3.5 transition-all outline-none select-none ${
+                                  isLive
+                                    ? "bg-emerald-500/15 ring-2 ring-inset ring-emerald-500/60 shadow-xs"
+                                    : isPreview
+                                    ? "bg-primary/15 ring-2 ring-inset ring-primary/40 shadow-2xs"
+                                    : "bg-card/40 hover:bg-accent/40"
+                                } ${
+                                  isBeingDragged ? "opacity-35 scale-[0.98]" : ""
+                                } ${
+                                  isHoveredOver && dragOverSlide?.position === "before"
+                                    ? "border-t-2 border-t-primary shadow-xs"
+                                    : ""
+                                } ${
+                                  isHoveredOver && dragOverSlide?.position === "after"
+                                    ? "border-b-2 border-b-primary shadow-xs"
+                                    : ""
+                                }`}
+                                title="1 clique: Prévia · 2 cliques: Apresentar · Arraste para reordenar"
+                              >
+                                {/* Card Sub-Header: Indicador de Parte (se múltiplos slides) & Badges de Status */}
+                                <div className="flex items-center justify-between min-h-[16px]">
+                                  <div>
+                                    {group.indices.length > 1 && (
+                                      <span className="text-[10px] font-medium text-muted-foreground/60">
+                                        Parte {positionInGroup + 1}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5">
+                                    {isPreview && !isLive && (
+                                      <Badge
+                                        variant="secondary"
+                                        className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-primary/15 text-primary border-primary/20"
+                                      >
+                                        <Eye className="size-2.5" />
+                                        Prévia
+                                      </Badge>
+                                    )}
+
+                                    {isLive && (
+                                      <Badge
+                                        variant="default"
+                                        className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-emerald-600 hover:bg-emerald-600 text-white animate-pulse"
+                                      >
+                                        <Radio className="size-2.5" />
+                                        Ao Vivo
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
 
-                                <div className="flex items-center gap-1.5">
-                                  {isPreview && !isLive && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-primary/15 text-primary border-primary/20"
+                                {/* Lyrics Text Preview */}
+                                <div className="space-y-1">
+                                  {block.slide.lines.map((line, lIdx) => (
+                                    <p
+                                      key={lIdx}
+                                      className={`text-xs leading-relaxed ${
+                                        isLive
+                                          ? "font-semibold text-foreground"
+                                          : isPreview
+                                          ? "font-medium text-foreground"
+                                          : "text-foreground/90 group-hover:text-foreground"
+                                      }`}
                                     >
-                                      <Eye className="size-2.5" />
-                                      Prévia
-                                    </Badge>
-                                  )}
+                                      {line}
+                                    </p>
+                                  ))}
+                                </div>
 
-                                  {isLive && (
-                                    <Badge
-                                      variant="default"
-                                      className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-emerald-600 hover:bg-emerald-600 text-white animate-pulse"
-                                    >
-                                      <Radio className="size-2.5" />
-                                      Ao Vivo
-                                    </Badge>
-                                  )}
+                                {/* Bottom indicator hint */}
+                                <div className="flex items-center justify-between text-[10px] text-muted-foreground/60">
+                                  <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {isLive ? "Transmitindo no telão" : "Duplo clique para apresentar"}
+                                  </span>
+                                  <span className="tabular-nums font-mono text-[9px]">
+                                    #{block.index + 1}
+                                  </span>
                                 </div>
                               </div>
-
-                              {/* Lyrics Text Preview */}
-                              <div className="space-y-1">
-                                {block.slide.lines.map((line, lIdx) => (
-                                  <p
-                                    key={lIdx}
-                                    className={`text-xs leading-relaxed ${
-                                      isLive
-                                        ? "font-semibold text-foreground"
-                                        : isPreview
-                                        ? "font-medium text-foreground"
-                                        : "text-foreground/90 group-hover:text-foreground"
-                                    }`}
-                                  >
-                                    {line}
-                                  </p>
-                                ))}
-                              </div>
-
-                              {/* Bottom indicator hint */}
-                              <div className="flex items-center justify-between text-[10px] text-muted-foreground/60">
-                                <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                  {isLive ? "Transmitindo no telão" : "Duplo clique para apresentar"}
-                                </span>
-                                <span className="tabular-nums font-mono text-[9px]">
-                                  #{block.index + 1}
-                                </span>
-                              </div>
-                            </div>
-                          </ContextMenuTrigger>
+                            </ContextMenuTrigger>
 
                           <ContextMenuContent
                             className="w-52"
@@ -916,6 +936,7 @@ function SongSlidesContent() {
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               );
             })

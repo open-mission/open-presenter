@@ -326,6 +326,8 @@ export interface ThemeElement {
   assetTypeVisibility?: string[];
   fill?: string;
   url?: string;
+  groupId?: string;
+  groupName?: string;
 }
 
 export interface ThemePage {

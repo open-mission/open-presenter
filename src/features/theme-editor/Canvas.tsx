@@ -8,6 +8,7 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { Lock } from "lucide-react";
 import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
 import { ThemeRenderer } from "../slide-themes/ThemeRenderer";
+import { useThemeEditorStore } from "./store";
 import {
   LOGICAL_H,
   LOGICAL_W,
@@ -56,6 +57,7 @@ interface Gesture {
   startLY: number;
   orig: { left: number; top: number; width: number; height: number };
   last: { left: number; top: number; width: number; height: number };
+  groupOrigs?: Record<string, { left: number; top: number; width: number; height: number }>;
 }
 
 type PreviewPatch = Partial<Pick<ThemeElement, "x" | "y">> & {
@@ -526,16 +528,50 @@ export function Canvas({
   function commitGesture(g: Gesture): void {
     const orig = theme.elements.find((el) => el.id === g.id);
     if (!orig) return;
-    const left = Math.max(0, Math.round(g.last.left));
-    const top = Math.max(0, Math.round(g.last.top));
-    const width = Math.max(MIN_SIZE, Math.round(g.last.width));
-    const height = Math.max(MIN_SIZE, Math.round(g.last.height));
     setActiveGuides([]);
     setPreview((prev) => {
       const next = { ...prev };
       delete next[g.id];
+      if (g.groupOrigs) {
+        for (const mId of Object.keys(g.groupOrigs)) {
+          delete next[mId];
+        }
+      }
       return next;
     });
+
+    if (g.mode === "move" && g.groupOrigs && Object.keys(g.groupOrigs).length > 1) {
+      const effectiveDx = Math.round(g.last.left) - Math.round(g.orig.left);
+      const effectiveDy = Math.round(g.last.top) - Math.round(g.orig.top);
+      if (effectiveDx === 0 && effectiveDy === 0) return;
+
+      const patches: { id: string; patch: Partial<ThemeElement> }[] = [];
+      for (const [mId, mOrig] of Object.entries(g.groupOrigs)) {
+        const memberEl = theme.elements.find((el) => el.id === mId);
+        if (!memberEl) continue;
+        const newLeft = Math.max(0, Math.round(mOrig.left + effectiveDx));
+        const newTop = Math.max(0, Math.round(mOrig.top + effectiveDy));
+        patches.push({
+          id: mId,
+          patch: {
+            x: newLeft,
+            y: newTop,
+            css: {
+              ...memberEl.css,
+              left: `${newLeft}px`,
+              top: `${newTop}px`,
+            },
+          },
+        });
+      }
+      useThemeEditorStore.getState().updateElements(patches);
+      return;
+    }
+
+    const left = Math.max(0, Math.round(g.last.left));
+    const top = Math.max(0, Math.round(g.last.top));
+    const width = Math.max(MIN_SIZE, Math.round(g.last.width));
+    const height = Math.max(MIN_SIZE, Math.round(g.last.height));
     const o = g.orig;
     if (
       left === Math.max(0, Math.round(o.left)) &&
@@ -582,6 +618,42 @@ export function Canvas({
         top: snapped.top,
       };
       setActiveGuides(snapped.guides);
+
+      const effectiveDx = snapped.left - g.orig.left;
+      const effectiveDy = snapped.top - g.orig.top;
+
+      setPreview((prev) => {
+        const next = { ...prev };
+        if (g.groupOrigs) {
+          for (const [mId, mOrig] of Object.entries(g.groupOrigs)) {
+            const mLeft = Math.round(mOrig.left + effectiveDx);
+            const mTop = Math.round(mOrig.top + effectiveDy);
+            next[mId] = {
+              x: mLeft,
+              y: mTop,
+              css: {
+                left: `${mLeft}px`,
+                top: `${mTop}px`,
+                width: `${Math.round(mOrig.width)}px`,
+                height: `${Math.round(mOrig.height)}px`,
+              },
+            };
+          }
+        } else {
+          next[g.id] = {
+            x: Math.round(snapped.left),
+            y: Math.round(snapped.top),
+            css: {
+              left: `${Math.round(snapped.left)}px`,
+              top: `${Math.round(snapped.top)}px`,
+              width: `${Math.round(g.last.width)}px`,
+              height: `${Math.round(g.last.height)}px`,
+            },
+          };
+        }
+        return next;
+      });
+      return;
     } else {
       const snapped = calculateResizeSnap(
         g.orig,
@@ -622,6 +694,15 @@ export function Canvas({
   ): void {
     const pos = toLogical(e);
     const box = resolveBox(el);
+    let groupOrigs: Record<string, { left: number; top: number; width: number; height: number }> | undefined;
+    if (el.groupId) {
+      groupOrigs = {};
+      for (const member of theme.elements) {
+        if (member.groupId === el.groupId && !member.locked) {
+          groupOrigs[member.id] = resolveBox(member);
+        }
+      }
+    }
     gestureRef.current = {
       id: el.id,
       mode: "move",
@@ -629,6 +710,7 @@ export function Canvas({
       startLY: pos.y,
       orig: box,
       last: { ...box },
+      groupOrigs,
     };
     e.currentTarget.setPointerCapture(e.pointerId);
   }
