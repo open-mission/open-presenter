@@ -7,6 +7,7 @@ import {
   resolveStageRenderTheme,
   resolveStageRestRenderTheme,
 } from "./themeResolution.ts";
+import { DEFAULT_STREAM_THEME, DEFAULT_STREAM_THEME_GUID } from "./seedThemes.ts";
 import type { SlideTheme, ThemeBinding, ThemeContext } from "@/core/types";
 
 const page = (context: ThemeContext, label: string) => ({
@@ -223,4 +224,43 @@ test("saída de transmissão (stream) resolve tema vinculado especificamente par
   });
 
   assert.equal(resolved?.guid, "stream-lower-third");
+});
+
+test("saída de transmissão (stream) ignora temas públicos de mídia e evento que não sejam de transmissão", () => {
+  const publicMediaTheme = publicTheme("public-song-theme", ["music"]);
+  const publicEventTheme = publicTheme("public-event-theme", ["music"]);
+  const streamLowerThird = {
+    ...publicTheme("stream-lower-third", ["music"]),
+    category: "stream",
+  };
+  const bindings: ThemeBinding[] = [
+    { target: "public", asset: "lyric", themeGuid: "public-song-theme" },
+    { target: "stream", asset: "lyric", themeGuid: "stream-lower-third" },
+  ];
+
+  const resolved = resolveLiveTheme({
+    kind: "lyric",
+    mediaThemeId: "public-song-theme",
+    eventThemeGuid: "public-event-theme",
+    themes: [publicMediaTheme, publicEventTheme, streamLowerThird],
+    bindings,
+    target: "stream",
+  });
+
+  assert.equal(resolved?.guid, "stream-lower-third");
+});
+
+test("saída de transmissão (stream) faz fallback para DEFAULT_STREAM_THEME na ausência de vínculo", () => {
+  const publicMediaTheme = publicTheme("public-song-theme", ["music"]);
+  const resolved = resolveLiveTheme({
+    kind: "lyric",
+    mediaThemeId: "public-song-theme",
+    themes: [publicMediaTheme],
+    bindings: [],
+    target: "stream",
+  });
+
+  assert.equal(resolved?.guid, DEFAULT_STREAM_THEME_GUID);
+  assert.ok(resolved?.elements && resolved.elements.length > 0);
+  assert.equal(resolved?.css.background, "transparent");
 });

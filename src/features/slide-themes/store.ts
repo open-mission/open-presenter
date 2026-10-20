@@ -37,19 +37,33 @@ function bindingKey(target: OutputTarget, asset: SlideKind): string {
 function loadStoredBindings(): ThemeBinding[] {
   try {
     const raw = localStorage.getItem(BINDINGS_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (b): b is ThemeBinding =>
-        typeof b === "object" &&
-        b !== null &&
-        "target" in b &&
-        "asset" in b &&
-        "themeGuid" in b,
-    );
+    const parsed: unknown = raw ? JSON.parse(raw) : [];
+    const list = Array.isArray(parsed)
+      ? parsed.filter(
+          (b): b is ThemeBinding =>
+            typeof b === "object" &&
+            b !== null &&
+            "target" in b &&
+            "asset" in b &&
+            "themeGuid" in b,
+        )
+      : [];
+
+    if (!list.some((b) => b.target === "stream")) {
+      list.push(
+        { target: "stream", asset: "lyric", themeGuid: DEFAULT_STREAM_THEME_GUID },
+        { target: "stream", asset: "scripture", themeGuid: DEFAULT_STREAM_THEME_GUID },
+        { target: "stream", asset: "custom", themeGuid: DEFAULT_STREAM_THEME_GUID },
+      );
+      persistBindings(list);
+    }
+    return list;
   } catch {
-    return [];
+    return [
+      { target: "stream", asset: "lyric", themeGuid: DEFAULT_STREAM_THEME_GUID },
+      { target: "stream", asset: "scripture", themeGuid: DEFAULT_STREAM_THEME_GUID },
+      { target: "stream", asset: "custom", themeGuid: DEFAULT_STREAM_THEME_GUID },
+    ];
   }
 }
 
@@ -243,7 +257,8 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
       themes: get().themes,
       bindings: get().bindings,
       target,
-      defaultTheme: DEFAULT_PUBLIC_THEME,
+      defaultTheme:
+        target === "stream" ? DEFAULT_STREAM_THEME : DEFAULT_PUBLIC_THEME,
     });
   },
   setStageRestTheme: (guid) => {

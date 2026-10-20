@@ -10,6 +10,7 @@ import { SongSlidesColumn } from "@/features/events-setlists/SongSlidesColumn";
 import { LivePreview } from "@/features/presentation/LivePreview";
 import { ThemeRail } from "@/features/slide-themes/ThemeRail";
 import { useLiveThemesPublisher, useThemesSync } from "@/features/slide-themes/useThemeSync";
+import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useOutputsSync } from "@/features/output-manager/useOutputsSync";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { useWallpaperPublisher } from "@/features/presentation/useWallpaperPublisher";
@@ -50,6 +51,11 @@ export default function AdminView() {
   const setActiveTab = useNavigationStore((s) => s.setActiveTab);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const ensureSeededThemes = useSlideThemesStore((s) => s.ensureSeeded);
+
+  useEffect(() => {
+    void ensureSeededThemes();
+  }, [ensureSeededThemes]);
 
   useEffect(() => {
     void loadSetlists();

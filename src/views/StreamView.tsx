@@ -6,6 +6,9 @@ import { SlideTransition } from "@/features/presentation/SlideTransition";
 import { useLiveThemesStore } from "@/features/slide-themes/liveThemesStore";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
+import { DEFAULT_STREAM_THEME } from "@/features/slide-themes/seedThemes";
+import { contextForSlide } from "@/features/slide-themes/themeResolution";
+import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
 
 /**
  * Saída transparente para transmissão ao vivo (OBS Studio, vMix, etc.)
@@ -19,6 +22,7 @@ export default function StreamView() {
 
   const live = usePresentationStore((s) => s.live);
   const loadThemes = useSlideThemesStore((s) => s.load);
+  const ensureSeeded = useSlideThemesStore((s) => s.ensureSeeded);
   const themes = useSlideThemesStore((s) => s.themes);
   const bindings = useSlideThemesStore((s) => s.bindings);
   const eventThemeGuid = useSlideThemesStore((s) => s.eventThemeGuid);
@@ -40,8 +44,8 @@ export default function StreamView() {
   }, []);
 
   useEffect(() => {
-    void loadThemes();
-  }, [loadThemes]);
+    void ensureSeeded().then(() => void loadThemes());
+  }, [ensureSeeded, loadThemes]);
 
   const localTheme = useMemo(
     () =>
@@ -62,12 +66,26 @@ export default function StreamView() {
     ],
   );
 
-  const customTheme = mediaThemeId
-    ? (themes.find((t) => t.guid === mediaThemeId) ??
-       (broadcastTheme?.guid === mediaThemeId ? broadcastTheme : null))
-    : null;
+  // Mídia só customiza o tema da transmissão se for explicitamente tema de transmissão (Lower Third)
+  const streamCustomTheme = useMemo(() => {
+    if (!mediaThemeId) return null;
+    const candidate = themes.find((t) => t.guid === mediaThemeId);
+    return candidate?.category === "stream" ? candidate : null;
+  }, [mediaThemeId, themes]);
 
-  const theme = customTheme ?? broadcastTheme ?? localTheme;
+  const rawTheme = broadcastTheme ?? streamCustomTheme ?? localTheme ?? DEFAULT_STREAM_THEME;
+  const context = contextForSlide(live.content.kind, live.content.media?.kind) ?? "music";
+
+  // Garante que o tema tenha os elementos de lower third materializados para o contexto atual
+  const theme = useMemo(() => {
+    const candidate = rawTheme ?? DEFAULT_STREAM_THEME;
+    if (candidate.pages?.length) {
+      const page = getPageForContext(candidate, context) ?? candidate.pages[0];
+      return page ? materializePage(candidate, page) : candidate;
+    }
+    return candidate;
+  }, [rawTheme, context]);
+
   const asset = kindToAsset(live.content.kind);
   const isPresenting = live.content.kind !== "blank";
 
