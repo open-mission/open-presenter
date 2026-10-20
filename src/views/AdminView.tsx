@@ -27,6 +27,7 @@ import { CreateEventDialog } from "@/features/events-setlists/CreateEventDialog"
 import { ImagesPage } from "@/features/image-browser/ImagesPage";
 import { StudioPage } from "@/features/studio/StudioPage";
 import { BiblePage } from "@/features/bible/BiblePage";
+import { useBibleLiveSync } from "@/features/bible/useBibleLiveSync";
 import { useRemoteSetlistPublisher } from "@/features/remote/useRemoteSetlistPublisher";
 import { UpdateDialog } from "@/features/updates/UpdateDialog";
 import { WhatsNewDialog } from "@/features/updates/WhatsNewDialog";
@@ -41,6 +42,7 @@ export default function AdminView() {
   useThemesSync();
   useLiveThemesPublisher();
   useRemoteSetlistPublisher();
+  useBibleLiveSync();
   useUpdateChecker();
   const loadSetlists = useSetlistStore((s) => s.load);
   const outputsLoaded = useOutputManagerStore((s) => s.loaded);
@@ -73,10 +75,7 @@ export default function AdminView() {
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground transition-colors">
       {/* Top Application Bar */}
-      <AppTopBar
-        sidebarOpen={sidebarOpen}
-        onToggleSidebar={() => setSidebarOpen((v) => !v)}
-      />
+      <AppTopBar />
 
       {/* Main Body: Dock Lateral on the left + Content Views */}
       <div className="flex flex-1 overflow-hidden">
@@ -87,7 +86,10 @@ export default function AdminView() {
         {activeTab === "presentation" && (
           <main className="flex flex-1 overflow-hidden">
             {/* Column 1: Programação do Culto (Collapsible) */}
-            {sidebarOpen && <SetlistSidebar />}
+            <SetlistSidebar
+              collapsed={!sidebarOpen}
+              onToggleSidebar={() => setSidebarOpen((v) => !v)}
+            />
 
             {/* Column 2: Estrofes & Letras da Música Selecionada */}
             <SongSlidesColumn />

@@ -1,7 +1,17 @@
 import { useEffect } from "react";
-import { BookOpen, Calendar, HelpCircle, Images, Music, Settings, Smartphone, Sparkles, Tv } from "lucide-react";
-import { BrandMark } from "@/components/BrandMark";
+import {
+  BookOpen,
+  Calendar,
+  HelpCircle,
+  Images,
+  Music,
+  Settings,
+  Smartphone,
+  Sparkles,
+  Tv,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { isTauri } from "@/core/ipc/tauri";
 import { openShortcutsWindow } from "@/core/ipc/commands";
 import { usePreferencesStore } from "@/features/preferences/store";
@@ -95,18 +105,6 @@ export function AppDock() {
     >
       {/* Top Primary Navigation Icons */}
       <div className="flex flex-col items-center gap-2">
-        <div className="mb-1 flex flex-col items-center gap-2">
-          <div
-            role="img"
-            aria-label="Open Presenter"
-            title="Open Presenter"
-            className="flex size-10 items-center justify-center rounded-xl bg-foreground text-background shadow-xs"
-          >
-            <BrandMark className="size-5" />
-          </div>
-          <div className="h-px w-6 bg-border/70" />
-        </div>
-
         {/* Apresentação (Culto ao Vivo) */}
         <NavButton
           icon={Tv}
@@ -134,15 +132,6 @@ export function AppDock() {
           onClick={() => setActiveTab("bible")}
         />
 
-        {/* Agenda & Eventos */}
-        <NavButton
-          icon={Calendar}
-          label="Agenda & Cronograma"
-          shortcut="⌘4"
-          active={activeTab === "agenda"}
-          onClick={() => setActiveTab("agenda")}
-        />
-
         {/* Biblioteca de Imagens */}
         <NavButton
           icon={Images}
@@ -159,6 +148,20 @@ export function AppDock() {
           shortcut="⌘6"
           active={activeTab === "studio"}
           onClick={() => setActiveTab("studio")}
+        />
+
+        <Separator
+          orientation="horizontal"
+          className="my-1.5 w-8 bg-border/80"
+        />
+
+        {/* Agenda & Eventos */}
+        <NavButton
+          icon={Calendar}
+          label="Agenda & Cronograma"
+          shortcut="⌘4"
+          active={activeTab === "agenda"}
+          onClick={() => setActiveTab("agenda")}
         />
       </div>
 

@@ -114,6 +114,7 @@ export default function ThemeEditorView() {
   const revert = useThemeEditorStore((s) => s.revert);
   const addElement = useThemeEditorStore((s) => s.addElement);
   const upgradeToV2 = useThemeEditorStore((s) => s.upgradeToV2);
+  const setCategory = useThemeEditorStore((s) => s.setCategory);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sampleAsset, setSampleAsset] = useState<ThemeAsset>("music");
@@ -609,6 +610,27 @@ export default function ThemeEditorView() {
                 )}
               >
                 {label}
+              </Badge>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "text-[10px] cursor-pointer transition-colors",
+                  isStageTheme
+                    ? "border-sky-500/40 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20"
+                    : "border-purple-500/40 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20",
+                )}
+                onClick={() => {
+                  const nextCategory = isStageTheme ? "theme" : "stage";
+                  setCategory(nextCategory);
+                  toast.success(
+                    nextCategory === "stage"
+                      ? "Destinado para Retorno de Palco (Stage)"
+                      : "Destinado para Projeção Pública",
+                  );
+                }}
+                title="Clique para alternar destino entre Projeção e Retorno de Palco"
+              >
+                {isStageTheme ? "Retorno (Stage)" : "Projeção"}
               </Badge>
               {upgradeable && (
                 <Button

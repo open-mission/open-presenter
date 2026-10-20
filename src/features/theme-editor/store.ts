@@ -35,6 +35,7 @@ interface ThemeEditorState {
   toggleVisible(id: string): void;
   toggleLocked(id: string): void;
   setTitle(title: string): void;
+  setCategory(category: SlideTheme["category"]): void;
   selectPage(pageId: string): void;
   addPage(context: ThemeContext, mode: "duplicate" | "blank"): void;
   removePage(pageId: string): void;
@@ -191,6 +192,12 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       const { draft } = get();
       if (!draft) return;
       mutate({ ...clone(draft), title });
+    },
+
+    setCategory: (category) => {
+      const { draft } = get();
+      if (!draft) return;
+      mutate({ ...clone(draft), category });
     },
 
     selectPage: (pageId) => {

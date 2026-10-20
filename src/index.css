@@ -373,3 +373,18 @@ body {
   filter: brightness(1.1);
   transform: translateY(-1px);
 }
+
+/* Controle remoto: evita zoom por pinça e auto-zoom ao focar campos no mobile */
+.remote-view {
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (max-width: 768px) {
+  .remote-view input,
+  .remote-view select,
+  .remote-view textarea {
+    font-size: 16px !important;
+  }
+}

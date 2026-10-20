@@ -19,7 +19,8 @@ import type {
   LiveSlide,
 } from "@/core/types";
 import { parseBibleReference } from "../bible/bibleParser";
-import { splitVerseText } from "../bible/verseSplitter";
+import { buildBiblePresentationPayload } from "@/core/lib/biblePresentation";
+import { splitVerseText } from "@/core/lib/verseSplitter";
 
 interface RemoteBibleTabProps {
   token: string;
@@ -111,10 +112,15 @@ export function RemoteBibleTab({ token, live, onPost }: RemoteBibleTabProps) {
         const bList = (await res.json()) as BibleBook[];
         if (!cancelled) {
           setBooks(bList);
-          const firstBook = bList[0];
-          if (firstBook) {
-            setActiveBookId(firstBook.id);
-            setActiveChapter(1);
+          const preferred =
+            bList.find((book) => book.id === activeBookId) ?? bList[0];
+          if (preferred) {
+            setActiveBookId(preferred.id);
+            setActiveChapter((previous) =>
+              preferred.id === activeBookId
+                ? Math.min(Math.max(1, previous), preferred.chapterCount)
+                : 1,
+            );
           }
         }
       } catch (err: unknown) {
@@ -162,6 +168,23 @@ export function RemoteBibleTab({ token, live, onPost }: RemoteBibleTabProps) {
     }
   }, [activeVersionId, activeBookId, activeChapter, loadChapter]);
 
+  const liveScripture = live?.content.scripture;
+  const liveScriptureActive =
+    live?.content.kind === "scripture" && !live.cleared && !live.blackout;
+  const liveScriptureKey = liveScripture
+    ? `${liveScripture.versionId}|${liveScripture.bookId}|${liveScripture.chapter}|${liveScripture.verse}|${liveScripture.part}`
+    : null;
+
+  useEffect(() => {
+    if (!liveScripture || !liveScriptureActive) return;
+    setActiveVersionId(liveScripture.versionId);
+    setActiveBookId(liveScripture.bookId);
+    setActiveChapter(liveScripture.chapter);
+    setSelectedVerseNum(liveScripture.verse);
+    setViewMode("reader");
+    setIsSearching(false);
+  }, [liveScriptureKey, liveScriptureActive]);
+
   const activeBook = useMemo(
     () => books.find((b) => b.id === activeBookId),
     [books, activeBookId],
@@ -182,47 +205,38 @@ export function RemoteBibleTab({ token, live, onPost }: RemoteBibleTabProps) {
 
   // Apresenta versículo
   const handlePresent = useCallback(
-    async (verse: BibleVerse, versionOverride?: string, partIndex = 0) => {
+    async (
+      verse: BibleVerse,
+      versionOverride?: string,
+      partIndex = 0,
+      context?: {
+        bookId?: number;
+        bookName?: string;
+        chapter?: number;
+        verses?: BibleVerse[];
+      },
+    ) => {
       const vId = versionOverride || activeVersionId;
-      const bName = activeBook?.name ?? `Livro ${activeBookId}`;
+      const bookId = context?.bookId ?? activeBookId;
+      const bName = context?.bookName ?? activeBook?.name ?? `Livro ${bookId}`;
+      const chapter = context?.chapter ?? activeChapter;
+      const chapterVerses =
+        context?.verses ??
+        (bookId === activeBookId && chapter === activeChapter ? verses : [verse]);
 
-      const parts = splitVerseText(verse.text, 220);
-      const safePart = Math.max(0, Math.min(partIndex, parts.length - 1));
-      const isSplit = parts.length > 1;
-      const partSuffix = isSplit ? ` (${safePart + 1}/${parts.length})` : "";
-
-      const nextV = verses.find((v) => v.verse === verse.verse + 1);
-      const prevV = verses.find((v) => v.verse === verse.verse - 1);
-
-      let nextText: string | null = null;
-      if (safePart < parts.length - 1) {
-        nextText = parts[safePart + 1];
-      } else if (nextV) {
-        const nextParts = splitVerseText(nextV.text, 220);
-        nextText = nextParts[0];
-      }
-
-      let prevText: string | null = null;
-      if (safePart > 0) {
-        prevText = parts[safePart - 1];
-      } else if (prevV) {
-        const prevParts = splitVerseText(prevV.text, 220);
-        prevText = prevParts[prevParts.length - 1];
-      }
+      const payload = buildBiblePresentationPayload({
+        versionId: vId,
+        bookId,
+        bookName: bName,
+        chapter,
+        verses: chapterVerses,
+        verseNum: verse.verse,
+        partIndex,
+      });
+      if (!payload) return;
 
       setSelectedVerseNum(verse.verse);
-
-      await onPost("present-bible", {
-        version_id: vId,
-        book_id: activeBookId,
-        book_name: bName,
-        chapter: activeChapter,
-        verse: verse.verse,
-        text: parts[safePart],
-        part_suffix: partSuffix,
-        prev_text: prevText,
-        next_text: nextText,
-      });
+      await onPost("present-bible", payload);
     },
     [activeVersionId, activeBook, activeBookId, activeChapter, verses, onPost],
   );
@@ -290,7 +304,12 @@ export function RemoteBibleTab({ token, live, onPost }: RemoteBibleTabProps) {
             const found = vList.find((v) => v.verse === parsed.verse);
             if (found) {
               setSelectedVerseNum(parsed.verse);
-              await handlePresent(found);
+              await handlePresent(found, undefined, 0, {
+                bookId: parsed.bookId,
+                bookName: book.name,
+                chapter: parsed.chapter,
+                verses: vList,
+              });
             }
           }
         }
@@ -496,7 +515,11 @@ export function RemoteBibleTab({ token, live, onPost }: RemoteBibleTabProps) {
                       size="sm"
                       className="h-6 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white"
                       onClick={() => {
-                        void handlePresent(item.verse!, item.versionId);
+                        void handlePresent(item.verse!, item.versionId, 0, {
+                          bookId: compareTarget.bookId,
+                          bookName: compareTarget.bookName,
+                          chapter: compareTarget.chapter,
+                        });
                         setIsComparing(false);
                       }}
                     >
@@ -544,13 +567,22 @@ export function RemoteBibleTab({ token, live, onPost }: RemoteBibleTabProps) {
                   setActiveChapter(item.chapter);
                   setViewMode("reader");
                   setIsSearching(false);
-                  void handlePresent({
-                    id: 0,
-                    bookId: item.bookId,
-                    chapter: item.chapter,
-                    verse: item.verse,
-                    text: item.text,
-                  });
+                  void handlePresent(
+                    {
+                      id: 0,
+                      bookId: item.bookId,
+                      chapter: item.chapter,
+                      verse: item.verse,
+                      text: item.text,
+                    },
+                    undefined,
+                    0,
+                    {
+                      bookId: item.bookId,
+                      bookName: item.bookName,
+                      chapter: item.chapter,
+                    },
+                  );
                 }}
                 className="w-full text-left rounded-lg border border-zinc-800 bg-zinc-900/60 p-2.5 hover:border-emerald-500/60 transition-all cursor-pointer"
               >

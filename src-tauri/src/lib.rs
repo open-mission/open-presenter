@@ -312,6 +312,7 @@ pub fn run() {
             commands::presentation::timer_start,
             commands::presentation::timer_pause,
             commands::presentation::timer_reset,
+            commands::presentation::timer_set_countdown,
             commands::presentation::get_stage_timer,
             commands::presentation::get_server_host,
             commands::setlists::list_events,

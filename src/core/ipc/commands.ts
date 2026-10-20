@@ -122,6 +122,10 @@ export async function timerReset(): Promise<StageTimer | null> {
   return invokeCommand<StageTimer>("timer_reset");
 }
 
+export async function timerSetCountdown(secs: number): Promise<StageTimer | null> {
+  return invokeCommand<StageTimer>("timer_set_countdown", { secs });
+}
+
 export async function fetchStageTimer(): Promise<StageTimer | null> {
   return invokeCommand<StageTimer>("get_stage_timer");
 }

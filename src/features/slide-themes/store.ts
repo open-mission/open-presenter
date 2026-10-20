@@ -19,8 +19,6 @@ import {
 import {
   cloneTheme,
   getPageForContext,
-  isSingleLayout,
-  isStageCandidate,
   materializePage,
 } from "./pages";
 import { resolveLiveTheme } from "./themeResolution";
@@ -235,15 +233,20 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
     set({ stageRestThemeGuid: guid });
   },
   resolveStageTheme: () => {
-    const guid = get().stageThemeGuid ?? DEFAULT_STAGE_THEME_GUID;
-    const found = get().themes.find(
-      (t) => t.guid === guid && isStageCandidate(t),
+    const configuredGuid = get().stageThemeGuid;
+    if (configuredGuid) {
+      const explicit = get().themes.find((t) => t.guid === configuredGuid);
+      if (explicit) return explicit;
+    }
+    const defaultCandidate = get().themes.find(
+      (t) => t.guid === DEFAULT_STAGE_THEME_GUID,
     );
-    if (found) return found;
+    if (defaultCandidate) return defaultCandidate;
     const fallback = get().themes.find(
       (t) =>
-        isStageCandidate(t) &&
-        (t.title.toLowerCase().includes("retorno") ||
+        t.category !== "presentation" &&
+        (t.category === "stage" ||
+          t.title.toLowerCase().includes("retorno") ||
           t.title.toLowerCase().includes("palco") ||
           t.title.toLowerCase().includes("stage")),
     );
@@ -261,16 +264,17 @@ export const useSlideThemesStore = create<SlideThemesState>((set, get) => ({
         }
         return cached;
       }
+    } else if (stageTheme) {
+      return stageTheme;
     }
     const guid = get().stageRestThemeGuid ?? DEFAULT_STAGE_REST_THEME_GUID;
     const found = get().themes.find(
-      (t) => t.guid === guid && t.category !== "presentation" && isSingleLayout(t),
+      (t) => t.guid === guid && t.category !== "presentation",
     );
     if (found) return found;
     const fallback = get().themes.find(
       (t) =>
         t.category !== "presentation" &&
-        isSingleLayout(t) &&
         (t.title.toLowerCase().includes("descanso") ||
           t.title.toLowerCase().includes("espera") ||
           t.title.toLowerCase().includes("relogio") ||

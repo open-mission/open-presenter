@@ -12,6 +12,6 @@ pub use remote::{
 pub use types::{
     ConnectedClient, EventItem, EventPart, EventSummary, ImportReport, ImportSkip, LinesPerSlide, LiveSlide, LiveThemes,
     MediaItem, MediaKind, MonitorInfo,
-    OnlineLyricHit, OutputConfig, OutputMode, OutputRuntime, OutputTarget, SectionType, ServerStatus, StageTimer,
+    OnlineLyricHit, OutputConfig, OutputMode, OutputRuntime, OutputTarget, ScriptureRef, SectionType, ServerStatus, StageTimer,
     ServiceEvent, Song, SongDefaults, SongSection, SongSummary, WsEnvelope,
 };

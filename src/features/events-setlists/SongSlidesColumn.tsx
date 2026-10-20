@@ -22,8 +22,13 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { SECTION_COLOR, SECTION_LABEL } from "@/core/config/lyrics";
-import { buildSongSlides, computeSlideGroups, splitSection } from "@/core/lib/lyrics";
-import type { RunnerSlide } from "@/core/lib/lyrics";
+import {
+  buildSongSlides,
+  computeSlideGroups,
+  splitSection,
+  type SlideGroup,
+} from "@/core/lib/lyrics";
+import { findSongGroup, songGroupColor } from "@/core/lib/songGroups";
 import {
   appendSlideNumberDigit,
   isSlideNumberKey,
@@ -36,6 +41,7 @@ import { usePresentationStore } from "@/features/presentation/store";
 import { useSongsStore } from "@/features/songs/store";
 import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
 import { MediaSlidesColumn } from "./MediaSlidesColumn";
+import { ScriptureSlidesColumn } from "./ScriptureSlidesColumn";
 import { SlideNumberIndicator } from "./SlideNumberIndicator";
 import { findEventItem, useSetlistStore } from "./store";
 
@@ -46,7 +52,12 @@ function resolveNextItem(
   if (item === undefined || item.nextItemId === null) return null;
   const next = findEventItem(event, item.nextItemId);
   if (next === undefined) return null;
-  const title = next.media?.title ?? next.song?.title;
+  const title =
+    next.media?.title ??
+    next.song?.title ??
+    (next.scripture
+      ? `${next.scripture.bookName} ${next.scripture.chapter}:${next.scripture.verse}`
+      : undefined);
   return title ? { id: next.id, title } : null;
 }
 
@@ -55,6 +66,10 @@ export function SongSlidesColumn() {
   const selectedItemId = useSetlistStore((s) => s.selectedItemId);
   const item =
     selectedItemId === null ? undefined : findEventItem(event, selectedItemId);
+
+  if (item?.scripture) {
+    return <ScriptureSlidesColumn item={item} />;
+  }
 
   if (item?.media) {
     const part = event?.parts.find((candidate) =>
@@ -345,16 +360,11 @@ function SongSlidesContent() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [slides, item, previewIndex, projectSection, numberBuffer]);
 
-  function resolveSlideBadge(block: RunnerSlide) {
-    const groupConfig = groups.find(
-      (g) =>
-        (block.sectionType && g.typeKey === block.sectionType) ||
-        (block.label && g.name.toLowerCase() === block.label.toLowerCase()) ||
-        (block.label && block.label.toLowerCase().includes(g.name.toLowerCase())),
-    );
+  function resolveGroupBadge(group: SlideGroup) {
+    const groupConfig = findSongGroup(groups, group.sectionType, group.label);
     return {
       groupConfig,
-      badgeBg: groupConfig?.color || SECTION_COLOR[block.sectionType ?? "verse"] || "#3b82f6",
+      badgeBg: songGroupColor(groups, group.sectionType, group.label),
     };
   }
 
@@ -500,7 +510,7 @@ function SongSlidesContent() {
       className="relative flex h-full w-80 min-h-0 flex-col border-r border-border bg-background sm:w-96 shrink-0 select-none overflow-hidden"
     >
       {/* Top Header with increased padding top & bottom */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3.5">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="min-w-0 flex-1 pr-3">
           <p className="truncate font-semibold text-xs text-foreground">
             {song?.title || item?.song?.title || "Letra & Estrofes"}
@@ -538,7 +548,8 @@ function SongSlidesContent() {
           <div className="flex items-center gap-1">
             {labeledGroups.map((g) => {
               const firstSlide = slides[g.startIndex];
-              const { groupConfig, badgeBg } = resolveSlideBadge(firstSlide);
+              const { groupConfig, badgeBg } = resolveGroupBadge(g);
+              const chipColor = badgeBg ?? "#3b82f6";
               const isSelected =
                 previewIndex !== null && g.indices.includes(previewIndex);
               const isCurrentLive =
@@ -572,9 +583,9 @@ function SongSlidesContent() {
                       : "opacity-85 hover:opacity-100"
                   }`}
                   style={{
-                    backgroundColor: `${badgeBg}22`,
-                    borderColor: `${badgeBg}88`,
-                    color: badgeBg,
+                    backgroundColor: `${chipColor}22`,
+                    borderColor: `${chipColor}88`,
+                    color: chipColor,
                   }}
                   title={`Ir para ${g.label}${
                     groupConfig?.shortcut ? ` (tecla ${groupConfig.shortcut})` : ""
@@ -624,7 +635,8 @@ function SongSlidesContent() {
             </div>
           ) : (
             slideGroups.map((group) => {
-              const { badgeBg: groupColor } = resolveSlideBadge(slides[group.startIndex]);
+              const { groupConfig, badgeBg: groupColor } =
+                resolveGroupBadge(group);
               const isLabeled = group.label !== null;
 
               return (
@@ -634,19 +646,22 @@ function SongSlidesContent() {
                     isLabeled ? "" : "border-border/60 bg-muted/20"
                   }`}
                   style={
-                    isLabeled
-                      ? { borderColor: `${groupColor}66`, backgroundColor: `${groupColor}0d` }
+                    isLabeled && groupColor
+                      ? {
+                          borderColor: `${groupColor}66`,
+                          backgroundColor: `${groupColor}0d`,
+                        }
                       : undefined
                   }
                 >
                   {group.indices.map((slideIndex, positionInGroup) => {
                     const block = slides[slideIndex];
-                    const { groupConfig, badgeBg } = resolveSlideBadge(block);
                     const isLive = runnerIndex === block.index;
                     const isPreview = previewIndex === block.index;
                     const isBeingDragged =
                       (dragSlideRef.current ?? draggedSlideIndex) === block.index;
                     const isHoveredOver = dragOverSlide?.index === block.index;
+                    const badgeLabel = block.label ?? group.label;
 
                     return (
                       <div
@@ -733,16 +748,21 @@ function SongSlidesContent() {
                                   : ""
                               }`}
                               title="1 clique: Prévia · 2 cliques: Apresentar · Arraste para reordenar"
+                              style={
+                                isLive || isPreview || !groupColor
+                                  ? undefined
+                                  : { borderColor: `${groupColor}55` }
+                              }
                             >
                               {/* Card Header: Section Badge & Status Pills */}
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1.5">
-                                  {block.label !== null ? (
+                                  {badgeLabel !== null ? (
                                     <span
                                       className="rounded-md px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase shadow-2xs text-white flex items-center gap-1.5"
-                                      style={{ backgroundColor: badgeBg }}
+                                      style={{ backgroundColor: groupColor ?? "#3b82f6" }}
                                     >
-                                      <span>{block.label}</span>
+                                      <span>{badgeLabel}</span>
                                       {groupConfig?.shortcut && (
                                         <kbd className="rounded bg-black/25 px-1 py-0.2 font-mono text-[9px] font-bold">
                                           {groupConfig.shortcut}

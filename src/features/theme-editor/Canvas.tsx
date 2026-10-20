@@ -76,31 +76,6 @@ const FALLBACK_SIZE: Record<ThemeElement["type"], { w: number; h: number }> = {
   RECTANGLE: { w: 200, h: 120 },
 };
 
-function isRendered(
-  el: ThemeElement,
-  asset: ThemeAsset,
-): boolean {
-  if (
-    !el.visible ||
-    (el.assetTypeVisibility &&
-      el.assetTypeVisibility.length > 0 &&
-      !el.assetTypeVisibility.includes(asset))
-  ) {
-    return false;
-  }
-  const mediaSrc = (el.src ?? el.url ?? "").trim();
-  if (
-    (el.type === "IMAGE" || el.type === "VIDEO") &&
-    (mediaSrc === "" || mediaSrc === "slide" || mediaSrc === "nextSlide")
-  ) {
-    return false;
-  }
-  if (el.type === "RECTANGLE" && el.fill === "web" && !mediaSrc) {
-    return false;
-  }
-  return true;
-}
-
 const HANDLE_CURSORS: Record<ResizeDir, string> = {
   nw: "nwse-resize",
   se: "nwse-resize",
@@ -205,19 +180,46 @@ export function Canvas({
   useLayoutEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const root = stage.querySelector(":scope > #theme");
+    const root = stage.querySelector<HTMLElement>("#theme");
     if (!root) return;
-    const rendered = visibleElements.filter((el) => isRendered(el, asset));
-    const next: Record<string, { w: number; h: number }> = {};
-    Array.from(root.children).forEach((child, index) => {
-      const el = rendered[index];
-      if (!el) return;
-      const target = child as HTMLElement;
-      if (target.offsetWidth > 0 && target.offsetHeight > 0) {
-        next[el.id] = { w: target.offsetWidth, h: target.offsetHeight };
-      }
+
+    const measure = () => {
+      const next: Record<string, { w: number; h: number }> = {};
+      root
+        .querySelectorAll<HTMLElement>("[data-theme-element-id]")
+        .forEach((target) => {
+          const id = target.dataset.themeElementId;
+          if (!id) return;
+          if (target.offsetWidth > 0 && target.offsetHeight > 0) {
+            next[id] = { w: target.offsetWidth, h: target.offsetHeight };
+          }
+        });
+      setMeasured((previous) => {
+        const same =
+          Object.keys(next).length === Object.keys(previous).length &&
+          Object.entries(next).every(
+            ([id, box]) =>
+              previous[id]?.w === box.w && previous[id]?.h === box.h,
+          );
+        return same ? previous : next;
+      });
+    };
+
+    const frame = requestAnimationFrame(measure);
+    let disposed = false;
+    void document.fonts?.ready.then(() => {
+      if (!disposed) measure();
     });
-    setMeasured(next);
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    Array.from(root.children).forEach((child) => observer.observe(child));
+
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, [theme, asset, visibleElements]);
 
   function withPatch(el: ThemeElement): ThemeElement {

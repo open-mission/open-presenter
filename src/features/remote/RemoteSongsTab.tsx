@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   CloudDownload,
@@ -12,7 +12,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/core/lib/utils";
-import type { LiveSlide, RemoteSlide, Song, SongSummary } from "@/core/types";
+import { computeSlideGroups, type SlideGroup } from "@/core/lib/lyrics";
+import { songGroupColor } from "@/core/lib/songGroups";
+import type {
+  LiveSlide,
+  RemoteSlide,
+  Song,
+  SongGroupConfig,
+  SongSummary,
+} from "@/core/types";
+import { DEFAULT_SONG_GROUPS } from "@/features/songs/songGroupsStore";
 
 interface OnlineHit {
   trackName: string;
@@ -24,9 +33,15 @@ interface RemoteSongsTabProps {
   token: string;
   live: LiveSlide | null;
   onPost: (path: string, body?: unknown) => Promise<boolean>;
+  groups?: SongGroupConfig[];
 }
 
-export function RemoteSongsTab({ token, live, onPost }: RemoteSongsTabProps) {
+export function RemoteSongsTab({
+  token,
+  live,
+  onPost,
+  groups = DEFAULT_SONG_GROUPS,
+}: RemoteSongsTabProps) {
   const [query, setQuery] = useState("");
   const [localSongs, setLocalSongs] = useState<SongSummary[]>([]);
   const [onlineHits, setOnlineHits] = useState<OnlineHit[]>([]);
@@ -187,6 +202,14 @@ export function RemoteSongsTab({ token, live, onPost }: RemoteSongsTabProps) {
     [selectedSong, onPost],
   );
 
+  const groupBySlideIndex = useMemo(() => {
+    const map = new Map<number, SlideGroup>();
+    for (const group of computeSlideGroups(slides)) {
+      for (const index of group.indices) map.set(index, group);
+    }
+    return map;
+  }, [slides]);
+
   // Se uma música estiver selecionada, renderiza a visualização dos slides da música
   if (selectedSong) {
     return (
@@ -232,6 +255,10 @@ export function RemoteSongsTab({ token, live, onPost }: RemoteSongsTabProps) {
             {slides.map((slide) => {
               const slideId = `${selectedSong.id}#${slide.index}`;
               const isLive = live?.content.id === slideId;
+              const group = groupBySlideIndex.get(slide.index);
+              const type = group?.sectionType ?? slide.sectionType;
+              const label = slide.label ?? group?.label ?? null;
+              const color = songGroupColor(groups, type, label);
               return (
                 <button
                   key={slide.index}
@@ -243,18 +270,32 @@ export function RemoteSongsTab({ token, live, onPost }: RemoteSongsTabProps) {
                       ? "border-emerald-500 bg-emerald-500/10 shadow-sm"
                       : "border-border bg-card hover:border-primary/40 hover:bg-muted/30",
                   )}
+                  style={
+                    isLive || !color
+                      ? undefined
+                      : { borderColor: `${color}55` }
+                  }
                 >
                   <div className="flex w-full items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-[11px] font-semibold text-muted-foreground">
                         #{slide.index + 1}
                       </span>
-                      {slide.label && (
+                      {label && (
                         <Badge
-                          variant="secondary"
+                          variant="outline"
                           className="px-1.5 py-0 text-[10px] font-semibold"
+                          style={
+                            color
+                              ? {
+                                  borderColor: `${color}66`,
+                                  backgroundColor: `${color}15`,
+                                  color,
+                                }
+                              : undefined
+                          }
                         >
-                          {slide.label}
+                          {label}
                         </Badge>
                       )}
                     </div>

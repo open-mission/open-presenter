@@ -121,6 +121,22 @@ pub async fn timer_reset(
 }
 
 #[tauri::command]
+pub async fn timer_set_countdown(
+    app: tauri::AppHandle,
+    broadcaster: State<'_, SharedBroadcaster>,
+    secs: u64,
+) -> Result<StageTimer, AppError> {
+    use crate::state::PresentationState;
+    use tauri::Manager;
+
+    let state = app.state::<PresentationState>();
+    state.timer_set_countdown(secs);
+    let timer = state.timer();
+    broadcaster.publish_timer(&timer);
+    Ok(timer)
+}
+
+#[tauri::command]
 pub async fn get_stage_timer(
     broadcaster: State<'_, SharedBroadcaster>,
 ) -> Result<StageTimer, AppError> {

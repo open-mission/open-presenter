@@ -108,6 +108,26 @@ pub fn router(state: ServerState) -> Router {
             get(crate::server::remote::get_wallpaper)
                 .post(crate::server::remote::toggle_wallpaper),
         )
+        .route(
+            "/api/v1/timer",
+            get(crate::server::remote::timer_get),
+        )
+        .route(
+            "/api/v1/timer/start",
+            post(crate::server::remote::timer_start),
+        )
+        .route(
+            "/api/v1/timer/pause",
+            post(crate::server::remote::timer_pause),
+        )
+        .route(
+            "/api/v1/timer/reset",
+            post(crate::server::remote::timer_reset),
+        )
+        .route(
+            "/api/v1/timer/countdown",
+            post(crate::server::remote::timer_set_countdown),
+        )
         .route("/api/v1/songs", get(crate::server::remote::list_songs))
         .route("/api/v1/songs/{id}/slides", get(crate::server::remote::song_slides))
         .route("/api/v1/lyrics/search", get(crate::server::remote::search_lyrics))

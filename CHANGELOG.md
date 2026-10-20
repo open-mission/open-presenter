@@ -5,6 +5,47 @@ Todas as mudanças relevantes do Open Presenter são documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [Não publicado]
+
+### Adicionado
+
+- Versículos da Bíblia podem ser adicionados à programação do culto pelo menu
+  **Adicionar Versículo** (barra lateral e menus de contexto) ou pelo seletor
+  de versículo, com escolha da seção de destino.
+- Itens de Escritura na setlist abrem a coluna de slides do versículo e mantêm
+  a Bíblia do painel sincronizada com o texto que está no ar.
+- O controle remoto ganhou o botão **Encerrar** para cancelar a apresentação e
+  liberar o telão.
+- O menu de adicionar itens da programação foi reorganizado em grupos
+  (Músicas, Bíblia, Mídias e Studio), sem opções duplicadas.
+- O **EventDetailsDialog** agora oferece os mesmos tipos de item da barra
+  lateral: músicas, versículos, textos, imagens, vídeos, pastas, seções e
+  apresentações do Studio.
+
+### Corrigido
+
+- Os metadados de referência bíblica (`ScriptureRef`) agora acompanham os
+  slides ao vivo, permitindo que **Anterior/Próximo** no controle remoto
+  naveguem entre partes e versículos em vez de pular para o próximo item da
+  setlist.
+- O editor de temas mede o tamanho real dos elementos ao abrir, inclusive após
+  o carregamento das fontes, usando `ResizeObserver`.
+- O arrastar-e-soltar de seções e itens da programação voltou a funcionar no
+  WebView (`dragDropEnabled: false`).
+- O ícone da bandeja no macOS foi ampliado para ficar alinhado aos ícones do
+  sistema.
+- O logotipo e o botão de ocultar a programação foram trocados de lugar, e o
+  botão **Remote** passou a ser o último do cabeçalho do painel.
+- Os cabeçalhos dos painéis da apresentação foram padronizados em 56 px, com o
+  toggle da programação ao lado das abas e o cabeçalho do trilho de temas
+  refinado.
+- O controle remoto não aplica mais zoom por pinça/double-tap e evita o
+  auto-zoom dos navegadores móveis ao focar campos de texto.
+- A lista de eventos da programação passou a ser ordenada por data ascendente,
+  do evento mais próximo para o mais distante.
+- A adição do primeiro item a um evento vazio agora atualiza a lista e persiste
+  imediatamente, tanto na barra lateral quanto no **EventDetailsDialog**.
+
 ## [0.3.1] - 2026-10-19
 
 Release de identidade visual e sistema de temas da interface, com presets,

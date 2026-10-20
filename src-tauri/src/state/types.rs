@@ -40,6 +40,22 @@ pub struct MediaItem {
     pub theme_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptureRef {
+    #[serde(rename = "versionId")]
+    pub version_id: String,
+    #[serde(rename = "bookId")]
+    pub book_id: i32,
+    #[serde(rename = "bookName")]
+    pub book_name: String,
+    pub chapter: i32,
+    pub verse: i32,
+    pub part: usize,
+    #[serde(rename = "totalParts")]
+    pub total_parts: usize,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SlideContent {
     pub id: String,
@@ -51,6 +67,8 @@ pub struct SlideContent {
     pub section: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub media: Option<MediaItem>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scripture: Option<ScriptureRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -133,6 +151,17 @@ pub struct WsEnvelope {
     pub channel: String,
     pub payload: serde_json::Value,
     pub version: u8,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SongGroupConfig {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    pub shortcut: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub type_key: Option<SectionType>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -295,6 +324,8 @@ pub struct EventItem {
     pub song: Option<SongSummary>,
     #[serde(default)]
     pub media: Option<MediaItem>,
+    #[serde(default)]
+    pub scripture: Option<ScriptureRef>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -332,6 +363,8 @@ pub struct EventSummary {
     pub wallpaper: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub theme_guid: Option<String>,
+    #[serde(default)]
+    pub item_count: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -537,6 +570,8 @@ pub struct StageTimer {
     pub elapsed_secs: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub started_at_millis: Option<u64>,
+    #[serde(default)]
+    pub countdown_secs: u64,
 }
 
 impl StageTimer {
@@ -561,6 +596,13 @@ impl StageTimer {
         self.running = false;
         self.elapsed_secs = 0;
         self.started_at_millis = None;
+    }
+
+    pub fn set_countdown_secs(&mut self, secs: u64) {
+        self.countdown_secs = secs;
+        self.elapsed_secs = 0;
+        self.started_at_millis = None;
+        self.running = false;
     }
 
     pub fn elapsed_at(&self, now_millis: u64) -> u64 {
