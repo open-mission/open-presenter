@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 300" role="img" aria-labelledby="title">
+  <title id="title">Open Presenter</title>
+  <g transform="translate(0 0) scale(.58)">
+    <path d="M142 150 L292 111 Q309 107 309 126 L309 379 Q309 397 292 393 L142 362 Q126 359 126 343 L126 177 Q126 155 142 150 Z" fill="none" stroke="#FFFFFF" stroke-width="20" stroke-linejoin="round"/>
+    <path d="M333 145 L366 163 Q375 168 375 181 L375 331 Q375 343 365 348 L333 366 Z" fill="#FFFFFF"/>
+    <path d="M203 207 Q203 195 215 202 L259 234 Q270 242 259 250 L215 282 Q203 289 203 277 Z" fill="#FFFFFF"/>
+  </g>
+  <text x="260" y="126" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="78" font-weight="650" fill="#FFFFFF">Open</text>
+  <text x="260" y="211" font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif" font-size="78" font-weight="500" fill="#D1D5DB">Presenter</text>
+</svg>

@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { BookOpen, Calendar, HelpCircle, Images, Music, Settings, Smartphone, Sparkles, Tv } from "lucide-react";
+import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { isTauri } from "@/core/ipc/tauri";
 import { openShortcutsWindow } from "@/core/ipc/commands";
@@ -94,6 +95,18 @@ export function AppDock() {
     >
       {/* Top Primary Navigation Icons */}
       <div className="flex flex-col items-center gap-2">
+        <div className="mb-1 flex flex-col items-center gap-2">
+          <div
+            role="img"
+            aria-label="Open Presenter"
+            title="Open Presenter"
+            className="flex size-10 items-center justify-center rounded-xl bg-foreground text-background shadow-xs"
+          >
+            <BrandMark className="size-5" />
+          </div>
+          <div className="h-px w-6 bg-border/70" />
+        </div>
+
         {/* Apresentação (Culto ao Vivo) */}
         <NavButton
           icon={Tv}

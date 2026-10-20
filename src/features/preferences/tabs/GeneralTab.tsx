@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Database, Globe, Keyboard, Monitor, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
+import { BrandMark } from "@/components/BrandMark";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { APP_VERSION } from "@/core/config/version";
@@ -66,8 +67,8 @@ export function GeneralTab() {
       <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-card/60 p-4 shadow-2xs">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 font-bold text-primary text-xs">
-              OP
+            <div className="flex size-9 items-center justify-center rounded-lg bg-foreground text-background">
+              <BrandMark className="size-5" />
             </div>
             <div>
               <h4 className="font-semibold text-sm text-foreground">

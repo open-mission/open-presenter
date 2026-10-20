@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="src-tauri/icons/128x128.png" width="96" alt="Open Presenter" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/open-presenter-wordmark-dark.svg" />
+    <img src="docs/brand/open-presenter-wordmark.svg" alt="Open Presenter" width="380" />
+  </picture>
 </p>
-
-<h1 align="center">Open Presenter</h1>
 
 <p align="center">
   Software desktop open source para apresentação em igrejas e eventos.<br />
@@ -92,6 +93,26 @@ Baixe a versão mais recente em
 - Importação e exportação de temas em JSON.
 - Fundos com imagem, vídeo, CSS e shaders ISF.
 
+### Aparência da interface
+
+- Modo claro, escuro ou acompanhando o sistema operacional.
+- Presets de paleta inspirados no shadcn/ui.
+- Editor recolhível dos tokens shadcn/ui para as paletas clara e escura, com
+  prévia ao vivo.
+- Importação e exportação do tema da interface em JSON ou CSS.
+- Aparência do operador independente dos temas usados nas telas de público e palco.
+
+<p align="center">
+  <img src="docs/screenshots/appearance.png" alt="Preferências de aparência com presets e editor de temas recolhível" width="100%" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/appearance-editor.png" alt="Editor de temas shadcn/ui aberto com cores, arredondamento, prévia e importação" width="100%" />
+</p>
+
+Os SVGs da identidade visual ficam em [`docs/brand`](docs/brand) e podem ser
+reutilizados em materiais do projeto.
+
 ### Saídas e controle remoto
 
 - Saída nativa em um monitor, saída web no navegador ou as duas ao mesmo tempo.
@@ -103,7 +124,7 @@ Baixe a versão mais recente em
 - Fechamento para a bandeja configurável em **Preferências → Geral**.
 
 <p align="center">
-  <img src="docs/screenshots/whats-new.png" alt="Modal de novidades da versão 0.3.0" width="100%" />
+  <img src="docs/screenshots/whats-new.png" alt="Modal de novidades da versão 0.3.1" width="100%" />
 </p>
 
 ## Atualizações

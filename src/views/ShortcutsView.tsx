@@ -8,7 +8,9 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
+import { APP_VERSION } from "@/core/config/version";
 import { closeShortcutsWindow } from "@/core/ipc/commands";
 
 interface ShortcutItem {
@@ -257,7 +259,10 @@ export default function ShortcutsView() {
       {/* Footer */}
       <footer className="flex h-10 shrink-0 items-center justify-between border-t border-border px-5 text-[11px] text-muted-foreground bg-muted/20">
         <span>Dica: Pressione <kbd className="font-mono font-semibold px-1 py-0.5 rounded border border-border bg-muted text-foreground">ESC</kbd> a qualquer momento para fechar</span>
-        <span>Open Presenter v0.1.0</span>
+        <span className="flex items-center gap-1.5">
+          <BrandMark className="size-3.5" />
+          Open Presenter v{APP_VERSION}
+        </span>
       </footer>
     </div>
   );
