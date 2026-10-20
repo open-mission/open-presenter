@@ -12,6 +12,7 @@ import {
   Menu,
   Pencil,
   Redo,
+  Sparkles,
   Square,
   Tv,
   Type,
@@ -33,6 +34,7 @@ import {
   pageContextsForCategory,
   themeVersion,
 } from "@/features/slide-themes/pages";
+import { generateNoiseDataUrl } from "@/features/slide-themes/noiseGenerator";
 import { cn } from "@/core/lib/utils";
 import { Input } from "@/components/ui/input";
 import {
@@ -291,7 +293,7 @@ export default function ThemeEditorView() {
     window.addEventListener("mouseup", onMouseUp);
   }
 
-  function handleAdd(kind: "text" | "color" | "image" | "video") {
+  function handleAdd(kind: "text" | "color" | "image" | "video" | "noise") {
     if (!draft) return;
     const current = viewOf(
       draft,
@@ -322,6 +324,7 @@ export default function ThemeEditorView() {
       case "color":
         el = {
           id: uniqueId("retangulo", ids),
+          name: "Retângulo",
           type: "RECTANGLE",
           x: 760,
           y: 390,
@@ -329,6 +332,24 @@ export default function ThemeEditorView() {
           locked: false,
           css: { ...baseCss(760, 390, 400, 300) },
           fill: "#1e3a8a",
+        };
+        break;
+      case "noise":
+        el = {
+          id: uniqueId("textura_noise", ids),
+          name: "Textura de Ruído",
+          type: "RECTANGLE",
+          x: 0,
+          y: 0,
+          visible: true,
+          locked: false,
+          css: {
+            ...baseCss(0, 0, 1920, 1080),
+            opacity: "0.18",
+            mixBlendMode: "overlay",
+            pointerEvents: "none",
+          },
+          fill: generateNoiseDataUrl({ opacity: 0.25, grainSize: 1 }),
         };
         break;
       case "image":
@@ -867,9 +888,19 @@ export default function ThemeEditorView() {
           <Type className="size-3.5" />
           Texto
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => handleAdd("color")}>
+        <Button variant="ghost" size="sm" onClick={() => handleAdd("color")} title="Adicionar Retângulo com cor, gradiente ou textura">
           <Square className="size-3.5" />
-          Cor
+          Retângulo
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => handleAdd("noise")}
+          title="Adiciona camada de textura de ruído/grão para o fundo"
+          className="gap-1 text-amber-300 hover:text-amber-200"
+        >
+          <Sparkles className="size-3.5 text-amber-400" />
+          Textura de Ruído
         </Button>
         <Button variant="ghost" size="sm" onClick={() => handleAdd("image")}>
           <Image className="size-3.5" />

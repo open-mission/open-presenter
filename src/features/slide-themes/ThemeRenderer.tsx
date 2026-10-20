@@ -5,6 +5,7 @@ import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
 import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 import { ShaderCanvas } from "@/features/media-shaders/ShaderCanvas";
 import { renderTemplate } from "./themeTemplate";
+import { hasNoiseLayer } from "./noiseGenerator";
 
 const BACKGROUND_KEYS = new Set([
   "background",
@@ -59,11 +60,12 @@ function elementStyle(element: ThemeElement): CSSProperties {
 
 function resolveUrlValue(value: string, host: string): string {
   if (isIsfBackground(value)) return "";
-  const match = value.match(/url\(\s*(['"]?)(.*?)\1\s*\)/);
-  if (!match) return value;
-  const resolved = resolveThemeMediaUrl(match[2], host);
-  if (!resolved || resolved === match[2]) return value;
-  return value.replace(match[2], resolved);
+  return value.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/g, (fullMatch, quote, innerUrl) => {
+    if (innerUrl.startsWith("data:")) return fullMatch;
+    const resolved = resolveThemeMediaUrl(innerUrl, host);
+    if (!resolved || resolved === innerUrl) return fullMatch;
+    return `url(${quote}${resolved}${quote})`;
+  });
 }
 
 /**
@@ -104,11 +106,12 @@ export function themeContainerStyle(
 export function themeBackgroundStyle(theme: SlideTheme): CSSProperties {
   const raw = theme.css.background;
   if (typeof raw !== "string" || raw.trim() === "" || isIsfBackground(raw)) return {};
+  const isNoise = hasNoiseLayer(raw);
   return {
     background: resolveUrlValue(raw, currentHost()),
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    backgroundRepeat: "no-repeat",
+    backgroundSize: isNoise ? "auto, cover" : "cover",
+    backgroundPosition: isNoise ? "top left, center" : "center",
+    backgroundRepeat: isNoise ? "repeat, no-repeat" : "no-repeat",
   };
 }
 
