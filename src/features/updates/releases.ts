@@ -37,6 +37,72 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: "0.3.6",
+    date: "2026-10-20",
+    title: "Controle Remoto Moderno, Layout Responsivo e Melhorias em Temas",
+    summary:
+      "Novo controle remoto com toolbar de navegação rápida e drawer expandido, modo compacto sem quebra e visualização em duas colunas no tablet/computador. Além disso, o relógio agora pode piscar os dois pontos, o alinhamento de texto em widgets foi aprimorado e as referências bíblicas contam com variáveis limpas e independentes da versão.",
+    highlights: [
+      {
+        icon: "monitor",
+        title: "Controle Remoto em Duas Colunas",
+        description:
+          "Experiência aprimorada para tablets e desktops: o preview ao vivo e cronômetro ficam fixos na primeira coluna, enquanto a programação, músicas e Bíblia rolam livremente na segunda coluna.",
+      },
+      {
+        icon: "refresh",
+        title: "Toolbar & Drawer de Apresentação",
+        description:
+          "A barra inferior colapsada agora tem alça de puxar, resumo com seção e contador, e três botões diretos: Anterior, Sem texto (para ocultar a letra e deixar só o fundo) e Próximo. Ao expandir o drawer, navegue pelas seções coloridas da música e versículos.",
+      },
+      {
+        icon: "palette",
+        title: "Relógio Digital e Alinhamento Perfeito",
+        description:
+          "Widgets e relógios agora centralizam perfeitamente na caixa do elemento. Adicionada também a opção de fazer os dois pontos (:) piscarem a cada segundo como em um relógio digital real.",
+      },
+      {
+        icon: "book",
+        title: "Variáveis Bíblicas Limpas",
+        description:
+          "Nomes de arquivos SQLite foram eliminados da exibição. A referência agora é limpa ({reference}), com a versão separada ({version}) e opções completas ({reference_full}) e abreviadas ({reference_abbr}).",
+      },
+    ],
+    sections: [
+      {
+        title: "Controle Remoto",
+        items: [
+          "Toolbar flutuante com alça de puxar e 3 botões ergonômicos: Anterior, Sem texto e Próximo.",
+          "Drawer expandido com título, atalhos de navegação interna e lista completa de seções/versículos.",
+          "Modo compacto do preview ao vivo em 1 única linha com ícones enquadrados.",
+          "Layout responsivo automático em 2 colunas para computadores e tablets em modo paisagem.",
+        ],
+      },
+      {
+        title: "Editor de Temas e Widgets",
+        items: [
+          "Correção definitiva da centralização horizontal de widgets e elementos em linha única.",
+          "Novo toggle 'Piscar dois pontos (:)' no painel de propriedades tipográficas.",
+          "Relógio de retorno e palco configurado por padrão com centralização e dois pontos piscantes.",
+        ],
+      },
+      {
+        title: "Bíblia e Projeção",
+        items: [
+          "Variáveis bíblicas limpas: {reference}, {version}, {reference_full} e {reference_abbr}.",
+          "Remoção automática de extensões de arquivo (.sqlite) nas saídas pública, retorno e transmissão.",
+          "Correção no auto-shrink / auto-fit para textos e versículos longos sem cortes indevidos.",
+        ],
+      },
+    ],
+    fixes: [
+      "Atalhos de copiar, colar e recortar (Cmd+C, Cmd+V, Cmd+X, Cmd+A) agora funcionam nativamente no macOS.",
+      "Redução automática de texto não corta mais palavras e frases longas prematuramente.",
+      "Identificação e compilação nativa para Macs com chips Apple Silicon (M1/M2/M3/M4) sem necessidade do Rosetta.",
+    ],
+    changelogUrl: `${GITHUB_REPO_URL}/releases/tag/v0.3.6`,
+  },
+  {
     version: "0.3.5",
     date: "2026-10-20",
     title: "Saída para OBS, Lower Thirds e Animações por Camada",
