@@ -518,6 +518,10 @@ pub struct ThemeElement {
     pub fill: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "groupId")]
+    pub group_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "groupName")]
+    pub group_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
