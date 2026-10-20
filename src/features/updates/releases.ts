@@ -37,6 +37,73 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: "0.3.5",
+    date: "2026-10-20",
+    title: "Saída para OBS, Lower Thirds e Animações por Camada",
+    summary:
+      "Integre o Open Presenter diretamente ao OBS Studio com saída transparente para transmissões ao vivo. Crie Lower Thirds profissionais, controle transições por camada sem que o fundo pisque, use gradientes com texturas de ruído e adicione versículos bíblicos à programação.",
+    highlights: [
+      {
+        icon: "monitor",
+        title: "Transmissão para OBS (Lower Thirds)",
+        description:
+          "Nova saída transparente /stream para uso no OBS Studio, vMix ou Wirecast como Browser Source. O tema de transmissão fica posicionado na faixa inferior para sobrepor câmeras sem bloquear a cena.",
+      },
+      {
+        icon: "layers",
+        title: "Transições e Camadas Fixas",
+        description:
+          "Defina quais elementos permanecem fixos (como faixas e fundos) e configure efeitos de fade, subida ou descida individualmente por camada na troca de versos e slides.",
+      },
+      {
+        icon: "palette",
+        title: "Gradientes e Textura de Ruído",
+        description:
+          "Crie gradientes personalizados com controle visual de pontos de cor e adicione textura de granulação (noise) com 1 clique para dar profundidade estética aos seus temas.",
+      },
+      {
+        icon: "book",
+        title: "Bíblia na Programação e Controle",
+        description:
+          "Adicione versículos bíblicos diretamente na setlist do culto, acompanhe na coluna de slides e encerre a apresentação pelo controle remoto quando terminar.",
+      },
+    ],
+    sections: [
+      {
+        title: "Transmissão e OBS",
+        items: [
+          "Aba Transmissão em Preferências com toggle de ativação e link rápido de Browser Source.",
+          "Tema padrão de Lower Third com estilos próprios para louvores, leituras bíblicas e textos.",
+          "Simulação de câmera com vídeo no Editor de Temas para calibrar o posicionamento antes de ir ao ar.",
+        ],
+      },
+      {
+        title: "Editor de Temas",
+        items: [
+          "Nova seção de Transição e Animação com opções de camada fixa e movimentos direcionais.",
+          "Construtor visual de gradientes lineares com múltiplos seletores de cor e presets.",
+          "Gerador procedural de texturas de ruído (noise) em SVG.",
+          "No macOS, a tecla Backspace agora exclui o elemento selecionado em vez de fechar a janela.",
+        ],
+      },
+      {
+        title: "Culto e Controle",
+        items: [
+          "Versículos bíblicos integrados aos itens da setlist com escolha da seção.",
+          "Botão Encerrar no controle remoto para liberar o telão com rapidez.",
+          "Melhorias de navegação em partes de versículos bíblicos longos.",
+        ],
+      },
+    ],
+    fixes: [
+      "No macOS, o uso de Backspace/Delete no editor de temas não fecha mais a janela.",
+      "O fundo do palco e retângulos de temas permanecem fixos sem piscar durante a troca de estrofes.",
+      "Ordenação cronológica correta dos eventos na programação.",
+      "Prevenção de zoom acidental por pinça/duplo toque no controle remoto em celulares.",
+    ],
+    changelogUrl: `${GITHUB_REPO_URL}/releases/tag/v0.3.5`,
+  },
+  {
     version: "0.3.1",
     date: "2026-10-19",
     title: "Uma nova identidade e temas do seu jeito",

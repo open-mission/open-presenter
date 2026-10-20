@@ -3,7 +3,7 @@ import { isTauri, listenCommand } from "../ipc/tauri";
 
 export const CLIENT_HELLO = "client://hello";
 
-export type SyncOutput = "public" | "stage" | "admin";
+export type SyncOutput = "public" | "stage" | "stream" | "admin";
 
 export type SyncHandler<T> = (payload: T) => void;
 

@@ -10,7 +10,13 @@ import {
   AlignVerticalJustifyStart,
   AlignVerticalJustifyCenter,
   AlignVerticalJustifyEnd,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Ban,
   ChevronDown,
+  Clock,
   Eye,
   EyeOff,
   Film,
@@ -21,10 +27,12 @@ import {
   Palette,
   Scaling,
   Sliders,
+  Sparkles,
   Square,
   Type,
   Unlock,
   WrapText,
+  Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ThemeElement } from "@/core/types";
@@ -54,6 +62,13 @@ import { ShaderCanvas } from "@/features/media-shaders/ShaderCanvas";
 import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 import { ISFShaderControls } from "@/features/media-shaders/ISFShaderControls";
 import { cn } from "@/core/lib/utils";
+import {
+  generateNoiseDataUrl,
+  NOISE_PRESETS,
+  applyNoiseToBackground,
+  removeNoiseFromBackground,
+  hasNoiseLayer,
+} from "@/features/slide-themes/noiseGenerator";
 
 const FONT_WEIGHTS = [
   { label: "Normal", value: "400" },
@@ -224,6 +239,7 @@ export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
         />
       )}
       <AppearanceSection el={selected} updateElement={updateElement} />
+      <TransitionsSection el={selected} updateElement={updateElement} />
       <AdvancedCssSection el={selected} updateElement={updateElement} />
     </div>
   );
@@ -870,6 +886,61 @@ function TextSection({
   );
 }
 
+const RECTANGLE_GRADIENT_PRESETS = [
+  {
+    name: "Fade p/ Direita (Lower Third)",
+    value: "linear-gradient(90deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.7) 65%, transparent 100%)",
+  },
+  {
+    name: "Fade p/ Esquerda",
+    value: "linear-gradient(270deg, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.7) 65%, transparent 100%)",
+  },
+  {
+    name: "Fade Inferior (Cima p/ Baixo)",
+    value: "linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.88) 100%)",
+  },
+  {
+    name: "Fade Superior (Baixo p/ Cima)",
+    value: "linear-gradient(0deg, transparent 0%, rgba(0, 0, 0, 0.88) 100%)",
+  },
+  {
+    name: "Vidro Fosco Glass",
+    value: "linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.04) 100%)",
+  },
+  {
+    name: "Azul Noturno",
+    value: "linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%)",
+  },
+  {
+    name: "Dourado Nobre",
+    value: "linear-gradient(135deg, #b45309 0%, #78350f 100%)",
+  },
+  {
+    name: "Carmesim / Vinho",
+    value: "linear-gradient(135deg, #881337 0%, #4c0519 100%)",
+  },
+  {
+    name: "Esmeralda",
+    value: "linear-gradient(135deg, #065f46 0%, #022c22 100%)",
+  },
+  {
+    name: "Púrpura Profundo",
+    value: "linear-gradient(135deg, #581c87 0%, #1e1b4b 100%)",
+  },
+];
+
+const RECTANGLE_COLOR_PRESETS = [
+  { name: "Transparente", value: "transparent" },
+  { name: "Slate 90%", value: "rgba(15, 23, 42, 0.9)" },
+  { name: "Preto 80%", value: "rgba(0, 0, 0, 0.8)" },
+  { name: "Vidro 15%", value: "rgba(255, 255, 255, 0.15)" },
+  { name: "Azul", value: "#38bdf8" },
+  { name: "Dourado", value: "#fbbf24" },
+  { name: "Carmesim", value: "#f43f5e" },
+  { name: "Esmeralda", value: "#10b981" },
+  { name: "Roxo", value: "#a855f7" },
+];
+
 function RectangleSection({
   el,
   updateElement,
@@ -877,23 +948,253 @@ function RectangleSection({
   el: ThemeElement;
   updateElement: UpdateElement;
 }) {
+  const currentFill = el.fill ?? "#1e3a8a";
+  const isGradient = currentFill.includes("gradient");
+  const isNoise = hasNoiseLayer(currentFill);
+
+  const [activeTab, setActiveTab] = useState<"solid" | "gradient" | "noise">(() =>
+    isGradient ? "gradient" : isNoise ? "noise" : "solid",
+  );
+
+  const [noiseOpacity, setNoiseOpacity] = useState(0.2);
+  const [noiseGrain, setNoiseGrain] = useState<1 | 2 | 3>(1);
+
+  function applyPreset(val: string) {
+    updateElement(el.id, { fill: val });
+  }
+
+  function handleNoiseGenerate(mode: "replace" | "overlay") {
+    const noise = generateNoiseDataUrl({
+      opacity: noiseOpacity,
+      grainSize: noiseGrain,
+    });
+    if (mode === "overlay") {
+      updateElement(el.id, {
+        fill: applyNoiseToBackground(currentFill, noise),
+      });
+    } else {
+      updateElement(el.id, { fill: noise });
+    }
+  }
+
+  function handleRemoveNoise() {
+    updateElement(el.id, {
+      fill: removeNoiseFromBackground(currentFill) || "#1e3a8a",
+    });
+  }
+
   return (
-    <Section title="RETÂNGULO" icon={Square} defaultOpen={true}>
-      <Field label="Cor de Preenchimento">
-        <div className="flex items-center gap-1.5">
-          <input
-            type="color"
-            value={asHex(el.fill, "#1e3a8a")}
-            onChange={(e) => updateElement(el.id, { fill: e.target.value })}
-            className="size-8 rounded border border-border cursor-pointer p-0 shrink-0"
-          />
-          <Input
-            value={el.fill ?? "#1e3a8a"}
-            onChange={(e) => updateElement(el.id, { fill: e.target.value })}
-            className="h-8 font-mono text-xs"
-          />
-        </div>
-      </Field>
+    <Section title="PREENCHIMENTO DO RETÂNGULO" icon={Square} defaultOpen={true}>
+      {/* Mini preview do preenchimento */}
+      <div
+        className="h-10 w-full rounded-lg border border-border shadow-inner overflow-hidden flex items-center justify-center text-[10px] font-mono text-muted-foreground/70"
+        style={{
+          background: currentFill,
+        }}
+      >
+        {currentFill.length > 30 ? `${currentFill.slice(0, 30)}…` : currentFill}
+      </div>
+
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => setActiveTab(v as "solid" | "gradient" | "noise")}
+        className="w-full"
+      >
+        <TabsList className="grid grid-cols-3 h-8 p-0.5">
+          <TabsTrigger value="solid" className="text-[10px]">
+            Cor
+          </TabsTrigger>
+          <TabsTrigger value="gradient" className="text-[10px]">
+            Gradiente
+          </TabsTrigger>
+          <TabsTrigger value="noise" className="text-[10px]">
+            Noise
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Aba Cor Sólida */}
+        <TabsContent value="solid" className="pt-2 flex flex-col gap-2.5">
+          <Field label="Cor de Preenchimento">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="color"
+                value={asHex(currentFill, "#1e3a8a")}
+                onChange={(e) => updateElement(el.id, { fill: e.target.value })}
+                className="size-8 rounded border border-border cursor-pointer p-0 shrink-0"
+              />
+              <Input
+                value={currentFill}
+                onChange={(e) => updateElement(el.id, { fill: e.target.value })}
+                className="h-8 font-mono text-xs"
+                placeholder="#1e3a8a ou rgba(...)"
+              />
+            </div>
+          </Field>
+
+          {/* Chips de cores rápidas */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] text-muted-foreground font-medium">
+              Cores Rápidas:
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {RECTANGLE_COLOR_PRESETS.map((c) => (
+                <button
+                  key={c.name}
+                  type="button"
+                  onClick={() => applyPreset(c.value)}
+                  className="rounded border border-border/60 bg-muted/30 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <span
+                    className="size-2 rounded-full border border-black/20"
+                    style={{ background: c.value }}
+                  />
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Aba Gradiente */}
+        <TabsContent value="gradient" className="pt-2 flex flex-col gap-3">
+          {/* Presets de Gradientes Rápidos */}
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] text-muted-foreground font-medium">
+              Presets de Gradiente (Transparências e Barras):
+            </span>
+            <div className="grid grid-cols-2 gap-1.5">
+              {RECTANGLE_GRADIENT_PRESETS.map((p) => (
+                <button
+                  key={p.name}
+                  type="button"
+                  onClick={() => applyPreset(p.value)}
+                  className="group relative flex h-7 items-center justify-start overflow-hidden rounded border border-border/80 px-2 text-[10px] font-medium text-white shadow-xs transition-transform active:scale-95 cursor-pointer"
+                  style={{ background: p.value }}
+                >
+                  <span className="relative z-10 truncate text-shadow-xs drop-shadow-sm font-semibold">
+                    {p.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Construtor Visual de Gradiente */}
+          <div className="border-t border-border/40 pt-2">
+            <GradientBuilder
+              value={isGradient ? currentFill : "linear-gradient(90deg, #1e3a8a 0%, #0f172a 100%)"}
+              onChange={(newGradient) => updateElement(el.id, { fill: newGradient })}
+            />
+          </div>
+        </TabsContent>
+
+        {/* Aba Textura / Noise */}
+        <TabsContent value="noise" className="pt-2 flex flex-col gap-2.5">
+          <div className="rounded-lg border border-border/60 bg-muted/20 p-2.5 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-foreground">
+                Intensidade do Grão
+              </span>
+              <span className="text-[10px] font-mono text-muted-foreground">
+                {Math.round(noiseOpacity * 100)}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0.05}
+              max={0.5}
+              step={0.02}
+              value={noiseOpacity}
+              onChange={(e) => setNoiseOpacity(Number(e.target.value))}
+              className="h-2 w-full accent-primary cursor-pointer"
+            />
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[11px] font-medium text-foreground">
+                Granulação
+              </span>
+              <div className="flex items-center gap-1">
+                {[
+                  { label: "Fina", size: 1 as const },
+                  { label: "Média", size: 2 as const },
+                  { label: "Áspera", size: 3 as const },
+                ].map((g) => (
+                  <button
+                    key={g.label}
+                    type="button"
+                    onClick={() => setNoiseGrain(g.size)}
+                    className={cn(
+                      "rounded px-2 py-0.5 text-[10px] border transition-colors cursor-pointer",
+                      noiseGrain === g.size
+                        ? "border-primary bg-primary/10 text-primary font-semibold"
+                        : "border-border/60 hover:bg-muted text-muted-foreground",
+                    )}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Presets Rápidos de Ruído */}
+            <div className="flex flex-wrap gap-1 pt-1.5 border-t border-border/40">
+              {NOISE_PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    if (p.options.opacity) setNoiseOpacity(p.options.opacity);
+                    if (p.options.grainSize) setNoiseGrain(p.options.grainSize as 1 | 2 | 3);
+                    const n = generateNoiseDataUrl(p.options);
+                    updateElement(el.id, {
+                      fill: applyNoiseToBackground(currentFill, n),
+                    });
+                  }}
+                  className="rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+                  title={p.desc}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1.5 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleNoiseGenerate("overlay")}
+                className="flex-1 h-7 text-[10px] gap-1 cursor-pointer"
+              >
+                <Sparkles className="size-3 text-amber-400" />
+                Sobrepor ao Fundo Atual
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleNoiseGenerate("replace")}
+                className="h-7 text-[10px] px-2 cursor-pointer"
+                title="Substituir todo o preenchimento apenas pela textura"
+              >
+                Apenas Textura
+              </Button>
+            </div>
+
+            {isNoise && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleRemoveNoise}
+                className="h-6 text-[10px] text-destructive hover:text-destructive cursor-pointer"
+              >
+                Remover Camada de Textura
+              </Button>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
     </Section>
   );
 }
@@ -1029,6 +1330,195 @@ function AppearanceSection({
   );
 }
 
+function TransitionsSection({
+  el,
+  updateElement,
+}: {
+  el: ThemeElement;
+  updateElement: UpdateElement;
+}) {
+  const isPersistent =
+    el.css.isPersistent === "true" ||
+    (el.css.isPersistent as unknown) === true;
+  const rawType =
+    el.css.transitionType ?? (el.type === "RECTANGLE" ? "none" : "fade");
+  const transitionType = isPersistent ? "none" : rawType;
+  const duration = el.css.transitionDuration ?? "250ms";
+
+  function setTransition(type: string) {
+    if (type === "none") {
+      updateElement(el.id, {
+        css: {
+          ...el.css,
+          transitionType: "none",
+          isPersistent: "true",
+        },
+      });
+    } else {
+      updateElement(el.id, {
+        css: {
+          ...el.css,
+          transitionType: type,
+          isPersistent: "false",
+        },
+      });
+    }
+  }
+
+  function setDuration(dur: string) {
+    updateElement(el.id, {
+      css: {
+        ...el.css,
+        transitionDuration: dur,
+      },
+    });
+  }
+
+  const TRANSITION_TYPES = [
+    {
+      value: "none",
+      label: "Fixo",
+      icon: Ban,
+      title: "Nenhum / Fixo",
+      desc: "Permanece estático na troca de slides",
+    },
+    {
+      value: "fade",
+      label: "Fade",
+      icon: Sparkles,
+      title: "Fade",
+      desc: "Esmaecer suavemente no lugar",
+    },
+    {
+      value: "fade-up",
+      label: "Subir",
+      icon: ArrowUp,
+      title: "Fade para Cima",
+      desc: "Entra subindo suavemente",
+    },
+    {
+      value: "fade-down",
+      label: "Descer",
+      icon: ArrowDown,
+      title: "Fade para Baixo",
+      desc: "Entra descendo suavemente",
+    },
+    {
+      value: "fade-left",
+      label: "Esquerda",
+      icon: ArrowLeft,
+      title: "Fade para Esquerda",
+      desc: "Entra da esquerda para a direita",
+    },
+    {
+      value: "fade-right",
+      label: "Direita",
+      icon: ArrowRight,
+      title: "Fade para Direita",
+      desc: "Entra da direita para a esquerda",
+    },
+  ];
+
+  const DURATION_PRESETS = [
+    { value: "150ms", label: "150ms" },
+    { value: "250ms", label: "250ms" },
+    { value: "400ms", label: "400ms" },
+    { value: "600ms", label: "600ms" },
+  ];
+
+  const activeTransition =
+    TRANSITION_TYPES.find((t) => t.value === transitionType) ??
+    TRANSITION_TYPES[1];
+
+  return (
+    <Section title="TRANSIÇÃO & ANIMAÇÃO" icon={Zap} defaultOpen={true}>
+      <div className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-foreground">
+            Efeito ao Mudar Slide
+          </span>
+          <span className="text-[11px] font-mono text-muted-foreground">
+            {activeTransition.title}
+          </span>
+        </div>
+
+        {/* Grid de Efeitos */}
+        <div className="grid grid-cols-3 gap-1 rounded-md border border-border/70 p-1 bg-muted/20">
+          {TRANSITION_TYPES.map((t) => {
+            const Icon = t.icon;
+            const selected = transitionType === t.value;
+            return (
+              <button
+                key={t.value}
+                type="button"
+                title={t.desc}
+                onClick={() => setTransition(t.value)}
+                className={cn(
+                  "flex flex-col items-center justify-center gap-1 py-1.5 px-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer",
+                  selected
+                    ? "bg-primary text-primary-foreground shadow-2xs font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                )}
+              >
+                <Icon className="size-4 shrink-0" />
+                <span className="truncate w-full text-center">{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Descrição contextual */}
+        <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/30 p-2 rounded border border-border/40">
+          {transitionType === "none" ? (
+            <>
+              <strong>Camada Fixa / Persistente:</strong> este elemento permanece estável na tela e não pisca ao trocar os versos da música, textos ou versículos. Ideal para retângulos de fundo, tarjas e molduras.
+            </>
+          ) : (
+            <>
+              <strong>{activeTransition.title}:</strong> {activeTransition.desc}. Ao trocar de slide, o texto anterior sai com transição direcional suave.
+            </>
+          )}
+        </p>
+
+        {/* Seletor de Duração (visível quando animado) */}
+        {transitionType !== "none" && (
+          <div className="flex flex-col gap-1.5 pt-2 border-t border-border/40">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-foreground flex items-center gap-1">
+                <Clock className="size-3 text-muted-foreground" />
+                Duração da Transição
+              </span>
+              <span className="text-[11px] font-mono text-primary font-medium">
+                {duration}
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-1">
+              {DURATION_PRESETS.map((p) => {
+                const selected = duration === p.value;
+                return (
+                  <button
+                    key={p.value}
+                    type="button"
+                    onClick={() => setDuration(p.value)}
+                    className={cn(
+                      "py-1 px-1.5 text-xs rounded border transition-colors cursor-pointer text-center font-mono",
+                      selected
+                        ? "border-primary bg-primary/10 text-primary font-semibold"
+                        : "border-border/60 hover:bg-muted/50 text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
 function AdvancedCssSection({
   el,
   updateElement,
@@ -1091,10 +1581,11 @@ function ThemeBackground({
         </div>
 
         {/* Abas de Tipos de Fundo */}
-        <Tabs defaultValue="gradient" className="w-full">
-          <TabsList className="grid grid-cols-4 h-8 p-0.5">
+        <Tabs defaultValue={hasNoiseLayer(currentBg) ? "noise" : "gradient"} className="w-full">
+          <TabsList className="grid grid-cols-5 h-8 p-0.5">
             <TabsTrigger value="gradient" className="text-[10px] px-1">Gradiente</TabsTrigger>
             <TabsTrigger value="solid" className="text-[10px] px-1">Cor</TabsTrigger>
+            <TabsTrigger value="noise" className="text-[10px] px-1">Noise</TabsTrigger>
             <TabsTrigger value="shader" className="text-[10px] px-1">Shader</TabsTrigger>
             <TabsTrigger value="image" className="text-[10px] px-1">Mídia</TabsTrigger>
           </TabsList>
@@ -1124,6 +1615,85 @@ function ThemeBackground({
                 />
               </div>
             </Field>
+          </TabsContent>
+
+          {/* Aba Textura de Ruído / Noise */}
+          <TabsContent value="noise" className="pt-2 flex flex-col gap-3">
+            <div className="rounded-lg border border-border/60 bg-muted/20 p-3 flex flex-col gap-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Sparkles className="size-3.5 text-amber-400" />
+                  Gerador de Textura & Grão
+                </span>
+                {hasNoiseLayer(currentBg) && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400 border border-emerald-500/30">
+                    Textura Ativa
+                  </span>
+                )}
+              </div>
+
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Aplica textura orgânica de filme/grão sobre gradientes e cores, eliminando faixas de banding e dando profundidade cinematográfica ao telão.
+              </p>
+
+              {/* Presets Rápidos de Textura */}
+              <div className="flex flex-col gap-1.5 pt-1">
+                <span className="text-[10px] font-medium text-muted-foreground">
+                  Presets de Textura Cinematográfica:
+                </span>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {NOISE_PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        const noise = generateNoiseDataUrl(p.options);
+                        updateCss({ background: applyNoiseToBackground(currentBg, noise) });
+                      }}
+                      className="flex flex-col items-start gap-0.5 rounded border border-border/70 bg-card/60 p-2 text-left hover:border-primary/50 hover:bg-muted/40 transition-colors cursor-pointer"
+                    >
+                      <span className="text-[11px] font-semibold text-foreground">
+                        {p.name}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground line-clamp-1">
+                        {p.desc}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Botões de Ação */}
+              <div className="flex flex-col gap-1.5 pt-2 border-t border-border/40">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const noise = generateNoiseDataUrl({ opacity: 0.18, grainSize: 1 });
+                    updateCss({ background: applyNoiseToBackground(currentBg, noise) });
+                  }}
+                  className="gap-1.5 h-8 text-xs cursor-pointer"
+                >
+                  <Sparkles className="size-3.5 text-amber-400" />
+                  Aplicar Textura sobre Fundo Atual
+                </Button>
+
+                {hasNoiseLayer(currentBg) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      updateCss({ background: removeNoiseFromBackground(currentBg) || "#000000" });
+                    }}
+                    className="h-7 text-xs text-destructive hover:text-destructive cursor-pointer"
+                  >
+                    Remover Textura do Fundo
+                  </Button>
+                )}
+              </div>
+            </div>
           </TabsContent>
 
           {/* Aba Shaders / ISF Animados */}

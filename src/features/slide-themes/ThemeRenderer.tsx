@@ -1,10 +1,12 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
 import { useMediaPort } from "@/core/config/mediaPort";
 import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
 import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 import { ShaderCanvas } from "@/features/media-shaders/ShaderCanvas";
 import { renderTemplate } from "./themeTemplate";
+import { hasNoiseLayer } from "./noiseGenerator";
+import { getAnimationNames } from "./transitions";
 
 const BACKGROUND_KEYS = new Set([
   "background",
@@ -59,11 +61,12 @@ function elementStyle(element: ThemeElement): CSSProperties {
 
 function resolveUrlValue(value: string, host: string): string {
   if (isIsfBackground(value)) return "";
-  const match = value.match(/url\(\s*(['"]?)(.*?)\1\s*\)/);
-  if (!match) return value;
-  const resolved = resolveThemeMediaUrl(match[2], host);
-  if (!resolved || resolved === match[2]) return value;
-  return value.replace(match[2], resolved);
+  return value.replace(/url\(\s*(['"]?)(.*?)\1\s*\)/g, (fullMatch, quote, innerUrl) => {
+    if (innerUrl.startsWith("data:")) return fullMatch;
+    const resolved = resolveThemeMediaUrl(innerUrl, host);
+    if (!resolved || resolved === innerUrl) return fullMatch;
+    return `url(${quote}${resolved}${quote})`;
+  });
 }
 
 /**
@@ -104,11 +107,12 @@ export function themeContainerStyle(
 export function themeBackgroundStyle(theme: SlideTheme): CSSProperties {
   const raw = theme.css.background;
   if (typeof raw !== "string" || raw.trim() === "" || isIsfBackground(raw)) return {};
+  const isNoise = hasNoiseLayer(raw);
   return {
     background: resolveUrlValue(raw, currentHost()),
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    backgroundRepeat: "no-repeat",
+    backgroundSize: isNoise ? "auto, cover" : "cover",
+    backgroundPosition: isNoise ? "top left, center" : "center",
+    backgroundRepeat: isNoise ? "repeat, no-repeat" : "no-repeat",
   };
 }
 
@@ -126,6 +130,23 @@ function AutoScaledText({
   const [scaleFactor, setScaleFactor] = useState(1);
 
   const html = renderHtml(element.text, props);
+  const [currentHtml, setCurrentHtml] = useState(html);
+  const [outgoing, setOutgoing] = useState<{
+    html: string;
+    scale: number;
+    key: string;
+  } | null>(null);
+  const isFirstMount = useRef(true);
+
+  const isPersistent =
+    element.css.isPersistent === "true" || (element.css.isPersistent as unknown) === true;
+  const transitionType = isPersistent ? "none" : (element.css.transitionType ?? "fade");
+  const durationMs =
+    transitionType === "none"
+      ? 0
+      : parseInt(element.css.transitionDuration ?? "250ms", 10) || 250;
+  const { inAnimation, outAnimation } = getAnimationNames(transitionType);
+
   const autoShrink = (element.css.autoShrink as unknown) !== false && element.css.autoShrink !== "false";
   const autoFit = (element.css.autoFit as unknown) === true || element.css.autoFit === "true";
 
@@ -147,6 +168,33 @@ function AutoScaledText({
   const originY = vAlign === "flex-end" ? "bottom" : vAlign === "flex-start" ? "top" : "center";
 
   const isNoWrap = element.css.whiteSpace === "nowrap" || style.whiteSpace === "nowrap";
+
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    if (html !== currentHtml) {
+      if (transitionType !== "none" && durationMs > 0 && currentHtml.trim()) {
+        setOutgoing({
+          html: currentHtml,
+          scale: scaleFactor,
+          key: `${Date.now()}`,
+        });
+      }
+      setCurrentHtml(html);
+
+      if (transitionType !== "none" && durationMs > 0) {
+        const timer = setTimeout(() => {
+          setOutgoing(null);
+        }, durationMs);
+
+        return () => clearTimeout(timer);
+      } else {
+        setOutgoing(null);
+      }
+    }
+  }, [html, currentHtml, scaleFactor, transitionType, durationMs]);
 
   useLayoutEffect(() => {
     if (!autoShrink && !autoFit) {
@@ -220,7 +268,7 @@ function AutoScaledText({
       return () => ro.disconnect();
     }
   }, [
-    html,
+    currentHtml,
     autoShrink,
     autoFit,
     isNoWrap,
@@ -242,6 +290,7 @@ function AutoScaledText({
   return (
     <div
       ref={containerRef}
+      data-theme-element-id={element.id}
       style={{
         ...baseContainerStyle,
         maxHeight:
@@ -254,30 +303,84 @@ function AutoScaledText({
         justifyContent: vAlign,
         alignItems: "stretch",
         overflow: style.overflow ?? "hidden",
+        position: style.position ?? "absolute",
       }}
     >
+      {outgoing && outAnimation !== "none" && (
+        <div
+          key={outgoing.key}
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: vAlign,
+            alignItems: "stretch",
+            pointerEvents: "none",
+            animation: `${outAnimation} ${durationMs}ms cubic-bezier(0.16, 1, 0.3, 1) forwards`,
+          }}
+        >
+          <div
+            style={{
+              width: isNoWrap ? "max-content" : "100%",
+              maxWidth: isNoWrap ? "none" : "100%",
+              whiteSpace: isNoWrap
+                ? "nowrap"
+                : ((style.whiteSpace as CSSProperties["whiteSpace"]) ?? "pre-wrap"),
+              wordBreak: isNoWrap
+                ? "normal"
+                : ((element.css.wordBreak as CSSProperties["wordBreak"]) ?? "break-word"),
+              overflowWrap: isNoWrap ? "normal" : "break-word",
+              textWrap: isNoWrap
+                ? "nowrap"
+                : ((element.css.textWrap as CSSProperties["textWrap"]) ?? "pretty"),
+              textAlign,
+              transform:
+                outgoing.scale !== 1 ? `scale(${outgoing.scale})` : undefined,
+              transformOrigin: `${originX} ${originY}`,
+            }}
+            dangerouslySetInnerHTML={{ __html: outgoing.html }}
+          />
+        </div>
+      )}
+
       <div
-        ref={contentRef}
+        key={`act-${currentHtml}`}
         style={{
-          width: isNoWrap ? "max-content" : "100%",
-          maxWidth: isNoWrap ? "none" : "100%",
-          whiteSpace: isNoWrap
-            ? "nowrap"
-            : ((style.whiteSpace as CSSProperties["whiteSpace"]) ?? "pre-wrap"),
-          wordBreak: isNoWrap
-            ? "normal"
-            : ((element.css.wordBreak as CSSProperties["wordBreak"]) ?? "break-word"),
-          overflowWrap: isNoWrap ? "normal" : "break-word",
-          textWrap: isNoWrap
-            ? "nowrap"
-            : ((element.css.textWrap as CSSProperties["textWrap"]) ?? "pretty"),
-          textAlign,
-          transform: scaleFactor !== 1 ? `scale(${scaleFactor})` : undefined,
-          transformOrigin: `${originX} ${originY}`,
-          transition: "transform 0.08s ease-out",
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: vAlign,
+          alignItems: "stretch",
+          animation:
+            outgoing && inAnimation !== "none"
+              ? `${inAnimation} ${durationMs}ms cubic-bezier(0.16, 1, 0.3, 1) forwards`
+              : undefined,
         }}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+      >
+        <div
+          ref={contentRef}
+          style={{
+            width: isNoWrap ? "max-content" : "100%",
+            maxWidth: isNoWrap ? "none" : "100%",
+            whiteSpace: isNoWrap
+              ? "nowrap"
+              : ((style.whiteSpace as CSSProperties["whiteSpace"]) ?? "pre-wrap"),
+            wordBreak: isNoWrap
+              ? "normal"
+              : ((element.css.wordBreak as CSSProperties["wordBreak"]) ?? "break-word"),
+            overflowWrap: isNoWrap ? "normal" : "break-word",
+            textWrap: isNoWrap
+              ? "nowrap"
+              : ((element.css.textWrap as CSSProperties["textWrap"]) ?? "pretty"),
+            textAlign,
+            transform: scaleFactor !== 1 ? `scale(${scaleFactor})` : undefined,
+            transformOrigin: `${originX} ${originY}`,
+            transition: "transform 0.08s ease-out",
+          }}
+          dangerouslySetInnerHTML={{ __html: currentHtml }}
+        />
+      </div>
     </div>
   );
 }
@@ -312,10 +415,11 @@ function ThemeElementView({
     case "TEXT":
       return <AutoScaledText element={element} props={props} style={style} />;
     case "IMAGE":
-      return <img src={resolvedSrc} crossOrigin="anonymous" alt="" style={style} />;
+      return <img data-theme-element-id={element.id} src={resolvedSrc} crossOrigin="anonymous" alt="" style={style} />;
     case "VIDEO":
       return (
         <video
+          data-theme-element-id={element.id}
           src={resolvedSrc}
           crossOrigin="anonymous"
           autoPlay
@@ -329,6 +433,7 @@ function ThemeElementView({
       if (element.fill === "web") {
         return (
           <div
+            data-theme-element-id={element.id}
             style={{
               ...style,
               backgroundImage: `url("${resolvedSrc}")`,
@@ -340,6 +445,7 @@ function ThemeElementView({
       }
       return (
         <div
+          data-theme-element-id={element.id}
           style={
             element.fill
               ? { ...style, background: resolveUrlValue(element.fill, host) }

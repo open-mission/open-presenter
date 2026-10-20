@@ -248,10 +248,16 @@ export function buildStageProps(options: {
   const elapsedSecs = stageTimerElapsed(timer, nowMs);
   const cronometro = formatElapsed(elapsedSecs);
 
+  const effectiveCountdownSecs =
+    typeof timer.countdownSecs === "number" && timer.countdownSecs > 0
+      ? timer.countdownSecs
+      : countdownMinutes > 0
+      ? countdownMinutes * 60
+      : 0;
+
   let timerFormatted = cronometro;
-  if (countdownMinutes > 0) {
-    const totalSecs = countdownMinutes * 60;
-    const remaining = Math.max(0, totalSecs - elapsedSecs);
+  if (effectiveCountdownSecs > 0) {
+    const remaining = Math.max(0, effectiveCountdownSecs - elapsedSecs);
     timerFormatted = formatElapsed(remaining);
   }
 

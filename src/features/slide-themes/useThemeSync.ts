@@ -56,9 +56,16 @@ export function useLiveThemesPublisher(): void {
       liveMediaKind,
     );
     const stageTheme = store.resolveStageTheme();
+    const streamTheme = store.resolveTheme(
+      "stream",
+      liveKind,
+      liveMediaThemeId,
+      liveMediaKind,
+    );
     void setLiveThemes({
       public: publicTheme,
       stage: stageTheme,
+      stream: streamTheme,
     });
   }, [
     themes,

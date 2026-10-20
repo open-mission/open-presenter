@@ -5,6 +5,7 @@ import type {
   BibleVerse,
   BibleVerseCompare,
   BibleVersion,
+  ScriptureRef,
   SlideContent,
 } from "@/core/types";
 import {
@@ -16,9 +17,13 @@ import {
   listBibleVersions,
   searchBibleVerses,
 } from "@/core/ipc/commands";
+import {
+  buildScriptureSlide,
+  scriptureSlideId,
+} from "@/core/lib/biblePresentation";
 import { usePresentationStore } from "../presentation/store";
 import { parseBibleReference } from "./bibleParser";
-import { splitVerseText } from "./verseSplitter";
+import { splitVerseText } from "@/core/lib/verseSplitter";
 import { toast } from "sonner";
 
 const SPLIT_VERSES_KEY = "open_presenter_bible_split_verses";
@@ -70,6 +75,8 @@ interface BibleState {
 
   presentCurrentVerse(): Promise<void>;
   presentVerse(verse: BibleVerse, versionOverride?: string, partIndex?: number): Promise<void>;
+  presentReference(ref: ScriptureRef, partIndex?: number): Promise<void>;
+  syncLiveScripture(ref: ScriptureRef): Promise<void>;
   presentNextVerse(): Promise<void>;
   presentPrevVerse(): Promise<void>;
 
@@ -277,23 +284,20 @@ export const useBibleStore = create<BibleState>((set, get) => ({
     if (verse) {
       const parts = getVerseParts(verse.text);
       const safePart = Math.max(0, Math.min(partIndex, parts.length - 1));
-      const partSuffix = parts.length > 1 ? ` (${safePart + 1}/${parts.length})` : "";
-      set({ selectedVerseNum: verseNum, activePartIndex: safePart });
-
       const book = books.find((b) => b.id === activeBookId);
       const bookName = book?.name ?? `Livro ${activeBookId}`;
-      const title = `${bookName} ${activeChapter}:${verse.verse}${partSuffix} (${activeVersionId})`;
-      const section = `${bookName} ${activeChapter}:${verse.verse}${partSuffix}`;
-      usePresentationStore.getState().setPreview({
-        id:
-          parts.length > 1
-            ? `bible-${activeBookId}-${activeChapter}-${verse.verse}#${safePart + 1}`
-            : `bible-${activeBookId}-${activeChapter}-${verse.verse}`,
-        kind: "scripture",
-        title,
-        lines: [parts[safePart]],
-        section,
+      const slide = buildScriptureSlide({
+        versionId: activeVersionId,
+        bookId: activeBookId,
+        bookName,
+        chapter: activeChapter,
+        verse: verse.verse,
+        text: parts[safePart],
+        part: safePart,
+        totalParts: parts.length,
       });
+      set({ selectedVerseNum: verseNum, activePartIndex: safePart });
+      usePresentationStore.getState().setPreview(slide);
     }
   },
 
@@ -318,23 +322,20 @@ export const useBibleStore = create<BibleState>((set, get) => ({
 
     const parts = getVerseParts(verse.text);
     const curPart = Math.max(0, Math.min(partIndex ?? 0, parts.length - 1));
-    const isSplit = parts.length > 1;
-    const partSuffix = isSplit ? ` (${curPart + 1}/${parts.length})` : "";
 
-    const slideId = isSplit
-      ? `bible-${activeBookId}-${activeChapter}-${verse.verse}#${curPart + 1}`
-      : `bible-${activeBookId}-${activeChapter}-${verse.verse}`;
+    const slideFor = (target: BibleVerse, targetPart: number, targetParts: string[]) =>
+      buildScriptureSlide({
+        versionId: version,
+        bookId: activeBookId,
+        bookName,
+        chapter: activeChapter,
+        verse: target.verse,
+        text: targetParts[targetPart],
+        part: targetPart,
+        totalParts: targetParts.length,
+      });
 
-    const title = `${bookName} ${activeChapter}:${verse.verse}${partSuffix} (${version})`;
-    const section = `${bookName} ${activeChapter}:${verse.verse}${partSuffix}`;
-
-    const slide: SlideContent = {
-      id: slideId,
-      kind: "scripture",
-      title,
-      lines: [parts[curPart]],
-      section,
-    };
+    const slide = slideFor(verse, curPart, parts);
 
     // Acha versículo seguinte e anterior no mesmo capítulo
     const nextV = verses.find((v) => v.verse === verse.verse + 1);
@@ -342,67 +343,95 @@ export const useBibleStore = create<BibleState>((set, get) => ({
 
     let nextSlide: SlideContent | null = null;
     if (curPart < parts.length - 1) {
-      // Próxima parte do mesmo versículo
-      const nextPartNum = curPart + 2;
-      nextSlide = {
-        id: `bible-${activeBookId}-${activeChapter}-${verse.verse}#${nextPartNum}`,
-        kind: "scripture",
-        title: `${bookName} ${activeChapter}:${verse.verse} (${nextPartNum}/${parts.length}) (${version})`,
-        lines: [parts[curPart + 1]],
-        section: `${bookName} ${activeChapter}:${verse.verse} (${nextPartNum}/${parts.length})`,
-      };
+      nextSlide = slideFor(verse, curPart + 1, parts);
     } else if (nextV) {
-      // Próximo versículo (parte 1)
       const nextParts = getVerseParts(nextV.text);
-      const nextSuffix = nextParts.length > 1 ? ` (1/${nextParts.length})` : "";
-      nextSlide = {
-        id:
-          nextParts.length > 1
-            ? `bible-${activeBookId}-${activeChapter}-${nextV.verse}#1`
-            : `bible-${activeBookId}-${activeChapter}-${nextV.verse}`,
-        kind: "scripture",
-        title: `${bookName} ${activeChapter}:${nextV.verse}${nextSuffix} (${version})`,
-        lines: [nextParts[0]],
-        section: `${bookName} ${activeChapter}:${nextV.verse}${nextSuffix}`,
-      };
+      nextSlide = slideFor(nextV, 0, nextParts);
     }
 
     let prevSlide: SlideContent | null = null;
     if (curPart > 0) {
-      // Parte anterior do mesmo versículo
-      const prevPartNum = curPart;
-      prevSlide = {
-        id: `bible-${activeBookId}-${activeChapter}-${verse.verse}#${prevPartNum}`,
-        kind: "scripture",
-        title: `${bookName} ${activeChapter}:${verse.verse} (${prevPartNum}/${parts.length}) (${version})`,
-        lines: [parts[curPart - 1]],
-        section: `${bookName} ${activeChapter}:${verse.verse} (${prevPartNum}/${parts.length})`,
-      };
+      prevSlide = slideFor(verse, curPart - 1, parts);
     } else if (prevV) {
-      // Versículo anterior (última parte)
       const prevParts = getVerseParts(prevV.text);
-      const lastIdx = prevParts.length - 1;
-      const prevSuffix =
-        prevParts.length > 1 ? ` (${prevParts.length}/${prevParts.length})` : "";
-      prevSlide = {
-        id:
-          prevParts.length > 1
-            ? `bible-${activeBookId}-${activeChapter}-${prevV.verse}#${prevParts.length}`
-            : `bible-${activeBookId}-${activeChapter}-${prevV.verse}`,
-        kind: "scripture",
-        title: `${bookName} ${activeChapter}:${prevV.verse}${prevSuffix} (${version})`,
-        lines: [prevParts[lastIdx]],
-        section: `${bookName} ${activeChapter}:${prevV.verse}${prevSuffix}`,
-      };
+      prevSlide = slideFor(prevV, prevParts.length - 1, prevParts);
     }
 
     set({
       selectedVerseNum: verse.verse,
       activePartIndex: curPart,
-      liveVerseKey: slideId,
+      liveVerseKey: slide.id,
     });
 
     await usePresentationStore.getState().publishLive(slide, nextSlide, prevSlide);
+  },
+
+  presentReference: async (ref, partIndex) => {
+    const { versions } = get();
+    const versionId = ref.versionId;
+    if (!versionId) return;
+    try {
+      const available = versions.length > 0 ? versions : await listBibleVersions();
+      if (versions.length === 0) set({ versions: available });
+      if (!available.some((version) => version.id === versionId)) {
+        toast.error(`Versão "${versionId}" não está instalada.`);
+        return;
+      }
+      if (get().activeVersionId !== versionId) {
+        const books = await getBibleBooks(versionId);
+        set({ activeVersionId: versionId, books });
+      }
+      const verses = await getBibleChapter(versionId, ref.bookId, ref.chapter);
+      set({
+        activeBookId: ref.bookId,
+        activeChapter: ref.chapter,
+        verses,
+        selectedVerseNum: ref.verse,
+        activePartIndex: Math.max(0, partIndex ?? ref.part),
+        isSearching: false,
+      });
+      const verse = verses.find((candidate) => candidate.verse === ref.verse);
+      if (!verse) {
+        toast.error(`Versículo ${ref.bookName} ${ref.chapter}:${ref.verse} não encontrado.`);
+        return;
+      }
+      await get().presentVerse(verse, versionId, partIndex ?? ref.part);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  },
+
+  syncLiveScripture: async (ref) => {
+    if (!ref.versionId) return;
+    try {
+      let books = get().books;
+      const versionChanged = get().activeVersionId !== ref.versionId;
+      if (versionChanged) {
+        books = await getBibleBooks(ref.versionId);
+        if (!books.some((book) => book.id === ref.bookId)) return;
+        set({ activeVersionId: ref.versionId, books });
+      }
+      if (!books.some((book) => book.id === ref.bookId)) return;
+      const chapterChanged =
+        versionChanged ||
+        get().activeBookId !== ref.bookId ||
+        get().activeChapter !== ref.chapter ||
+        get().verses.length === 0;
+      if (chapterChanged) {
+        const verses = await getBibleChapter(ref.versionId, ref.bookId, ref.chapter);
+        set({ activeBookId: ref.bookId, activeChapter: ref.chapter, verses });
+      }
+      set({
+        activeBookId: ref.bookId,
+        activeChapter: ref.chapter,
+        selectedVerseNum: ref.verse,
+        activePartIndex: ref.part,
+        liveVerseKey: scriptureSlideId(ref, ref.part, ref.totalParts),
+        isSearching: false,
+      });
+    } catch {
+      // Mantém a seleção atual quando a versão/livro não está mais disponível.
+    }
   },
 
   presentNextVerse: async () => {

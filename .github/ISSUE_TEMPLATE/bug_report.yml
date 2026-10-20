@@ -36,7 +36,7 @@ body:
     attributes:
       label: Versão do Open Presenter
       description: Aparece em Preferências → Atualizações.
-      placeholder: "0.3.1"
+      placeholder: "0.3.5"
     validations:
       required: true
   - type: dropdown

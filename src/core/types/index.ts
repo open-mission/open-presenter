@@ -13,6 +13,18 @@ export interface MediaItem {
   themeId?: string;
 }
 
+/** Referência estruturada a um versículo bíblico (usado por itens de setlist e slides vivos). */
+export interface ScriptureRef {
+  versionId: string;
+  bookId: number;
+  bookName: string;
+  chapter: number;
+  verse: number;
+  /** Índice (0-based) da parte dentro do versículo dividido. */
+  part: number;
+  totalParts: number;
+}
+
 export interface SlideContent {
   id: string;
   kind: SlideKind;
@@ -21,6 +33,7 @@ export interface SlideContent {
   notes?: string;
   section?: string;
   media?: MediaItem;
+  scripture?: ScriptureRef;
 }
 
 export type BackgroundKind = "color" | "image" | "video" | "css" | "isf";
@@ -41,7 +54,7 @@ export interface LiveSlide {
   prevUp?: SlideContent;
 }
 
-export * from "./bible";
+export * from "./bible.ts";
 
 export interface MonitorInfo {
   id: string;
@@ -54,7 +67,7 @@ export interface MonitorInfo {
   scaleFactor: number;
 }
 
-export type OutputTarget = "public" | "stage";
+export type OutputTarget = "public" | "stage" | "stream";
 
 export type OutputMode = "off" | "native" | "web" | "both";
 
@@ -71,6 +84,13 @@ export interface OutputRuntime {
   target: OutputTarget;
   open: boolean;
   monitorId: string | null;
+}
+
+export interface NdiStatus {
+  available: boolean;
+  active: boolean;
+  streamName: string;
+  runtimePath: string | null;
 }
 
 export interface ServerStatus {
@@ -102,12 +122,19 @@ export interface StageTimer {
   running: boolean;
   elapsedSecs: number;
   startedAtMillis?: number | null;
+  countdownSecs?: number;
 }
 
 export function stageTimerElapsed(timer: StageTimer, nowMillis: number): number {
   const base = Math.max(0, Math.floor(timer.elapsedSecs));
   if (!timer.running || timer.startedAtMillis == null) return base;
   return base + Math.max(0, Math.floor((nowMillis - timer.startedAtMillis) / 1000));
+}
+
+export function stageTimerRemaining(timer: StageTimer, nowMillis: number): number {
+  const elapsed = stageTimerElapsed(timer, nowMillis);
+  if (!timer.countdownSecs || timer.countdownSecs <= 0) return elapsed;
+  return Math.max(0, timer.countdownSecs - elapsed);
 }
 
 export interface SyncEnvelope<T> {
@@ -154,6 +181,7 @@ export interface SongSummary {
 }
 
 export type LinesPerSlide = "1" | "2" | "keep";
+export type WeekStart = "sunday" | "monday";
 
 export interface SongDefaults {
   linesPerSlide: LinesPerSlide;
@@ -165,6 +193,7 @@ export interface EventItem {
   nextItemId: string | null;
   song: SongSummary | null;
   media: MediaItem | null;
+  scripture?: ScriptureRef | null;
 }
 
 export interface EventPart {
@@ -190,6 +219,7 @@ export interface EventSummary {
   eventDate: string;
   wallpaper?: string | null;
   themeGuid?: string | null;
+  itemCount?: number;
 }
 
 export const TEMPORARY_EVENT_ID = "__temporary__";
@@ -223,15 +253,24 @@ export interface ImportedFolder {
   files: ImportedMedia[];
 }
 
+export interface SongGroupConfig {
+  id: string;
+  name: string;
+  color: string;
+  shortcut: string;
+  typeKey?: SectionType;
+}
+
 export interface RemoteSlide {
   index: number;
   label?: string | null;
+  sectionType?: SectionType | null;
   content: SlideContent;
 }
 
 export interface RemoteItem {
   id: string;
-  kind: "song" | "media";
+  kind: "song" | "media" | "scripture";
   title: string;
   subtitle?: string | null;
   nextItemId?: string | null;
@@ -249,6 +288,7 @@ export interface RemoteSetlist {
   title: string;
   eventDate: string;
   parts: RemotePart[];
+  groups?: SongGroupConfig[];
 }
 
 export interface RemoteConfig {
@@ -320,6 +360,7 @@ export interface ThemeBinding {
 export interface LiveThemes {
   public: SlideTheme | null;
   stage: SlideTheme | null;
+  stream: SlideTheme | null;
 }
 
 export function kindToAsset(kind: SlideKind): ThemeAsset | null {

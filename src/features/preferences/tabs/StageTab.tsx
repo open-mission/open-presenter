@@ -59,10 +59,11 @@ export function StageTab() {
 
             <div className="flex items-center gap-3">
               <select
-                value={resolvedStageTheme?.guid ?? stageThemeGuid ?? ""}
+                value={stageThemeGuid ?? resolvedStageTheme?.guid ?? ""}
                 onChange={(e) => setStageTheme(e.target.value || null)}
                 className="h-8 flex-1 rounded-md border border-input bg-background px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
               >
+                <option value="">Retorno Padrão (automático)</option>
                 {stageThemes.map((t) => (
                   <option key={t.guid} value={t.guid}>
                     {t.title}

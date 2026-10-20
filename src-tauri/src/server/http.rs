@@ -108,6 +108,26 @@ pub fn router(state: ServerState) -> Router {
             get(crate::server::remote::get_wallpaper)
                 .post(crate::server::remote::toggle_wallpaper),
         )
+        .route(
+            "/api/v1/timer",
+            get(crate::server::remote::timer_get),
+        )
+        .route(
+            "/api/v1/timer/start",
+            post(crate::server::remote::timer_start),
+        )
+        .route(
+            "/api/v1/timer/pause",
+            post(crate::server::remote::timer_pause),
+        )
+        .route(
+            "/api/v1/timer/reset",
+            post(crate::server::remote::timer_reset),
+        )
+        .route(
+            "/api/v1/timer/countdown",
+            post(crate::server::remote::timer_set_countdown),
+        )
         .route("/api/v1/songs", get(crate::server::remote::list_songs))
         .route("/api/v1/songs/{id}/slides", get(crate::server::remote::song_slides))
         .route("/api/v1/lyrics/search", get(crate::server::remote::search_lyrics))
@@ -140,6 +160,7 @@ pub fn router(state: ServerState) -> Router {
             post(crate::server::remote::present_bible),
         )
         .route("/api/v1/ws", get(crate::server::remote::ws))
+        .route("/output/{slug}", get(output_slug_handler))
         .route("/theme-media/{*path}", get(theme_media_handler))
         .fallback(static_handler)
         .with_state(Arc::new(state))
@@ -148,6 +169,19 @@ pub fn router(state: ServerState) -> Router {
 
 async fn health_handler() -> &'static str {
     "ok"
+}
+
+async fn output_slug_handler(Path(slug): Path<String>) -> impl IntoResponse {
+    let target = match slug.to_lowercase().as_str() {
+        "stream" | "obs" | "transmissao" | "transmissão" | "live" => "/#/stream",
+        "stage" | "retorno" | "palco" => "/#/stage",
+        "public" | "projecao" | "projeção" | "telao" | "telão" => "/#/public",
+        _ => "/#/stream",
+    };
+    (
+        StatusCode::TEMPORARY_REDIRECT,
+        [(header::LOCATION, target)],
+    )
 }
 
 async fn live_handler(State(state): State<Arc<ServerState>>) -> impl IntoResponse {

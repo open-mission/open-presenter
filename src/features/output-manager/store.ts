@@ -26,8 +26,10 @@ import type {
 import { isOutputActive } from "./outputActive";
 import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
 
-function webPathFor(target: OutputTarget): "/public" | "/stage" {
-  return target === "public" ? "/public" : "/stage";
+function webPathFor(target: OutputTarget): "/public" | "/stage" | "/stream" {
+  if (target === "public") return "/public";
+  if (target === "stage") return "/stage";
+  return "/stream";
 }
 
 function offConfig(target: OutputTarget): OutputConfig {
@@ -81,13 +83,21 @@ interface OutputManagerState {
 }
 
 export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
-  configs: { public: offConfig("public"), stage: offConfig("stage") },
-  runtime: { public: offRuntime("public"), stage: offRuntime("stage") },
+  configs: {
+    public: offConfig("public"),
+    stage: offConfig("stage"),
+    stream: offConfig("stream"),
+  },
+  runtime: {
+    public: offRuntime("public"),
+    stage: offRuntime("stage"),
+    stream: offRuntime("stream"),
+  },
   monitors: [],
   host: "localhost",
   server: { running: true, port: OUTPUT_HTTP_PORT },
   loaded: false,
-  lastMode: { public: "native", stage: "native" },
+  lastMode: { public: "native", stage: "native", stream: "web" },
   setMonitors: (monitors) => set({ monitors }),
   setHost: (host) => set({ host }),
   applyServer: (server) => set({ server }),
@@ -104,12 +114,13 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
       return { runtime };
     }),
   load: async () => {
-    const [host, monitors, publicConfig, stageConfig, state, server] =
+    const [host, monitors, publicConfig, stageConfig, streamConfig, state, server] =
       await Promise.all([
         fetchServerHost(),
         listMonitors(),
         getOutputConfig("public"),
         getOutputConfig("stage"),
+        getOutputConfig("stream"),
         getOutputsState(),
         getServerStatus(),
       ]);
@@ -131,9 +142,10 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
       const configs = {
         public: normalizeConfig(publicConfig) ?? s.configs.public,
         stage: normalizeConfig(stageConfig) ?? s.configs.stage,
+        stream: normalizeConfig(streamConfig) ?? s.configs.stream,
       };
       const lastMode = { ...s.lastMode };
-      for (const t of ["public", "stage"] as const) {
+      for (const t of ["public", "stage", "stream"] as const) {
         if (configs[t].mode !== "off") lastMode[t] = configs[t].mode;
       }
       if (configs.public?.wallpaper !== undefined) {
@@ -155,9 +167,10 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
     get().applyRuntime(state);
   },
   refreshConfigsAndServer: async () => {
-    const [publicConfig, stageConfig, server] = await Promise.all([
+    const [publicConfig, stageConfig, streamConfig, server] = await Promise.all([
       getOutputConfig("public"),
       getOutputConfig("stage"),
+      getOutputConfig("stream"),
       getServerStatus(),
     ]);
     setMediaPort(server?.port ?? null);
@@ -165,9 +178,10 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
       const configs = {
         public: normalizeConfig(publicConfig) ?? s.configs.public,
         stage: normalizeConfig(stageConfig) ?? s.configs.stage,
+        stream: normalizeConfig(streamConfig) ?? s.configs.stream,
       };
       const lastMode = { ...s.lastMode };
-      for (const t of ["public", "stage"] as const) {
+      for (const t of ["public", "stage", "stream"] as const) {
         if (configs[t].mode !== "off") lastMode[t] = configs[t].mode;
       }
       if (configs.public?.wallpaper !== undefined) {

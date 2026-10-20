@@ -7,11 +7,10 @@ import {
   Image,
   Moon,
   Music,
-  PanelLeftClose,
-  PanelLeftOpen,
   Plus,
   Smartphone,
 } from "lucide-react";
+import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -31,12 +30,7 @@ import { usePresentationStore } from "@/features/presentation/store";
 import { useRemoteStore } from "@/features/remote/store";
 import { useSongsStore } from "@/features/songs/store";
 import { useSetlistStore } from "@/features/events-setlists/store";
-import { useNavigationStore } from "@/features/navigation/store";
-
-interface AppTopBarProps {
-  sidebarOpen: boolean;
-  onToggleSidebar(): void;
-}
+import { HeaderTimerControls } from "@/features/stage-display/HeaderTimerControls";
 
 function statusTitle(
   label: string,
@@ -55,14 +49,15 @@ function statusTitle(
   return `${label} ativo — ${modeLabel} (${detail})`;
 }
 
-export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
-  const activeTab = useNavigationStore((s) => s.activeTab);
+export function AppTopBar() {
   const live = usePresentationStore((s) => s.live);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
   const publicConfig = useOutputManagerStore((s) => s.configs.public);
   const stageConfig = useOutputManagerStore((s) => s.configs.stage);
+  const streamConfig = useOutputManagerStore((s) => s.configs.stream);
   const publicRuntime = useOutputManagerStore((s) => s.runtime.public);
   const stageRuntime = useOutputManagerStore((s) => s.runtime.stage);
+  const streamRuntime = useOutputManagerStore((s) => s.runtime.stream);
   const host = useOutputManagerStore((s) => s.host);
   const port = useOutputManagerStore((s) => s.server.port);
   const serverRunning = useOutputManagerStore((s) => s.server.running);
@@ -85,6 +80,11 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
     stageRuntime.open,
     serverRunning,
   );
+  const streamActive = isOutputActive(
+    streamConfig?.mode ?? "off",
+    streamRuntime?.open ?? false,
+    serverRunning,
+  );
 
   const publicTitle = statusTitle(
     "Público",
@@ -99,6 +99,13 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
     stageConfig.monitorLabel,
     outputHttpUrl(host, port, "/stage"),
     stageActive,
+  );
+  const streamTitle = statusTitle(
+    "Transmissão",
+    streamConfig?.mode ?? "off",
+    streamConfig?.monitorLabel ?? null,
+    outputHttpUrl(host, port, "/stream"),
+    streamActive,
   );
 
   // Global shortcuts for quick projection actions (F: Background, C: Clear Text, B: Blackout)
@@ -133,24 +140,16 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
 
   return (
     <header className="flex h-14 w-full items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur-xs shrink-0">
-      {/* Left section: Sidebar toggle button and Novo dropdown menu */}
+      {/* Left section: Brand mark and Novo dropdown menu */}
       <div className="flex items-center gap-2">
-        {activeTab === "presentation" && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8 text-muted-foreground hover:text-foreground"
-            onClick={onToggleSidebar}
-            title={sidebarOpen ? "Ocultar Programação" : "Mostrar Programação"}
-          >
-            {sidebarOpen ? (
-              <PanelLeftClose className="size-4" />
-            ) : (
-              <PanelLeftOpen className="size-4" />
-            )}
-          </Button>
-        )}
+        <div
+          role="img"
+          aria-label="Open Presenter"
+          title="Open Presenter"
+          className="flex size-8 items-center justify-center rounded-lg bg-foreground text-background shadow-xs"
+        >
+          <BrandMark className="size-4" />
+        </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -194,6 +193,11 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
         </DropdownMenu>
       </div>
 
+      {/* Center: Stage Timer & Countdown Controls */}
+      <div className="flex items-center">
+        <HeaderTimerControls />
+      </div>
+
       {/* Right section: Output status indicators, quick blackout/clear, and settings */}
       <div className="flex items-center gap-2">
         {/* Remote control settings */}
@@ -201,7 +205,7 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 gap-1.5 px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+          className="order-last h-8 gap-1.5 px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground"
           onClick={() => openPreferences("remote")}
           title={
             remoteActive
@@ -241,7 +245,7 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
           {/* Stage output status */}
           <div
             className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors"
-            onClick={() => openPreferences("outputs")}
+            onClick={() => openPreferences("outputs", "stage")}
             title={stageTitle}
           >
             <span
@@ -250,6 +254,22 @@ export function AppTopBar({ sidebarOpen, onToggleSidebar }: AppTopBarProps) {
               }`}
             />
             <span className="font-medium text-muted-foreground">Palco</span>
+          </div>
+
+          <span className="text-border">|</span>
+
+          {/* Stream / OBS output status */}
+          <div
+            className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors"
+            onClick={() => openPreferences("outputs", "stream")}
+            title={streamTitle}
+          >
+            <span
+              className={`size-2 rounded-full ${
+                streamActive ? "bg-purple-500 animate-pulse" : "bg-zinc-400"
+              }`}
+            />
+            <span className="font-medium text-muted-foreground">OBS</span>
           </div>
         </div>
 

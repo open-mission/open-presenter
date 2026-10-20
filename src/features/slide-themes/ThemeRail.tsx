@@ -1,11 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ChevronLeft, ChevronRight, Pencil, Trash2, Zap } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Palette,
+  Pencil,
+  Plus,
+  Trash2,
+  Zap,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { kindToAsset } from "@/core/types";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSlideThemesStore } from "./store";
 import { ScaledStage } from "./ScaledStage";
-import { isPublicTheme, previewTheme } from "./pages";
+import { cloneTheme, isPublicTheme, isStageCandidate, isStreamCandidate, previewTheme } from "./pages";
+import { DEFAULT_PUBLIC_THEME, DEFAULT_STAGE_THEME, DEFAULT_STREAM_THEME, DEFAULT_STREAM_THEME_GUID } from "./seedThemes";
 import { SAMPLES } from "./samples";
 
 const RAIL_KEY = "open_presenter_theme_rail_open";
@@ -28,12 +39,17 @@ export function ThemeRail() {
   const navigate = useNavigate();
   const themes = useSlideThemesStore((s) => s.themes);
   const bindings = useSlideThemesStore((s) => s.bindings);
+  const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
+  const setStageTheme = useSlideThemesStore((s) => s.setStageTheme);
+  const resolvedStageTheme = useSlideThemesStore((s) => s.resolveStageTheme());
   const load = useSlideThemesStore((s) => s.load);
+  const save = useSlideThemesStore((s) => s.save);
   const setBinding = useSlideThemesStore((s) => s.setBinding);
   const remove = useSlideThemesStore((s) => s.remove);
   const liveKind = usePresentationStore((s) => s.live.content.kind);
 
   const [open, setOpen] = useState(readOpen);
+  const [railTab, setRailTab] = useState<"public" | "stage" | "stream">("public");
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [confirmGuid, setConfirmGuid] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -71,18 +87,44 @@ export function ThemeRail() {
     });
   }
 
-  const templateThemes = useMemo(() => {
+  const publicThemes = useMemo(() => {
     return themes.filter(isPublicTheme);
   }, [themes]);
+
+  const stageThemes = useMemo(() => {
+    return themes.filter(isStageCandidate);
+  }, [themes]);
+
+  const streamThemes = useMemo(() => {
+    return themes.filter(isStreamCandidate);
+  }, [themes]);
+
+  const displayedThemes =
+    railTab === "public"
+      ? publicThemes
+      : railTab === "stage"
+        ? stageThemes
+        : streamThemes;
 
   const effectiveKind = liveKind === "blank" ? "lyric" : liveKind;
   const asset = kindToAsset(liveKind) ?? "music";
   const liveGuid =
-    bindings.find((b) => b.target === "public" && b.asset === effectiveKind)
-      ?.themeGuid ?? null;
+    railTab === "public"
+      ? bindings.find((b) => b.target === "public" && b.asset === effectiveKind)?.themeGuid ?? null
+      : railTab === "stage"
+        ? resolvedStageTheme?.guid ?? stageThemeGuid ?? null
+        : bindings.find((b) => b.target === "stream" && b.asset === effectiveKind)?.themeGuid ?? DEFAULT_STREAM_THEME_GUID;
 
   function apply(guid: string) {
-    setBinding("public", effectiveKind, guid);
+    if (railTab === "stage") {
+      setStageTheme(guid);
+    } else if (railTab === "stream") {
+      setBinding("stream", "lyric", guid);
+      setBinding("stream", "scripture", guid);
+      setBinding("stream", "custom", guid);
+    } else {
+      setBinding("public", effectiveKind, guid);
+    }
   }
 
   function edit(guid: string) {
@@ -109,21 +151,60 @@ export function ThemeRail() {
     setConfirmGuid(null);
   }
 
+  async function handleCreateTheme() {
+    setError(null);
+    try {
+      if (railTab === "stage") {
+        const theme = cloneTheme(
+          DEFAULT_STAGE_THEME,
+          `Novo Tema de Retorno ${stageThemes.length + 1}`,
+        );
+        theme.category = "stage";
+        await save(theme);
+        setStageTheme(theme.guid);
+        navigate(`/theme-editor?guid=${theme.guid}`);
+      } else if (railTab === "stream") {
+        const theme = cloneTheme(
+          DEFAULT_STREAM_THEME,
+          `Novo Tema de Transmissão ${streamThemes.length + 1}`,
+        );
+        theme.category = "stream";
+        await save(theme);
+        setBinding("stream", "lyric", theme.guid);
+        setBinding("stream", "scripture", theme.guid);
+        setBinding("stream", "custom", theme.guid);
+        navigate(`/theme-editor?guid=${theme.guid}`);
+      } else {
+        const theme = cloneTheme(
+          DEFAULT_PUBLIC_THEME,
+          `Novo Tema ${publicThemes.length + 1}`,
+        );
+        theme.category = "theme";
+        await save(theme);
+        navigate(`/theme-editor?guid=${theme.guid}`);
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Falha ao criar tema");
+    }
+  }
+
   if (!open) {
     return (
       <aside
         aria-label="Trilho de temas"
-        className="flex w-10 shrink-0 flex-col items-center border-l border-border bg-card/40 py-2"
+        className="flex w-10 shrink-0 flex-col border-l border-border bg-card/40"
       >
-        <button
-          type="button"
-          aria-label="Expandir trilho de temas"
-          title="Temas"
-          onClick={toggleOpen}
-          className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-        >
-          <ChevronLeft className="size-4" />
-        </button>
+        <div className="flex h-14 items-center justify-center border-b border-border bg-muted/20">
+          <button
+            type="button"
+            aria-label="Expandir trilho de temas"
+            title="Temas"
+            onClick={toggleOpen}
+            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+        </div>
       </aside>
     );
   }
@@ -131,18 +212,87 @@ export function ThemeRail() {
   return (
     <aside
       aria-label="Trilho de temas"
-      className="flex w-44 shrink-0 flex-col border-l border-border bg-card/40"
+      className="flex w-48 shrink-0 flex-col border-l border-border bg-card/40"
     >
-      <div className="flex items-center justify-between border-b border-border px-2 py-1.5">
-        <span className="text-[11px] font-semibold text-foreground">Temas</span>
+      <div className="flex h-14 items-center justify-between border-b border-border bg-muted/20 px-3">
+        <div className="flex items-center gap-2">
+          <Palette className="size-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold text-foreground">Temas</span>
+        </div>
         <button
           type="button"
           aria-label="Recolher trilho de temas"
           onClick={toggleOpen}
-          className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer"
         >
-          <ChevronRight className="size-3.5" />
+          <ChevronRight className="size-4" />
         </button>
+      </div>
+
+      {/* Segmented Switch: Projeção vs Palco vs OBS */}
+      <div className="border-b border-border bg-muted/30 p-1.5">
+        <div className="grid grid-cols-3 gap-0.5 rounded-md bg-muted/60 p-0.5 text-[10px] font-medium border border-border/40">
+          <button
+            type="button"
+            className={`rounded py-1 text-center transition-colors cursor-pointer truncate px-1 ${
+              railTab === "public"
+                ? "bg-background text-foreground shadow-2xs font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setRailTab("public")}
+            title="Temas para projeção pública no telão"
+          >
+            Projeção
+          </button>
+          <button
+            type="button"
+            className={`rounded py-1 text-center transition-colors cursor-pointer truncate px-1 ${
+              railTab === "stage"
+                ? "bg-background text-foreground shadow-2xs font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setRailTab("stage")}
+            title="Temas para retorno de palco (Stage)"
+          >
+            Palco
+          </button>
+          <button
+            type="button"
+            className={`rounded py-1 text-center transition-colors cursor-pointer truncate px-1 ${
+              railTab === "stream"
+                ? "bg-background text-emerald-400 shadow-2xs font-semibold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+            onClick={() => setRailTab("stream")}
+            title="Temas para transmissão ao vivo (OBS / Lower Third)"
+          >
+            OBS
+          </button>
+        </div>
+        <div className="mt-1.5 flex items-center justify-between px-1 text-[10px] text-muted-foreground">
+          <span className="truncate max-w-28">
+            {railTab === "public"
+              ? "Saída de telão"
+              : railTab === "stage"
+                ? "Retorno de palco"
+                : "Transmissão (OBS)"}
+          </span>
+          <button
+            type="button"
+            onClick={() => void handleCreateTheme()}
+            className="flex items-center gap-0.5 rounded px-1.5 py-0.5 font-medium text-primary hover:bg-primary/10 transition-colors cursor-pointer shrink-0"
+            title={
+              railTab === "public"
+                ? "Criar novo tema de projeção"
+                : railTab === "stage"
+                  ? "Criar novo tema de retorno"
+                  : "Criar novo tema de transmissão (Lower Third)"
+            }
+          >
+            <Plus className="size-3" />
+            Novo
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-2">
@@ -151,33 +301,54 @@ export function ThemeRail() {
             {error}
           </p>
         )}
-        {templateThemes.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            Nenhum tema. Crie um em Preferências &gt; Temas.
-          </p>
+        {displayedThemes.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border p-3 text-center">
+            <Palette className="size-5 text-muted-foreground/50" />
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              {railTab === "stage"
+                ? "Nenhum tema de palco encontrado. Crie um novo para o retorno."
+                : railTab === "stream"
+                  ? "Nenhum tema de transmissão encontrado. Crie um novo para o OBS."
+                  : "Nenhum tema criado ainda. Crie o primeiro para personalizar a projeção."}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 w-full gap-1.5 text-[11px] cursor-pointer"
+              onClick={() => void handleCreateTheme()}
+            >
+              <Plus className="size-3.5" />
+              {railTab === "stage"
+                ? "Criar tema de retorno"
+                : railTab === "stream"
+                  ? "Criar tema de transmissão"
+                  : "Criar novo tema"}
+            </Button>
+          </div>
         ) : (
           <ul className="flex flex-col gap-2">
-            {templateThemes.map((theme) => {
+            {displayedThemes.map((theme) => {
               const isLive = theme.guid === liveGuid;
-              const preview = previewTheme(theme, asset);
+              const preview = previewTheme(theme, railTab === "stage" ? "rest" : asset);
               return (
                 <li key={theme.guid}>
                   <button
                     type="button"
-                    title={theme.title}
+                    title={`${theme.title} (${isLive ? "Ativo" : "Clique ou dê dois cliques para aplicar"})`}
+                    onClick={() => apply(theme.guid)}
                     onDoubleClick={() => apply(theme.guid)}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       setConfirmGuid(null);
                       setMenu({ guid: theme.guid, x: e.clientX, y: e.clientY });
                     }}
-                    className={`group flex w-full flex-col gap-1 rounded-lg border p-1.5 text-left ${
+                    className={`group flex w-full flex-col gap-1 rounded-lg border p-1.5 text-left cursor-pointer transition-all ${
                       isLive
-                        ? "border-primary bg-primary/10"
+                        ? "border-primary bg-primary/10 ring-1 ring-primary/50"
                         : "border-border bg-card/60 hover:border-primary/50"
                     }`}
                   >
-                    <span className="relative block aspect-video w-full overflow-hidden rounded-md">
+                    <span className="relative block aspect-video w-full overflow-hidden rounded-md bg-black">
                       <ScaledStage
                         theme={preview.theme}
                         asset={preview.asset}
@@ -186,7 +357,7 @@ export function ThemeRail() {
                       {isLive && (
                         <span className="absolute top-1 left-1 flex items-center gap-0.5 rounded bg-primary px-1 py-px text-[9px] font-bold text-primary-foreground">
                           <Zap className="size-2.5" />
-                          No ar
+                          {railTab === "public" ? "No ar" : "Palco"}
                         </span>
                       )}
                     </span>
@@ -240,10 +411,10 @@ export function ThemeRail() {
                 closeMenu();
                 apply(guid);
               }}
-              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground"
+              className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground cursor-pointer"
             >
               <Check className="size-3.5" />
-              Aplicar
+              {railTab === "stage" ? "Definir para Palco" : "Aplicar"}
             </button>
             <button
               type="button"

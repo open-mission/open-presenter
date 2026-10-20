@@ -43,6 +43,7 @@ export interface CanvasProps {
   snap: boolean;
   zoom?: "fit" | number;
   resolution?: { width: number; height: number };
+  simulateCamera?: boolean;
 }
 
 type ResizeDir = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
@@ -75,31 +76,6 @@ const FALLBACK_SIZE: Record<ThemeElement["type"], { w: number; h: number }> = {
   VIDEO: { w: 320, h: 180 },
   RECTANGLE: { w: 200, h: 120 },
 };
-
-function isRendered(
-  el: ThemeElement,
-  asset: ThemeAsset,
-): boolean {
-  if (
-    !el.visible ||
-    (el.assetTypeVisibility &&
-      el.assetTypeVisibility.length > 0 &&
-      !el.assetTypeVisibility.includes(asset))
-  ) {
-    return false;
-  }
-  const mediaSrc = (el.src ?? el.url ?? "").trim();
-  if (
-    (el.type === "IMAGE" || el.type === "VIDEO") &&
-    (mediaSrc === "" || mediaSrc === "slide" || mediaSrc === "nextSlide")
-  ) {
-    return false;
-  }
-  if (el.type === "RECTANGLE" && el.fill === "web" && !mediaSrc) {
-    return false;
-  }
-  return true;
-}
 
 const HANDLE_CURSORS: Record<ResizeDir, string> = {
   nw: "nwse-resize",
@@ -136,6 +112,7 @@ export function Canvas({
   snap,
   zoom = "fit",
   resolution,
+  simulateCamera = false,
 }: CanvasProps) {
   const logicalW = resolution?.width ?? LOGICAL_W;
   const logicalH = resolution?.height ?? LOGICAL_H;
@@ -205,19 +182,46 @@ export function Canvas({
   useLayoutEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const root = stage.querySelector(":scope > #theme");
+    const root = stage.querySelector<HTMLElement>("#theme");
     if (!root) return;
-    const rendered = visibleElements.filter((el) => isRendered(el, asset));
-    const next: Record<string, { w: number; h: number }> = {};
-    Array.from(root.children).forEach((child, index) => {
-      const el = rendered[index];
-      if (!el) return;
-      const target = child as HTMLElement;
-      if (target.offsetWidth > 0 && target.offsetHeight > 0) {
-        next[el.id] = { w: target.offsetWidth, h: target.offsetHeight };
-      }
+
+    const measure = () => {
+      const next: Record<string, { w: number; h: number }> = {};
+      root
+        .querySelectorAll<HTMLElement>("[data-theme-element-id]")
+        .forEach((target) => {
+          const id = target.dataset.themeElementId;
+          if (!id) return;
+          if (target.offsetWidth > 0 && target.offsetHeight > 0) {
+            next[id] = { w: target.offsetWidth, h: target.offsetHeight };
+          }
+        });
+      setMeasured((previous) => {
+        const same =
+          Object.keys(next).length === Object.keys(previous).length &&
+          Object.entries(next).every(
+            ([id, box]) =>
+              previous[id]?.w === box.w && previous[id]?.h === box.h,
+          );
+        return same ? previous : next;
+      });
+    };
+
+    const frame = requestAnimationFrame(measure);
+    let disposed = false;
+    void document.fonts?.ready.then(() => {
+      if (!disposed) measure();
     });
-    setMeasured(next);
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    Array.from(root.children).forEach((child) => observer.observe(child));
+
+    return () => {
+      disposed = true;
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, [theme, asset, visibleElements]);
 
   function withPatch(el: ThemeElement): ThemeElement {
@@ -691,7 +695,27 @@ export function Canvas({
           }}
           className="relative h-full w-full select-none"
         >
-            <div id="theme-export-target" className="absolute inset-0 h-full w-full">
+          {simulateCamera && (
+            <div className="pointer-events-none absolute inset-0 z-0 select-none overflow-hidden">
+              <div
+                className="absolute inset-0 bg-cover bg-center"
+                style={{
+                  backgroundImage: `
+                    radial-gradient(ellipse at 50% 30%, rgba(99, 102, 241, 0.35) 0%, transparent 60%),
+                    radial-gradient(circle at 20% 45%, rgba(244, 63, 94, 0.25) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 45%, rgba(56, 189, 248, 0.25) 0%, transparent 50%),
+                    linear-gradient(to bottom, #090d16 0%, #15192c 40%, #05070c 100%)
+                  `,
+                }}
+              />
+              <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+              <div className="absolute top-4 left-4 flex items-center gap-2 rounded-md border border-white/10 bg-black/70 px-2.5 py-1 font-mono text-[11px] text-emerald-400 backdrop-blur-md">
+                <span className="size-2 animate-pulse rounded-full bg-emerald-400" />
+                SIMULAÇÃO DE CÂMERA (OBS)
+              </div>
+            </div>
+          )}
+          <div id="theme-export-target" className="absolute inset-0 h-full w-full">
               <ThemeRenderer
                 theme={effectiveTheme}
                 asset={asset}

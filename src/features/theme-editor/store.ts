@@ -30,11 +30,13 @@ interface ThemeEditorState {
   updateCss(patch: Record<string, string>): void;
   updateElement(id: string, patch: Partial<ThemeElement>): void;
   addElement(el: ThemeElement): void;
+  addElements(els: ThemeElement[]): void;
   removeElement(id: string): void;
   moveElement(id: string, dir: 1 | -1): void;
   toggleVisible(id: string): void;
   toggleLocked(id: string): void;
   setTitle(title: string): void;
+  setCategory(category: SlideTheme["category"]): void;
   selectPage(pageId: string): void;
   addPage(context: ThemeContext, mode: "duplicate" | "blank"): void;
   removePage(pageId: string): void;
@@ -139,6 +141,17 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       mutate(next);
     },
 
+    addElements: (els) => {
+      const { draft, activePageId } = get();
+      if (!draft || els.length === 0) return;
+      const next = clone(draft);
+      const page = getActivePage(next, activePageId);
+      const clones = els.map((el) => structuredClone(el));
+      if (page) page.elements = [...page.elements, ...clones];
+      else next.elements = [...next.elements, ...clones];
+      mutate(next);
+    },
+
     removeElement: (id) => {
       const { draft, activePageId } = get();
       if (!draft) return;
@@ -191,6 +204,12 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       const { draft } = get();
       if (!draft) return;
       mutate({ ...clone(draft), title });
+    },
+
+    setCategory: (category) => {
+      const { draft } = get();
+      if (!draft) return;
+      mutate({ ...clone(draft), category });
     },
 
     selectPage: (pageId) => {

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 use crate::services::songs;
-use crate::state::{EventItem, EventPart, EventSummary, MediaItem, ServiceEvent, SongSummary};
+use crate::state::{EventItem, EventPart, EventSummary, MediaItem, ScriptureRef, ServiceEvent, SongSummary};
 
 #[derive(Serialize, Deserialize)]
 struct StoredItem {
@@ -14,6 +14,8 @@ struct StoredItem {
     next_item_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     media: Option<MediaItem>,
+    #[serde(rename = "scripture", default, skip_serializing_if = "Option::is_none")]
+    scripture: Option<ScriptureRef>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -60,6 +62,7 @@ fn serialize_setlist(event: &ServiceEvent) -> Result<String, AppError> {
                         song_id: item.song_id.clone(),
                         next_item_id: item.next_item_id.clone(),
                         media: item.media.clone(),
+                        scripture: item.scripture.clone(),
                     })
                     .collect(),
             })
@@ -74,10 +77,15 @@ pub fn list(conn: &Connection) -> Result<Vec<EventSummary>, AppError> {
     let mut stmt = conn
         .prepare(
             "SELECT id, title, event_date, json_extract(setlist_json, '$.wallpaper'),
-                    json_extract(setlist_json, '$.themeGuid')
+                    json_extract(setlist_json, '$.themeGuid'),
+                    CASE WHEN json_valid(setlist_json) THEN (
+                        SELECT COUNT(*)
+                        FROM json_each(service_events.setlist_json, '$.parts') AS part,
+                             json_each(part.value, '$.items')
+                    ) ELSE 0 END
              FROM service_events
              WHERE id != ?1
-             ORDER BY event_date DESC, title",
+             ORDER BY event_date ASC, title",
         )
         .map_err(storage_error)?;
     let events = stmt
@@ -88,6 +96,7 @@ pub fn list(conn: &Connection) -> Result<Vec<EventSummary>, AppError> {
                 event_date: row.get(2)?,
                 wallpaper: row.get::<_, Option<String>>(3).unwrap_or(None),
                 theme_guid: row.get::<_, Option<String>>(4).unwrap_or(None),
+                item_count: row.get(5)?,
             })
         })
         .map_err(storage_error)?
@@ -140,6 +149,7 @@ pub fn get(conn: &Connection, id: &str) -> Result<Option<ServiceEvent>, AppError
                 next_item_id: item.next_item_id,
                 song,
                 media: item.media,
+                scripture: item.scripture,
             });
         }
         parts.push(EventPart {
@@ -226,8 +236,8 @@ mod tests {
         let song_id = songs::insert_new(&conn, "Ousado Amor", "Isaias Saad", &[SongSection { section_type: None, lines: vec!["x".into()] }]).unwrap();
         let event = ServiceEvent { id: "e1".into(), title: "Culto".into(), event_date: "2026-10-18".into(), wallpaper: None, theme_guid: None,
             parts: vec![EventPart { id: "p1".into(), title: "Louvor".into(), items: vec![
-                EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: Some("i2".into()), song: None, media: None },
-                EventItem { id: "i2".into(), song_id: Some(song_id.clone()), next_item_id: None, song: None, media: None },
+                EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: Some("i2".into()), song: None, media: None, scripture: None },
+                EventItem { id: "i2".into(), song_id: Some(song_id.clone()), next_item_id: None, song: None, media: None, scripture: None },
             ], color: None, bg_color: None }] };
         create(&conn, &event).unwrap();
         let loaded = get(&conn, "e1").unwrap().unwrap();
@@ -241,7 +251,7 @@ mod tests {
         let song_id = songs::insert_new(&conn, "T", "", &[SongSection { section_type: None, lines: vec!["l".into()] }]).unwrap();
         let event = ServiceEvent { id: "e1".into(), title: "C".into(), event_date: "2026-10-18".into(), wallpaper: None, theme_guid: None,
             parts: vec![EventPart { id: "p1".into(), title: "P".into(), items: vec![
-                EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: Some("i-que-nao-existe".into()), song: None, media: None }], color: None, bg_color: None }] };
+                EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: Some("i-que-nao-existe".into()), song: None, media: None, scripture: None }], color: None, bg_color: None }] };
         create(&conn, &event).unwrap();
         songs::delete(&conn, &song_id).unwrap();
         let loaded = get(&conn, "e1").unwrap().unwrap();
@@ -276,6 +286,7 @@ mod tests {
                         fit: Some("contain".into()),
                         theme_id: None,
                     }),
+                    scripture: None,
                 }],
                 color: None,
                 bg_color: None,
@@ -302,9 +313,9 @@ mod tests {
         let conn = open_in_memory();
         let song_id = songs::insert_new(&conn, "T", "", &[SongSection { section_type: None, lines: vec!["l".into()] }]).unwrap();
         let mut event = ServiceEvent { id: "e1".into(), title: "C".into(), event_date: "2026-10-18".into(), wallpaper: None, theme_guid: None,
-            parts: vec![EventPart { id: "p1".into(), title: "P".into(), items: vec![EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: None, song: None, media: None }], color: None, bg_color: None }] };
+            parts: vec![EventPart { id: "p1".into(), title: "P".into(), items: vec![EventItem { id: "i1".into(), song_id: Some(song_id.clone()), next_item_id: None, song: None, media: None, scripture: None }], color: None, bg_color: None }] };
         create(&conn, &event).unwrap();
-        event.parts[0].items.push(EventItem { id: "i2".into(), song_id: Some(song_id), next_item_id: None, song: None, media: None });
+        event.parts[0].items.push(EventItem { id: "i2".into(), song_id: Some(song_id), next_item_id: None, song: None, media: None, scripture: None });
         save(&conn, &event).unwrap();
         assert_eq!(get(&conn, "e1").unwrap().unwrap().parts[0].items.len(), 2);
         assert_eq!(list(&conn).unwrap().len(), 1);
@@ -343,6 +354,106 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].id, "e-culto");
         assert!(!events.iter().any(|e| e.id == TEMPORARY_EVENT_ID));
+    }
+
+    #[test]
+    fn list_ordena_eventos_por_data_ascendente() {
+        let conn = open_in_memory();
+        for (id, date) in [
+            ("e-depois", "2026-10-25"),
+            ("e-antes", "2026-10-17"),
+            ("e-meio", "2026-10-18"),
+        ] {
+            create(
+                &conn,
+                &ServiceEvent {
+                    id: id.into(),
+                    title: id.into(),
+                    event_date: date.into(),
+                    wallpaper: None,
+                    theme_guid: None,
+                    parts: vec![],
+                },
+            )
+            .unwrap();
+        }
+
+        let events = list(&conn).unwrap();
+        assert_eq!(
+            events.iter().map(|event| event.id.as_str()).collect::<Vec<_>>(),
+            vec!["e-antes", "e-meio", "e-depois"]
+        );
+    }
+
+    #[test]
+    fn list_conta_itens_programados_de_cada_evento() {
+        let conn = open_in_memory();
+        let event = ServiceEvent {
+            id: "e-cheio".into(),
+            title: "Culto".into(),
+            event_date: "2026-10-18".into(),
+            wallpaper: None,
+            theme_guid: None,
+            parts: vec![
+                EventPart {
+                    id: "p1".into(),
+                    title: "Louvor".into(),
+                    items: vec![
+                        EventItem {
+                            id: "i1".into(),
+                            song_id: None,
+                            next_item_id: None,
+                            song: None,
+                            media: None,
+                            scripture: None,
+                        },
+                        EventItem {
+                            id: "i2".into(),
+                            song_id: None,
+                            next_item_id: None,
+                            song: None,
+                            media: None,
+                            scripture: None,
+                        },
+                    ],
+                    color: None,
+                    bg_color: None,
+                },
+                EventPart {
+                    id: "p2".into(),
+                    title: "Ofertório".into(),
+                    items: vec![EventItem {
+                        id: "i3".into(),
+                        song_id: None,
+                        next_item_id: None,
+                        song: None,
+                        media: None,
+                        scripture: None,
+                    }],
+                    color: None,
+                    bg_color: None,
+                },
+            ],
+        };
+        create(&conn, &event).unwrap();
+        create(
+            &conn,
+            &ServiceEvent {
+                id: "e-vazio".into(),
+                title: "Vazio".into(),
+                event_date: "2026-10-19".into(),
+                wallpaper: None,
+                theme_guid: None,
+                parts: vec![],
+            },
+        )
+        .unwrap();
+
+        let events = list(&conn).unwrap();
+        let cheio = events.iter().find(|e| e.id == "e-cheio").unwrap();
+        let vazio = events.iter().find(|e| e.id == "e-vazio").unwrap();
+        assert_eq!(cheio.item_count, 3);
+        assert_eq!(vazio.item_count, 0);
     }
 
     #[test]

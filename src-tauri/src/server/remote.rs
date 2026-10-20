@@ -19,14 +19,21 @@ use crate::server::clients::{
 use crate::server::ServerState;
 use crate::services::{lrclib, media_library, slide_builder, songs};
 use crate::state::types::{
-    now_millis, ClientKind, ConnectedClient, MediaItem, MediaKind, SlideContent, SlideKind,
-    EVENT_REMOTE_SETLIST, EVENT_SLIDE, EVENT_WALLPAPER,
+    now_millis, ClientKind, ConnectedClient, MediaItem, MediaKind, ScriptureRef, SlideContent,
+    SlideKind, EVENT_REMOTE_SETLIST, EVENT_SLIDE, EVENT_TIMER, EVENT_WALLPAPER,
 };
 use crate::state::{LiveSlide, RemoteItem, RemoteSetlist};
 
 #[derive(Debug, Deserialize)]
 pub struct RemoteWsQuery {
     token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetCountdownRequest {
+    #[serde(default)]
+    pub secs: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -311,6 +318,89 @@ pub async fn toggle_wallpaper(
     Json(live).into_response()
 }
 
+pub async fn timer_get(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    Json(state.broadcaster.current_timer()).into_response()
+}
+
+pub async fn timer_start(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    if let Some(app) = &state.app_handle {
+        use tauri::Manager;
+        let pres = app.state::<crate::state::PresentationState>();
+        pres.timer_start();
+        let timer = pres.timer();
+        state.broadcaster.publish_timer(&timer);
+        return Json(timer).into_response();
+    }
+    (StatusCode::INTERNAL_SERVER_ERROR, "app handle indisponível").into_response()
+}
+
+pub async fn timer_pause(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    if let Some(app) = &state.app_handle {
+        use tauri::Manager;
+        let pres = app.state::<crate::state::PresentationState>();
+        pres.timer_pause();
+        let timer = pres.timer();
+        state.broadcaster.publish_timer(&timer);
+        return Json(timer).into_response();
+    }
+    (StatusCode::INTERNAL_SERVER_ERROR, "app handle indisponível").into_response()
+}
+
+pub async fn timer_reset(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    if let Some(app) = &state.app_handle {
+        use tauri::Manager;
+        let pres = app.state::<crate::state::PresentationState>();
+        pres.timer_reset();
+        let timer = pres.timer();
+        state.broadcaster.publish_timer(&timer);
+        return Json(timer).into_response();
+    }
+    (StatusCode::INTERNAL_SERVER_ERROR, "app handle indisponível").into_response()
+}
+
+pub async fn timer_set_countdown(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+    Json(req): Json<SetCountdownRequest>,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    if let Some(app) = &state.app_handle {
+        use tauri::Manager;
+        let pres = app.state::<crate::state::PresentationState>();
+        pres.timer_set_countdown(req.secs);
+        let timer = pres.timer();
+        state.broadcaster.publish_timer(&timer);
+        return Json(timer).into_response();
+    }
+    (StatusCode::INTERNAL_SERVER_ERROR, "app handle indisponível").into_response()
+}
+
 pub async fn list_songs(
     State(state): State<Arc<ServerState>>,
     headers: HeaderMap,
@@ -519,6 +609,7 @@ pub async fn present_image(
             fit: None,
             theme_id: None,
         }),
+        scripture: None,
     };
     let current = state.broadcaster.current_slide();
     let live = LiveSlide {
@@ -570,8 +661,16 @@ pub struct PresentBibleRequest {
     pub verse: i32,
     pub text: String,
     pub part_suffix: Option<String>,
+    pub part: Option<usize>,
+    pub total_parts: Option<usize>,
     pub prev_text: Option<String>,
+    pub prev_verse: Option<i32>,
+    pub prev_part: Option<usize>,
+    pub prev_total_parts: Option<usize>,
     pub next_text: Option<String>,
+    pub next_verse: Option<i32>,
+    pub next_part: Option<usize>,
+    pub next_total_parts: Option<usize>,
 }
 
 pub async fn list_bible_versions_endpoint(
@@ -675,6 +774,60 @@ pub async fn compare_bible_endpoint(
     }
 }
 
+fn bible_slide_id(
+    book_id: i32,
+    chapter: i32,
+    verse: i32,
+    part: usize,
+    total_parts: usize,
+) -> String {
+    if total_parts > 1 {
+        format!("bible-{book_id}-{chapter}-{verse}#{}", part + 1)
+    } else {
+        format!("bible-{book_id}-{chapter}-{verse}")
+    }
+}
+
+fn bible_part_suffix(part: usize, total_parts: usize) -> String {
+    if total_parts > 1 {
+        format!(" ({}/{})", part + 1, total_parts)
+    } else {
+        String::new()
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn build_bible_slide(
+    version_id: &str,
+    book_id: i32,
+    book_name: &str,
+    chapter: i32,
+    verse: i32,
+    text: String,
+    part: usize,
+    total_parts: usize,
+) -> SlideContent {
+    let suffix = bible_part_suffix(part, total_parts);
+    SlideContent {
+        id: bible_slide_id(book_id, chapter, verse, part, total_parts),
+        kind: SlideKind::Scripture,
+        title: format!("{book_name} {chapter}:{verse}{suffix} ({version_id})"),
+        lines: vec![text],
+        notes: None,
+        section: Some(format!("{book_name} {chapter}:{verse}{suffix}")),
+        media: None,
+        scripture: Some(ScriptureRef {
+            version_id: version_id.to_string(),
+            book_id,
+            book_name: book_name.to_string(),
+            chapter,
+            verse,
+            part,
+            total_parts,
+        }),
+    }
+}
+
 pub async fn present_bible(
     State(state): State<Arc<ServerState>>,
     headers: HeaderMap,
@@ -683,82 +836,70 @@ pub async fn present_bible(
     if let Err(response) = guard_headers(&state, &headers) {
         return response;
     }
-    let part_suffix = request.part_suffix.as_deref().unwrap_or("");
-    let title = format!(
-        "{} {}:{}{} ({})",
-        request.book_name, request.chapter, request.verse, part_suffix, request.version_id
-    );
-    let section = format!(
-        "{} {}:{}{}",
-        request.book_name, request.chapter, request.verse, part_suffix
-    );
+    let PresentBibleRequest {
+        version_id,
+        book_id,
+        book_name,
+        chapter,
+        verse,
+        text,
+        part_suffix: _part_suffix,
+        part,
+        total_parts,
+        prev_text,
+        prev_verse,
+        prev_part,
+        prev_total_parts,
+        next_text,
+        next_verse,
+        next_part,
+        next_total_parts,
+    } = request;
 
-    let next_up = request.next_text.map(|t| SlideContent {
-        id: format!(
-            "bible-{}-{}-{}",
-            request.book_id,
-            request.chapter,
-            request.verse + 1
-        ),
-        kind: SlideKind::Scripture,
-        title: format!(
-            "{} {}:{} ({})",
-            request.book_name,
-            request.chapter,
-            request.verse + 1,
-            request.version_id
-        ),
-        lines: vec![t],
-        notes: None,
-        section: Some(format!(
-            "{} {}:{}",
-            request.book_name,
-            request.chapter,
-            request.verse + 1
-        )),
-        media: None,
+    let total_parts = total_parts.unwrap_or(1).max(1);
+    let part = part.unwrap_or(0).min(total_parts - 1);
+
+    let next_up = next_text.map(|t| {
+        let next_total = next_total_parts.unwrap_or(1).max(1);
+        build_bible_slide(
+            &version_id,
+            book_id,
+            &book_name,
+            chapter,
+            next_verse.unwrap_or(verse + 1),
+            t,
+            next_part.unwrap_or(0).min(next_total - 1),
+            next_total,
+        )
     });
 
-    let prev_up = request.prev_text.map(|t| SlideContent {
-        id: format!(
-            "bible-{}-{}-{}",
-            request.book_id,
-            request.chapter,
-            request.verse.saturating_sub(1)
-        ),
-        kind: SlideKind::Scripture,
-        title: format!(
-            "{} {}:{} ({})",
-            request.book_name,
-            request.chapter,
-            request.verse.saturating_sub(1),
-            request.version_id
-        ),
-        lines: vec![t],
-        notes: None,
-        section: Some(format!(
-            "{} {}:{}",
-            request.book_name,
-            request.chapter,
-            request.verse.saturating_sub(1)
-        )),
-        media: None,
+    let prev_up = prev_text.map(|t| {
+        let prev_total = prev_total_parts.unwrap_or(1).max(1);
+        build_bible_slide(
+            &version_id,
+            book_id,
+            &book_name,
+            chapter,
+            prev_verse.unwrap_or_else(|| verse.saturating_sub(1)),
+            t,
+            prev_part.unwrap_or(0).min(prev_total - 1),
+            prev_total,
+        )
     });
 
+    let content = build_bible_slide(
+        &version_id,
+        book_id,
+        &book_name,
+        chapter,
+        verse,
+        text,
+        part,
+        total_parts,
+    );
     let current = state.broadcaster.current_slide();
     let live = LiveSlide {
-        content: SlideContent {
-            id: format!(
-                "bible-{}-{}-{}",
-                request.book_id, request.chapter, request.verse
-            ),
-            kind: SlideKind::Scripture,
-            title,
-            lines: vec![request.text],
-            notes: None,
-            section: Some(section),
-            media: None,
-        },
+        content,
         background: current.background,
         blackout: false,
         cleared: false,
@@ -820,6 +961,11 @@ async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>, client
         "payload": state.broadcaster.current_wallpaper(),
         "version": 1,
     });
+    let timer = serde_json::json!({
+        "channel": EVENT_TIMER,
+        "payload": state.broadcaster.current_timer(),
+        "version": 1,
+    });
 
     if sender
         .send(Message::Text(slide.to_string().into()))
@@ -837,6 +983,13 @@ async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>, client
     }
     if sender
         .send(Message::Text(wallpaper.to_string().into()))
+        .await
+        .is_err()
+    {
+        return;
+    }
+    if sender
+        .send(Message::Text(timer.to_string().into()))
         .await
         .is_err()
     {
@@ -863,14 +1016,47 @@ async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>, client
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::types::SlideKind;
+    use crate::state::types::{SectionType, SlideKind};
     use crate::state::{RemotePart, RemoteSlide};
+
+    #[test]
+    fn bible_slide_id_inclui_parte_apenas_quando_dividido() {
+        assert_eq!(bible_slide_id(43, 3, 16, 0, 1), "bible-43-3-16");
+        assert_eq!(bible_slide_id(43, 3, 16, 1, 2), "bible-43-3-16#2");
+    }
+
+    #[test]
+    fn build_bible_slide_inclui_referencia_estruturada() {
+        let slide = build_bible_slide(
+            "ARA",
+            43,
+            "João",
+            3,
+            16,
+            "Porque Deus amou o mundo".into(),
+            1,
+            2,
+        );
+
+        assert_eq!(slide.kind, SlideKind::Scripture);
+        assert_eq!(slide.title, "João 3:16 (2/2) (ARA)");
+        assert_eq!(slide.section.as_deref(), Some("João 3:16 (2/2)"));
+        let scripture = slide.scripture.expect("referência bíblica");
+        assert_eq!(scripture.version_id, "ARA");
+        assert_eq!(scripture.book_id, 43);
+        assert_eq!(scripture.book_name, "João");
+        assert_eq!(scripture.chapter, 3);
+        assert_eq!(scripture.verse, 16);
+        assert_eq!(scripture.part, 1);
+        assert_eq!(scripture.total_parts, 2);
+    }
 
     fn make_test_setlist() -> RemoteSetlist {
         RemoteSetlist {
             event_id: "evt-1".into(),
             title: "Culto de Domingo".into(),
             event_date: "2026-10-18".into(),
+            groups: Vec::new(),
             parts: vec![RemotePart {
                 id: "part-1".into(),
                 title: "Louvor".into(),
@@ -885,6 +1071,7 @@ mod tests {
                             RemoteSlide {
                                 index: 0,
                                 label: Some("V1".into()),
+                                section_type: Some(SectionType::Verse),
                                 content: SlideContent {
                                     id: "item-1#0".into(),
                                     kind: SlideKind::Lyric,
@@ -893,11 +1080,13 @@ mod tests {
                                     notes: None,
                                     section: Some("V1".into()),
                                     media: None,
+                                    scripture: None,
                                 },
                             },
                             RemoteSlide {
                                 index: 1,
                                 label: Some("C".into()),
+                                section_type: Some(SectionType::Chorus),
                                 content: SlideContent {
                                     id: "item-1#1".into(),
                                     kind: SlideKind::Lyric,
@@ -906,6 +1095,7 @@ mod tests {
                                     notes: None,
                                     section: Some("C".into()),
                                     media: None,
+                                    scripture: None,
                                 },
                             },
                         ],
@@ -919,6 +1109,7 @@ mod tests {
                         slides: vec![RemoteSlide {
                             index: 0,
                             label: Some("Slide 1".into()),
+                            section_type: None,
                             content: SlideContent {
                                 id: "item-2#0".into(),
                                 kind: SlideKind::Custom,
@@ -927,6 +1118,7 @@ mod tests {
                                 notes: None,
                                 section: None,
                                 media: None,
+                                scripture: None,
                             },
                         }],
                     },

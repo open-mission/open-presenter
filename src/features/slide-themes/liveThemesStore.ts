@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { LiveThemes, SlideTheme } from "@/core/types";
 
-const EMPTY_THEMES: LiveThemes = { public: null, stage: null };
+const EMPTY_THEMES: LiveThemes = { public: null, stage: null, stream: null };
 
 function asTheme(value: unknown): SlideTheme | null {
   if (typeof value !== "object" || value === null) return null;
@@ -18,6 +18,7 @@ function normalize(value: unknown): LiveThemes {
   return {
     public: asTheme(record.public),
     stage: asTheme(record.stage),
+    stream: asTheme(record.stream),
   };
 }
 

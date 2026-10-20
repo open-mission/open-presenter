@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useSetlistStore } from "./store";
 import { EventDetailsDialog } from "./EventDetailsDialog";
 import type { EventSummary } from "@/core/types";
+import { usePreferencesStore } from "@/features/preferences/store";
 
 interface AgendaCalendarProps {
   onSelectAndSwitch?: () => void;
@@ -22,6 +23,7 @@ export function AgendaCalendar({ onSelectAndSwitch }: AgendaCalendarProps) {
   const activeEventId = useSetlistStore((s) => s.activeEventId);
   const updateEventDate = useSetlistStore((s) => s.updateEventDate);
   const openNewEventDialog = useSetlistStore((s) => s.openNewEventDialog);
+  const weekStart = usePreferencesStore((s) => s.weekStart);
 
   const [clickedEvent, setClickedEvent] = useState<EventSummary | null>(null);
 
@@ -126,6 +128,7 @@ export function AgendaCalendar({ onSelectAndSwitch }: AgendaCalendarProps) {
           <FullCalendar
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
             initialView="dayGridMonth"
+            firstDay={weekStart === "monday" ? 1 : 0}
             headerToolbar={{
               left: "prev,next today",
               center: "title",
