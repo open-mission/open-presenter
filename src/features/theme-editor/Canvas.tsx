@@ -43,6 +43,7 @@ export interface CanvasProps {
   snap: boolean;
   zoom?: "fit" | number;
   resolution?: { width: number; height: number };
+  simulateCamera?: boolean;
 }
 
 type ResizeDir = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
@@ -111,6 +112,7 @@ export function Canvas({
   snap,
   zoom = "fit",
   resolution,
+  simulateCamera = false,
 }: CanvasProps) {
   const logicalW = resolution?.width ?? LOGICAL_W;
   const logicalH = resolution?.height ?? LOGICAL_H;
@@ -693,7 +695,27 @@ export function Canvas({
           }}
           className="relative h-full w-full select-none"
         >
-            <div id="theme-export-target" className="absolute inset-0 h-full w-full">
+          {simulateCamera && (
+            <div className="pointer-events-none absolute inset-0 z-0 select-none overflow-hidden">
+              <div
+                className="absolute inset-0 bg-cover bg-center"
+                style={{
+                  backgroundImage: `
+                    radial-gradient(ellipse at 50% 30%, rgba(99, 102, 241, 0.35) 0%, transparent 60%),
+                    radial-gradient(circle at 20% 45%, rgba(244, 63, 94, 0.25) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 45%, rgba(56, 189, 248, 0.25) 0%, transparent 50%),
+                    linear-gradient(to bottom, #090d16 0%, #15192c 40%, #05070c 100%)
+                  `,
+                }}
+              />
+              <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+              <div className="absolute top-4 left-4 flex items-center gap-2 rounded-md border border-white/10 bg-black/70 px-2.5 py-1 font-mono text-[11px] text-emerald-400 backdrop-blur-md">
+                <span className="size-2 animate-pulse rounded-full bg-emerald-400" />
+                SIMULAÇÃO DE CÂMERA (OBS)
+              </div>
+            </div>
+          )}
+          <div id="theme-export-target" className="absolute inset-0 h-full w-full">
               <ThemeRenderer
                 theme={effectiveTheme}
                 asset={asset}

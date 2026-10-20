@@ -13,8 +13,10 @@ import {
   Pencil,
   Redo,
   Square,
+  Tv,
   Type,
   Undo,
+  Video,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -66,6 +68,7 @@ import { PropertiesPanel } from "@/features/theme-editor/PropertiesPanel";
 import { SymbolsPicker } from "@/features/theme-editor/SymbolsPicker";
 import { useThemeEditorStore } from "@/features/theme-editor/store";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { DEFAULT_STREAM_THEME_GUID } from "@/features/slide-themes/seedThemes";
 
 function uniqueId(prefix: string, existing: string[]): string {
   let n = existing.length + 1;
@@ -113,6 +116,7 @@ export default function ThemeEditorView() {
   const save = useThemeEditorStore((s) => s.save);
   const revert = useThemeEditorStore((s) => s.revert);
   const addElement = useThemeEditorStore((s) => s.addElement);
+  const addElements = useThemeEditorStore((s) => s.addElements);
   const upgradeToV2 = useThemeEditorStore((s) => s.upgradeToV2);
   const setCategory = useThemeEditorStore((s) => s.setCategory);
 
@@ -122,6 +126,7 @@ export default function ThemeEditorView() {
   const [showLimit, setShowLimit] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
   const [gridSize, setGridSize] = useState(40);
+  const [simulateCamera, setSimulateCamera] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -163,6 +168,12 @@ export default function ThemeEditorView() {
   useEffect(() => {
     setSelectedId(null);
   }, [activePageId]);
+
+  useEffect(() => {
+    if (draft?.category === "stream" || draft?.guid === DEFAULT_STREAM_THEME_GUID) {
+      setSimulateCamera(true);
+    }
+  }, [draft?.category, draft?.guid]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -523,6 +534,62 @@ export default function ThemeEditorView() {
     setSelectedId(el.id);
   }
 
+  function handleInsertLowerThird() {
+    if (!draft) return;
+    const current = viewOf(
+      draft,
+      useThemeEditorStore.getState().activePageId,
+    );
+    const ids = current.elements.map((e) => e.id);
+
+    const boxId = uniqueId("lowerthird_fundo", ids);
+    const boxEl: ThemeElement = {
+      id: boxId,
+      type: "RECTANGLE",
+      x: 80,
+      y: 860,
+      visible: true,
+      locked: false,
+      css: {
+        ...baseCss(80, 860, 1760, 160),
+        backgroundColor: "rgba(15, 23, 42, 0.90)",
+        borderRadius: "16px",
+        boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6)",
+        borderLeft: "6px solid #38bdf8",
+        backdropFilter: "blur(12px)",
+      },
+      fill: "rgba(15, 23, 42, 0.90)",
+    };
+
+    const textId = uniqueId("lowerthird_texto", [...ids, boxId]);
+    const textEl: ThemeElement = {
+      id: textId,
+      type: "TEXT",
+      x: 120,
+      y: 875,
+      visible: true,
+      locked: false,
+      css: {
+        ...baseCss(120, 875, 1680, 130),
+        textAlign: "left",
+        fontSize: "44px",
+        fontWeight: "600",
+        lineHeight: "1.25",
+        color: "#ffffff",
+        textShadow: "0 2px 4px rgba(0,0,0,0.7)",
+        display: "flex",
+        alignItems: "center",
+        autoShrink: "true",
+      },
+      text: "{lyrics}",
+    };
+
+    addElements([boxEl, textEl]);
+    setSelectedId(textId);
+    setSimulateCamera(true);
+    toast.success("Barra Lower Third adicionada!");
+  }
+
   if (!guid || (!draft && error)) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background text-foreground">
@@ -554,6 +621,14 @@ export default function ThemeEditorView() {
     draft.category === "stage" ||
     draft.guid === stageThemeGuid ||
     draft.guid === resolvedStageThemeGuid;
+  const isStreamTheme =
+    draft.category === "stream" ||
+    draft.guid === DEFAULT_STREAM_THEME_GUID;
+  const currentCategory: "theme" | "stage" | "stream" = isStageTheme
+    ? "stage"
+    : isStreamTheme
+      ? "stream"
+      : "theme";
   const contexts = pageContextsForCategory(isStageTheme ? "stage" : "theme");
   const upgradeable = draft.category !== "presentation" && !draft.pages?.length;
   const currentPage = getActivePage(draft, activePageId);
@@ -611,27 +686,59 @@ export default function ThemeEditorView() {
               >
                 {label}
               </Badge>
-              <Badge
-                variant="outline"
-                className={cn(
-                  "text-[10px] cursor-pointer transition-colors",
-                  isStageTheme
-                    ? "border-sky-500/40 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20"
-                    : "border-purple-500/40 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20",
-                )}
-                onClick={() => {
-                  const nextCategory = isStageTheme ? "theme" : "stage";
-                  setCategory(nextCategory);
-                  toast.success(
-                    nextCategory === "stage"
-                      ? "Destinado para Retorno de Palco (Stage)"
-                      : "Destinado para Projeção Pública",
-                  );
-                }}
-                title="Clique para alternar destino entre Projeção e Retorno de Palco"
-              >
-                {isStageTheme ? "Retorno (Stage)" : "Projeção"}
-              </Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px] cursor-pointer transition-colors select-none",
+                      currentCategory === "stage" &&
+                        "border-sky-500/40 bg-sky-500/10 text-sky-400 hover:bg-sky-500/20",
+                      currentCategory === "stream" &&
+                        "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20",
+                      currentCategory === "theme" &&
+                        "border-purple-500/40 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20",
+                    )}
+                    title="Destino do tema: clique para alternar entre Projeção, Retorno ou Transmissão"
+                  >
+                    {currentCategory === "stage"
+                      ? "Retorno (Stage)"
+                      : currentCategory === "stream"
+                        ? "Transmissão (OBS)"
+                        : "Projeção"}
+                  </Badge>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setCategory("theme");
+                      toast.success("Destinado para Projeção Pública");
+                    }}
+                  >
+                    <span className="mr-2 size-2 rounded-full bg-purple-400" />
+                    Projeção Pública
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setCategory("stage");
+                      toast.success("Destinado para Retorno de Palco (Stage)");
+                    }}
+                  >
+                    <span className="mr-2 size-2 rounded-full bg-sky-400" />
+                    Retorno de Palco (Stage)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setCategory("stream");
+                      setSimulateCamera(true);
+                      toast.success("Destinado para Transmissão (OBS / Lower Third)");
+                    }}
+                  >
+                    <span className="mr-2 size-2 rounded-full bg-emerald-400" />
+                    Transmissão (OBS / Lower Third)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               {upgradeable && (
                 <Button
                   size="sm"
@@ -805,6 +912,17 @@ export default function ThemeEditorView() {
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleInsertLowerThird}
+          title="Inserir barra estilizada de Lower Third (Tarja inferior para OBS)"
+          className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 gap-1.5"
+        >
+          <Tv className="size-3.5" />
+          Lower Third
+        </Button>
+
         <div className="mx-1 h-5 w-px bg-border" />
 
         <Button
@@ -848,6 +966,21 @@ export default function ThemeEditorView() {
             }}
           />
         )}
+        <Button
+          variant={simulateCamera ? "secondary" : "ghost"}
+          size="sm"
+          aria-pressed={simulateCamera}
+          onClick={() => setSimulateCamera((v) => !v)}
+          className={cn(
+            "gap-1.5",
+            simulateCamera &&
+              "border border-emerald-500/40 bg-emerald-500/15 text-emerald-400 font-medium",
+          )}
+          title="Simular visualização sobre vídeo de câmera ao vivo (OBS / Transmissão)"
+        >
+          <Video className="size-3.5" />
+          Simular OBS
+        </Button>
 
         <div className="flex-1" />
 
@@ -1008,6 +1141,7 @@ export default function ThemeEditorView() {
               snap={snap}
               zoom={zoom}
               resolution={resolution}
+              simulateCamera={simulateCamera}
             />
           </div>
           <PagesBar />

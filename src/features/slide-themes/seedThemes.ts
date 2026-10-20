@@ -510,7 +510,7 @@ export const DEFAULT_PUBLIC_THEME: SlideTheme = {
 export const DEFAULT_STREAM_THEME: SlideTheme = {
   guid: DEFAULT_STREAM_THEME_GUID,
   title: "Lower Third — Transmissão (OBS)",
-  category: "theme",
+  category: "stream",
   css: { background: "transparent" },
   elements: [],
   pages: [

@@ -13,6 +13,7 @@ import type {
   LiveSlide,
   LiveThemes,
   MonitorInfo,
+  NdiStatus,
   OnlineLyricHit,
   OutputConfig,
   OutputRuntime,
@@ -485,4 +486,13 @@ export async function compareBibleVerse(
 export async function deleteBible(versionId: string): Promise<void> {
   await invokeStrict("delete_bible", { versionId });
 }
+
+export async function getNdiStatus(): Promise<NdiStatus | null> {
+  return invokeCommand<NdiStatus>("get_ndi_status");
+}
+
+export async function setNdiActive(active: boolean): Promise<NdiStatus | null> {
+  return invokeCommand<NdiStatus>("set_ndi_active", { active });
+}
+
 

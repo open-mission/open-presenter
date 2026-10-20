@@ -86,6 +86,13 @@ export interface OutputRuntime {
   monitorId: string | null;
 }
 
+export interface NdiStatus {
+  available: boolean;
+  active: boolean;
+  streamName: string;
+  runtimePath: string | null;
+}
+
 export interface ServerStatus {
   running: boolean;
   port: number;

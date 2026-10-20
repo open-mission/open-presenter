@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Check,
@@ -7,6 +7,7 @@ import {
   Info,
   Palette,
   Pencil,
+  Plus,
   Radio,
   Video,
 } from "lucide-react";
@@ -15,11 +16,16 @@ import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { outputHttpUrl } from "@/core/config/app";
 import { toast } from "sonner";
-import { DEFAULT_STREAM_THEME_GUID } from "@/features/slide-themes/seedThemes";
+import { DEFAULT_STREAM_THEME, DEFAULT_STREAM_THEME_GUID } from "@/features/slide-themes/seedThemes";
+import { cloneTheme } from "@/features/slide-themes/pages";
+import { getNdiStatus, setNdiActive } from "@/core/ipc/commands";
+import type { NdiStatus } from "@/core/types";
+import { cn } from "@/core/lib/utils";
 
 export function StreamTab() {
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const [ndiStatus, setNdiStatus] = useState<NdiStatus | null>(null);
 
   const host = useOutputManagerStore((s) => s.host);
   const port = useOutputManagerStore((s) => s.server.port);
@@ -27,6 +33,23 @@ export function StreamTab() {
   const themes = useSlideThemesStore((s) => s.themes);
   const bindings = useSlideThemesStore((s) => s.bindings);
   const setBinding = useSlideThemesStore((s) => s.setBinding);
+  const saveTheme = useSlideThemesStore((s) => s.save);
+
+  useEffect(() => {
+    void getNdiStatus().then((status) => {
+      if (status) setNdiStatus(status);
+    });
+  }, []);
+
+  async function toggleNdi(active: boolean) {
+    const updated = await setNdiActive(active);
+    if (updated) {
+      setNdiStatus(updated);
+      toast.success(
+        active ? "Saída NDI ativada na rede!" : "Saída NDI desativada.",
+      );
+    }
+  }
 
   // Tema atualmente vinculado à transmissão para louvor/letras
   const currentStreamThemeGuid = useMemo(() => {
@@ -68,6 +91,19 @@ export function StreamTab() {
     toast.success("Tema da transmissão atualizado!");
   }
 
+  async function handleCreateStreamTheme() {
+    const theme = cloneTheme(
+      DEFAULT_STREAM_THEME,
+      `Novo Tema de Transmissão ${availableThemes.length + 1}`,
+    );
+    theme.category = "stream";
+    await saveTheme(theme);
+    setBinding("stream", "lyric", theme.guid);
+    setBinding("stream", "scripture", theme.guid);
+    setBinding("stream", "custom", theme.guid);
+    navigate(`/theme-editor?guid=${theme.guid}`);
+  }
+
   return (
     <div className="flex flex-col gap-5">
       {/* Grid: Tema e Integração OBS */}
@@ -81,20 +117,33 @@ export function StreamTab() {
                 <Palette className="size-3.5 text-primary" />
                 Tema da Transmissão (Lower Third / Tarja)
               </span>
-              {resolvedTheme && (
+              <div className="flex items-center gap-1.5">
                 <Button
                   type="button"
                   size="sm"
-                  variant="ghost"
-                  className="h-6 gap-1 px-2 text-xs text-primary hover:text-primary cursor-pointer"
-                  onClick={() =>
-                    navigate(`/theme-editor?guid=${resolvedTheme.guid}`)
-                  }
+                  variant="outline"
+                  className="h-6 gap-1 px-2 text-xs cursor-pointer"
+                  onClick={handleCreateStreamTheme}
+                  title="Criar novo tema formatado para transmissão"
                 >
-                  <Pencil className="size-3" />
-                  Editar no Editor
+                  <Plus className="size-3" />
+                  Novo Tema OBS
                 </Button>
-              )}
+                {resolvedTheme && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 gap-1 px-2 text-xs text-primary hover:text-primary cursor-pointer"
+                    onClick={() =>
+                      navigate(`/theme-editor?guid=${resolvedTheme.guid}`)
+                    }
+                  >
+                    <Pencil className="size-3" />
+                    Editar no Editor
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="flex items-center gap-3">
@@ -190,25 +239,68 @@ export function StreamTab() {
         <div className="flex flex-col gap-4 lg:col-span-5">
           {/* Card: Saída NDI */}
           <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-card/60 p-4 shadow-2xs">
-            <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-              <Radio className="size-3.5 text-purple-400" />
-              Transmissão via NDI
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Radio className="size-3.5 text-purple-400" />
+                Transmissão via NDI
+              </span>
+              {ndiStatus?.available ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400 border border-emerald-500/30">
+                  <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  NDI Disponível
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-[10px] font-medium text-muted-foreground border border-border/40">
+                  NDI não detectado
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
               O protocolo <strong>NDI® (Network Device Interface)</strong> envia o sinal
               de vídeo das letras e versículos com <strong>canal alfa (transparência nativa)</strong>{" "}
               diretamente pela rede local (LAN).
             </p>
-            <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-3 flex flex-col gap-1.5">
-              <div className="flex items-center gap-2">
-                <span className="size-2 rounded-full bg-purple-400 animate-pulse" />
-                <span className="text-xs font-medium text-foreground">
-                  Identificador na rede:
-                </span>
+            <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-3 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "size-2 rounded-full",
+                      ndiStatus?.active
+                        ? "bg-purple-400 animate-pulse"
+                        : "bg-muted-foreground",
+                    )}
+                  />
+                  <span className="text-xs font-medium text-foreground">
+                    Nome da Fonte NDI:
+                  </span>
+                </div>
+                {ndiStatus?.available && (
+                  <button
+                    type="button"
+                    onClick={() => void toggleNdi(!ndiStatus.active)}
+                    className={cn(
+                      "rounded px-2 py-0.5 text-[10px] font-medium transition-colors cursor-pointer border",
+                      ndiStatus.active
+                        ? "border-purple-500/40 bg-purple-500/20 text-purple-300 hover:bg-purple-500/30"
+                        : "border-border bg-muted/50 text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {ndiStatus.active ? "Ativo" : "Inativo"}
+                  </button>
+                )}
               </div>
               <code className="text-[11px] font-mono text-purple-300 font-semibold pl-4">
-                Open Presenter — Transmissão
+                {ndiStatus?.streamName ?? "Open Presenter — Transmissão"}
               </code>
+              {ndiStatus?.runtimePath && (
+                <span
+                  className="text-[10px] font-mono text-muted-foreground/70 pl-4 truncate"
+                  title={ndiStatus.runtimePath}
+                >
+                  Biblioteca: {ndiStatus.runtimePath}
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-muted-foreground">
               No OBS Studio com o plugin <strong>obs-ndi</strong> ou no vMix,

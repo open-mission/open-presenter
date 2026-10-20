@@ -7,6 +7,7 @@ pub mod import;
 pub mod lrclib;
 pub mod lyrics;
 pub mod media_library;
+pub mod ndi;
 pub mod setlists;
 pub mod settings;
 pub mod slide_builder;
