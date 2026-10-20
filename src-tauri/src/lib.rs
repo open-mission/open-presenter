@@ -247,6 +247,9 @@ pub fn run() {
             app.manage(std::sync::Mutex::new(
                 crate::server::ServerControl::stopped(port, server_state),
             ));
+            if let Err(err) = crate::services::tray::init(app.handle()) {
+                tracing::error!(%err, "não foi possível criar o ícone da bandeja");
+            }
             let server_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 use tauri::Manager;
@@ -275,6 +278,7 @@ pub fn run() {
                         );
                     }
                 }
+                crate::services::tray::refresh(&server_handle);
             });
             Ok(())
         })
@@ -298,6 +302,8 @@ pub fn run() {
             commands::server::start_server,
             commands::server::get_connected_clients,
             commands::server::get_remote_clients,
+            commands::preferences::get_close_to_tray,
+            commands::preferences::set_close_to_tray,
             commands::presentation::go_live,
             commands::presentation::set_blackout,
             commands::presentation::get_live_slide,
@@ -355,6 +361,12 @@ pub fn run() {
                 if window.label() == "main" {
                     api.prevent_close();
                     let app = window.app_handle().clone();
+                    if crate::commands::preferences::close_to_tray(&app)
+                        && crate::services::tray::is_available(&app)
+                    {
+                        let _ = window.hide();
+                        return;
+                    }
                     use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
                     app.dialog()
                         .message("Deseja realmente sair do Open Presenter?")
@@ -372,6 +384,19 @@ pub fn run() {
                 }
             }
         })
-        .run(tauri::generate_context!())
-        .expect("erro ao iniciar o Open Presenter");
+        .build(tauri::generate_context!())
+        .expect("erro ao iniciar o Open Presenter")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = (app, event);
+            }
+        });
 }

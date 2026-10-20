@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   ExternalLink,
   Layers,
+  Monitor,
   MonitorPlay,
   RefreshCw,
   Sparkles,
@@ -32,6 +33,7 @@ const HIGHLIGHT_ICONS: Record<ReleaseHighlightIcon, typeof BookOpen> = {
   layers: Layers,
   monitor: MonitorPlay,
   refresh: RefreshCw,
+  tray: Monitor,
 };
 
 export function WhatsNewDialog() {

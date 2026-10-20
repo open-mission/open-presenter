@@ -98,6 +98,9 @@ Baixe a versão mais recente em
 - Servidor HTTP/WebSocket embutido na porta `5050`.
 - Controle remoto pelo celular, com letras, Bíblia e programação.
 - Compatível com OBS Browser Source para transmissão.
+- Ícone na bandeja do sistema com atalhos para abrir os links, reiniciar o
+  servidor e sair do aplicativo.
+- Fechamento para a bandeja configurável em **Preferências → Geral**.
 
 <p align="center">
   <img src="docs/screenshots/whats-new.png" alt="Modal de novidades da versão 0.3.0" width="100%" />

@@ -1,6 +1,6 @@
 use std::sync::MutexGuard;
 
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::error::AppError;
 use crate::services::database::Db;
@@ -48,6 +48,7 @@ pub fn set_remote_token(
 
 #[tauri::command]
 pub fn set_remote_enabled(
+    app: AppHandle,
     db: State<'_, Db>,
     remote: State<'_, SharedRemoteState>,
     enabled: bool,
@@ -55,12 +56,16 @@ pub fn set_remote_enabled(
     db.with_conn(|conn| {
         settings::set_setting(conn, ENABLED_KEY, if enabled { "true" } else { "false" })
     })?;
-    let mut guard = lock(&remote)?;
-    guard.enabled = enabled;
-    Ok(RemoteConfig {
-        enabled: guard.enabled,
-        token: guard.token.clone(),
-    })
+    let config = {
+        let mut guard = lock(&remote)?;
+        guard.enabled = enabled;
+        RemoteConfig {
+            enabled: guard.enabled,
+            token: guard.token.clone(),
+        }
+    };
+    crate::services::tray::refresh(&app);
+    Ok(config)
 }
 
 #[tauri::command]

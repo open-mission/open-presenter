@@ -150,6 +150,14 @@ export async function startServer(): Promise<ServerStatus> {
   return invokeStrict<ServerStatus>("start_server");
 }
 
+export async function getCloseToTray(): Promise<boolean> {
+  return (await invokeCommand<boolean>("get_close_to_tray")) ?? false;
+}
+
+export async function setCloseToTray(enabled: boolean): Promise<void> {
+  await invokeStrict("set_close_to_tray", { enabled });
+}
+
 export async function getConnectedClients(): Promise<ConnectedClient[]> {
   return (await invokeCommand<ConnectedClient[]>("get_connected_clients")) ?? [];
 }

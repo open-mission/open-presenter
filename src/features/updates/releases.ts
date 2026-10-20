@@ -3,7 +3,12 @@ export const CHANGELOG_URL = `${GITHUB_REPO_URL}/blob/main/CHANGELOG.md`;
 export const RELEASES_URL = `${GITHUB_REPO_URL}/releases`;
 export const LATEST_RELEASE_URL = `${GITHUB_REPO_URL}/releases/latest`;
 
-export type ReleaseHighlightIcon = "book" | "layers" | "monitor" | "refresh";
+export type ReleaseHighlightIcon =
+  | "book"
+  | "layers"
+  | "monitor"
+  | "refresh"
+  | "tray";
 
 export interface ReleaseHighlight {
   icon: ReleaseHighlightIcon;
@@ -59,8 +64,23 @@ export const RELEASES: ReleaseNotes[] = [
         description:
           "Quando sair uma versão nova, o próprio Open Presenter avisa e instala a atualização sem você precisar baixar nada manualmente.",
       },
+      {
+        icon: "tray",
+        title: "Sempre à mão na bandeja",
+        description:
+          "Ative a opção de manter na bandeja para fechar a janela sem perder o app de vista: o ícone abre os links, reinicia o servidor e encerra de verdade.",
+      },
     ],
     sections: [
+      {
+        title: "Bandeja do sistema",
+        items: [
+          "Ícone permanente com status do servidor local.",
+          "Acesso rápido aos links de público, palco e controle remoto quando estão ativos.",
+          "Reinício do servidor e saída do aplicativo pelo próprio menu.",
+          "Fechamento para a bandeja configurável em Preferências > Geral.",
+        ],
+      },
       {
         title: "Bíblia",
         items: [

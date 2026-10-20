@@ -1,6 +1,14 @@
-import { Database, Globe, Keyboard, ShieldCheck } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Database, Globe, Keyboard, Monitor, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { APP_VERSION } from "@/core/config/version";
+import {
+  getCloseToTray,
+  setCloseToTray as persistCloseToTray,
+} from "@/core/ipc/commands";
+import { isTauri } from "@/core/ipc/tauri";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 
 interface ShortcutItem {
@@ -22,6 +30,26 @@ const SHORTCUTS: ShortcutItem[] = [
 export function GeneralTab() {
   const host = useOutputManagerStore((s) => s.host);
   const port = useOutputManagerStore((s) => s.server.port);
+  const [closeToTray, setCloseToTray] = useState(false);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    let active = true;
+    void getCloseToTray().then((value) => {
+      if (active) setCloseToTray(value);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  function handleCloseToTray(enabled: boolean): void {
+    setCloseToTray(enabled);
+    void persistCloseToTray(enabled).catch(() => {
+      setCloseToTray(!enabled);
+      toast.error("Não foi possível salvar a configuração da bandeja.");
+    });
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -70,6 +98,35 @@ export function GeneralTab() {
           </div>
         </div>
       </div>
+
+      {isTauri() && (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <Monitor className="size-4 text-muted-foreground" />
+            <h4 className="font-semibold text-xs text-foreground">
+              Bandeja do sistema
+            </h4>
+          </div>
+
+          <div className="flex items-center justify-between gap-6 rounded-xl border border-border/80 bg-card/60 p-4 shadow-2xs">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-foreground">
+                Manter na bandeja ao fechar
+              </p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Ao fechar a janela principal, o Open Presenter continua em
+                segundo plano. Use o ícone da bandeja para reabrir, acessar os
+                links do servidor ou sair do aplicativo.
+              </p>
+            </div>
+            <Switch
+              checked={closeToTray}
+              onCheckedChange={handleCloseToTray}
+              aria-label="Manter na bandeja ao fechar"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Shortcuts */}
       <div className="flex flex-col gap-3">

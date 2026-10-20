@@ -38,6 +38,7 @@ pub fn set_output_config(
     let outputs = app.state::<OutputsState>();
     outputs.set_config(target, config);
     let _ = app.emit(EVENT_OUTPUTS, outputs.snapshot());
+    crate::services::tray::refresh(&app);
 
     if target == OutputTarget::Public {
         if let Some(broadcaster) = app.try_state::<crate::services::broadcaster::SharedBroadcaster>() {

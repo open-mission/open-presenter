@@ -61,6 +61,17 @@ atualizações dentro do app e melhorias na projeção.
 - Endpoint de atualização apontando para o `latest.json` das GitHub Releases.
 - Assinatura de updates integrada ao workflow de release.
 
+#### Bandeja do sistema
+
+- Ícone permanente na bandeja com menu para reabrir o app, acessar os links de
+  público, palco e controle remoto, reiniciar o servidor e sair.
+- Links de acesso habilitados apenas quando o servidor e a saída correspondente
+  estão ativos.
+- Opção de fechar a janela principal para a bandeja, configurável em
+  **Preferências > Geral**.
+- Encerramento explícito pelo menu da bandeja, evitando um processo em segundo
+  plano sem indicação visual.
+
 ### Alterado
 
 - Temas padrão unificados por contexto.
