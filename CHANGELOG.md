@@ -5,6 +5,73 @@ Todas as mudanças relevantes do Open Presenter são documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.3.1] - 2026-10-19
+
+Release de identidade visual e sistema de temas da interface, com presets,
+edição de tokens shadcn/ui, importação/exportação em JSON e CSS e aplicação
+independente dos temas de projeção.
+
+### Adicionado
+
+#### Identidade visual
+
+- Novos assets SVG em `docs/brand/` (ícones claro, escuro, invertido, preenchido,
+  monocromático e wordmarks).
+- Ícones do aplicativo regenerados para macOS, Windows, Linux, Android e iOS.
+- Ícone monocromático dedicado à bandeja do macOS com `icon_as_template`,
+  adaptando-se automaticamente ao modo claro e escuro do sistema.
+- Favicon SVG, PNG 32×32, ICO e Apple Touch Icon servidos junto com o frontend.
+- Wordmark oficial no README e marca aplicada no dock, preferências, atalhos,
+  controle remoto e tela de informações do app.
+
+#### Tema da interface (shadcn/ui)
+
+- Novo núcleo `src/core/theme/uiTheme.ts` com 31 tokens shadcn/ui para as
+  paletas clara e escura, incluindo cores de gráficos e barra lateral.
+- Presets: Open Presenter, Slate, Azul, Violeta, Verde, Âmbar, Rosa e Alto
+  contraste.
+- Editor completo em **Preferências → Aparência**, em uma seção recolhível, com
+  seletor de paleta claro/escuro, prévia ao vivo e ajuste de arredondamento
+  (`--radius`).
+- Persistência em `localStorage` na chave `open_presenter_ui_theme`.
+- Aplicação em tempo real via CSS custom properties no elemento `:root`,
+  integrada ao modo claro/escuro/sistema existente.
+- Importação e exportação em JSON (`open-presenter-ui-theme`) e CSS com blocos
+  `:root` e `.dark`.
+- Importação parcial: tokens ausentes são completados com o tema padrão.
+- Validação de valores CSS e limites de arredondamento para evitar injeção de
+  declarações no CSS.
+- Prévia da interface com variáveis CSS isoladas no contêiner, permitindo editar
+  a paleta escura mesmo com o app no modo claro.
+
+### Alterado
+
+- Tokens padrão de `src/index.css` convertidos para a paleta neutra em hex,
+  alinhados ao preset Open Presenter.
+- Barras de rolagem passam a usar `--muted-foreground` com `color-mix`, seguindo
+  o tema ativo.
+- `src/core/theme/theme.ts` aplica a paleta personalizada ao alternar entre
+  claro, escuro e sistema, inclusive em mudanças do sistema operacional.
+- README atualizado com o wordmark, a seção de aparência e a nova captura de
+  tela.
+- Documentação de release separada entre changelog técnico (GitHub) e novidades
+  amigáveis (app).
+
+### Corrigido
+
+- A janela de atalhos agora exibe a versão real do aplicativo, em vez de
+  `v0.1.0` fixo.
+- Pequenos ajustes de contraste e consistência visual nas preferências.
+
+### Manutenção
+
+- Testes de cores e do núcleo de temas com `node:test` (normalização de hex,
+  contraste, presets, serialização, importação/exportação e aplicação de
+  variáveis).
+- Feature `image-png` habilitada no Tauri para carregar o ícone PNG da bandeja.
+- Versão atualizada para `0.3.1` em `package.json`, `package-lock.json`,
+  `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock` e `src-tauri/tauri.conf.json`.
+
 ## [0.3.0] - 2026-10-19
 
 Release com o módulo Bíblia, temas organizados por momento do culto,

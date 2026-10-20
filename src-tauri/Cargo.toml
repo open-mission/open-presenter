@@ -1,6 +1,6 @@
 [package]
 name = "open-presenter"
-version = "0.3.0"
+version = "0.3.1"
 description = "Software desktop open source e leve para apresentação em igrejas e eventos"
 edition = "2021"
 rust-version = "1.90.0"
@@ -13,7 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.7.3", features = [] }
 
 [dependencies]
-tauri = { version = "2.12.4", features = ["tray-icon"] }
+tauri = { version = "2.12.4", features = ["tray-icon", "image-png"] }
 tauri-plugin-dialog = "2.8.3"
 tauri-plugin-fs = "2.7.1"
 tauri-plugin-opener = "2.7.2"
