@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
 import { useMediaPort } from "@/core/config/mediaPort";
 import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
@@ -7,6 +7,13 @@ import { ShaderCanvas } from "@/features/media-shaders/ShaderCanvas";
 import { renderTemplate } from "./themeTemplate";
 import { hasNoiseLayer } from "./noiseGenerator";
 import { getAnimationNames } from "./transitions";
+import {
+  lineHeightPx,
+  resolveFitBounds,
+  resolveLineHeightRatio,
+} from "./fitText.ts";
+import { typographyFromCss } from "./textMeasure.ts";
+import { useAutoFit } from "./useAutoFit.ts";
 
 const BACKGROUND_KEYS = new Set([
   "background",
@@ -126,22 +133,10 @@ function AutoScaledText({
   style: CSSProperties;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
 
   const baseFontSize = parseFloat(element.css.fontSize ?? "48") || 48;
   const rawLineHeight = element.css.lineHeight ?? style.lineHeight;
-  const lineHeightRatio = useMemo(() => {
-    if (!rawLineHeight) return 1.25;
-    const str = String(rawLineHeight).trim();
-    if (str.endsWith("px")) {
-      const px = parseFloat(str);
-      return px > 0 && baseFontSize > 0 ? px / baseFontSize : 1.25;
-    }
-    const num = parseFloat(str);
-    return Number.isFinite(num) && num > 0 ? num : 1.25;
-  }, [rawLineHeight, baseFontSize]);
-
-  const [fittedFontSize, setFittedFontSize] = useState<number | null>(null);
+  const lineHeightRatio = resolveLineHeightRatio(rawLineHeight, baseFontSize);
 
   const rawHtml = renderHtml(element.text, props);
 
@@ -175,9 +170,6 @@ function AutoScaledText({
       : parseInt(element.css.transitionDuration ?? "250ms", 10) || 250;
   const { inAnimation, outAnimation } = getAnimationNames(transitionType);
 
-  const autoShrink = (element.css.autoShrink as unknown) !== false && element.css.autoShrink !== "false";
-  const autoFit = (element.css.autoFit as unknown) === true || element.css.autoFit === "true";
-
   const textAlign = (element.css.textAlign as CSSProperties["textAlign"]) || "center";
   const hFlexAlign: CSSProperties["alignItems"] =
     textAlign === "center"
@@ -202,8 +194,71 @@ function AutoScaledText({
 
   const isNoWrap = element.css.whiteSpace === "nowrap" || style.whiteSpace === "nowrap";
 
-  const activeFontSize = fittedFontSize ?? baseFontSize;
-  const activeLineHeight = Math.round(activeFontSize * lineHeightRatio);
+  const fitBounds = useMemo(
+    () => resolveFitBounds(element.css),
+    [
+      element.css.fitMode,
+      element.css.fontSize,
+      element.css.minFontSize,
+      element.css.maxFontSize,
+      element.css.autoFit,
+      element.css.autoShrink,
+    ],
+  );
+
+  const typography = useMemo(
+    () =>
+      typographyFromCss(element.css, {
+        whiteSpace: isNoWrap
+          ? "nowrap"
+          : ((style.whiteSpace as string | undefined) ?? "pre-wrap"),
+        wordBreak: isNoWrap ? "normal" : element.css.wordBreak,
+        overflowWrap: isNoWrap ? "normal" : element.css.overflowWrap,
+        textWrap: isNoWrap
+          ? "nowrap"
+          : ((style.textWrap as string | undefined) ?? element.css.textWrap ?? "pretty"),
+      }),
+    [
+      element.css.fontFamily,
+      element.css.fontWeight,
+      element.css.fontStyle,
+      element.css.letterSpacing,
+      element.css.textTransform,
+      element.css.wordBreak,
+      element.css.overflowWrap,
+      element.css.textWrap,
+      isNoWrap,
+      style.whiteSpace,
+      style.textWrap,
+    ],
+  );
+
+  const autoHeight = !element.css.height || element.css.height === "auto";
+
+  const geometryKey = [
+    element.css.left,
+    element.css.top,
+    element.css.width,
+    element.css.height,
+    element.css.padding,
+    element.css.paddingTop,
+    element.css.paddingRight,
+    element.css.paddingBottom,
+    element.css.paddingLeft,
+    element.x,
+    element.y,
+  ].join("|");
+
+  const { fontSize: activeFontSize, overflow: textOverflow } = useAutoFit({
+    containerRef,
+    html,
+    bounds: fitBounds,
+    lineHeightRatio,
+    typography,
+    autoHeight,
+    geometryKey,
+  });
+  const activeLineHeight = lineHeightPx(activeFontSize, lineHeightRatio);
 
   useEffect(() => {
     if (isFirstMount.current) {
@@ -233,142 +288,6 @@ function AutoScaledText({
     }
   }, [html, currentHtml, activeFontSize, activeLineHeight, transitionType, durationMs]);
 
-  useLayoutEffect(() => {
-    if (!autoShrink && !autoFit) {
-      setFittedFontSize(baseFontSize);
-      return;
-    }
-    const container = containerRef.current;
-    const content = contentRef.current;
-    if (!container || !content) return;
-
-    const measureAndFit = () => {
-      const cw = container.clientWidth;
-      let ch = container.clientHeight;
-
-      if (
-        (!element.css.height || element.css.height === "auto") &&
-        container.parentElement
-      ) {
-        const parentH = container.parentElement.clientHeight || 1080;
-        const availableH = parentH - container.offsetTop - (parentH * 0.05);
-        if (availableH > 0) {
-          ch = availableH;
-        }
-      }
-
-      if (cw <= 0 || ch <= 0) {
-        setFittedFontSize(baseFontSize);
-        return;
-      }
-
-      // Safe target dimensions (98% of available space to prevent subpixel clipping)
-      const targetW = cw * 0.98;
-      const targetH = ch * 0.98;
-
-      const rawMinFont = element.css.minFontSize;
-      const minFont = Math.max(10, rawMinFont ? parseFloat(rawMinFont) || 16 : 16);
-      const maxFont = autoFit
-        ? Math.min(240, Math.max(baseFontSize, Math.round(baseFontSize * 2.5)))
-        : baseFontSize;
-
-      const prevFontSize = content.style.fontSize;
-      const prevLineHeight = content.style.lineHeight;
-      const prevTransition = content.style.transition;
-      content.style.transition = "none";
-
-      const testFits = (size: number): boolean => {
-        content.style.fontSize = `${size}px`;
-        content.style.lineHeight = `${Math.round(size * lineHeightRatio)}px`;
-        return content.scrollHeight <= targetH && content.scrollWidth <= targetW;
-      };
-
-      // 1. Reduzir para caber (autoShrink sem autoFit)
-      if (!autoFit && autoShrink) {
-        if (testFits(baseFontSize)) {
-          setFittedFontSize(baseFontSize);
-          content.style.fontSize = prevFontSize;
-          content.style.lineHeight = prevLineHeight;
-          content.style.transition = prevTransition;
-          return;
-        }
-
-        let low = minFont;
-        let high = baseFontSize;
-        let best = minFont;
-        for (let i = 0; i < 7; i++) {
-          const mid = Math.round((low + high) / 2);
-          if (testFits(mid)) {
-            best = mid;
-            low = mid + 1;
-          } else {
-            high = mid - 1;
-          }
-        }
-        setFittedFontSize(best);
-        content.style.fontSize = prevFontSize;
-        content.style.lineHeight = prevLineHeight;
-        content.style.transition = prevTransition;
-        return;
-      }
-
-      // 2. Preencher caixa (autoFit)
-      if (autoFit) {
-        let low = minFont;
-        let high = maxFont;
-        let best = minFont;
-        for (let i = 0; i < 8; i++) {
-          const mid = Math.round((low + high) / 2);
-          if (testFits(mid)) {
-            best = mid;
-            low = mid + 1;
-          } else {
-            high = mid - 1;
-          }
-        }
-        setFittedFontSize(best);
-        content.style.fontSize = prevFontSize;
-        content.style.lineHeight = prevLineHeight;
-        content.style.transition = prevTransition;
-        return;
-      }
-
-      setFittedFontSize(baseFontSize);
-      content.style.fontSize = prevFontSize;
-      content.style.lineHeight = prevLineHeight;
-      content.style.transition = prevTransition;
-    };
-
-    measureAndFit();
-
-    if (typeof document !== "undefined" && document.fonts?.ready) {
-      void document.fonts.ready.then(() => {
-        measureAndFit();
-      });
-    }
-
-    if (typeof ResizeObserver !== "undefined") {
-      const ro = new ResizeObserver(() => {
-        measureAndFit();
-      });
-      ro.observe(container);
-      ro.observe(content);
-      return () => ro.disconnect();
-    }
-  }, [
-    currentHtml,
-    autoShrink,
-    autoFit,
-    isNoWrap,
-    baseFontSize,
-    lineHeightRatio,
-    element.css.width,
-    element.css.height,
-    element.css.fontSize,
-    element.css.minFontSize,
-    element.css.whiteSpace,
-  ]);
-
   const {
     display: _display,
     flexDirection: _flexDirection,
@@ -381,6 +300,8 @@ function AutoScaledText({
     <div
       ref={containerRef}
       data-theme-element-id={element.id}
+      data-text-overflow={textOverflow ? "true" : undefined}
+      data-fit-font-size={activeFontSize}
       style={{
         ...baseContainerStyle,
         maxHeight:
@@ -450,7 +371,6 @@ function AutoScaledText({
         }}
       >
         <div
-          ref={contentRef}
           style={{
             width: isNoWrap ? "max-content" : "100%",
             maxWidth: isNoWrap ? "none" : "100%",
@@ -461,14 +381,15 @@ function AutoScaledText({
             wordBreak: isNoWrap
               ? "normal"
               : ((element.css.wordBreak as CSSProperties["wordBreak"]) ?? "break-word"),
-            overflowWrap: isNoWrap ? "normal" : "break-word",
+            overflowWrap: isNoWrap
+              ? "normal"
+              : ((element.css.overflowWrap as CSSProperties["overflowWrap"]) ?? "break-word"),
             textWrap: isNoWrap
               ? "nowrap"
               : ((element.css.textWrap as CSSProperties["textWrap"]) ?? "pretty"),
             textAlign,
             fontSize: `${activeFontSize}px`,
             lineHeight: `${activeLineHeight}px`,
-            transition: "font-size 0.08s ease-out, line-height 0.08s ease-out",
           }}
           dangerouslySetInnerHTML={{ __html: currentHtml }}
         />
