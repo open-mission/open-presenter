@@ -13,6 +13,8 @@ import { wallpaperToBackground } from "@/features/presentation/wallpaper";
 import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
+import { contextForSlide } from "@/features/slide-themes/themeResolution";
+import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
 
 export default function PublicView() {
   usePresentationSync("public");
@@ -49,7 +51,17 @@ export default function PublicView() {
     ? (themes.find((t) => t.guid === mediaThemeId) ??
        (broadcastTheme?.guid === mediaThemeId ? broadcastTheme : null))
     : null;
-  const theme = customTheme ?? broadcastTheme ?? localTheme;
+  const rawTheme = customTheme ?? broadcastTheme ?? localTheme;
+  const context =
+    contextForSlide(live.content.kind, live.content.media?.kind) ?? "music";
+  const theme = useMemo(() => {
+    if (!rawTheme) return null;
+    if (rawTheme.pages?.length) {
+      const page = getPageForContext(rawTheme, context) ?? rawTheme.pages[0];
+      return page ? materializePage(rawTheme, page) : rawTheme;
+    }
+    return rawTheme;
+  }, [rawTheme, context]);
 
   useEffect(() => {
     void loadThemes();

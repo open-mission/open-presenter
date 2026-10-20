@@ -97,7 +97,11 @@ export function themeVersion(theme: SlideTheme): ThemeVersion {
 }
 
 export function isPublicTheme(theme: SlideTheme): boolean {
-  return theme.category !== "stage" && theme.category !== "presentation";
+  return (
+    theme.category !== "stage" &&
+    theme.category !== "presentation" &&
+    theme.category !== "stream"
+  );
 }
 
 export function isStageTheme(theme: SlideTheme): boolean {
@@ -105,7 +109,18 @@ export function isStageTheme(theme: SlideTheme): boolean {
 }
 
 export function isStageCandidate(theme: SlideTheme): boolean {
-  return theme.category !== "presentation";
+  return theme.category !== "presentation" && theme.category !== "stream";
+}
+
+export function isStreamTheme(theme: SlideTheme): boolean {
+  return theme.category === "stream";
+}
+
+export function isStreamCandidate(theme: SlideTheme): boolean {
+  return (
+    theme.category === "stream" ||
+    (theme.category !== "stage" && theme.category !== "presentation")
+  );
 }
 
 export function isSingleLayout(theme: SlideTheme): boolean {
@@ -121,7 +136,9 @@ export function themeCoverageLabel(theme: SlideTheme): string {
   if (contexts.length === 0) return "Layout único";
   const available = pageContextsForTheme(theme);
   if (contexts.length >= available.length) {
-    return theme.category === "stage" ? "4 momentos" : "3 contextos";
+    if (theme.category === "stage") return "4 momentos";
+    if (theme.category === "stream") return "3 momentos (OBS)";
+    return "3 contextos";
   }
   return available
     .filter((info) => contexts.includes(info.context))

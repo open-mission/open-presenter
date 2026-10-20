@@ -30,6 +30,7 @@ interface ThemeEditorState {
   updateCss(patch: Record<string, string>): void;
   updateElement(id: string, patch: Partial<ThemeElement>): void;
   addElement(el: ThemeElement): void;
+  addElements(els: ThemeElement[]): void;
   removeElement(id: string): void;
   moveElement(id: string, dir: 1 | -1): void;
   toggleVisible(id: string): void;
@@ -137,6 +138,17 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       const page = getActivePage(next, activePageId);
       if (page) page.elements = [...page.elements, structuredClone(el)];
       else next.elements = [...next.elements, structuredClone(el)];
+      mutate(next);
+    },
+
+    addElements: (els) => {
+      const { draft, activePageId } = get();
+      if (!draft || els.length === 0) return;
+      const next = clone(draft);
+      const page = getActivePage(next, activePageId);
+      const clones = els.map((el) => structuredClone(el));
+      if (page) page.elements = [...page.elements, ...clones];
+      else next.elements = [...next.elements, ...clones];
       mutate(next);
     },
 

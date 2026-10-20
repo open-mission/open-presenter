@@ -121,6 +121,7 @@ pub struct MonitorInfo {
 pub enum OutputTarget {
     Public,
     Stage,
+    Stream,
 }
 
 impl OutputTarget {
@@ -128,6 +129,7 @@ impl OutputTarget {
         match self {
             OutputTarget::Public => "output-public",
             OutputTarget::Stage => "output-stage",
+            OutputTarget::Stream => "output-stream",
         }
     }
 
@@ -135,6 +137,7 @@ impl OutputTarget {
         match self {
             OutputTarget::Public => "index.html#/public",
             OutputTarget::Stage => "index.html#/stage",
+            OutputTarget::Stream => "index.html#/stream",
         }
     }
 
@@ -142,6 +145,7 @@ impl OutputTarget {
         match self {
             OutputTarget::Public => "Open Presenter — Projeção",
             OutputTarget::Stage => "Open Presenter — Retorno",
+            OutputTarget::Stream => "Open Presenter — Transmissão (OBS)",
         }
     }
 }
@@ -557,6 +561,8 @@ pub struct LiveThemes {
     pub public: Option<SlideTheme>,
     #[serde(default)]
     pub stage: Option<SlideTheme>,
+    #[serde(default)]
+    pub stream: Option<SlideTheme>,
 }
 
 /// Cronômetro do palco. Fonte da verdade no Rust: todas as saídas e o painel

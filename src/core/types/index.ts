@@ -67,7 +67,7 @@ export interface MonitorInfo {
   scaleFactor: number;
 }
 
-export type OutputTarget = "public" | "stage";
+export type OutputTarget = "public" | "stage" | "stream";
 
 export type OutputMode = "off" | "native" | "web" | "both";
 
@@ -84,6 +84,13 @@ export interface OutputRuntime {
   target: OutputTarget;
   open: boolean;
   monitorId: string | null;
+}
+
+export interface NdiStatus {
+  available: boolean;
+  active: boolean;
+  streamName: string;
+  runtimePath: string | null;
 }
 
 export interface ServerStatus {
@@ -353,6 +360,7 @@ export interface ThemeBinding {
 export interface LiveThemes {
   public: SlideTheme | null;
   stage: SlideTheme | null;
+  stream: SlideTheme | null;
 }
 
 export function kindToAsset(kind: SlideKind): ThemeAsset | null {

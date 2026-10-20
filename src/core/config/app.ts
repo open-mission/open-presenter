@@ -19,7 +19,11 @@ export const TAURI_EVENTS = {
   wallpaper: "presentation://wallpaper",
 } as const;
 
-export function outputHttpUrl(host: string, port: number, path: "/public" | "/stage"): string {
+export function outputHttpUrl(
+  host: string,
+  port: number,
+  path: "/public" | "/stage" | "/stream" | string,
+): string {
   return `http://${host}:${port}/#${path}`;
 }
 

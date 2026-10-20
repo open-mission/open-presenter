@@ -56,6 +56,7 @@ pub fn run() {
         })
         .manage(PresentationState::default())
         .manage(OutputsState::default())
+        .manage(crate::services::ndi::NdiState::new())
         .setup(|app| {
             let prefs_item = MenuItemBuilder::with_id("preferences", "Preferências…")
                 .accelerator("CmdOrCtrl+,")
@@ -296,6 +297,8 @@ pub fn run() {
             commands::outputs::get_public_wallpaper,
             commands::outputs::set_public_wallpaper,
             commands::outputs::get_outputs_state,
+            commands::ndi::get_ndi_status,
+            commands::ndi::set_ndi_active,
             commands::server::get_server_status,
             commands::server::set_server_port,
             commands::server::stop_server,

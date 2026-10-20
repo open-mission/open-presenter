@@ -38,7 +38,7 @@ impl OutputsState {
 
     pub fn snapshot(&self) -> Vec<OutputRuntime> {
         let guard = self.open.lock().ok();
-        [OutputTarget::Public, OutputTarget::Stage]
+        [OutputTarget::Public, OutputTarget::Stage, OutputTarget::Stream]
             .iter()
             .map(|target| {
                 let (open, monitor_id) = guard

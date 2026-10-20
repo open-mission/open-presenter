@@ -1,5 +1,6 @@
 pub mod bible;
 pub mod media;
+pub mod ndi;
 pub mod outputs;
 pub mod preferences;
 pub mod remote;

@@ -54,8 +54,10 @@ export function AppTopBar() {
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
   const publicConfig = useOutputManagerStore((s) => s.configs.public);
   const stageConfig = useOutputManagerStore((s) => s.configs.stage);
+  const streamConfig = useOutputManagerStore((s) => s.configs.stream);
   const publicRuntime = useOutputManagerStore((s) => s.runtime.public);
   const stageRuntime = useOutputManagerStore((s) => s.runtime.stage);
+  const streamRuntime = useOutputManagerStore((s) => s.runtime.stream);
   const host = useOutputManagerStore((s) => s.host);
   const port = useOutputManagerStore((s) => s.server.port);
   const serverRunning = useOutputManagerStore((s) => s.server.running);
@@ -78,6 +80,11 @@ export function AppTopBar() {
     stageRuntime.open,
     serverRunning,
   );
+  const streamActive = isOutputActive(
+    streamConfig?.mode ?? "off",
+    streamRuntime?.open ?? false,
+    serverRunning,
+  );
 
   const publicTitle = statusTitle(
     "Público",
@@ -92,6 +99,13 @@ export function AppTopBar() {
     stageConfig.monitorLabel,
     outputHttpUrl(host, port, "/stage"),
     stageActive,
+  );
+  const streamTitle = statusTitle(
+    "Transmissão",
+    streamConfig?.mode ?? "off",
+    streamConfig?.monitorLabel ?? null,
+    outputHttpUrl(host, port, "/stream"),
+    streamActive,
   );
 
   // Global shortcuts for quick projection actions (F: Background, C: Clear Text, B: Blackout)
@@ -231,7 +245,7 @@ export function AppTopBar() {
           {/* Stage output status */}
           <div
             className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors"
-            onClick={() => openPreferences("outputs")}
+            onClick={() => openPreferences("outputs", "stage")}
             title={stageTitle}
           >
             <span
@@ -240,6 +254,22 @@ export function AppTopBar() {
               }`}
             />
             <span className="font-medium text-muted-foreground">Palco</span>
+          </div>
+
+          <span className="text-border">|</span>
+
+          {/* Stream / OBS output status */}
+          <div
+            className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors"
+            onClick={() => openPreferences("outputs", "stream")}
+            title={streamTitle}
+          >
+            <span
+              className={`size-2 rounded-full ${
+                streamActive ? "bg-purple-500 animate-pulse" : "bg-zinc-400"
+              }`}
+            />
+            <span className="font-medium text-muted-foreground">OBS</span>
           </div>
         </div>
 

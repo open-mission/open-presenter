@@ -4,6 +4,7 @@ import PreferencesView from "./views/PreferencesView";
 import PublicView from "./views/PublicView";
 import ShortcutsView from "./views/ShortcutsView";
 import StageView from "./views/StageView";
+import StreamView from "./views/StreamView";
 import ThemeEditorView from "./views/ThemeEditorView";
 import SongEditorView from "./views/SongEditorView";
 import RemoteView from "./features/remote/RemoteView";
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/shortcuts" element={<ShortcutsView />} />
         <Route path="/public" element={<PublicView />} />
         <Route path="/stage" element={<StageView />} />
+        <Route path="/stream" element={<StreamView />} />
         <Route path="/theme-editor" element={<ThemeEditorView />} />
         <Route path="/song-editor" element={<SongEditorView />} />
         <Route path="/remote" element={<RemoteView />} />

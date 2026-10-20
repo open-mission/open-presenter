@@ -258,6 +258,7 @@ fn output_active(app: &AppHandle, target: OutputTarget) -> bool {
     let key = match target {
         OutputTarget::Public => "outputs.public",
         OutputTarget::Stage => "outputs.stage",
+        OutputTarget::Stream => "outputs.stream",
     };
     let Some(db) = app.try_state::<Db>() else {
         return false;

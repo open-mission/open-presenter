@@ -21,6 +21,7 @@ import {
   TriangleAlert,
   Tv,
   Upload,
+  Video,
 } from "lucide-react";
 import { cn } from "@/core/lib/utils";
 import { outputHttpUrl } from "@/core/config/app";
@@ -47,10 +48,12 @@ import { usePreferencesStore } from "@/features/preferences/store";
 import type { OutputsSection } from "@/features/preferences/types";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { StageTab } from "./StageTab";
+import { StreamTab } from "./StreamTab";
 
 const TARGET_LABEL: Record<OutputTarget, string> = {
   public: "Projeção Pública",
   stage: "Retorno de Palco",
+  stream: "Transmissão (OBS)",
 };
 
 const MODE_OPTIONS: { id: OutputMode; label: string; icon: typeof PowerOff }[] = [
@@ -72,7 +75,7 @@ interface TargetCardProps {
   title: string;
   subtitle: string;
   icon: typeof Projector;
-  webPath: "/public" | "/stage";
+  webPath: "/public" | "/stage" | "/stream";
   monitors: MonitorInfo[];
 }
 
@@ -96,6 +99,13 @@ function TargetCard({
     if (target === "stage") {
       const guid = s.stageThemeGuid;
       return s.themes.find((t) => t.guid === guid)?.title ?? null;
+    }
+    if (target === "stream") {
+      const binding =
+        s.bindings.find((b) => b.target === "stream" && b.asset === "lyric") ??
+        s.bindings.find((b) => b.target === "stream");
+      if (!binding) return "Lower Third (Padrão)";
+      return s.themes.find((t) => t.guid === binding.themeGuid)?.title ?? null;
     }
     const binding =
       s.bindings.find((b) => b.target === "public" && b.asset === "lyric") ??
@@ -932,7 +942,7 @@ export function OutputsTab() {
         onValueChange={(v) => setSection(v as OutputsSection)}
         className="flex flex-col gap-4"
       >
-        <TabsList className="grid grid-cols-4 w-full">
+        <TabsList className="grid grid-cols-5 w-full">
           <TabsTrigger value="public" className="gap-1.5 text-xs">
             <Tv className="size-3.5" />
             Projeção Pública
@@ -940,6 +950,10 @@ export function OutputsTab() {
           <TabsTrigger value="stage" className="gap-1.5 text-xs">
             <Projector className="size-3.5" />
             Retorno de Palco
+          </TabsTrigger>
+          <TabsTrigger value="stream" className="gap-1.5 text-xs">
+            <Video className="size-3.5" />
+            Transmissão (OBS)
           </TabsTrigger>
           <TabsTrigger value="server" className="gap-1.5 text-xs">
             <Server className="size-3.5" />
@@ -973,6 +987,20 @@ export function OutputsTab() {
               monitors={monitors}
             />
             <StageTab />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="stream">
+          <div className="flex flex-col gap-4">
+            <TargetCard
+              target="stream"
+              title="Transmissão (OBS / vMix / NDI)"
+              subtitle="Saída com fundo transparente para sobreposição de letras, bíblia e avisos na transmissão ao vivo."
+              icon={Video}
+              webPath="/stream"
+              monitors={monitors}
+            />
+            <StreamTab />
           </div>
         </TabsContent>
 
