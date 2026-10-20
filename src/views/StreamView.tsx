@@ -86,24 +86,23 @@ export default function StreamView() {
     return candidate;
   }, [rawTheme, context]);
 
-  const asset = kindToAsset(live.content.kind);
+  const asset = kindToAsset(live.content.kind) ?? "music";
   const isPresenting = live.content.kind !== "blank";
+  const shouldClear = live.cleared || !isPresenting;
 
   return (
     <div className="relative h-full w-full overflow-hidden bg-transparent select-none">
       {/* Camada de Conteúdo e Slides Transparente */}
-      {isPresenting && (
-        <div className="absolute inset-0 z-20">
-          <SlideTransition
-            slide={live}
-            theme={theme}
-            asset={asset}
-            cleared={live.cleared}
-            durationMs={300}
-            transitionBackground={false}
-          />
-        </div>
-      )}
+      <div className="absolute inset-0 z-20">
+        <SlideTransition
+          slide={live}
+          theme={theme}
+          asset={asset}
+          cleared={shouldClear}
+          durationMs={300}
+          transitionBackground={false}
+        />
+      </div>
 
       {/* Camada de Blackout com fade suave */}
       <div

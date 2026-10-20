@@ -45,9 +45,12 @@ export function SlideTransition({
   durationMs = 300,
   transitionBackground = false,
 }: SlideTransitionProps) {
+  const isThemeMode = Boolean(theme && asset && slide.content.kind !== "media");
   const mediaKey =
     slide.content.kind === "media" ? slide.updatedAt : "";
-  const currentKey = `${slide.content.id}_${slide.content.title}_${slide.content.section ?? ""}_${slide.content.lines.join("\n")}_${theme?.guid ?? ""}_${mediaKey}`;
+  const currentKey = isThemeMode
+    ? `${theme?.guid ?? ""}_${asset ?? ""}_${slide.content.kind}`
+    : `${slide.content.id}_${slide.content.title}_${slide.content.section ?? ""}_${slide.content.lines.join("\n")}_${theme?.guid ?? ""}_${mediaKey}`;
 
   const [active, setActive] = useState<{
     key: string;

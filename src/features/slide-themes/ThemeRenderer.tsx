@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
 import { useMediaPort } from "@/core/config/mediaPort";
 import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
@@ -126,6 +126,14 @@ function AutoScaledText({
   const [scaleFactor, setScaleFactor] = useState(1);
 
   const html = renderHtml(element.text, props);
+  const [currentHtml, setCurrentHtml] = useState(html);
+  const [outgoing, setOutgoing] = useState<{
+    html: string;
+    scale: number;
+    key: string;
+  } | null>(null);
+  const isFirstMount = useRef(true);
+
   const autoShrink = (element.css.autoShrink as unknown) !== false && element.css.autoShrink !== "false";
   const autoFit = (element.css.autoFit as unknown) === true || element.css.autoFit === "true";
 
@@ -147,6 +155,29 @@ function AutoScaledText({
   const originY = vAlign === "flex-end" ? "bottom" : vAlign === "flex-start" ? "top" : "center";
 
   const isNoWrap = element.css.whiteSpace === "nowrap" || style.whiteSpace === "nowrap";
+
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    if (html !== currentHtml) {
+      if (currentHtml.trim()) {
+        setOutgoing({
+          html: currentHtml,
+          scale: scaleFactor,
+          key: `${Date.now()}`,
+        });
+      }
+      setCurrentHtml(html);
+
+      const timer = setTimeout(() => {
+        setOutgoing(null);
+      }, 250);
+
+      return () => clearTimeout(timer);
+    }
+  }, [html, currentHtml, scaleFactor]);
 
   useLayoutEffect(() => {
     if (!autoShrink && !autoFit) {
@@ -220,7 +251,7 @@ function AutoScaledText({
       return () => ro.disconnect();
     }
   }, [
-    html,
+    currentHtml,
     autoShrink,
     autoFit,
     isNoWrap,
@@ -255,8 +286,47 @@ function AutoScaledText({
         justifyContent: vAlign,
         alignItems: "stretch",
         overflow: style.overflow ?? "hidden",
+        position: style.position ?? "absolute",
       }}
     >
+      {outgoing && (
+        <div
+          key={outgoing.key}
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: vAlign,
+            alignItems: "stretch",
+            pointerEvents: "none",
+            animation: "slideFadeOut 250ms ease-in-out forwards",
+          }}
+        >
+          <div
+            style={{
+              width: isNoWrap ? "max-content" : "100%",
+              maxWidth: isNoWrap ? "none" : "100%",
+              whiteSpace: isNoWrap
+                ? "nowrap"
+                : ((style.whiteSpace as CSSProperties["whiteSpace"]) ?? "pre-wrap"),
+              wordBreak: isNoWrap
+                ? "normal"
+                : ((element.css.wordBreak as CSSProperties["wordBreak"]) ?? "break-word"),
+              overflowWrap: isNoWrap ? "normal" : "break-word",
+              textWrap: isNoWrap
+                ? "nowrap"
+                : ((element.css.textWrap as CSSProperties["textWrap"]) ?? "pretty"),
+              textAlign,
+              transform:
+                outgoing.scale !== 1 ? `scale(${outgoing.scale})` : undefined,
+              transformOrigin: `${originX} ${originY}`,
+            }}
+            dangerouslySetInnerHTML={{ __html: outgoing.html }}
+          />
+        </div>
+      )}
+
       <div
         ref={contentRef}
         style={{
@@ -276,8 +346,11 @@ function AutoScaledText({
           transform: scaleFactor !== 1 ? `scale(${scaleFactor})` : undefined,
           transformOrigin: `${originX} ${originY}`,
           transition: "transform 0.08s ease-out",
+          animation: outgoing
+            ? "slideFadeIn 250ms ease-in-out forwards"
+            : undefined,
         }}
-        dangerouslySetInnerHTML={{ __html: html }}
+        dangerouslySetInnerHTML={{ __html: currentHtml }}
       />
     </div>
   );
