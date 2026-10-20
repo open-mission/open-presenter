@@ -94,6 +94,7 @@ function SongSlidesContent() {
   const groups = useSongGroupsStore((s) => s.groups);
 
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const previewIndexRef = useRef<number | null>(null);
   const [numberBuffer, setNumberBuffer] = useState("");
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
 
@@ -304,61 +305,96 @@ function SongSlidesContent() {
         }
         return;
       }
-
-      // Atalhos de grupos de música (ex: V = Verso, C = Refrão/Coro, B = Ponte, P = Pré-refrão, etc.)
-      if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
-        const pressedChar = e.key.toUpperCase();
-        const currentGroups = useSongGroupsStore.getState().groups;
-        const matchingGroup = currentGroups.find(
-          (g) => g.shortcut && g.shortcut.toUpperCase() === pressedChar,
-        );
-
-        if (matchingGroup) {
-          const targetIndices: number[] = [];
-          slides.forEach((s, idx) => {
-            const matchesType =
-              matchingGroup.typeKey && s.sectionType === matchingGroup.typeKey;
-            const matchesLabel =
-              s.label &&
-              s.label.toLowerCase().includes(matchingGroup.name.toLowerCase());
-            const matchesSection =
-              s.slide.section &&
-              s.slide.section.toLowerCase().includes(matchingGroup.name.toLowerCase());
-            if (matchesType || matchesLabel || matchesSection) {
-              targetIndices.push(idx);
-            }
-          });
-
-          if (targetIndices.length > 0) {
-            e.preventDefault();
-            const currentIdx = currentRunnerIdx ?? previewIndex ?? -1;
-            const posInMatches = targetIndices.indexOf(currentIdx);
-            let nextTargetIdx = targetIndices[0];
-            if (posInMatches >= 0) {
-              nextTargetIdx =
-                targetIndices[(posInMatches + 1) % targetIndices.length];
-            }
-
-            setPreviewIndex(nextTargetIdx);
-            usePresentationStore
-              .getState()
-              .setPreview(slides[nextTargetIdx]?.slide ?? null);
-            if (isPresentationActive) {
-              void projectSection(item.id, nextTargetIdx);
-            }
-            slideRefs.current[nextTargetIdx]?.scrollIntoView({
-              block: "nearest",
-              behavior: "smooth",
-            });
-            return;
-          }
-        }
-      }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [slides, item, previewIndex, projectSection, numberBuffer]);
+
+  useEffect(() => {
+    previewIndexRef.current = previewIndex;
+  }, [previewIndex]);
+
+  // Atalhos de seção são contextuais e têm prioridade sobre os atalhos
+  // globais (B/C/F) quando há uma música com seções na coluna de letras.
+  useEffect(() => {
+    function handleGroupShortcut(e: KeyboardEvent) {
+      if (e.defaultPrevented) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      if (e.key.length !== 1) return;
+
+      const target = e.target as HTMLElement | null;
+      if (
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.tagName === "SELECT" ||
+        target?.isContentEditable ||
+        target?.closest(
+          '[role="dialog"], [role="listbox"], [data-radix-popper-content-wrapper]',
+        )
+      ) {
+        return;
+      }
+      if (slides.length === 0 || !item) return;
+
+      const pressedChar = e.key.toUpperCase();
+      const matchingGroup = useSongGroupsStore
+        .getState()
+        .groups.find(
+          (group) => group.shortcut && group.shortcut.toUpperCase() === pressedChar,
+        );
+      if (!matchingGroup) return;
+
+      const targetIndices: number[] = [];
+      slides.forEach((slide, index) => {
+        const matchesType =
+          matchingGroup.typeKey && slide.sectionType === matchingGroup.typeKey;
+        const matchesLabel =
+          slide.label &&
+          slide.label.toLowerCase().includes(matchingGroup.name.toLowerCase());
+        const matchesSection =
+          slide.slide.section &&
+          slide.slide.section.toLowerCase().includes(matchingGroup.name.toLowerCase());
+        if (matchesType || matchesLabel || matchesSection) {
+          targetIndices.push(index);
+        }
+      });
+      if (targetIndices.length === 0) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const currentRunnerIdx = useSetlistStore.getState().runnerIndex;
+      const live = usePresentationStore.getState().live;
+      const isPresentationActive =
+        currentRunnerIdx !== null &&
+        !live.cleared &&
+        !live.blackout &&
+        live.content.kind !== "blank";
+      const currentIdx = currentRunnerIdx ?? previewIndexRef.current ?? -1;
+      const posInMatches = targetIndices.indexOf(currentIdx);
+      const nextTargetIdx =
+        posInMatches >= 0
+          ? targetIndices[(posInMatches + 1) % targetIndices.length]
+          : targetIndices[0];
+
+      previewIndexRef.current = nextTargetIdx;
+      setPreviewIndex(nextTargetIdx);
+      usePresentationStore
+        .getState()
+        .setPreview(slides[nextTargetIdx]?.slide ?? null);
+      if (isPresentationActive) {
+        void projectSection(item.id, nextTargetIdx);
+      }
+      slideRefs.current[nextTargetIdx]?.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      });
+    }
+
+    window.addEventListener("keydown", handleGroupShortcut, true);
+    return () => window.removeEventListener("keydown", handleGroupShortcut, true);
+  }, [slides, item, projectSection]);
 
   function resolveGroupBadge(group: SlideGroup) {
     const groupConfig = findSongGroup(groups, group.sectionType, group.label);

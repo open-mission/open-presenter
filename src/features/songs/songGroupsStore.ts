@@ -1,5 +1,7 @@
 import { create } from "zustand";
-import type { SongGroupConfig } from "@/core/types";
+import { emit } from "@tauri-apps/api/event";
+import { isTauri, listenCommand } from "@/core/ipc/tauri";
+import type { SectionType, SongGroupConfig } from "@/core/types";
 
 export type { SongGroupConfig };
 
@@ -15,26 +17,90 @@ export const DEFAULT_SONG_GROUPS: SongGroupConfig[] = [
   { id: "ending", name: "Encerramento", color: "#eab308", shortcut: "E", typeKey: "ending" },
 ];
 
-const SONG_GROUPS_STORAGE_KEY = "open_presenter_song_groups";
+export const SONG_GROUPS_STORAGE_KEY = "open_presenter_song_groups";
+export const SONG_GROUPS_EVENT = "song-groups-changed";
+
+const BROADCAST_CHANNEL = "open_presenter_song_groups";
+
+function normalizeShortcut(value: unknown): string {
+  return typeof value === "string"
+    ? value.trim().toUpperCase().slice(0, 3)
+    : "";
+}
+
+function normalizeGroups(value: unknown): SongGroupConfig[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const groups: SongGroupConfig[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const item = raw as Record<string, unknown>;
+    if (typeof item.id !== "string" || !item.id) continue;
+    groups.push({
+      id: item.id,
+      name: typeof item.name === "string" && item.name ? item.name : "Grupo",
+      color: typeof item.color === "string" && item.color ? item.color : "#3b82f6",
+      shortcut: normalizeShortcut(item.shortcut),
+      ...(typeof item.typeKey === "string"
+        ? { typeKey: item.typeKey as SectionType }
+        : {}),
+    });
+  }
+  return groups.length > 0 ? groups : null;
+}
 
 function loadStoredGroups(): SongGroupConfig[] {
   try {
     const raw = localStorage.getItem(SONG_GROUPS_STORAGE_KEY);
     if (!raw) return DEFAULT_SONG_GROUPS;
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
-    }
-    return DEFAULT_SONG_GROUPS;
+    const parsed = normalizeGroups(JSON.parse(raw));
+    return parsed ?? DEFAULT_SONG_GROUPS;
   } catch {
     return DEFAULT_SONG_GROUPS;
   }
 }
 
-function persistGroups(groups: SongGroupConfig[]): void {
+let channel: BroadcastChannel | null = null;
+
+function getChannel(): BroadcastChannel | null {
+  if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") {
+    return null;
+  }
+  if (!channel) {
+    try {
+      channel = new BroadcastChannel(BROADCAST_CHANNEL);
+    } catch {
+      channel = null;
+    }
+  }
+  return channel;
+}
+
+function writeStoredGroups(groups: SongGroupConfig[]): void {
   try {
     localStorage.setItem(SONG_GROUPS_STORAGE_KEY, JSON.stringify(groups));
   } catch {}
+}
+
+function notifyOtherWindows(groups: SongGroupConfig[]): void {
+  try {
+    getChannel()?.postMessage(groups);
+  } catch {}
+  if (isTauri()) {
+    void emit(SONG_GROUPS_EVENT, groups).catch(() => {});
+  }
+}
+
+function persistGroups(groups: SongGroupConfig[]): void {
+  writeStoredGroups(groups);
+  notifyOtherWindows(groups);
+}
+
+/** Aplica grupos recebidos de outra janela sem reemitir o evento. */
+function applyExternalGroups(value: unknown): void {
+  const groups = normalizeGroups(value);
+  if (!groups) return;
+  writeStoredGroups(groups);
+  useSongGroupsStore.setState({ groups });
 }
 
 interface SongGroupsState {
@@ -57,7 +123,18 @@ export const useSongGroupsStore = create<SongGroupsState>((set, get) => ({
   },
 
   updateGroup: (id, partial) => {
-    const groups = get().groups.map((g) => (g.id === id ? { ...g, ...partial } : g));
+    const groups = get().groups.map((g) =>
+      g.id === id
+        ? {
+            ...g,
+            ...partial,
+            shortcut:
+              partial.shortcut !== undefined
+                ? normalizeShortcut(partial.shortcut)
+                : g.shortcut,
+          }
+        : g,
+    );
     persistGroups(groups);
     set({ groups });
   },
@@ -67,7 +144,7 @@ export const useSongGroupsStore = create<SongGroupsState>((set, get) => ({
       id: crypto.randomUUID(),
       name,
       color,
-      shortcut: shortcut.toUpperCase(),
+      shortcut: normalizeShortcut(shortcut),
     };
     const groups = [...get().groups, newGroup];
     persistGroups(groups);
@@ -94,7 +171,7 @@ export const useSongGroupsStore = create<SongGroupsState>((set, get) => ({
   },
 
   setShortcut: (id, shortcut) => {
-    const cleanKey = shortcut.trim().toUpperCase().slice(0, 3);
+    const cleanKey = normalizeShortcut(shortcut);
     const groups = get().groups.map((g) => (g.id === id ? { ...g, shortcut: cleanKey } : g));
     persistGroups(groups);
     set({ groups });
@@ -111,3 +188,46 @@ export const useSongGroupsStore = create<SongGroupsState>((set, get) => ({
     set({ groups: DEFAULT_SONG_GROUPS });
   },
 }));
+
+/**
+ * Mantém os grupos sincronizados entre a janela principal e a janela de
+ * Preferências. As duas rodam em contextos JS separados; sem isso, mudar um
+ * atalho nas Preferências não atualiza os rótulos da letra até reiniciar.
+ */
+export function initSongGroupsSync(): () => void {
+  if (typeof window === "undefined") return () => {};
+
+  let disposed = false;
+
+  const reloadFromStorage = () => {
+    if (disposed) return;
+    useSongGroupsStore.setState({ groups: loadStoredGroups() });
+  };
+
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === SONG_GROUPS_STORAGE_KEY) reloadFromStorage();
+  };
+
+  const handleChannelMessage = (event: MessageEvent) => {
+    if (!disposed) applyExternalGroups(event.data);
+  };
+
+  window.addEventListener("storage", handleStorage);
+  getChannel()?.addEventListener("message", handleChannelMessage);
+
+  let unlisten: (() => void) | null = null;
+  void listenCommand<SongGroupConfig[]>(SONG_GROUPS_EVENT, (groups) => {
+    if (!disposed) applyExternalGroups(groups);
+  }).then((fn) => {
+    if (!fn) return;
+    if (disposed) fn();
+    else unlisten = fn;
+  });
+
+  return () => {
+    disposed = true;
+    window.removeEventListener("storage", handleStorage);
+    getChannel()?.removeEventListener("message", handleChannelMessage);
+    unlisten?.();
+  };
+}

@@ -106,7 +106,7 @@ const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
       {
         keys: ["V", "C", "B", "…"],
         description:
-          "Pula para o início do próximo grupo do rótulo (Verso, Refrão…); letras configuráveis em Preferências → Músicas",
+          "Pula para o início do próximo grupo do rótulo (Verso, Refrão…); letras configuráveis em Preferências → Músicas. No painel de letras, têm prioridade sobre B/C/F.",
       },
     ],
   },

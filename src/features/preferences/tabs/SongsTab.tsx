@@ -41,6 +41,12 @@ const PRESET_SWATCHES = [
   "#0f172a",
 ];
 
+const GLOBAL_SHORTCUT_CONFLICTS: Record<string, string> = {
+  B: "Blackout",
+  C: "Limpar texto",
+  F: "Apresentar plano de fundo",
+};
+
 const LINES_PER_SLIDE_OPTIONS: { value: LinesPerSlide; label: string }[] = [
   { value: "1", label: "1 linha por slide" },
   { value: "2", label: "2 linhas por slide" },
@@ -225,6 +231,9 @@ export function SongsTab() {
         <div className="flex flex-col gap-2">
           {groups.map((group, index) => {
             const isRecording = recordingGroupId === group.id;
+            const globalConflict = group.shortcut
+              ? GLOBAL_SHORTCUT_CONFLICTS[group.shortcut]
+              : undefined;
 
             return (
               <div
@@ -306,14 +315,18 @@ export function SongsTab() {
                   className={`h-8 min-w-12 rounded-md border px-2.5 text-xs font-mono font-semibold transition-all cursor-pointer ${
                     isRecording
                       ? "border-primary bg-primary/10 text-primary ring-2 ring-primary/40 animate-pulse"
-                      : group.shortcut
-                        ? "border-border/80 bg-muted/60 text-foreground hover:bg-muted"
-                        : "border-border/60 bg-background/50 text-muted-foreground hover:text-foreground"
+                      : globalConflict
+                        ? "border-amber-500/70 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                        : group.shortcut
+                          ? "border-border/80 bg-muted/60 text-foreground hover:bg-muted"
+                          : "border-border/60 bg-background/50 text-muted-foreground hover:text-foreground"
                   }`}
                   title={
                     isRecording
                       ? "Pressione uma tecla para definir o atalho (ou Esc para cancelar)"
-                      : "Clique para definir um atalho de teclado"
+                      : globalConflict
+                        ? `Conflita com o atalho global: ${globalConflict}. No painel de letras, o atalho do grupo tem prioridade.`
+                        : "Clique para definir um atalho de teclado"
                   }
                 >
                   {isRecording ? "tecla…" : group.shortcut || "atalho"}
@@ -365,6 +378,14 @@ export function SongsTab() {
             );
           })}
         </div>
+
+        {groups.some((group) => GLOBAL_SHORTCUT_CONFLICTS[group.shortcut]) && (
+          <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400">
+            B, C e F também são atalhos globais de apresentação. No painel de
+            letras, o atalho do grupo tem prioridade; fora dele, o atalho global
+            continua valendo. Prefira teclas livres para evitar ambiguidade.
+          </p>
+        )}
 
         {/* Add Group Button */}
         <Button
