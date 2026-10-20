@@ -206,44 +206,73 @@ function AutoScaledText({
     if (!container || !content) return;
 
     const measureAndScale = () => {
+      const prevTransition = content.style.transition;
+      content.style.transition = "none";
       content.style.transform = "none";
+
       const cw = container.clientWidth;
       let ch = container.clientHeight;
 
       // Se a caixa do elemento não tem height explícito (ex: só width: 80% e top: 30%),
-      // o container pode se expandir livremente com o scrollHeight.
-      // Nesse caso, o limite inferior disponível da tela do tema é calculado:
-      if (!element.css.height && container.parentElement) {
+      // o container não pode crescer infinitamente; usamos o limite inferior disponível da tela do tema:
+      if (
+        (!element.css.height || element.css.height === "auto") &&
+        container.parentElement
+      ) {
         const parentH = container.parentElement.clientHeight || 1080;
         const availableH = parentH - container.offsetTop - (parentH * 0.05);
-        if (availableH > 0 && ch > availableH) {
+        if (availableH > 0) {
           ch = availableH;
         }
       }
 
-      const sw = content.scrollWidth;
-      const sh = content.scrollHeight;
+      if (cw <= 0 || ch <= 0) {
+        setScaleFactor(1);
+        content.style.transition = prevTransition;
+        return;
+      }
 
-      if (cw > 0 && ch > 0 && sw > 0 && sh > 0) {
-        const scaleW = cw / sw;
-        const scaleH = ch / sh;
-        let targetScale = Math.min(scaleW, scaleH);
+      // 1. Medir largura natural do conteúdo (sem forçar quebra de linha à largura atual)
+      content.style.width = "max-content";
+      content.style.maxWidth = "none";
+      const naturalWidth = content.scrollWidth;
 
-        // Aplica margem de segurança de 4% para evitar cortes de ascendentes/descendentes
-        const safeScale = targetScale * 0.96;
+      // 2. Medir altura do conteúdo ajustado à largura da caixa
+      content.style.width = isNoWrap ? "max-content" : `${cw}px`;
+      content.style.maxWidth = isNoWrap ? "none" : `${cw}px`;
+      const wrappedHeight = content.scrollHeight;
 
-        if (autoShrink && !autoFit) {
-          targetScale = Math.min(1, safeScale);
-        } else if (autoFit && !autoShrink) {
-          targetScale = Math.min(1.5, Math.max(0.35, safeScale));
-        } else if (autoShrink && autoFit) {
-          targetScale = Math.min(1.3, safeScale);
+      // 3. Restaurar estilos inline para que os atributos de renderização prevaleçam
+      content.style.width = "";
+      content.style.maxWidth = "";
+      content.style.transition = prevTransition;
+
+      if (naturalWidth > 0 && wrappedHeight > 0) {
+        const scaleW = cw / naturalWidth;
+        const scaleH = ch / wrappedHeight;
+        const targetScale = Math.min(scaleW, scaleH);
+
+        let scaled = 1;
+        if (autoFit) {
+          // Preencher caixa: se precisa encolher (< 1.0) aplica margem segura; se pode expandir (> 1.0), expande até 2.5x
+          if (targetScale < 1.0) {
+            scaled = Math.max(0.15, targetScale * 0.96);
+          } else {
+            scaled = Math.min(2.5, targetScale * 0.96);
+          }
+        } else if (autoShrink) {
+          // Reduzir para caber: encolhe se exceder a caixa, mantendo no máximo 1.0
+          if (targetScale < 1.0) {
+            scaled = targetScale * 0.96;
+          } else {
+            scaled = 1.0;
+          }
         }
 
         // Respeitar minFontSize se configurado
         const rawMinFontSize = element.css.minFontSize;
         const baseFontSize = parseFloat(element.css.fontSize ?? "48") || 48;
-        let minScale = 0.2;
+        let minScale = 0.15;
         if (rawMinFontSize) {
           const minFontPx = parseFloat(rawMinFontSize);
           if (minFontPx > 0 && baseFontSize > 0) {
@@ -251,7 +280,7 @@ function AutoScaledText({
           }
         }
 
-        const finalScale = Math.max(minScale, targetScale);
+        const finalScale = Math.max(minScale, scaled);
         setScaleFactor(finalScale);
       } else {
         setScaleFactor(1);
@@ -260,11 +289,18 @@ function AutoScaledText({
 
     measureAndScale();
 
+    if (typeof document !== "undefined" && document.fonts?.ready) {
+      void document.fonts.ready.then(() => {
+        measureAndScale();
+      });
+    }
+
     if (typeof ResizeObserver !== "undefined") {
       const ro = new ResizeObserver(() => {
         measureAndScale();
       });
       ro.observe(container);
+      ro.observe(content);
       return () => ro.disconnect();
     }
   }, [
@@ -348,6 +384,7 @@ function AutoScaledText({
         key={`act-${currentHtml}`}
         style={{
           width: "100%",
+          height: "100%",
           display: "flex",
           flexDirection: "column",
           justifyContent: vAlign,
