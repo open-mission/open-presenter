@@ -5,6 +5,62 @@ Todas as mudanças relevantes do Open Presenter são documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.3.6] - 2026-10-20
+
+Release com reformulação ergonômica da barra inferior e drawer do controle remoto,
+layout responsivo de 2 colunas para tablets e computadores, preview ao vivo compacto,
+relógio com dois pontos piscantes (:), centralização robusta em widgets de temas e
+variáveis bíblicas independentes e higienizadas.
+
+### Adicionado
+
+#### Controle Remoto
+
+- Barra flutuante inferior com alça visual de puxar (drawer grabber handle), resumo
+  do slide ao vivo (badge de seção, título da música truncado e contador de slides)
+  e 3 botões ergonômicos: `Anterior`, `Sem texto` (com destaque visual quando o texto
+  está oculto mantendo o fundo) e `Próximo`.
+- Drawer de apresentação expandido ocupando maior área útil (`max-h-[88vh]`), com
+  atalhos de navegação interna (`Slide Anterior` e `Próximo Slide`), navegação
+  por seções de louvor, versículos ou slides e botão `Encerrar apresentação`.
+- Modo compacto da prévia ao vivo em linha única (`grid-cols-5`), apresentando os
+  cinco controles (`Anterior`, `Próximo`, `Sem texto`, `Papel de parede`, `Tela preta`)
+  em botões enquadrados icon-only para economia de espaço em telas verticais.
+- Layout responsivo automático em 2 colunas (`lg:`): coluna 1 fixa com o monitoramento
+  ao vivo, ações e cronômetro; coluna 2 com a navegação por abas e conteúdos.
+
+#### Editor de Temas & Widgets
+
+- Suporte a dois pontos piscantes no relógio (`op-clock-colon-blink`), animando
+  o separador de horas e minutos em intervalo de 1 segundo como um display digital.
+- Nova propriedade `blinkColon` configurável com interruptor no painel de propriedades
+  tipográficas do Editor de Temas.
+- O widget de relógio adicionado no editor e o tema padrão de retorno agora vêm
+  centralizados e com os dois pontos piscantes ativados por padrão.
+
+#### Variáveis Bíblicas Limpas
+
+- Sanitização automática de nomes de arquivo SQLite (ex: `nvi.sqlite` vira `NVI`).
+- Novas variáveis públicas e de retorno:
+  - `{reference}` / `{referencia}`: Apenas a referência bíblica sem a versão anexada.
+  - `{version}` / `{versao}`: Sigla da versão bíblica em maiúsculas.
+  - `{reference_full}` / `{referencia_completa}`: Nome por extenso do livro com capítulo e versículo.
+  - `{reference_abbr}` / `{referencia_abreviada}`: Nome abreviado do livro com capítulo e versículo.
+- Inclusão dos badges rápidos de inserção de `{reference}`, `{version}` e `{reference_abbr}`
+  no painel de propriedades do editor.
+
+### Corrigido
+
+- **Alinhamento Centralizado em Widgets:** Corrigido o alinhamento de flexbox em
+  elementos com `whiteSpace: "nowrap"`, garantindo que relógios, cronômetros e
+  títulos respeitem `textAlign: center` dentro do contêiner do elemento.
+- **Auto-shrink e Auto-fit de Texto:** O cálculo de escalonamento agora mede a
+  largura natural do texto desempacotado antes de aplicar a redução, evitando
+  quebras de linha prematuras e corte de palavras ou frases longas.
+- **Atalhos de Teclado no macOS:** Registrado o menu nativo `Editar` no backend
+  Tauri, restaurando o funcionamento padrão de `Cmd+C`, `Cmd+V`, `Cmd+X` e `Cmd+A`
+  em campos de texto e no editor.
+
 ## [0.3.5] - 2026-10-20
 
 Release com saída transparente para OBS Studio via Browser Source, temas de Lower

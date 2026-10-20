@@ -469,10 +469,11 @@ export default function ThemeEditorView() {
           locked: false,
           css: {
             ...baseCss(60, 40, 360, 70),
-            textAlign: "left",
+            textAlign: "center",
             fontSize: "44px",
             fontWeight: "700",
             color: "#fbbf24",
+            blinkColon: "true",
           },
           text: "{clock}",
         };

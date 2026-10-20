@@ -57,6 +57,14 @@ export function buildScriptureRef(params: {
   };
 }
 
+export function cleanBibleVersionName(raw: string): string {
+  return raw
+    .replace(/\.(sqlite|db)$/i, "")
+    .replace(/[()]/g, "")
+    .trim()
+    .toUpperCase();
+}
+
 export function buildScriptureSlide(params: {
   versionId: string;
   bookId: number;
@@ -70,10 +78,11 @@ export function buildScriptureSlide(params: {
   const totalParts = Math.max(1, params.totalParts ?? 1);
   const part = Math.min(Math.max(0, params.part ?? 0), totalParts - 1);
   const suffix = scripturePartSuffix(part, totalParts);
+  const cleanVersion = cleanBibleVersionName(params.versionId);
   return {
     id: scriptureSlideId(params, part, totalParts),
     kind: "scripture",
-    title: `${params.bookName} ${params.chapter}:${params.verse}${suffix} (${params.versionId})`,
+    title: `${params.bookName} ${params.chapter}:${params.verse}${suffix}${cleanVersion ? ` (${cleanVersion})` : ""}`,
     lines: [params.text],
     section: `${params.bookName} ${params.chapter}:${params.verse}${suffix}`,
     scripture: buildScriptureRef({ ...params, part, totalParts }),

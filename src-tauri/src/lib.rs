@@ -122,8 +122,19 @@ pub fn run() {
                 .item(&shortcuts_item)
                 .build()?;
 
+            let edit_menu = SubmenuBuilder::new(app, "Editar")
+                .undo()
+                .redo()
+                .separator()
+                .cut()
+                .copy()
+                .paste()
+                .separator()
+                .select_all()
+                .build()?;
+
             let menu = MenuBuilder::new(app)
-                .items(&[&app_menu, &file_menu, &novo_menu, &help_menu])
+                .items(&[&app_menu, &file_menu, &edit_menu, &help_menu])
                 .build()?;
 
             app.set_menu(menu)?;

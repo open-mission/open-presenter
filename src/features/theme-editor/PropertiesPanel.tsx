@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { saveThemeMedia } from "@/core/ipc/commands";
 import { resolveCssMediaUrls } from "./media";
@@ -565,6 +566,9 @@ function TextSection({
           { label: "stopwatch", key: "stopwatch" },
           { label: "timer", key: "timer" },
           { label: "lyrics", key: "lyrics" },
+          { label: "reference", key: "reference" },
+          { label: "version", key: "version" },
+          { label: "reference_abbr", key: "reference_abbr" },
           { label: "next_verse", key: "next_verse" },
           { label: "next_preview", key: "next_preview" },
           { label: "title", key: "title" },
@@ -880,6 +884,27 @@ function TextSection({
               />
             </div>
           )}
+        </div>
+
+        {/* Piscar dois pontos (:) para relógio/timer */}
+        <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-border/40">
+          <div className="flex flex-col">
+            <span className="text-[11px] font-medium text-foreground">
+              Piscar dois pontos (:)
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              Animação no relógio / timer (: piscando)
+            </span>
+          </div>
+          <Switch
+            checked={
+              el.css.blinkColon === "true" ||
+              (Boolean(el.text?.includes("{clock}")) && el.css.blinkColon !== "false")
+            }
+            onCheckedChange={(checked) =>
+              setCss({ blinkColon: checked ? "true" : "false" })
+            }
+          />
         </div>
       </div>
     </Section>

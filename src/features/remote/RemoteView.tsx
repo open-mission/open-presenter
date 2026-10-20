@@ -202,6 +202,7 @@ export default function RemoteView() {
   const [activeTab, setActiveTab] = useState<
     "programacao" | "musicas" | "biblia" | "imagens"
   >("programacao");
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   function togglePreview() {
     setPreviewCollapsed((previous) => {
@@ -436,6 +437,85 @@ export default function RemoteView() {
     [post],
   );
 
+  const isBibleLive = Boolean(
+    live?.content.kind === "scripture" && live.content.scripture,
+  );
+  const scriptureRef = live?.content.scripture;
+
+  const [liveChapterVerses, setLiveChapterVerses] = useState<BibleVerse[]>([]);
+  const [loadingChapterVerses, setLoadingChapterVerses] = useState(false);
+
+  useEffect(() => {
+    if (!isBibleLive || !scriptureRef || !token) {
+      setLiveChapterVerses([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        setLoadingChapterVerses(true);
+        const verses = await fetchBibleChapter(
+          token,
+          scriptureRef.versionId,
+          scriptureRef.bookId,
+          scriptureRef.chapter,
+        );
+        if (!cancelled) setLiveChapterVerses(verses);
+      } catch {
+        // Silenciosamente ignora falha de rede
+      } finally {
+        if (!cancelled) setLoadingChapterVerses(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isBibleLive,
+    scriptureRef?.versionId,
+    scriptureRef?.bookId,
+    scriptureRef?.chapter,
+    token,
+  ]);
+
+  const presentBibleVerse = useCallback(
+    async (verseNum: number) => {
+      if (!scriptureRef) return;
+      setBusy(true);
+      setError(null);
+      try {
+        const verses =
+          liveChapterVerses.length > 0 &&
+          liveChapterVerses[0].bookId === scriptureRef.bookId &&
+          liveChapterVerses[0].chapter === scriptureRef.chapter
+            ? liveChapterVerses
+            : await fetchBibleChapter(
+                token,
+                scriptureRef.versionId,
+                scriptureRef.bookId,
+                scriptureRef.chapter,
+              );
+        const payload = buildBiblePresentationPayload({
+          versionId: scriptureRef.versionId,
+          bookId: scriptureRef.bookId,
+          bookName: scriptureRef.bookName,
+          chapter: scriptureRef.chapter,
+          verses,
+          verseNum,
+          partIndex: 0,
+        });
+        if (!payload) return;
+        await post("present-bible", payload);
+        setIsDrawerOpen(false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [scriptureRef, liveChapterVerses, token, post],
+  );
+
   const stepBible = useCallback(
     async (direction: 1 | -1) => {
       const ref = live?.content.scripture;
@@ -443,12 +523,17 @@ export default function RemoteView() {
       setBusy(true);
       setError(null);
       try {
-        const verses = await fetchBibleChapter(
-          token,
-          ref.versionId,
-          ref.bookId,
-          ref.chapter,
-        );
+        const verses =
+          liveChapterVerses.length > 0 &&
+          liveChapterVerses[0].bookId === ref.bookId &&
+          liveChapterVerses[0].chapter === ref.chapter
+            ? liveChapterVerses
+            : await fetchBibleChapter(
+                token,
+                ref.versionId,
+                ref.bookId,
+                ref.chapter,
+              );
         const target = stepBibleVerse(
           verses,
           ref.verse,
@@ -473,12 +558,9 @@ export default function RemoteView() {
         setBusy(false);
       }
     },
-    [live, token, post],
+    [live, liveChapterVerses, token, post],
   );
 
-  const isBibleLive = Boolean(
-    live?.content.kind === "scripture" && live.content.scripture,
-  );
   const canGoPrevious = isBibleLive
     ? !busy
     : Boolean(previousSlide) && !busy;
@@ -664,17 +746,81 @@ export default function RemoteView() {
     ? songGroupColor(songGroups, liveSlide?.sectionType, live.content.section)
     : null;
 
-  const showSectionToolbar = liveSongGroups.length > 0;
+  const isLivePresenting = Boolean(
+    live && live.content.kind !== "blank" && !live.cleared,
+  );
+
+  const showSectionToolbar =
+    isLivePresenting &&
+    (liveSongGroups.length > 0 || isBibleLive || Boolean(liveItem));
+
+  const sectionBadgeText = useMemo(() => {
+    if (isBibleLive && live?.content.scripture) {
+      const ref = live.content.scripture;
+      return `${ref.bookName} ${ref.chapter}:${ref.verse}`;
+    }
+    if (currentGroupLabel) {
+      return currentGroupLabel;
+    }
+    if (live?.content.section) {
+      return live.content.section;
+    }
+    if (liveItem?.kind === "song" || live?.content.kind === "lyric") {
+      return "Música";
+    }
+    if (liveSlideIndex >= 0) {
+      return `Slide ${liveSlideIndex + 1}`;
+    }
+    return "Ao Vivo";
+  }, [
+    isBibleLive,
+    live?.content.scripture,
+    currentGroupLabel,
+    live?.content.section,
+    liveItem?.kind,
+    live?.content.kind,
+    liveSlideIndex,
+  ]);
+
+  const liveItemTitle = useMemo(() => {
+    if (isBibleLive && live?.content.scripture) {
+      const ref = live.content.scripture;
+      return ref.totalParts > 1
+        ? `Parte ${ref.part + 1} de ${ref.totalParts}`
+        : `Versão ${ref.versionId.toUpperCase()}`;
+    }
+    if (liveItem?.title) {
+      return liveItem.title;
+    }
+    if (live?.content.title) {
+      return live.content.title;
+    }
+    return "";
+  }, [isBibleLive, live?.content.scripture, liveItem?.title, live?.content.title]);
+
+  const slideCounterText = useMemo(() => {
+    if (isBibleLive && live?.content.scripture) {
+      const ref = live.content.scripture;
+      if (ref.totalParts > 1) {
+        return `${ref.part + 1}/${ref.totalParts}`;
+      }
+      return "";
+    }
+    if (liveItem?.slides && liveItem.slides.length > 0 && liveSlideIndex >= 0) {
+      return `${liveSlideIndex + 1}/${liveItem.slides.length}`;
+    }
+    return "";
+  }, [isBibleLive, live?.content.scripture, liveItem?.slides, liveSlideIndex]);
 
   return (
     <div
       className={`remote-view min-h-screen bg-background text-foreground ${
-        showSectionToolbar ? "pb-24" : "pb-12"
+        showSectionToolbar ? "pb-32" : "pb-12"
       }`}
     >
       {/* Top Header */}
       <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-3xl lg:max-w-7xl items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <div className="min-w-0">
               <h1 className="flex items-center gap-1.5 truncate text-sm font-semibold">
@@ -718,15 +864,16 @@ export default function RemoteView() {
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
+      <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 lg:max-w-7xl lg:grid lg:grid-cols-12 lg:gap-6 lg:items-start">
         {error && !authFailed && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive lg:col-span-12">
             {error}
           </div>
         )}
 
-        {/* Card Ao Vivo */}
-        <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all">
+        {/* Coluna 1: Card Ao Vivo (Preview + Ações rápidas + Timer) */}
+        <div className="flex flex-col gap-4 lg:col-span-5 lg:sticky lg:top-18">
+          <section className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm transition-all">
           <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
             <div className="flex items-center gap-2 min-w-0">
               <Badge className="h-5 shrink-0 gap-1 bg-emerald-600 px-1.5 text-[10px] font-semibold text-white hover:bg-emerald-600">
@@ -855,95 +1002,164 @@ export default function RemoteView() {
             </div>
           )}
 
-          {/* Barra de ações rápida */}
-          <div className="grid grid-cols-2 gap-1.5 border-t border-border/60 p-2 sm:grid-cols-5">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9 gap-1.5 text-xs cursor-pointer"
-              disabled={!canGoPrevious}
-              onClick={() => {
-                if (isBibleLive) {
-                  void stepBible(-1);
-                } else if (previousSlide) {
-                  void present(previousSlide.itemId, previousSlide.index);
+          {/* Barra de ações rápida (compacta e sem quebra quando preview recolhido) */}
+          {previewCollapsed ? (
+            <div className="grid grid-cols-5 gap-1.5 border-t border-border/60 p-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 p-0 flex items-center justify-center cursor-pointer"
+                disabled={!canGoPrevious}
+                onClick={goPrevious}
+                title="Slide anterior"
+                aria-label="Slide anterior"
+              >
+                <SkipBack className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 p-0 flex items-center justify-center cursor-pointer"
+                disabled={!canGoNext}
+                onClick={goNext}
+                title="Próximo slide"
+                aria-label="Próximo slide"
+              >
+                <SkipForward className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant={
+                  live?.cleared && !live?.blackout ? "secondary" : "outline"
                 }
-              }}
-            >
-              <SkipBack className="size-3.5" />
-              Anterior
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9 gap-1.5 text-xs cursor-pointer"
-              disabled={!canGoNext}
-              onClick={() => {
-                if (isBibleLive) {
-                  void stepBible(1);
-                } else if (nextSlide) {
-                  void present(nextSlide.itemId, nextSlide.index);
+                size="sm"
+                className={cn(
+                  "h-9 p-0 flex items-center justify-center cursor-pointer",
+                  live?.cleared &&
+                    !live?.blackout &&
+                    "border-primary/40 font-semibold",
+                )}
+                disabled={busy}
+                onClick={() => void post("clear")}
+                title="Sem texto (ocultar texto mantendo plano de fundo)"
+                aria-label="Sem texto"
+              >
+                <EyeOff className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant={isShowingWallpaper ? "secondary" : "outline"}
+                size="sm"
+                className={cn(
+                  "h-9 p-0 flex items-center justify-center cursor-pointer",
+                  isShowingWallpaper && "border-primary/40 font-semibold",
+                )}
+                disabled={busy}
+                onClick={() => void post("wallpaper")}
+                title="Papel de parede / logo"
+                aria-label="Papel de parede"
+              >
+                <Image className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant={live?.blackout ? "destructive" : "outline"}
+                size="sm"
+                className={cn(
+                  "h-9 p-0 flex items-center justify-center cursor-pointer",
+                  live?.blackout &&
+                    "bg-destructive text-white border-destructive font-semibold",
+                )}
+                disabled={busy}
+                onClick={() =>
+                  void post("blackout", { blackout: !live?.blackout })
                 }
-              }}
-            >
-              Próximo
-              <SkipForward className="size-3.5" />
-            </Button>
-            <Button
-              type="button"
-              variant={
-                live?.cleared && !live?.blackout ? "secondary" : "outline"
-              }
-              size="sm"
-              className={cn(
-                "h-9 gap-1.5 text-xs cursor-pointer",
-                live?.cleared &&
-                  !live?.blackout &&
-                  "border-primary/40 font-semibold",
-              )}
-              disabled={busy}
-              onClick={() => void post("clear")}
-              title="Ocultar texto mantendo plano de fundo"
-            >
-              <EyeOff className="size-3.5" />
-              Sem texto
-            </Button>
-            <Button
-              type="button"
-              variant={isShowingWallpaper ? "secondary" : "outline"}
-              size="sm"
-              className={cn(
-                "h-9 gap-1.5 text-xs cursor-pointer",
-                isShowingWallpaper && "border-primary/40 font-semibold",
-              )}
-              disabled={busy}
-              onClick={() => void post("wallpaper")}
-              title="Exibir papel de parede / logo"
-            >
-              <Image className="size-3.5" />
-              Papel de parede
-            </Button>
-            <Button
-              type="button"
-              variant={live?.blackout ? "destructive" : "outline"}
-              size="sm"
-              className={cn(
-                "h-9 gap-1.5 text-xs cursor-pointer col-span-2 sm:col-span-1",
-                live?.blackout &&
-                  "bg-destructive text-white border-destructive font-semibold",
-              )}
-              disabled={busy}
-              onClick={() =>
-                void post("blackout", { blackout: !live?.blackout })
-              }
-              title="Escurecer todas as saídas (Blackout)"
-            >
-              <Moon className="size-3.5" />
-              Tela preta
-            </Button>
-          </div>
+                title="Tela preta (Blackout)"
+                aria-label="Tela preta"
+              >
+                <Moon className="size-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-1.5 border-t border-border/60 p-2 sm:grid-cols-5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 text-xs cursor-pointer"
+                disabled={!canGoPrevious}
+                onClick={goPrevious}
+              >
+                <SkipBack className="size-3.5" />
+                Anterior
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 text-xs cursor-pointer"
+                disabled={!canGoNext}
+                onClick={goNext}
+              >
+                Próximo
+                <SkipForward className="size-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant={
+                  live?.cleared && !live?.blackout ? "secondary" : "outline"
+                }
+                size="sm"
+                className={cn(
+                  "h-9 gap-1.5 text-xs cursor-pointer",
+                  live?.cleared &&
+                    !live?.blackout &&
+                    "border-primary/40 font-semibold",
+                )}
+                disabled={busy}
+                onClick={() => void post("clear")}
+                title="Ocultar texto mantendo plano de fundo"
+              >
+                <EyeOff className="size-3.5" />
+                Sem texto
+              </Button>
+              <Button
+                type="button"
+                variant={isShowingWallpaper ? "secondary" : "outline"}
+                size="sm"
+                className={cn(
+                  "h-9 gap-1.5 text-xs cursor-pointer",
+                  isShowingWallpaper && "border-primary/40 font-semibold",
+                )}
+                disabled={busy}
+                onClick={() => void post("wallpaper")}
+                title="Exibir papel de parede / logo"
+              >
+                <Image className="size-3.5" />
+                Papel de parede
+              </Button>
+              <Button
+                type="button"
+                variant={live?.blackout ? "destructive" : "outline"}
+                size="sm"
+                className={cn(
+                  "h-9 gap-1.5 text-xs cursor-pointer col-span-2 sm:col-span-1",
+                  live?.blackout &&
+                    "bg-destructive text-white border-destructive font-semibold",
+                )}
+                disabled={busy}
+                onClick={() =>
+                  void post("blackout", { blackout: !live?.blackout })
+                }
+                title="Escurecer todas as saídas (Blackout)"
+              >
+                <Moon className="size-3.5" />
+                Tela preta
+              </Button>
+            </div>
+          )}
 
           {/* Timer & Cronômetro do Palco */}
           <div className="flex items-center justify-between border-t border-border/60 bg-muted/20 px-3 py-2">
@@ -1061,7 +1277,10 @@ export default function RemoteView() {
             </div>
           </div>
         </section>
+      </div>
 
+      {/* Coluna 2: Abas de navegação e conteúdos */}
+      <div className="flex flex-col gap-4 lg:col-span-7">
         {/* Rail de Navegação */}
         <nav
           aria-label="Abas do controle remoto"
@@ -1326,95 +1545,308 @@ export default function RemoteView() {
         {activeTab === "imagens" && (
           <RemoteImagesTab token={token} live={live} onPost={post} />
         )}
-      </main>
+      </div>
+    </main>
 
-      {/* Barra fixa colapsável de atalhos das seções da música ao vivo */}
-      {showSectionToolbar && liveItem && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-3 py-2 backdrop-blur">
-          <div className="mx-auto flex max-w-3xl items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-12 w-12 shrink-0 rounded-full border-border bg-card shadow-xs transition-transform active:scale-95 cursor-pointer"
-              disabled={!canGoPrevious}
-              onClick={goPrevious}
-              title="Slide anterior (<)"
-              aria-label="Slide anterior"
-            >
-              <ChevronLeft className="size-6 text-foreground" />
-            </Button>
-
-            <Drawer>
+      {/* Barra fixa colapsável de atalhos e controle da apresentação ao vivo */}
+      {showSectionToolbar && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-3 pt-1.5 pb-3 backdrop-blur shadow-lg">
+          <div className="mx-auto flex max-w-3xl flex-col gap-2 lg:max-w-4xl">
+            {/* Top Drag Pill + Info Row (abre o Drawer ao clicar) */}
+            <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
               <DrawerTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex h-12 flex-1 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-full border border-border bg-card px-4 text-sm font-semibold text-foreground shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground active:scale-[0.98]"
+                  className="group flex w-full flex-col items-center gap-1.5 pt-0.5 pb-0.5 cursor-pointer select-none text-left"
+                  title="Toque ou arraste para abrir seções e atalhos"
                 >
-                  <ChevronUp className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="shrink-0">Seções</span>
-                  <span className="truncate text-muted-foreground">
-                    {currentGroupLabel ?? live?.content.title}
-                  </span>
+                  <div className="h-1.5 w-12 rounded-full bg-muted-foreground/30 transition-colors group-hover:bg-muted-foreground/60" />
+                  <div className="flex w-full items-center justify-between px-1 text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider shrink-0 transition-colors shadow-2xs"
+                        style={
+                          liveSectionColor
+                            ? {
+                                backgroundColor: `${liveSectionColor}26`,
+                                borderColor: `${liveSectionColor}80`,
+                                color: liveSectionColor,
+                                borderWidth: "1px",
+                              }
+                            : isBibleLive
+                            ? {
+                                backgroundColor: "rgba(16, 185, 129, 0.15)",
+                                borderColor: "rgba(16, 185, 129, 0.4)",
+                                color: "#10b981",
+                                borderWidth: "1px",
+                              }
+                            : {
+                                backgroundColor: "rgba(59, 130, 246, 0.15)",
+                                borderColor: "rgba(59, 130, 246, 0.35)",
+                                color: "#3b82f6",
+                                borderWidth: "1px",
+                              }
+                        }
+                      >
+                        {isBibleLive ? (
+                          <BookOpen className="size-3 mr-1 shrink-0" />
+                        ) : (
+                          <Music className="size-3 mr-1 shrink-0" />
+                        )}
+                        {sectionBadgeText}
+                      </span>
+                      <span className="truncate text-muted-foreground font-medium text-xs">
+                        {liveItemTitle}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      {slideCounterText && (
+                        <span className="text-[11px] font-mono font-semibold text-foreground/80 bg-muted px-1.5 py-0.5 rounded">
+                          {slideCounterText}
+                        </span>
+                      )}
+                      <ChevronUp className="size-4 text-muted-foreground transition-transform group-hover:-translate-y-0.5" />
+                    </div>
+                  </div>
                 </button>
               </DrawerTrigger>
-              <DrawerContent className="mx-auto max-w-3xl">
-                <DrawerHeader className="items-center pb-1 text-center">
-                  <DrawerTitle className="truncate text-base">
-                    {live?.content.title}
+
+              <DrawerContent className="mx-auto max-w-3xl max-h-[88vh] flex flex-col">
+                <DrawerHeader className="items-center pb-2 text-center shrink-0">
+                  <DrawerTitle className="truncate text-base flex items-center justify-center gap-2">
+                    {isBibleLive ? (
+                      <BookOpen className="size-4 text-primary" />
+                    ) : (
+                      <Music className="size-4 text-primary" />
+                    )}
+                    <span>
+                      {isBibleLive && scriptureRef
+                        ? `${scriptureRef.bookName} ${scriptureRef.chapter}`
+                        : liveItem?.title ?? live?.content.title}
+                    </span>
                   </DrawerTitle>
-                  <DrawerDescription className="text-[11px]">
-                    Toque na seção para ir direto a ela no telão.
+                  <DrawerDescription className="text-xs">
+                    {isBibleLive
+                      ? "Toque em um versículo ou navegue pelos atalhos abaixo."
+                      : "Toque na seção para ir direto a ela no telão."}
                   </DrawerDescription>
                 </DrawerHeader>
 
-                <div className="grid grid-cols-2 gap-2 px-4 pb-2 sm:grid-cols-3">
-                  {liveSongGroups.map((group) => {
-                    const color =
-                      songGroupColor(
-                        songGroups,
-                        group.sectionType,
-                        group.label,
-                      ) ?? "#3b82f6";
-                    const shortcut = songGroupShortcut(
-                      songGroups,
-                      group.sectionType,
-                      group.label,
-                    );
-                    const isCurrent = group.indices.includes(liveSlideIndex);
-                    return (
-                      <button
-                        key={group.startIndex}
-                        type="button"
-                        onClick={() => void present(liveItem.id, group.startIndex)}
-                        className={cn(
-                          "inline-flex h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-base font-semibold transition-transform active:scale-95",
-                          isCurrent ? "ring-2 ring-emerald-500" : "",
-                        )}
-                        style={{
-                          backgroundColor: `${color}1f`,
-                          borderColor: `${color}66`,
-                          color,
-                        }}
-                        title={`Ir para ${group.label ?? ""}`}
-                      >
-                        <span className="truncate">{group.label}</span>
-                        {shortcut && (
-                          <kbd className="shrink-0 rounded bg-black/25 px-1.5 py-0.5 font-mono text-[10px] font-bold">
-                            {shortcut}
-                          </kbd>
-                        )}
-                      </button>
-                    );
-                  })}
+                {/* Atalhos rápidos de navegação dentro do Drawer */}
+                <div className="grid grid-cols-2 gap-2 px-4 pb-2 shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 gap-1.5 text-xs font-semibold rounded-xl cursor-pointer"
+                    disabled={!canGoPrevious}
+                    onClick={goPrevious}
+                  >
+                    <ChevronLeft className="size-4" />
+                    <span>Slide Anterior</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 gap-1.5 text-xs font-semibold rounded-xl cursor-pointer"
+                    disabled={!canGoNext}
+                    onClick={goNext}
+                  >
+                    <span>Próximo Slide</span>
+                    <ChevronRight className="size-4" />
+                  </Button>
                 </div>
 
-                <DrawerFooter className="pt-1 pb-4 border-t">
+                {/* Conteúdo rolável do Drawer */}
+                <div className="flex-1 overflow-y-auto px-4 pb-2">
+                  {/* Caso BÍBLIA */}
+                  {isBibleLive && scriptureRef ? (
+                    <div className="flex flex-col gap-3">
+                      {/* Atalhos rápidos para Anterior / Próximo Versículo */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-11 justify-start gap-2 px-3 text-xs cursor-pointer font-medium"
+                          disabled={busy || scriptureRef.verse <= 1}
+                          onClick={() =>
+                            void presentBibleVerse(scriptureRef.verse - 1)
+                          }
+                        >
+                          <ChevronLeft className="size-4 shrink-0 text-muted-foreground" />
+                          <span className="truncate">
+                            Versículo {Math.max(1, scriptureRef.verse - 1)}
+                          </span>
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-11 justify-end gap-2 px-3 text-xs cursor-pointer font-medium"
+                          disabled={
+                            busy ||
+                            (liveChapterVerses.length > 0 &&
+                              scriptureRef.verse >= liveChapterVerses.length)
+                          }
+                          onClick={() =>
+                            void presentBibleVerse(scriptureRef.verse + 1)
+                          }
+                        >
+                          <span className="truncate">
+                            Versículo {scriptureRef.verse + 1}
+                          </span>
+                          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                        </Button>
+                      </div>
+
+                      {/* Lista de Versículos do Capítulo */}
+                      <div className="flex flex-col gap-1.5 pr-1">
+                        {loadingChapterVerses &&
+                        liveChapterVerses.length === 0 ? (
+                          <div className="flex items-center justify-center p-8 text-xs text-muted-foreground gap-2">
+                            <Loader2 className="size-4 animate-spin" />
+                            <span>Carregando versículos do capítulo…</span>
+                          </div>
+                        ) : (
+                          liveChapterVerses.map((v) => {
+                            const isCurrent =
+                              scriptureRef.verse === v.verse;
+                            return (
+                              <button
+                                key={v.verse}
+                                type="button"
+                                onClick={() =>
+                                  void presentBibleVerse(v.verse)
+                                }
+                                className={cn(
+                                  "flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition-all active:scale-[0.98] cursor-pointer",
+                                  isCurrent
+                                    ? "border-emerald-500 bg-emerald-500/15 ring-2 ring-emerald-500/50 shadow-2xs font-semibold"
+                                    : "border-border/70 bg-card hover:bg-muted/40",
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    "flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
+                                    isCurrent
+                                      ? "bg-emerald-500 text-white"
+                                      : "bg-muted text-muted-foreground",
+                                  )}
+                                >
+                                  {v.verse}
+                                </span>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between gap-1 mb-0.5">
+                                    <span className="text-xs font-semibold text-foreground">
+                                      {scriptureRef.bookName} {scriptureRef.chapter}:{v.verse}
+                                    </span>
+                                    {isCurrent && (
+                                      <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/20 px-1.5 py-0.5 rounded">
+                                        No telão
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                                    {v.text}
+                                  </p>
+                                </div>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  ) : liveSongGroups.length > 0 && liveItem ? (
+                    /* Caso MÚSICA */
+                    <div className="grid grid-cols-2 gap-2 pb-2 sm:grid-cols-3">
+                      {liveSongGroups.map((group) => {
+                        const color =
+                          songGroupColor(
+                            songGroups,
+                            group.sectionType,
+                            group.label,
+                          ) ?? "#3b82f6";
+                        const shortcut = songGroupShortcut(
+                          songGroups,
+                          group.sectionType,
+                          group.label,
+                        );
+                        const isCurrent =
+                          group.indices.includes(liveSlideIndex);
+                        return (
+                          <button
+                            key={group.startIndex}
+                            type="button"
+                            onClick={() => {
+                              void present(
+                                liveItem.id,
+                                group.startIndex,
+                              );
+                              setIsDrawerOpen(false);
+                            }}
+                            className={cn(
+                              "inline-flex h-14 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-base font-semibold transition-transform active:scale-95",
+                              isCurrent ? "ring-2 ring-emerald-500" : "",
+                            )}
+                            style={{
+                              backgroundColor: `${color}1f`,
+                              borderColor: `${color}66`,
+                              color,
+                            }}
+                            title={`Ir para ${group.label ?? ""}`}
+                          >
+                            <span className="truncate">{group.label}</span>
+                            {shortcut && (
+                              <kbd className="shrink-0 rounded bg-black/25 px-1.5 py-0.5 font-mono text-[10px] font-bold">
+                                {shortcut}
+                              </kbd>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : liveItem?.slides ? (
+                    /* Caso APRESENTAÇÃO / OUTROS */
+                    <div className="grid grid-cols-2 gap-2 pb-2 sm:grid-cols-3">
+                      {liveItem.slides.map((s, idx) => {
+                        const isCurrent = idx === liveSlideIndex;
+                        return (
+                          <button
+                            key={s.content.id}
+                            type="button"
+                            onClick={() => {
+                              void present(liveItem.id, idx);
+                              setIsDrawerOpen(false);
+                            }}
+                            className={cn(
+                              "flex flex-col items-start justify-center p-3 rounded-xl border text-left transition-all active:scale-[0.98] cursor-pointer",
+                              isCurrent
+                                ? "border-emerald-500 bg-emerald-500/15 ring-2 ring-emerald-500/50 shadow-2xs font-semibold"
+                                : "border-border/70 bg-card hover:bg-muted/40",
+                            )}
+                          >
+                            <span className="text-[11px] font-bold text-primary mb-1">
+                              Slide {idx + 1}
+                            </span>
+                            <span className="text-xs text-muted-foreground line-clamp-1">
+                              {s.content.lines[0] || s.content.title}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+
+                <DrawerFooter className="pt-2 pb-4 border-t shrink-0">
                   <Button
                     type="button"
                     variant="destructive"
-                    className="h-12 w-full cursor-pointer gap-2 text-base"
-                    onClick={() => void post("clear")}
+                    className="h-12 w-full cursor-pointer gap-2 text-base font-semibold rounded-full"
+                    onClick={() => {
+                      void post("clear");
+                      setIsDrawerOpen(false);
+                    }}
                     disabled={busy || Boolean(live?.cleared)}
                   >
                     <Square className="size-4 fill-current" />
@@ -1424,31 +1856,54 @@ export default function RemoteView() {
               </DrawerContent>
             </Drawer>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="h-12 w-12 shrink-0 rounded-full border-border bg-card shadow-xs transition-transform active:scale-95 cursor-pointer"
-              disabled={!canGoNext}
-              onClick={goNext}
-              title="Próximo slide (>)"
-              aria-label="Próximo slide"
-            >
-              <ChevronRight className="size-6 text-foreground" />
-            </Button>
+            {/* Linha com os 3 botões rápidos: Anterior | Sem Texto | Próximo */}
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full rounded-2xl border-border bg-card shadow-xs transition-transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 font-semibold text-xs sm:text-sm"
+                disabled={!canGoPrevious}
+                onClick={goPrevious}
+                title="Slide anterior (<)"
+                aria-label="Slide anterior"
+              >
+                <ChevronLeft className="size-5 text-foreground shrink-0" />
+                <span>Anterior</span>
+              </Button>
 
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              className="h-12 shrink-0 cursor-pointer gap-1.5 px-3 sm:px-4 text-sm sm:text-base rounded-full"
-              onClick={() => void post("clear")}
-              disabled={busy || Boolean(live?.cleared)}
-              title="Encerrar a apresentação e liberar o telão"
-            >
-              <Square className="size-4 fill-current" />
-              <span className="hidden xs:inline">Encerrar</span>
-            </Button>
+              <Button
+                type="button"
+                variant={
+                  live?.cleared && !live?.blackout ? "secondary" : "outline"
+                }
+                className={cn(
+                  "h-12 w-full rounded-2xl border-border bg-card shadow-xs transition-transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 font-semibold text-xs sm:text-sm",
+                  live?.cleared &&
+                    !live?.blackout &&
+                    "border-primary/50 bg-primary/10 text-primary font-bold",
+                )}
+                disabled={busy}
+                onClick={() => void post("clear")}
+                title="Sem texto (ocultar texto mantendo plano de fundo)"
+                aria-label="Sem texto"
+              >
+                <EyeOff className="size-4.5 shrink-0" />
+                <span>Sem texto</span>
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-full rounded-2xl border-border bg-card shadow-xs transition-transform active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 font-semibold text-xs sm:text-sm"
+                disabled={!canGoNext}
+                onClick={goNext}
+                title="Próximo slide (>)"
+                aria-label="Próximo slide"
+              >
+                <span>Próximo</span>
+                <ChevronRight className="size-5 text-foreground shrink-0" />
+              </Button>
+            </div>
           </div>
         </div>
       )}
