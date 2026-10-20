@@ -2,6 +2,7 @@ import { cleanCommentText, cleanPublicLines, formatStageLyrics, isCommentLine } 
 import type { SlideContent, SlideKind, StageTimer } from "@/core/types";
 import { stageTimerElapsed } from "@/core/types";
 import { formatElapsed } from "@/core/lib/format";
+import { BIBLE_BOOKS } from "@/features/bible/bibleParser";
 
 export function renderTemplate(
   template: string,
@@ -13,6 +14,32 @@ export function renderTemplate(
     out = out.split(`{${key}}`).join(props[key]);
   }
   return out.replace(/\{[^}]*\}/g, "");
+}
+
+export function cleanBibleVersion(raw?: string | null): string {
+  if (!raw) return "";
+  return raw
+    .replace(/\.(sqlite|db)$/i, "")
+    .replace(/[()]/g, "")
+    .trim()
+    .toUpperCase();
+}
+
+export function getBookAbbreviation(bookName?: string | null, bookId?: number): string {
+  if (bookId) {
+    const found = BIBLE_BOOKS.find((b) => b.id === bookId);
+    if (found) return found.abbrev;
+  }
+  if (!bookName) return "";
+  const normalized = bookName.trim().toLowerCase();
+  const found = BIBLE_BOOKS.find(
+    (b) =>
+      b.name.toLowerCase() === normalized ||
+      b.abbrev.toLowerCase() === normalized ||
+      b.aliases.some((a) => a.toLowerCase() === normalized),
+  );
+  if (found) return found.abbrev;
+  return bookName.slice(0, 3);
 }
 
 function nextVerseOf(nextUp: SlideContent | null | undefined): string {
@@ -62,15 +89,39 @@ function indexFromId(id: string): string {
   return "0";
 }
 
-function parseReference(reference: string): {
+export function parseReference(reference: string): {
   livro: string;
   capitulo: string;
   versiculo: string;
   versao: string;
+  sufixo: string;
 } {
-  const m = reference.match(/^(.+?)\s+(\d+)(?:[:.](\d+))?(?:\s*\(([^)]+)\))?\s*$/);
-  if (!m) return { livro: reference, capitulo: "", versiculo: "", versao: "" };
-  return { livro: m[1], capitulo: m[2], versiculo: m[3] ?? "", versao: m[4] ?? "" };
+  const clean = reference.trim();
+  let versao = "";
+  let sufixo = "";
+
+  const parenMatches = [...clean.matchAll(/\(([^)]+)\)/g)];
+  for (const match of parenMatches) {
+    const inner = match[1].trim();
+    if (/^\d+\/\d+$/.test(inner)) {
+      sufixo = ` (${inner})`;
+    } else {
+      versao = cleanBibleVersion(inner);
+    }
+  }
+
+  const base = clean.replace(/\s*\([^)]+\)/g, "").trim();
+  const m = base.match(/^(.+?)\s+(\d+)(?:[:.](\d+))?$/);
+  if (!m) {
+    return { livro: base, capitulo: "", versiculo: "", versao, sufixo };
+  }
+  return {
+    livro: m[1].trim(),
+    capitulo: m[2],
+    versiculo: m[3] ?? "",
+    versao,
+    sufixo,
+  };
 }
 
 export function buildProps(
@@ -119,20 +170,41 @@ export function buildProps(
       };
     }
     case "scripture": {
+      const sc = content.scripture;
       const ref = parseReference(content.title);
+      const rawVersion = sc?.versionId || ref.versao;
+      const cleanVer = cleanBibleVersion(rawVersion);
+      const bookName = sc?.bookName || ref.livro;
+      const bookAbbrev = getBookAbbreviation(bookName, sc?.bookId);
+      const chapter = sc ? String(sc.chapter) : ref.capitulo;
+      const verse = sc ? String(sc.verse) : ref.versiculo;
+      const partSuffix =
+        sc && sc.totalParts > 1 ? ` (${sc.part + 1}/${sc.totalParts})` : ref.sufixo || "";
+
+      const chapterAndVerse = chapter && verse ? `${chapter}:${verse}${partSuffix}` : chapter || "";
+      const refFull = chapterAndVerse ? `${bookName} ${chapterAndVerse}`.trim() : bookName;
+      const refAbbr = chapterAndVerse ? `${bookAbbrev} ${chapterAndVerse}`.trim() : bookAbbrev;
       const text = content.lines.join("\n");
+      const titleWithVersion = cleanVer ? `${refFull} (${cleanVer})` : refFull;
+
       return {
-        // English
-        title: content.title,
+        // English (Canonical)
+        title: titleWithVersion,
+        reference: refFull,
+        reference_full: refFull,
+        reference_abbr: refAbbr,
+        reference_short: refAbbr,
+        current_reference: refFull,
+        book: bookName,
+        book_abbr: bookAbbrev,
+        chapter,
+        verse_number: verse,
+        version: cleanVer,
         verse: text,
         text,
         content: text,
         lyrics: text,
         current_verse: text,
-        book: ref.livro,
-        chapter: ref.capitulo,
-        verse_number: ref.versiculo,
-        version: ref.versao,
         next_verse: nextVerse,
         next_up: nextVerse,
         next_preview: nextPreview,
@@ -140,15 +212,21 @@ export function buildProps(
         next_snippet: nextPreview,
         next_line: nextLine,
         // Legacy pt-BR
-        titulo: content.title,
+        titulo: titleWithVersion,
+        referencia: refFull,
+        referencia_completa: refFull,
+        referencia_abreviada: refAbbr,
+        referencia_curta: refAbbr,
+        referencia_atual: refFull,
+        livro: bookName,
+        livro_abrev: bookAbbrev,
+        capitulo: chapter,
+        versiculo: verse,
+        versao: cleanVer,
         verso: text,
         texto: text,
         letra: text,
         versiculo_corrente: text,
-        livro: ref.livro,
-        capitulo: ref.capitulo,
-        versiculo: ref.versiculo,
-        versao: ref.versao,
         nextVerse,
         proximo_resumo: nextPreview,
         proximo_versiculo_resumo: nextPreview,
@@ -286,14 +364,49 @@ export function buildStageProps(options: {
     letra = "";
   }
 
-  const title = blackout || cleared ? "" : content.title;
-  const section = blackout || cleared ? "" : (content.section ?? "");
+  const rawTitle = blackout || cleared ? "" : content.title;
+  let cleanTitle = rawTitle;
+  let cleanReference = rawTitle;
+  let cleanRefFull = rawTitle;
+  let cleanRefAbbr = rawTitle;
+  let cleanVer = "";
 
+  if (content.kind === "scripture" || content.scripture || /\.(sqlite|db)/i.test(rawTitle)) {
+    const sc = content.scripture;
+    const ref = parseReference(rawTitle);
+    const rawVersion = sc?.versionId || ref.versao;
+    cleanVer = cleanBibleVersion(rawVersion);
+    const bookName = sc?.bookName || ref.livro;
+    const bookAbbrev = getBookAbbreviation(bookName, sc?.bookId);
+    const chapter = sc ? String(sc.chapter) : ref.capitulo;
+    const verse = sc ? String(sc.verse) : ref.versiculo;
+    const partSuffix =
+      sc && sc.totalParts > 1 ? ` (${sc.part + 1}/${sc.totalParts})` : ref.sufixo || "";
+    const chapterAndVerse = chapter && verse ? `${chapter}:${verse}${partSuffix}` : chapter || "";
+    cleanRefFull = chapterAndVerse ? `${bookName} ${chapterAndVerse}`.trim() : bookName;
+    cleanRefAbbr = chapterAndVerse ? `${bookAbbrev} ${chapterAndVerse}`.trim() : bookAbbrev;
+    cleanReference = cleanRefFull;
+    cleanTitle = cleanVer ? `${cleanRefFull} (${cleanVer})` : cleanRefFull;
+  }
+
+  const cleanNextTitle = nextTitle
+    .replace(/\.(sqlite|db)/gi, "")
+    .replace(/\(\s*([A-Za-z0-9_-]+)\s*\)/g, (_, v) => `(${v.toUpperCase()})`);
+  const cleanPrevTitle = prevTitle
+    .replace(/\.(sqlite|db)/gi, "")
+    .replace(/\(\s*([A-Za-z0-9_-]+)\s*\)/g, (_, v) => `(${v.toUpperCase()})`);
+
+  const section = blackout || cleared ? "" : (content.section ?? "");
   const nextPreview = nextPreviewOf(nextUp);
 
   return {
     // English (Canonical)
-    title,
+    title: cleanTitle,
+    reference: cleanReference,
+    reference_full: cleanRefFull,
+    reference_abbr: cleanRefAbbr,
+    reference_short: cleanRefAbbr,
+    version: cleanVer,
     artist: "",
     section,
     lyrics: letra,
@@ -305,23 +418,28 @@ export function buildStageProps(options: {
     next_snippet: nextPreview,
     next_first_line: nextFirstLine,
     next_full: nextFull,
-    next_title: nextTitle,
+    next_title: cleanNextTitle,
     prev_verse: prevVerse,
     prev_up: prevVerse,
     prev_first_line: prevFirstLine,
     prev_full: prevFull,
-    prev_title: prevTitle,
+    prev_title: cleanPrevTitle,
     current_verse: letra,
-    current_reference: title,
-    next_reference: nextTitle,
-    prev_reference: prevTitle,
+    current_reference: cleanReference,
+    next_reference: cleanNextTitle,
+    prev_reference: cleanPrevTitle,
     clock: hora,
     time: hora,
     stopwatch: cronometro,
     timer: timerFormatted,
     countdown: timerFormatted,
     // Legacy aliases (pt-BR)
-    titulo: title,
+    titulo: cleanTitle,
+    referencia: cleanReference,
+    referencia_completa: cleanRefFull,
+    referencia_abreviada: cleanRefAbbr,
+    referencia_curta: cleanRefAbbr,
+    versao: cleanVer,
     artista: "",
     secao: section,
     letra,
@@ -337,14 +455,14 @@ export function buildStageProps(options: {
     proxima_linha: nextFirstLine,
     nextFirstLine,
     nextFull,
-    nextTitle,
+    nextTitle: cleanNextTitle,
     prevVerse,
     prevUp: prevVerse,
     versiculo_anterior: prevVerse,
-    prevTitle,
-    referencia_corrente: title,
-    proxima_referencia: nextTitle,
-    referencia_anterior: prevTitle,
+    prevTitle: cleanPrevTitle,
+    referencia_corrente: cleanReference,
+    proxima_referencia: cleanNextTitle,
+    referencia_anterior: cleanPrevTitle,
     hora,
     "HH:MM": hhmm,
     horaComSegundos,

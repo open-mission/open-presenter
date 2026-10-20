@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
 import { useMediaPort } from "@/core/config/mediaPort";
 import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
@@ -129,7 +129,20 @@ function AutoScaledText({
   const contentRef = useRef<HTMLDivElement>(null);
   const [scaleFactor, setScaleFactor] = useState(1);
 
-  const html = renderHtml(element.text, props);
+  const rawHtml = renderHtml(element.text, props);
+
+  const blinkColon =
+    element.css.blinkColon === "true" ||
+    (element.css.blinkColon as unknown) === true ||
+    (Boolean(element.text?.includes("{clock}")) && element.css.blinkColon !== "false");
+
+  const html = useMemo(() => {
+    if (!blinkColon) return rawHtml;
+    return rawHtml.replace(/(\d{1,2}):(\d{2})(?::(\d{2}))?/g, (fullMatch) => {
+      return fullMatch.replace(/:/g, '<span class="op-clock-colon-blink">:</span>');
+    });
+  }, [rawHtml, blinkColon]);
+
   const [currentHtml, setCurrentHtml] = useState(html);
   const [outgoing, setOutgoing] = useState<{
     html: string;
@@ -152,6 +165,14 @@ function AutoScaledText({
 
   const textAlign = (element.css.textAlign as CSSProperties["textAlign"]) || "center";
   const originX = textAlign === "left" ? "left" : textAlign === "right" ? "right" : "center";
+  const hFlexAlign: CSSProperties["alignItems"] =
+    textAlign === "center"
+      ? "center"
+      : textAlign === "right"
+      ? "flex-end"
+      : textAlign === "justify"
+      ? "stretch"
+      : "flex-start";
 
   const rawVAlign =
     (element.css.justifyContent as string | undefined) ||
@@ -337,7 +358,7 @@ function AutoScaledText({
         display: "flex",
         flexDirection: "column",
         justifyContent: vAlign,
-        alignItems: "stretch",
+        alignItems: hFlexAlign,
         overflow: style.overflow ?? "hidden",
         position: style.position ?? "absolute",
       }}
@@ -351,7 +372,7 @@ function AutoScaledText({
             display: "flex",
             flexDirection: "column",
             justifyContent: vAlign,
-            alignItems: "stretch",
+            alignItems: hFlexAlign,
             pointerEvents: "none",
             animation: `${outAnimation} ${durationMs}ms cubic-bezier(0.16, 1, 0.3, 1) forwards`,
           }}
@@ -360,6 +381,7 @@ function AutoScaledText({
             style={{
               width: isNoWrap ? "max-content" : "100%",
               maxWidth: isNoWrap ? "none" : "100%",
+              alignSelf: isNoWrap ? hFlexAlign : "stretch",
               whiteSpace: isNoWrap
                 ? "nowrap"
                 : ((style.whiteSpace as CSSProperties["whiteSpace"]) ?? "pre-wrap"),
@@ -388,7 +410,7 @@ function AutoScaledText({
           display: "flex",
           flexDirection: "column",
           justifyContent: vAlign,
-          alignItems: "stretch",
+          alignItems: hFlexAlign,
           animation:
             outgoing && inAnimation !== "none"
               ? `${inAnimation} ${durationMs}ms cubic-bezier(0.16, 1, 0.3, 1) forwards`
@@ -400,6 +422,7 @@ function AutoScaledText({
           style={{
             width: isNoWrap ? "max-content" : "100%",
             maxWidth: isNoWrap ? "none" : "100%",
+            alignSelf: isNoWrap ? hFlexAlign : "stretch",
             whiteSpace: isNoWrap
               ? "nowrap"
               : ((style.whiteSpace as CSSProperties["whiteSpace"]) ?? "pre-wrap"),
@@ -520,6 +543,16 @@ export function ThemeRenderer({
       className="absolute inset-0 h-full w-full overflow-hidden"
       style={containerStyle}
     >
+      <style>{`
+        @keyframes op-clock-colon-blink {
+          0%, 49% { opacity: 1; }
+          50%, 100% { opacity: 0.15; }
+        }
+        .op-clock-colon-blink {
+          animation: op-clock-colon-blink 1s step-start infinite;
+          display: inline-block;
+        }
+      `}</style>
       {isShaderBg && (
         <div className="absolute inset-0 pointer-events-none">
           <ShaderCanvas shader={theme.css.background} />
