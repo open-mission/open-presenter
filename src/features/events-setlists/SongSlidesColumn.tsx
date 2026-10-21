@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   Eye,
+  LayoutGrid,
+  List,
   Music,
   Pencil,
   Play,
@@ -11,6 +13,8 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SlideThumbnail } from "@/components/SlideThumbnail";
+import { ViewModeToggle } from "@/components/ViewModeToggle";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -36,8 +40,10 @@ import {
   resolveSlideNumberIndex,
 } from "@/core/lib/slideNumbers";
 import { saveSong } from "@/core/ipc/commands";
+import { usePersistentViewMode } from "@/core/lib/usePersistentViewMode";
 import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import type { EventItem, SectionType, ServiceEvent, Song } from "@/core/types";
+import { usePublicThemeResolver } from "@/features/slide-themes/usePublicThemeResolver";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSongsStore } from "@/features/songs/store";
 import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
@@ -96,6 +102,12 @@ function SongSlidesContent() {
   const addEmptySlideAtStart = useSongDefaultsStore(
     (s) => s.addEmptySlideAtStart,
   );
+  const [viewMode, setViewMode] = usePersistentViewMode(
+    "open_presenter_setlist_song_view",
+    "list",
+    ["list", "slides"] as const,
+  );
+  const resolveTheme = usePublicThemeResolver();
 
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const previewIndexRef = useRef<number | null>(null);
@@ -129,6 +141,13 @@ function SongSlidesContent() {
         ? []
         : buildSongSlides(song, { addEmptySlideAtStart }),
     [song, addEmptySlideAtStart],
+  );
+  const thumbnailThemes = useMemo(
+    () =>
+      new Map(
+        slides.map((slide) => [slide.slide.id, resolveTheme(slide.slide)]),
+      ),
+    [slides, resolveTheme],
   );
   const slideGroups = computeSlideGroups(slides);
   const nextItem = resolveNextItem(item, event);
@@ -617,18 +636,28 @@ function SongSlidesContent() {
 
         {/* Action: Apresentar slide selecionado para o público */}
         {item && slides.length > 0 && (
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            disabled={previewIndex === null}
-            className="h-8 gap-1.5 px-3 text-xs font-semibold shadow-xs transition-all active:scale-95"
-            onClick={() => handlePresent()}
-            title="Apresentar slide para o público (Enter)"
-          >
-            <Play className="size-3.5 fill-current" />
-            Apresentar
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <ViewModeToggle
+              value={viewMode}
+              onChange={setViewMode}
+              options={[
+                { value: "list", label: "Lista", icon: List },
+                { value: "slides", label: "Slides", icon: LayoutGrid },
+              ]}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              disabled={previewIndex === null}
+              className="h-8 gap-1.5 px-3 text-xs font-semibold shadow-xs transition-all active:scale-95"
+              onClick={() => handlePresent()}
+              title="Apresentar slide para o público (Enter)"
+            >
+              <Play className="size-3.5 fill-current" />
+              Apresentar
+            </Button>
+          </div>
         )}
       </div>
 
@@ -924,29 +953,50 @@ function SongSlidesContent() {
                                   </div>
                                 </div>
 
-                                {/* Lyrics Text Preview */}
-                                <div className="space-y-1">
-                                  {block.slide.lines.length === 0 ? (
-                                    <p className="text-xs italic text-muted-foreground/60">
-                                      (Slide vazio)
-                                    </p>
-                                  ) : (
-                                    block.slide.lines.map((line, lIdx) => (
-                                      <p
-                                        key={lIdx}
-                                        className={`text-xs leading-relaxed ${
-                                          isLive
-                                            ? "font-semibold text-foreground"
-                                            : isPreview
-                                            ? "font-medium text-foreground"
-                                            : "text-foreground/90 group-hover:text-foreground"
-                                        }`}
+                                {/* Lyrics Text Preview / Themed thumbnail */}
+                                {viewMode === "slides" ? (
+                                  <div className="relative">
+                                    <SlideThumbnail
+                                      content={block.slide}
+                                      theme={
+                                        thumbnailThemes.get(block.slide.id) ??
+                                        null
+                                      }
+                                      className="pointer-events-none"
+                                    />
+                                    {block.isBlank && (
+                                      <Badge
+                                        variant="outline"
+                                        className="pointer-events-none absolute left-1.5 top-1.5 border-white/20 bg-black/60 text-[9px] font-medium text-white"
                                       >
-                                        {line}
+                                        Slide vazio
+                                      </Badge>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1">
+                                    {block.slide.lines.length === 0 ? (
+                                      <p className="text-xs italic text-muted-foreground/60">
+                                        (Slide vazio)
                                       </p>
-                                    ))
-                                  )}
-                                </div>
+                                    ) : (
+                                      block.slide.lines.map((line, lIdx) => (
+                                        <p
+                                          key={lIdx}
+                                          className={`text-xs leading-relaxed ${
+                                            isLive
+                                              ? "font-semibold text-foreground"
+                                              : isPreview
+                                              ? "font-medium text-foreground"
+                                              : "text-foreground/90 group-hover:text-foreground"
+                                          }`}
+                                        >
+                                          {line}
+                                        </p>
+                                      ))
+                                    )}
+                                  </div>
+                                )}
 
                                 {/* Bottom indicator hint */}
                                 <div className="flex items-center justify-between text-[10px] text-muted-foreground/60">
