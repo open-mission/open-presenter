@@ -15,19 +15,41 @@ function element(id: string): ThemeElement {
   };
 }
 
-test("exclui o elemento arrastado", () => {
-  const boxes = buildSnapBoxes([element("a"), element("b")], "a", () => ({
-    left: 0,
-    top: 0,
-    width: 10,
-    height: 10,
-  }));
+test("exclui os elementos excluídos do snap", () => {
+  const boxes = buildSnapBoxes(
+    [element("a"), element("b"), element("c")],
+    new Set(["a"]),
+    () => ({
+      left: 0,
+      top: 0,
+      width: 10,
+      height: 10,
+    }),
+  );
   assert.equal(boxes.has("a"), false);
   assert.equal(boxes.has("b"), true);
+  assert.equal(boxes.has("c"), true);
+});
+
+test("exclui o grupo inteiro do arrastado", () => {
+  const dragged = { ...element("a"), groupId: "g1" };
+  const member = { ...element("b"), groupId: "g1" };
+  const alone = element("c");
+  const boxes = buildSnapBoxes(
+    [dragged, member, alone],
+    new Set(["a", "b"]),
+    () => ({
+      left: 0,
+      top: 0,
+      width: 10,
+      height: 10,
+    }),
+  );
+  assert.deepEqual([...boxes.keys()], ["c"]);
 });
 
 test("usa o resolvedor de caixa para cada elemento", () => {
-  const boxes = buildSnapBoxes([element("a"), element("b")], "a", (el) => ({
+  const boxes = buildSnapBoxes([element("a"), element("b")], new Set(["a"]), (el) => ({
     left: el.id === "b" ? 100 : 0,
     top: 20,
     width: 30,
@@ -43,7 +65,7 @@ test("usa o resolvedor de caixa para cada elemento", () => {
 
 test("chama o resolvedor uma vez por elemento", () => {
   let calls = 0;
-  buildSnapBoxes([element("a"), element("b"), element("c")], "b", () => {
+  buildSnapBoxes([element("a"), element("b"), element("c")], new Set(["b"]), () => {
     calls += 1;
     return { left: 0, top: 0, width: 1, height: 1 } satisfies ElementBox;
   });
@@ -51,7 +73,7 @@ test("chama o resolvedor uma vez por elemento", () => {
 });
 
 test("lista vazia gera mapa vazio", () => {
-  const boxes = buildSnapBoxes([], "a", () => ({
+  const boxes = buildSnapBoxes([], new Set(["a"]), () => ({
     left: 0,
     top: 0,
     width: 1,

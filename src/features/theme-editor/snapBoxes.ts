@@ -9,12 +9,12 @@ export interface ElementBox {
 
 export function buildSnapBoxes(
   elements: readonly ThemeElement[],
-  excludeId: string,
+  excludeIds: ReadonlySet<string>,
   boxOf: (element: ThemeElement) => ElementBox,
 ): Map<string, ElementBox> {
   const boxes = new Map<string, ElementBox>();
   for (const element of elements) {
-    if (element.id === excludeId) continue;
+    if (excludeIds.has(element.id)) continue;
     boxes.set(element.id, boxOf(element));
   }
   return boxes;

@@ -715,12 +715,14 @@ export function Canvas({
     gestureFrameRef.current?.cancel();
     const pos = toLogical(e);
     const box = resolveBox(el);
+    const excludeIds = new Set([el.id]);
     let groupOrigs: Record<string, { left: number; top: number; width: number; height: number }> | undefined;
     if (el.groupId) {
       groupOrigs = {};
       for (const member of theme.elements) {
         if (member.groupId === el.groupId && !member.locked) {
           groupOrigs[member.id] = resolveBox(member);
+          excludeIds.add(member.id);
         }
       }
     }
@@ -732,7 +734,7 @@ export function Canvas({
       orig: box,
       last: { ...box },
       groupOrigs,
-      snapBoxes: buildSnapBoxes(visibleElements, el.id, resolveBox),
+      snapBoxes: buildSnapBoxes(visibleElements, excludeIds, resolveBox),
     };
     e.currentTarget.setPointerCapture(e.pointerId);
   }
