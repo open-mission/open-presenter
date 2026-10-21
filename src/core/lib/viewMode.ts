@@ -1,4 +1,7 @@
-export type ViewMode = "list" | "slides" | "cards";
+export type ViewMode = "list" | "slides" | "text" | "table";
+
+export const BOOKS_VIEW_MODES = ["list", "table"] as const;
+export const BOOKS_VIEW_DEFAULT = "table";
 
 export function parseViewMode<T extends string>(
   value: string | null,
