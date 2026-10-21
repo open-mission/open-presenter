@@ -104,7 +104,7 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
   if (!ref) return null;
 
   return (
-    <section className="relative flex h-full w-80 min-h-0 flex-col border-r border-border bg-background sm:w-96 shrink-0 select-none overflow-hidden">
+    <section className="relative flex h-full w-full min-w-0 flex-col border-r border-border bg-background select-none overflow-hidden">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2.5 pr-3">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">

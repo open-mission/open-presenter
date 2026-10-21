@@ -619,7 +619,7 @@ function SongSlidesContent() {
         e.preventDefault();
       }}
       onClick={() => setNumberBuffer("")}
-      className="relative flex h-full w-80 min-h-0 flex-col border-r border-border bg-background sm:w-96 shrink-0 select-none overflow-hidden outline-none"
+      className="relative flex h-full w-full min-w-0 flex-col border-r border-border bg-background select-none overflow-hidden outline-none"
     >
       {/* Top Header with increased padding top & bottom */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
