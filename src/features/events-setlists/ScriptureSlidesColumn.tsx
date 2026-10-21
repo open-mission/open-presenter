@@ -7,11 +7,10 @@ import {
   Play,
   Radio,
   Trash2,
-  ZoomIn,
-  ZoomOut,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PreviewZoomControls } from "@/components/PreviewZoomControls";
 import { SlideThumbnail } from "@/components/SlideThumbnail";
 import { ViewModeToggle } from "@/components/ViewModeToggle";
 import { usePersistentViewMode } from "@/core/lib/usePersistentViewMode";
@@ -150,44 +149,6 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <ViewModeToggle
-            value={viewMode}
-            onChange={setViewMode}
-            options={[
-              { value: "list", label: "Lista", icon: List },
-              { value: "slides", label: "Slides", icon: LayoutGrid },
-              { value: "text", label: "Texto", icon: AlignLeft },
-            ]}
-          />
-          {viewMode !== "list" && (
-            <div className="flex items-center gap-0.5">
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="size-7"
-                title="Diminuir zoom (mais itens por linha)"
-                disabled={gridZoom >= SETLIST_PREVIEW_GRID.maxLevel}
-                onClick={() => setGridZoom(gridZoom + 1)}
-              >
-                <ZoomOut className="size-3.5" />
-              </Button>
-              <span className="w-3 text-center text-[10px] font-mono text-muted-foreground">
-                {gridZoom}
-              </span>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="size-7"
-                title="Aumentar zoom (menos itens por linha)"
-                disabled={gridZoom <= SETLIST_PREVIEW_GRID.minLevel}
-                onClick={() => setGridZoom(gridZoom - 1)}
-              >
-                <ZoomIn className="size-3.5" />
-              </Button>
-            </div>
-          )}
           <Button
             type="button"
             variant="ghost"
@@ -213,6 +174,25 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
             Apresentar
           </Button>
         </div>
+      </div>
+
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border/70 bg-muted/20 px-3">
+        <ViewModeToggle
+          value={viewMode}
+          onChange={setViewMode}
+          options={[
+            { value: "list", label: "Lista", icon: List },
+            { value: "slides", label: "Slides", icon: LayoutGrid },
+            { value: "text", label: "Texto", icon: AlignLeft },
+          ]}
+        />
+        {viewMode !== "list" && (
+          <PreviewZoomControls
+            config={SETLIST_PREVIEW_GRID}
+            level={gridZoom}
+            onChange={setGridZoom}
+          />
+        )}
       </div>
 
       <div

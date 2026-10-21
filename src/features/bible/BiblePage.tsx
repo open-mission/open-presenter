@@ -18,11 +18,10 @@ import {
   Sparkles,
   Upload,
   X,
-  ZoomIn,
-  ZoomOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PreviewZoomControls } from "@/components/PreviewZoomControls";
 import { SlideThumbnail } from "@/components/SlideThumbnail";
 import { ViewModeToggle } from "@/components/ViewModeToggle";
 import { buildScriptureSlide } from "@/core/lib/biblePresentation";
@@ -769,33 +768,11 @@ export function BiblePage() {
                   ]}
                 />
                 {versesView !== "list" && (
-                  <div className="flex items-center gap-0.5">
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="size-7 cursor-pointer"
-                      title="Diminuir zoom (mais itens por linha)"
-                      disabled={verseZoom >= BIBLE_PREVIEW_GRID.maxLevel}
-                      onClick={() => setVerseZoom(verseZoom + 1)}
-                    >
-                      <ZoomOut className="size-3.5" />
-                    </Button>
-                    <span className="w-3 text-center text-[10px] font-mono text-muted-foreground">
-                      {verseZoom}
-                    </span>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      className="size-7 cursor-pointer"
-                      title="Aumentar zoom (menos itens por linha)"
-                      disabled={verseZoom <= BIBLE_PREVIEW_GRID.minLevel}
-                      onClick={() => setVerseZoom(verseZoom - 1)}
-                    >
-                      <ZoomIn className="size-3.5" />
-                    </Button>
-                  </div>
+                  <PreviewZoomControls
+                    config={BIBLE_PREVIEW_GRID}
+                    level={verseZoom}
+                    onChange={setVerseZoom}
+                  />
                 )}
                 <Button
                   type="button"

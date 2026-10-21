@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlignLeft,
   Check,
   Eye,
   LayoutGrid,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PreviewZoomControls } from "@/components/PreviewZoomControls";
 import { SlideThumbnail } from "@/components/SlideThumbnail";
 import { ViewModeToggle } from "@/components/ViewModeToggle";
 import {
@@ -30,6 +32,7 @@ import {
   buildSongSlides,
   computeSlideGroups,
   splitSection,
+  type RunnerSlide,
   type SlideGroup,
 } from "@/core/lib/lyrics";
 import { findSongGroup, songGroupColor } from "@/core/lib/songGroups";
@@ -41,6 +44,11 @@ import {
 } from "@/core/lib/slideNumbers";
 import { saveSong } from "@/core/ipc/commands";
 import { usePersistentViewMode } from "@/core/lib/usePersistentViewMode";
+import { usePersistentNumber } from "@/core/lib/usePersistentNumber";
+import {
+  SONG_PREVIEW_GRID,
+  previewGridStyle,
+} from "@/core/lib/previewGrid";
 import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import type { EventItem, SectionType, ServiceEvent, Song } from "@/core/types";
 import { usePublicThemeResolver } from "@/features/slide-themes/usePublicThemeResolver";
@@ -105,7 +113,13 @@ function SongSlidesContent() {
   const [viewMode, setViewMode] = usePersistentViewMode(
     "open_presenter_setlist_song_view",
     "list",
-    ["list", "slides"] as const,
+    ["list", "slides", "text"] as const,
+  );
+  const [gridZoom, setGridZoom] = usePersistentNumber(
+    "open_presenter_setlist_song_zoom",
+    SONG_PREVIEW_GRID.defaultLevel,
+    SONG_PREVIEW_GRID.minLevel,
+    SONG_PREVIEW_GRID.maxLevel,
   );
   const resolveTheme = usePublicThemeResolver();
 
@@ -599,6 +613,328 @@ function SongSlidesContent() {
     }
   }
 
+  function renderSlideCard(
+    block: RunnerSlide,
+    group: SlideGroup,
+    positionInGroup: number,
+  ) {
+    const isLive = runnerIndex === block.index;
+    const isPreview = previewIndex === block.index;
+    const isBeingDragged =
+      (dragSlideRef.current ?? draggedSlideIndex) === block.index;
+    const isHoveredOver = dragOverSlide?.index === block.index;
+    const editSectionIndex = block.sectionIndex;
+    const canEditSection = editSectionIndex !== null && !block.isBlank;
+    const dense = viewMode !== "list";
+    const { badgeBg: groupColor } = resolveGroupBadge(group);
+
+    return (
+        <div
+          key={block.index}
+          className={
+            viewMode !== "list"
+              ? "min-w-0 rounded-lg border border-border/60 bg-card/40"
+              : positionInGroup > 0
+              ? "border-t border-border/25"
+              : undefined
+          }
+        >
+          <ContextMenu modal={false}>
+            <ContextMenuTrigger asChild>
+              <div
+                ref={(el) => {
+                  slideRefs.current[block.index] = el;
+                }}
+                draggable={canEditSection}
+                onDragStart={(e) => {
+                  if (!canEditSection) return;
+                  e.stopPropagation();
+                  dragSlideRef.current = block.index;
+                  setDraggedSlideIndex(block.index);
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("text/plain", `slide:${block.index}`);
+                }}
+                onDragEnd={() => {
+                  dragSlideRef.current = null;
+                  setDraggedSlideIndex(null);
+                  setDragOverSlide(null);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.dataTransfer.dropEffect = "move";
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const position: "before" | "after" =
+                    e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+                  setDragOverSlide({
+                    index: block.index,
+                    position,
+                  });
+                }}
+                onDragLeave={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  if (
+                    e.clientX < rect.left ||
+                    e.clientX >= rect.right ||
+                    e.clientY < rect.top ||
+                    e.clientY >= rect.bottom
+                  ) {
+                    if (dragOverSlide?.index === block.index) {
+                      setDragOverSlide(null);
+                    }
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const srcIdx = dragSlideRef.current ?? draggedSlideIndex;
+                  const position = dragOverSlide?.position ?? "after";
+                  if (srcIdx !== null && srcIdx !== block.index) {
+                    void handleReorderSlides(srcIdx, block.index, position);
+                  }
+                  dragSlideRef.current = null;
+                  setDraggedSlideIndex(null);
+                  setDragOverSlide(null);
+                }}
+                onClick={() => handleSelectPreview(block.index)}
+                onDoubleClick={() => handlePresent(block.index)}
+                className={`group relative flex flex-col transition-all outline-none select-none ${
+                  viewMode === "list"
+                    ? "gap-2 p-3.5"
+                    : "gap-1.5 p-2"
+                } ${
+                  canEditSection
+                    ? "cursor-grab active:cursor-grabbing"
+                    : ""
+                } ${
+                  isLive
+                    ? "bg-emerald-500/15 ring-2 ring-inset ring-emerald-500/60 shadow-xs"
+                    : isPreview
+                    ? "bg-primary/15 ring-2 ring-inset ring-primary/40 shadow-2xs"
+                    : "bg-card/40 hover:bg-accent/40"
+                } ${
+                  isBeingDragged ? "opacity-35 scale-[0.98]" : ""
+                } ${
+                  isHoveredOver && dragOverSlide?.position === "before"
+                    ? "border-t-2 border-t-primary shadow-xs"
+                    : ""
+                } ${
+                  isHoveredOver && dragOverSlide?.position === "after"
+                    ? "border-b-2 border-b-primary shadow-xs"
+                    : ""
+                }`}
+                title="1 clique: Prévia · 2 cliques: Apresentar · Arraste para reordenar"
+              >
+                {/* Card Sub-Header: Indicador de Parte (se múltiplos slides) & Badges de Status */}                                <div className="flex min-w-0 items-center justify-between gap-1 min-h-[16px]">
+                                  <div className="flex min-w-0 items-center gap-1">
+                                    {dense && group.label && (
+                                      <span
+                                        className="truncate rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white"
+                                        style={{
+                                          backgroundColor: groupColor ?? "#3b82f6",
+                                        }}
+                                      >
+                                        {group.label}
+                                      </span>
+                                    )}
+                                    {group.indices.length > 1 && (
+                                      <span className="shrink-0 text-[10px] font-medium text-muted-foreground/60">
+                                        Parte {positionInGroup + 1}
+                                      </span>
+                                    )}
+                                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {isPreview && !isLive && (
+                      <Badge
+                        variant="secondary"
+                        className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-primary/15 text-primary border-primary/20"
+                      >
+                        <Eye className="size-2.5" />
+                        Prévia
+                      </Badge>
+                    )}
+
+                    {isLive && (
+                      <Badge
+                        variant="default"
+                        className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-emerald-600 hover:bg-emerald-600 text-white animate-pulse"
+                      >
+                        <Radio className="size-2.5" />
+                        Ao Vivo
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                {/* Lyrics Text Preview / Themed thumbnail */}
+                {viewMode === "slides" ? (
+                  <div className="relative">
+                    <SlideThumbnail
+                      content={block.slide}
+                      theme={
+                        thumbnailThemes.get(block.slide.id) ??
+                        null
+                      }
+                      className="pointer-events-none"
+                    />
+                    {block.isBlank && (
+                      <Badge
+                        variant="outline"
+                        className="pointer-events-none absolute left-1.5 top-1.5 border-white/20 bg-black/60 text-[9px] font-medium text-white"
+                      >
+                        Slide vazio
+                      </Badge>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {block.slide.lines.length === 0 ? (
+                      <p className="text-xs italic text-muted-foreground/60">
+                        (Slide vazio)
+                      </p>
+                    ) : (
+                      block.slide.lines.map((line, lIdx) => (
+                        <p
+                          key={lIdx}
+                          className={`text-xs leading-relaxed ${
+                            isLive
+                              ? "font-semibold text-foreground"
+                              : isPreview
+                              ? "font-medium text-foreground"
+                              : "text-foreground/90 group-hover:text-foreground"
+                          }`}
+                        >
+                          {line}
+                        </p>
+                      ))
+                    )}
+                  </div>
+                )}
+
+                {/* Bottom indicator hint */}
+                <div className="flex min-w-0 items-center justify-between gap-1 text-[10px] text-muted-foreground/60">
+                  <span className="truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                    {isLive ? "Transmitindo no telão" : "Duplo clique para apresentar"}
+                  </span>
+                  <span className="tabular-nums font-mono text-[9px]">
+                    #{block.index + 1}
+                  </span>
+                </div>
+              </div>
+            </ContextMenuTrigger>
+
+          <ContextMenuContent
+            className="w-52"
+            onCloseAutoFocus={(e) => e.preventDefault()}
+          >
+            {/* 1. Editar */}
+            <ContextMenuItem onClick={() => handleEditSong()}>
+              <Pencil className="size-3.5 mr-2" />
+              <span>Editar Música</span>
+            </ContextMenuItem>
+
+            <ContextMenuSeparator />
+
+            {/* 2. Rótulo > */}
+            <ContextMenuSub>
+              <ContextMenuSubTrigger disabled={!canEditSection}>
+                <Tag className="size-3.5 mr-2" />
+                <span>Rótulo</span>
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-48">
+                {(Object.entries(SECTION_LABEL) as [SectionType, string][]).map(
+                  ([typeKey, typeLabel]) => (
+                    <ContextMenuItem
+                      key={typeKey}
+                      disabled={!canEditSection}
+                      onClick={() => {
+                        if (editSectionIndex === null) return;
+                        void handleUpdateSectionLabel(
+                          editSectionIndex,
+                          typeKey,
+                        );
+                      }}
+                      className="flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="size-2 rounded-full shrink-0"
+                          style={{ backgroundColor: SECTION_COLOR[typeKey] }}
+                        />
+                        <span>{typeLabel}</span>
+                      </div>
+                      {block.sectionType === typeKey && (
+                        <Check className="size-3.5 text-primary" />
+                      )}
+                    </ContextMenuItem>
+                  ),
+                )}
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  disabled={!canEditSection}
+                  onClick={() => {
+                    if (editSectionIndex === null) return;
+                    void handleRemoveSectionLabel(editSectionIndex);
+                  }}
+                  className="text-xs text-muted-foreground"
+                >
+                  Remover rótulo
+                </ContextMenuItem>
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+
+            {/* 3. Dividir > */}
+            <ContextMenuSub>
+              <ContextMenuSubTrigger disabled={!canEditSection}>
+                <Split className="size-3.5 mr-2" />
+                <span>Dividir</span>
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-44">
+                <ContextMenuItem
+                  disabled={
+                    !canEditSection ||
+                    block.slide.lines.length <= 2
+                  }
+                  onClick={() => {
+                    if (editSectionIndex === null) return;
+                    void handleSplitSection(editSectionIndex, 2);
+                  }}
+                  className="flex items-center justify-between"
+                >
+                  <span>2 Linhas</span>
+                  {block.slide.lines.length > 2 && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {Math.ceil(block.slide.lines.length / 2)} slides
+                    </span>
+                  )}
+                </ContextMenuItem>
+                <ContextMenuItem
+                  disabled={
+                    !canEditSection ||
+                    block.slide.lines.length <= 1
+                  }
+                  onClick={() => {
+                    if (editSectionIndex === null) return;
+                    void handleSplitSection(editSectionIndex, 1);
+                  }}
+                  className="flex items-center justify-between"
+                >
+                  <span>1 Linha</span>
+                  {block.slide.lines.length > 1 && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {block.slide.lines.length} slides
+                    </span>
+                  )}
+                </ContextMenuItem>
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          </ContextMenuContent>
+        </ContextMenu>
+      </div>
+    );
+  }
+
   return (
     <section
       ref={sectionRef}
@@ -636,15 +972,7 @@ function SongSlidesContent() {
 
         {/* Action: Apresentar slide selecionado para o público */}
         {item && slides.length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <ViewModeToggle
-              value={viewMode}
-              onChange={setViewMode}
-              options={[
-                { value: "list", label: "Lista", icon: List },
-                { value: "slides", label: "Slides", icon: LayoutGrid },
-              ]}
-            />
+          <div className="flex shrink-0 items-center gap-1.5">
             <Button
               type="button"
               size="sm"
@@ -660,6 +988,28 @@ function SongSlidesContent() {
           </div>
         )}
       </div>
+
+      {/* Barra de Previews: modo (lista/slides/texto) e densidade */}
+      {item && slides.length > 0 && (
+        <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border/70 bg-muted/20 px-3">
+          <ViewModeToggle
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              { value: "list", label: "Lista", icon: List },
+              { value: "slides", label: "Slides", icon: LayoutGrid },
+              { value: "text", label: "Texto", icon: AlignLeft },
+            ]}
+          />
+          {viewMode !== "list" && (
+            <PreviewZoomControls
+              config={SONG_PREVIEW_GRID}
+              level={gridZoom}
+              onChange={setGridZoom}
+            />
+          )}
+        </div>
+      )}
 
       {/* Barra Rápida de Seções / Atalhos de Grupos */}
       {item && labeledGroups.length > 0 && (
@@ -740,7 +1090,7 @@ function SongSlidesContent() {
       )}
 
       {/* Slides Cards List (Scrollable with persistent native scrollbar) */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 space-y-2.5 [scrollbar-gutter:stable]">
+      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 [scrollbar-gutter:stable]">
           {!item ? (
             <div className="flex h-64 flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground">
               <div className="mb-2 flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -754,6 +1104,19 @@ function SongSlidesContent() {
           ) : song === undefined ? (
             <div className="p-6 text-center text-xs text-muted-foreground">
               Carregando letra e estrofes…
+            </div>
+          ) : viewMode !== "list" ? (
+            <div
+              className="grid gap-2"
+              style={previewGridStyle(SONG_PREVIEW_GRID, gridZoom)}
+            >
+              {slides.map((block) => {
+                const group =
+                  slideGroups.find((entry) => entry.indices.includes(block.index)) ??
+                  slideGroups[0];
+                const positionInGroup = group.indices.indexOf(block.index);
+                return renderSlideCard(block, group, positionInGroup);
+              })}
             </div>
           ) : (
             slideGroups.map((group) => {
@@ -818,308 +1181,9 @@ function SongSlidesContent() {
 
                   {/* Lista de Slides Pertencentes ao Grupo */}
                   <div>
-                    {group.indices.map((slideIndex, positionInGroup) => {
-                      const block = slides[slideIndex];
-                      const isLive = runnerIndex === block.index;
-                      const isPreview = previewIndex === block.index;
-                      const isBeingDragged =
-                        (dragSlideRef.current ?? draggedSlideIndex) === block.index;
-                      const isHoveredOver = dragOverSlide?.index === block.index;
-                      const editSectionIndex = block.sectionIndex;
-                      const canEditSection =
-                        editSectionIndex !== null && !block.isBlank;
-
-                      return (
-                        <div
-                          key={block.index}
-                          className={
-                            positionInGroup > 0
-                              ? "border-t border-border/25"
-                              : undefined
-                          }
-                        >
-                          <ContextMenu modal={false}>
-                            <ContextMenuTrigger asChild>
-                              <div
-                                ref={(el) => {
-                                  slideRefs.current[block.index] = el;
-                                }}
-                                draggable={canEditSection}
-                                onDragStart={(e) => {
-                                  if (!canEditSection) return;
-                                  e.stopPropagation();
-                                  dragSlideRef.current = block.index;
-                                  setDraggedSlideIndex(block.index);
-                                  e.dataTransfer.effectAllowed = "move";
-                                  e.dataTransfer.setData("text/plain", `slide:${block.index}`);
-                                }}
-                                onDragEnd={() => {
-                                  dragSlideRef.current = null;
-                                  setDraggedSlideIndex(null);
-                                  setDragOverSlide(null);
-                                }}
-                                onDragOver={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  e.dataTransfer.dropEffect = "move";
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  const position: "before" | "after" =
-                                    e.clientY < rect.top + rect.height / 2 ? "before" : "after";
-                                  setDragOverSlide({
-                                    index: block.index,
-                                    position,
-                                  });
-                                }}
-                                onDragLeave={(e) => {
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  if (
-                                    e.clientX < rect.left ||
-                                    e.clientX >= rect.right ||
-                                    e.clientY < rect.top ||
-                                    e.clientY >= rect.bottom
-                                  ) {
-                                    if (dragOverSlide?.index === block.index) {
-                                      setDragOverSlide(null);
-                                    }
-                                  }
-                                }}
-                                onDrop={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  const srcIdx = dragSlideRef.current ?? draggedSlideIndex;
-                                  const position = dragOverSlide?.position ?? "after";
-                                  if (srcIdx !== null && srcIdx !== block.index) {
-                                    void handleReorderSlides(srcIdx, block.index, position);
-                                  }
-                                  dragSlideRef.current = null;
-                                  setDraggedSlideIndex(null);
-                                  setDragOverSlide(null);
-                                }}
-                                onClick={() => handleSelectPreview(block.index)}
-                                onDoubleClick={() => handlePresent(block.index)}
-                                className={`group relative flex flex-col gap-2 p-3.5 transition-all outline-none select-none ${
-                                  canEditSection
-                                    ? "cursor-grab active:cursor-grabbing"
-                                    : ""
-                                } ${
-                                  isLive
-                                    ? "bg-emerald-500/15 ring-2 ring-inset ring-emerald-500/60 shadow-xs"
-                                    : isPreview
-                                    ? "bg-primary/15 ring-2 ring-inset ring-primary/40 shadow-2xs"
-                                    : "bg-card/40 hover:bg-accent/40"
-                                } ${
-                                  isBeingDragged ? "opacity-35 scale-[0.98]" : ""
-                                } ${
-                                  isHoveredOver && dragOverSlide?.position === "before"
-                                    ? "border-t-2 border-t-primary shadow-xs"
-                                    : ""
-                                } ${
-                                  isHoveredOver && dragOverSlide?.position === "after"
-                                    ? "border-b-2 border-b-primary shadow-xs"
-                                    : ""
-                                }`}
-                                title="1 clique: Prévia · 2 cliques: Apresentar · Arraste para reordenar"
-                              >
-                                {/* Card Sub-Header: Indicador de Parte (se múltiplos slides) & Badges de Status */}
-                                <div className="flex items-center justify-between min-h-[16px]">
-                                  <div>
-                                    {group.indices.length > 1 && (
-                                      <span className="text-[10px] font-medium text-muted-foreground/60">
-                                        Parte {positionInGroup + 1}
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <div className="flex items-center gap-1.5">
-                                    {isPreview && !isLive && (
-                                      <Badge
-                                        variant="secondary"
-                                        className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-primary/15 text-primary border-primary/20"
-                                      >
-                                        <Eye className="size-2.5" />
-                                        Prévia
-                                      </Badge>
-                                    )}
-
-                                    {isLive && (
-                                      <Badge
-                                        variant="default"
-                                        className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-emerald-600 hover:bg-emerald-600 text-white animate-pulse"
-                                      >
-                                        <Radio className="size-2.5" />
-                                        Ao Vivo
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Lyrics Text Preview / Themed thumbnail */}
-                                {viewMode === "slides" ? (
-                                  <div className="relative">
-                                    <SlideThumbnail
-                                      content={block.slide}
-                                      theme={
-                                        thumbnailThemes.get(block.slide.id) ??
-                                        null
-                                      }
-                                      className="pointer-events-none"
-                                    />
-                                    {block.isBlank && (
-                                      <Badge
-                                        variant="outline"
-                                        className="pointer-events-none absolute left-1.5 top-1.5 border-white/20 bg-black/60 text-[9px] font-medium text-white"
-                                      >
-                                        Slide vazio
-                                      </Badge>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="space-y-1">
-                                    {block.slide.lines.length === 0 ? (
-                                      <p className="text-xs italic text-muted-foreground/60">
-                                        (Slide vazio)
-                                      </p>
-                                    ) : (
-                                      block.slide.lines.map((line, lIdx) => (
-                                        <p
-                                          key={lIdx}
-                                          className={`text-xs leading-relaxed ${
-                                            isLive
-                                              ? "font-semibold text-foreground"
-                                              : isPreview
-                                              ? "font-medium text-foreground"
-                                              : "text-foreground/90 group-hover:text-foreground"
-                                          }`}
-                                        >
-                                          {line}
-                                        </p>
-                                      ))
-                                    )}
-                                  </div>
-                                )}
-
-                                {/* Bottom indicator hint */}
-                                <div className="flex items-center justify-between text-[10px] text-muted-foreground/60">
-                                  <span className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {isLive ? "Transmitindo no telão" : "Duplo clique para apresentar"}
-                                  </span>
-                                  <span className="tabular-nums font-mono text-[9px]">
-                                    #{block.index + 1}
-                                  </span>
-                                </div>
-                              </div>
-                            </ContextMenuTrigger>
-
-                          <ContextMenuContent
-                            className="w-52"
-                            onCloseAutoFocus={(e) => e.preventDefault()}
-                          >
-                            {/* 1. Editar */}
-                            <ContextMenuItem onClick={() => handleEditSong()}>
-                              <Pencil className="size-3.5 mr-2" />
-                              <span>Editar Música</span>
-                            </ContextMenuItem>
-
-                            <ContextMenuSeparator />
-
-                            {/* 2. Rótulo > */}
-                            <ContextMenuSub>
-                              <ContextMenuSubTrigger disabled={!canEditSection}>
-                                <Tag className="size-3.5 mr-2" />
-                                <span>Rótulo</span>
-                              </ContextMenuSubTrigger>
-                              <ContextMenuSubContent className="w-48">
-                                {(Object.entries(SECTION_LABEL) as [SectionType, string][]).map(
-                                  ([typeKey, typeLabel]) => (
-                                    <ContextMenuItem
-                                      key={typeKey}
-                                      disabled={!canEditSection}
-                                      onClick={() => {
-                                        if (editSectionIndex === null) return;
-                                        void handleUpdateSectionLabel(
-                                          editSectionIndex,
-                                          typeKey,
-                                        );
-                                      }}
-                                      className="flex items-center justify-between"
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <span
-                                          className="size-2 rounded-full shrink-0"
-                                          style={{ backgroundColor: SECTION_COLOR[typeKey] }}
-                                        />
-                                        <span>{typeLabel}</span>
-                                      </div>
-                                      {block.sectionType === typeKey && (
-                                        <Check className="size-3.5 text-primary" />
-                                      )}
-                                    </ContextMenuItem>
-                                  ),
-                                )}
-                                <ContextMenuSeparator />
-                                <ContextMenuItem
-                                  disabled={!canEditSection}
-                                  onClick={() => {
-                                    if (editSectionIndex === null) return;
-                                    void handleRemoveSectionLabel(editSectionIndex);
-                                  }}
-                                  className="text-xs text-muted-foreground"
-                                >
-                                  Remover rótulo
-                                </ContextMenuItem>
-                              </ContextMenuSubContent>
-                            </ContextMenuSub>
-
-                            {/* 3. Dividir > */}
-                            <ContextMenuSub>
-                              <ContextMenuSubTrigger disabled={!canEditSection}>
-                                <Split className="size-3.5 mr-2" />
-                                <span>Dividir</span>
-                              </ContextMenuSubTrigger>
-                              <ContextMenuSubContent className="w-44">
-                                <ContextMenuItem
-                                  disabled={
-                                    !canEditSection ||
-                                    block.slide.lines.length <= 2
-                                  }
-                                  onClick={() => {
-                                    if (editSectionIndex === null) return;
-                                    void handleSplitSection(editSectionIndex, 2);
-                                  }}
-                                  className="flex items-center justify-between"
-                                >
-                                  <span>2 Linhas</span>
-                                  {block.slide.lines.length > 2 && (
-                                    <span className="text-[10px] text-muted-foreground">
-                                      {Math.ceil(block.slide.lines.length / 2)} slides
-                                    </span>
-                                  )}
-                                </ContextMenuItem>
-                                <ContextMenuItem
-                                  disabled={
-                                    !canEditSection ||
-                                    block.slide.lines.length <= 1
-                                  }
-                                  onClick={() => {
-                                    if (editSectionIndex === null) return;
-                                    void handleSplitSection(editSectionIndex, 1);
-                                  }}
-                                  className="flex items-center justify-between"
-                                >
-                                  <span>1 Linha</span>
-                                  {block.slide.lines.length > 1 && (
-                                    <span className="text-[10px] text-muted-foreground">
-                                      {block.slide.lines.length} slides
-                                    </span>
-                                  )}
-                                </ContextMenuItem>
-                              </ContextMenuSubContent>
-                            </ContextMenuSub>
-                          </ContextMenuContent>
-                        </ContextMenu>
-                      </div>
-                    );
-                  })}
+                    {group.indices.map((slideIndex, positionInGroup) =>
+                      renderSlideCard(slides[slideIndex], group, positionInGroup),
+                    )}
                   </div>
                 </div>
               );

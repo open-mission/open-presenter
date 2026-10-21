@@ -19,6 +19,20 @@ export const SETLIST_PREVIEW_GRID: PreviewGridConfig = {
   minWidths: { 1: 260, 2: 170, 3: 114, 4: 84, 5: 62 },
 };
 
+export const SONG_PREVIEW_GRID: PreviewGridConfig = {
+  minLevel: 1,
+  maxLevel: 3,
+  defaultLevel: 2,
+  minWidths: { 1: 200, 2: 120, 3: 88 },
+};
+
+export const MEDIA_PREVIEW_GRID: PreviewGridConfig = {
+  minLevel: 1,
+  maxLevel: 4,
+  defaultLevel: 2,
+  minWidths: { 1: 200, 2: 120, 3: 88, 4: 66 },
+};
+
 export function clampPreviewLevel(config: PreviewGridConfig, level: number): number {
   return Math.min(config.maxLevel, Math.max(config.minLevel, Math.round(level)));
 }
