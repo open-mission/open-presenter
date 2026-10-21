@@ -272,7 +272,8 @@ mod tests {
         {"title":"Y","artist":"","lyrics":{"paragraphs":[]}}]"#;
         let songs = parse(json, HolyricsFormat::Json).unwrap();
         assert_eq!(songs.len(), 1);
-        assert_eq!(songs[0].sections.len(), 2);
+        assert_eq!(songs[0].sections.len(), 3);
+        assert!(songs[0].sections[1].lines.is_empty());
         assert!(parse("não é json", HolyricsFormat::Json).is_err());
     }
 
