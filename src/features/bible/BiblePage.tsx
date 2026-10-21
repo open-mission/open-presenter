@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlignLeft,
   ArrowLeft,
   ArrowRight,
   BookOpen,
@@ -17,6 +18,8 @@ import {
   Sparkles,
   Upload,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +28,11 @@ import { ViewModeToggle } from "@/components/ViewModeToggle";
 import { buildScriptureSlide } from "@/core/lib/biblePresentation";
 import { cn } from "@/core/lib/utils";
 import { usePersistentViewMode } from "@/core/lib/usePersistentViewMode";
+import { usePersistentNumber } from "@/core/lib/usePersistentNumber";
+import {
+  BIBLE_PREVIEW_GRID,
+  previewGridStyle,
+} from "@/core/lib/previewGrid";
 import { BOOKS_VIEW_DEFAULT, BOOKS_VIEW_MODES } from "@/core/lib/viewMode";
 import { usePublicThemeResolver } from "@/features/slide-themes/usePublicThemeResolver";
 import {
@@ -95,7 +103,13 @@ export function BiblePage() {
   const [versesView, setVersesView] = usePersistentViewMode(
     "open_presenter_bible_verses_view",
     "list",
-    ["list", "slides"] as const,
+    ["list", "slides", "text"] as const,
+  );
+  const [verseZoom, setVerseZoom] = usePersistentNumber(
+    "open_presenter_bible_verses_zoom",
+    BIBLE_PREVIEW_GRID.defaultLevel,
+    BIBLE_PREVIEW_GRID.minLevel,
+    BIBLE_PREVIEW_GRID.maxLevel,
   );
   const [booksView, setBooksView] = usePersistentViewMode(
     "open_presenter_bible_books_view",
@@ -140,7 +154,7 @@ export function BiblePage() {
   );
 
   const verseCards = useMemo(() => {
-    if (versesView !== "slides" || !activeBook || !activeVersionId) return [];
+    if (versesView === "list" || !activeBook || !activeVersionId) return [];
     return verses.flatMap((verse) => {
       const parts = getVerseParts(verse.text);
       return parts.map((partText, partIndex) => {
@@ -751,8 +765,38 @@ export function BiblePage() {
                   options={[
                     { value: "list", label: "Lista", icon: List },
                     { value: "slides", label: "Slides", icon: LayoutGrid },
+                    { value: "text", label: "Texto", icon: AlignLeft },
                   ]}
                 />
+                {versesView !== "list" && (
+                  <div className="flex items-center gap-0.5">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="size-7 cursor-pointer"
+                      title="Diminuir zoom (mais itens por linha)"
+                      disabled={verseZoom >= BIBLE_PREVIEW_GRID.maxLevel}
+                      onClick={() => setVerseZoom(verseZoom + 1)}
+                    >
+                      <ZoomOut className="size-3.5" />
+                    </Button>
+                    <span className="w-3 text-center text-[10px] font-mono text-muted-foreground">
+                      {verseZoom}
+                    </span>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="size-7 cursor-pointer"
+                      title="Aumentar zoom (menos itens por linha)"
+                      disabled={verseZoom <= BIBLE_PREVIEW_GRID.minLevel}
+                      onClick={() => setVerseZoom(verseZoom - 1)}
+                    >
+                      <ZoomIn className="size-3.5" />
+                    </Button>
+                  </div>
+                )}
                 <Button
                   type="button"
                   size="sm"
@@ -793,8 +837,11 @@ export function BiblePage() {
                     ? "Importe uma Bíblia usando o botão acima para começar a exibir versículos."
                     : "Nenhum versículo encontrado neste capítulo."}
                 </div>
-              ) : versesView === "slides" ? (
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+              ) : versesView !== "list" ? (
+                <div
+                  className="grid gap-2"
+                  style={previewGridStyle(BIBLE_PREVIEW_GRID, verseZoom)}
+                >
                   {verseCards.map(
                     ({ verse, partIndex, totalParts, slide, theme }) => {
                       const isLive =
@@ -824,11 +871,17 @@ export function BiblePage() {
                               : "border-border/80 bg-card/70 hover:border-primary/50",
                           )}
                         >
-                          <SlideThumbnail
-                            content={slide}
-                            theme={theme}
-                            className="pointer-events-none"
-                          />
+                          {versesView === "slides" ? (
+                            <SlideThumbnail
+                              content={slide}
+                              theme={theme}
+                              className="pointer-events-none"
+                            />
+                          ) : (
+                            <p className="min-h-16 whitespace-pre-line text-[11px] leading-snug text-foreground/90">
+                              {slide.lines.join("\n")}
+                            </p>
+                          )}
                           <div className="flex items-center justify-between gap-1 px-0.5">
                             <span className="truncate text-[10px] font-semibold text-primary">
                               {slide.section}
