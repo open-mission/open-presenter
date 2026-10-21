@@ -11,6 +11,7 @@ import {
 } from "@/core/ipc/commands";
 import { buildSongSlides } from "@/core/lib/lyrics";
 import { buildMediaSlides } from "@/core/lib/media";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import {
   bibleSplitThreshold,
   buildScriptureSlides,
@@ -119,6 +120,7 @@ interface SetlistState {
   projectSection(itemId: string, index: number): Promise<void>;
   projectNext(): Promise<void>;
   projectPrev(): Promise<void>;
+  shiftRunnerIndex(delta: -1 | 1, addEmptySlideAtStart: boolean): void;
   listMode: SetlistListMode;
   lastSelectedEventId: string | null;
   temporaryEvent: ServiceEvent | null;
@@ -131,6 +133,13 @@ interface SetlistState {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function buildSongRunnerSlides(song: Song) {
+  return buildSongSlides(song, {
+    addEmptySlideAtStart:
+      useSongDefaultsStore.getState().addEmptySlideAtStart,
+  });
 }
 
 function clearPointers(
@@ -1194,7 +1203,7 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     } else {
       const song = await get().loadItemSong(itemId);
       if (song === null) return;
-      slides = buildSongSlides(song).map((entry) => entry.slide);
+      slides = buildSongRunnerSlides(song).map((entry) => entry.slide);
     }
     if (index < 0 || index >= slides.length) return;
 
@@ -1211,7 +1220,7 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
         } else if (nextItem.song != null) {
           const nextSong = await get().loadItemSong(nextItem.id);
           if (nextSong !== null) {
-            nextUp = buildSongSlides(nextSong)[0]?.slide ?? null;
+            nextUp = buildSongRunnerSlides(nextSong)[0]?.slide ?? null;
           }
         }
       }
@@ -1239,7 +1248,7 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     } else {
       const song = await get().loadItemSong(selectedItemId);
       if (song === null) return;
-      count = buildSongSlides(song).length;
+      count = buildSongRunnerSlides(song).length;
     }
     if (runnerIndex + 1 >= count) return;
     await get().projectSection(selectedItemId, runnerIndex + 1);
@@ -1251,6 +1260,16 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       return;
     }
     await get().projectSection(selectedItemId, runnerIndex - 1);
+  },
+
+  shiftRunnerIndex: (delta, addEmptySlideAtStart) => {
+    const current = get().runnerIndex;
+    if (current === null) return;
+    if (!addEmptySlideAtStart && current === 0) {
+      set({ runnerIndex: 0 });
+      return;
+    }
+    set({ runnerIndex: Math.max(0, current + delta) });
   },
 
   appendImprevistoSong: async (songId) => {

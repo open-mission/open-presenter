@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { openOutputWindow } from "@/core/ipc/commands";
 import type { OutputTarget } from "@/core/types";
@@ -19,6 +19,7 @@ import { SongEditorDialog } from "@/features/songs/SongEditorDialog";
 import { OnlineLyricsDialog } from "@/features/songs/OnlineLyricsDialog";
 import { ImportReportDialog } from "@/features/songs/ImportReportDialog";
 import { useSetlistStore } from "@/features/events-setlists/store";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import { useNativeMenu } from "@/core/ipc/useNativeMenu";
 import { useNavigationStore } from "@/features/navigation/store";
 import { SongsPage } from "@/features/songs/SongsPage";
@@ -46,6 +47,10 @@ export default function AdminView() {
   useBibleLiveSync();
   useUpdateChecker();
   const loadSetlists = useSetlistStore((s) => s.load);
+  const loadSongDefaults = useSongDefaultsStore((s) => s.load);
+  const addEmptySlideAtStart = useSongDefaultsStore(
+    (s) => s.addEmptySlideAtStart,
+  );
   const outputsLoaded = useOutputManagerStore((s) => s.loaded);
   const activeTab = useNavigationStore((s) => s.activeTab);
   const setActiveTab = useNavigationStore((s) => s.setActiveTab);
@@ -60,6 +65,22 @@ export default function AdminView() {
   useEffect(() => {
     void loadSetlists();
   }, [loadSetlists]);
+
+  useEffect(() => {
+    void loadSongDefaults().catch((err) => {
+      console.error("Falha ao carregar preferências de música:", err);
+    });
+  }, [loadSongDefaults]);
+
+  const previousAddEmptySlideAtStart = useRef(addEmptySlideAtStart);
+  useEffect(() => {
+    const previous = previousAddEmptySlideAtStart.current;
+    previousAddEmptySlideAtStart.current = addEmptySlideAtStart;
+    if (previous === addEmptySlideAtStart) return;
+    useSetlistStore
+      .getState()
+      .shiftRunnerIndex(addEmptySlideAtStart ? 1 : -1, addEmptySlideAtStart);
+  }, [addEmptySlideAtStart]);
 
   useEffect(() => {
     if (!outputsLoaded) return;

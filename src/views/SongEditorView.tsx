@@ -11,6 +11,7 @@ import {
 } from "@/core/ipc/commands";
 import { isTauri, listenCommand } from "@/core/ipc/tauri";
 import { buildSongSlides, type RunnerSlide } from "@/core/lib/lyrics";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import type { SectionType, Song, SongSection } from "@/core/types";
 import { SongLyricsEditor } from "@/features/songs/SongLyricsEditor";
 import {
@@ -34,17 +35,24 @@ function createEmptyDraft(): EditorSongDraft {
   };
 }
 
-function previewSlides(sections: SongSection[], draft: EditorSongDraft): RunnerSlide[] {
-  return buildSongSlides({
-    id: draft.id,
-    title: draft.title,
-    artist: draft.artist,
-    album: draft.album,
-    composer: draft.composer,
-    songKey: draft.songKey,
-    bpm: draft.bpm,
-    sections,
-  });
+function previewSlides(
+  sections: SongSection[],
+  draft: EditorSongDraft,
+  addEmptySlideAtStart: boolean,
+): RunnerSlide[] {
+  return buildSongSlides(
+    {
+      id: draft.id,
+      title: draft.title,
+      artist: draft.artist,
+      album: draft.album,
+      composer: draft.composer,
+      songKey: draft.songKey,
+      bpm: draft.bpm,
+      sections,
+    },
+    { addEmptySlideAtStart },
+  );
 }
 
 function hasContent(sections: SongSection[]): boolean {
@@ -66,6 +74,9 @@ export default function SongEditorView() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const addEmptySlideAtStart = useSongDefaultsStore(
+    (s) => s.addEmptySlideAtStart,
+  );
 
   // Carrega os dados da música a partir do ID
   const loadSongById = useCallback(async (id: string | null) => {
@@ -103,7 +114,15 @@ export default function SongEditorView() {
 
       setDraft(loadedDraft);
       setIsNew(false);
-      setPreview(hasContent(song.sections) ? previewSlides(song.sections, loadedDraft) : []);
+      setPreview(
+        hasContent(song.sections)
+          ? previewSlides(
+              song.sections,
+              loadedDraft,
+              useSongDefaultsStore.getState().addEmptySlideAtStart,
+            )
+          : [],
+      );
 
       const lyrics = await lyricsToText(song.sections);
       setText(lyrics);
@@ -139,7 +158,7 @@ export default function SongEditorView() {
       parseLyrics(text)
         .then((sections) => {
           if (!cancelled) {
-            setPreview(previewSlides(sections, draft));
+            setPreview(previewSlides(sections, draft, addEmptySlideAtStart));
           }
         })
         .catch(() => {});
@@ -149,7 +168,7 @@ export default function SongEditorView() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [draft, text, textReady]);
+  }, [draft, text, textReady, addEmptySlideAtStart]);
 
   const updateDraft = useCallback((patch: Partial<EditorSongDraft>) => {
     setDraft((curr) => ({ ...curr, ...patch }));

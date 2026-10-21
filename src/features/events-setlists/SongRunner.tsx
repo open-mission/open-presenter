@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SECTION_COLOR } from "@/core/config/lyrics";
 import { buildSongSlides, type RunnerSlide } from "@/core/lib/lyrics";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import { cn } from "@/core/lib/utils";
 import type { EventItem, ServiceEvent } from "@/core/types";
 import { usePresentationStore } from "@/features/presentation/store";
@@ -31,6 +32,9 @@ export function SongRunner() {
   const projectNext = useSetlistStore((s) => s.projectNext);
   const projectPrev = useSetlistStore((s) => s.projectPrev);
   const selectItem = useSetlistStore((s) => s.selectItem);
+  const addEmptySlideAtStart = useSongDefaultsStore(
+    (s) => s.addEmptySlideAtStart,
+  );
 
   const item =
     selectedItemId === null ? undefined : findEventItem(event, selectedItemId);
@@ -45,7 +49,10 @@ export function SongRunner() {
     }
   }, [item, song, loadItemSong]);
 
-  const slides = song === undefined ? [] : buildSongSlides(song);
+  const slides =
+    song === undefined
+      ? []
+      : buildSongSlides(song, { addEmptySlideAtStart });
   const nextItem = resolveNextItem(item, event);
 
   return (

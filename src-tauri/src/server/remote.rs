@@ -435,7 +435,11 @@ pub async fn song_slides(
         Ok(None) => return (StatusCode::NOT_FOUND, "música não encontrada").into_response(),
         Err(err) => return internal(&err.to_string()),
     };
-    let slides = slide_builder::build_song_slides(&song);
+    let defaults = match db.with_conn(songs::song_defaults) {
+        Ok(defaults) => defaults,
+        Err(err) => return internal(&err.to_string()),
+    };
+    let slides = slide_builder::build_song_slides(&song, defaults.add_empty_slide_at_start);
     Json(slides).into_response()
 }
 
@@ -506,7 +510,11 @@ pub async fn present_song(
         Ok(None) => return (StatusCode::NOT_FOUND, "música não encontrada").into_response(),
         Err(err) => return internal(&err.to_string()),
     };
-    let slides = slide_builder::build_song_slides(&song);
+    let defaults = match db.with_conn(songs::song_defaults) {
+        Ok(defaults) => defaults,
+        Err(err) => return internal(&err.to_string()),
+    };
+    let slides = slide_builder::build_song_slides(&song, defaults.add_empty_slide_at_start);
     let Some(slide) = slides.get(request.index) else {
         return (StatusCode::NOT_FOUND, "slide não encontrado").into_response();
     };

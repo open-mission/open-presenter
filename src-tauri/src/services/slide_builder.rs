@@ -39,20 +39,22 @@ pub fn compute_section_labels(sections: &[SongSection]) -> Vec<Option<String>> {
 /// - `index`: índice ordinal (0..N-1)
 /// - `label`: rótulo computado
 /// - `content`: SlideContent com ID `{song_id}#{index}`, kind Lyric, lines e section espelhando o rótulo.
-pub fn build_song_slides(song: &Song) -> Vec<RemoteSlide> {
+pub fn build_song_slides(song: &Song, add_empty_slide_at_start: bool) -> Vec<RemoteSlide> {
     let labels = compute_section_labels(&song.sections);
+    let offset = usize::from(add_empty_slide_at_start);
 
-    song.sections
+    let mut slides: Vec<RemoteSlide> = song
+        .sections
         .iter()
         .enumerate()
-        .map(|(index, section)| {
-            let label = labels.get(index).and_then(|l| l.clone());
+        .map(|(section_index, section)| {
+            let label = labels.get(section_index).and_then(|l| l.clone());
             RemoteSlide {
-                index,
+                index: section_index + offset,
                 label: label.clone(),
                 section_type: section.section_type,
                 content: SlideContent {
-                    id: format!("{}#{}", song.id, index),
+                    id: format!("{}#{}", song.id, section_index),
                     kind: SlideKind::Lyric,
                     title: song.title.clone(),
                     lines: section.lines.clone(),
@@ -63,7 +65,30 @@ pub fn build_song_slides(song: &Song) -> Vec<RemoteSlide> {
                 },
             }
         })
-        .collect()
+        .collect();
+
+    if offset == 1 {
+        slides.insert(
+            0,
+            RemoteSlide {
+                index: 0,
+                label: None,
+                section_type: None,
+                content: SlideContent {
+                    id: format!("{}#empty-start", song.id),
+                    kind: SlideKind::Lyric,
+                    title: String::new(),
+                    lines: Vec::new(),
+                    notes: None,
+                    section: None,
+                    media: None,
+                    scripture: None,
+                },
+            },
+        );
+    }
+
+    slides
 }
 
 #[cfg(test)]
@@ -114,6 +139,35 @@ mod tests {
     }
 
     #[test]
+    fn prefixa_slide_vazio_quando_solicitado() {
+        let song = song_com_uma_secao();
+        let slides = build_song_slides(&song, true);
+        assert_eq!(slides.len(), 2);
+        assert_eq!(slides[0].index, 0);
+        assert_eq!(slides[0].content.id, format!("{}#empty-start", song.id));
+        assert!(slides[0].content.lines.is_empty());
+        assert!(slides[0].label.is_none());
+        assert_eq!(slides[1].index, 1);
+        assert_eq!(slides[1].section_type, Some(SectionType::Verse));
+    }
+
+    fn song_com_uma_secao() -> Song {
+        Song {
+            id: "musica-1".into(),
+            title: "Uma música".into(),
+            artist: "Artista".into(),
+            album: None,
+            composer: None,
+            song_key: None,
+            bpm: None,
+            sections: vec![SongSection {
+                section_type: Some(SectionType::Verse),
+                lines: vec!["Linha".into()],
+            }],
+        }
+    }
+
+    #[test]
     fn build_song_slides_monta_slides_com_ids_e_rotulos_corretos() {
         let song = Song {
             id: "musica-1".into(),
@@ -139,7 +193,7 @@ mod tests {
             ],
         };
 
-        let slides = build_song_slides(&song);
+        let slides = build_song_slides(&song, false);
         assert_eq!(slides.len(), 3);
 
         // Slide 0: Verso único -> "Verso"

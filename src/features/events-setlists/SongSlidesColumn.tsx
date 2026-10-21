@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   Eye,
@@ -36,6 +36,7 @@ import {
   resolveSlideNumberIndex,
 } from "@/core/lib/slideNumbers";
 import { saveSong } from "@/core/ipc/commands";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import type { EventItem, SectionType, ServiceEvent, Song } from "@/core/types";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSongsStore } from "@/features/songs/store";
@@ -92,6 +93,9 @@ function SongSlidesContent() {
   const projectSection = useSetlistStore((s) => s.projectSection);
   const selectItem = useSetlistStore((s) => s.selectItem);
   const groups = useSongGroupsStore((s) => s.groups);
+  const addEmptySlideAtStart = useSongDefaultsStore(
+    (s) => s.addEmptySlideAtStart,
+  );
 
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const previewIndexRef = useRef<number | null>(null);
@@ -118,7 +122,13 @@ function SongSlidesContent() {
     }
   }, [item, song, loadItemSong]);
 
-  const slides = song === undefined ? [] : buildSongSlides(song);
+  const slides = useMemo(
+    () =>
+      song === undefined
+        ? []
+        : buildSongSlides(song, { addEmptySlideAtStart }),
+    [song, addEmptySlideAtStart],
+  );
   const slideGroups = computeSlideGroups(slides);
   const nextItem = resolveNextItem(item, event);
 
@@ -130,6 +140,7 @@ function SongSlidesContent() {
     live.content.kind !== "blank";
 
   const labeledGroups = slideGroups.filter((g) => g.label !== null);
+  const previousAddEmptySlideAtStart = useRef(addEmptySlideAtStart);
 
   // Sync preview slide on song load or change
   useEffect(() => {
@@ -142,6 +153,27 @@ function SongSlidesContent() {
       usePresentationStore.getState().setPreview(null);
     }
   }, [selectedItemId, song]);
+
+  useEffect(() => {
+    const previous = previousAddEmptySlideAtStart.current;
+    previousAddEmptySlideAtStart.current = addEmptySlideAtStart;
+    if (previous === addEmptySlideAtStart) return;
+
+    setPreviewIndex((current) => {
+      if (current === null) return null;
+      if (slides.length === 0) {
+        usePresentationStore.getState().setPreview(null);
+        return null;
+      }
+      const delta = addEmptySlideAtStart ? 1 : -1;
+      const nextIdx = Math.max(
+        0,
+        Math.min(slides.length - 1, current + delta),
+      );
+      usePresentationStore.getState().setPreview(slides[nextIdx]?.slide ?? null);
+      return nextIdx;
+    });
+  }, [addEmptySlideAtStart, slides]);
 
   // Keyboard navigation: ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Enter and Escape
   useEffect(() => {
