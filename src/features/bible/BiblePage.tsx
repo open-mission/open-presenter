@@ -6,6 +6,8 @@ import {
   Columns2,
   Download,
   EyeOff,
+  LayoutGrid,
+  List,
   Loader2,
   Play,
   Radio,
@@ -17,6 +19,12 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SlideThumbnail } from "@/components/SlideThumbnail";
+import { ViewModeToggle } from "@/components/ViewModeToggle";
+import { buildScriptureSlide } from "@/core/lib/biblePresentation";
+import { cn } from "@/core/lib/utils";
+import { usePersistentViewMode } from "@/core/lib/usePersistentViewMode";
+import { usePublicThemeResolver } from "@/features/slide-themes/usePublicThemeResolver";
 import {
   Select,
   SelectContent,
@@ -75,6 +83,12 @@ export function BiblePage() {
 
   const clearLive = usePresentationStore((s) => s.clearLive);
   const liveSlide = usePresentationStore((s) => s.live);
+  const [versesView, setVersesView] = usePersistentViewMode(
+    "open_presenter_bible_verses_view",
+    "list",
+    ["list", "slides"] as const,
+  );
+  const resolveTheme = usePublicThemeResolver();
 
   const [quickRefInput, setQuickRefInput] = useState("");
   const [wordSearchInput, setWordSearchInput] = useState("");
@@ -109,18 +123,54 @@ export function BiblePage() {
     [versions, activeVersionId],
   );
 
+  const verseCards = useMemo(() => {
+    if (versesView !== "slides" || !activeBook || !activeVersionId) return [];
+    return verses.flatMap((verse) => {
+      const parts = getVerseParts(verse.text);
+      return parts.map((partText, partIndex) => {
+        const slide = buildScriptureSlide({
+          versionId: activeVersionId,
+          bookId: activeBook.id,
+          bookName: activeBook.name,
+          chapter: activeChapter,
+          verse: verse.verse,
+          text: partText,
+          part: partIndex,
+          totalParts: parts.length,
+        });
+        return {
+          verse,
+          partIndex,
+          totalParts: parts.length,
+          slide,
+          theme: resolveTheme(slide),
+        };
+      });
+    });
+  }, [
+    versesView,
+    verses,
+    activeBook,
+    activeVersionId,
+    activeChapter,
+    getVerseParts,
+    resolveTheme,
+  ]);
+
   const isCurrentLiveScripture =
     liveSlide.content.kind === "scripture" && !liveSlide.cleared && !liveSlide.blackout;
 
   // Rola até o versículo selecionado se houver
   useEffect(() => {
     if (selectedVerseNum && versesContainerRef.current) {
-      const el = document.getElementById(`verse-row-${selectedVerseNum}`);
+      const el = document.querySelector<HTMLElement>(
+        `[data-verse="${selectedVerseNum}"]`,
+      );
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
     }
-  }, [selectedVerseNum]);
+  }, [selectedVerseNum, versesView]);
 
   // Teclas de atalho para selecionar e apresentar versículos
   useEffect(() => {
@@ -622,6 +672,14 @@ export function BiblePage() {
               </div>
 
               <div className="flex items-center gap-2">
+                <ViewModeToggle
+                  value={versesView}
+                  onChange={setVersesView}
+                  options={[
+                    { value: "list", label: "Lista", icon: List },
+                    { value: "slides", label: "Slides", icon: LayoutGrid },
+                  ]}
+                />
                 <Button
                   type="button"
                   size="sm"
@@ -647,7 +705,10 @@ export function BiblePage() {
             {/* Lista dos Versículos */}
             <div
               ref={versesContainerRef}
-              className="flex-1 overflow-y-auto p-4 space-y-2.5"
+              className={cn(
+                "flex-1 overflow-y-auto p-4",
+                versesView === "list" && "space-y-2.5",
+              )}
             >
               {loading && verses.length === 0 ? (
                 <div className="flex h-40 items-center justify-center">
@@ -658,6 +719,60 @@ export function BiblePage() {
                   {versions.length === 0
                     ? "Importe uma Bíblia usando o botão acima para começar a exibir versículos."
                     : "Nenhum versículo encontrado neste capítulo."}
+                </div>
+              ) : versesView === "slides" ? (
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {verseCards.map(
+                    ({ verse, partIndex, totalParts, slide, theme }) => {
+                      const isLive =
+                        isCurrentLiveScripture && liveVerseKey === slide.id;
+                      const isSelected =
+                        selectedVerseNum === verse.verse &&
+                        activePartIndex === partIndex;
+                      return (
+                        <button
+                          key={slide.id}
+                          type="button"
+                          data-verse={verse.verse}
+                          onClick={() => selectVerse(verse.verse, partIndex)}
+                          onDoubleClick={() =>
+                            void presentVerse(
+                              verse,
+                              undefined,
+                              partIndex,
+                            )
+                          }
+                          className={cn(
+                            "group flex flex-col gap-1.5 rounded-xl border p-2 text-left transition-all",
+                            isLive
+                              ? "border-emerald-500 bg-emerald-500/5 ring-2 ring-emerald-500/40"
+                              : isSelected
+                              ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                              : "border-border/80 bg-card/70 hover:border-primary/50",
+                          )}
+                        >
+                          <SlideThumbnail
+                            content={slide}
+                            theme={theme}
+                            className="pointer-events-none"
+                          />
+                          <div className="flex items-center justify-between gap-1 px-0.5">
+                            <span className="truncate text-[10px] font-semibold text-primary">
+                              {slide.section}
+                            </span>
+                            {totalParts > 1 && (
+                              <Badge
+                                variant="outline"
+                                className="h-4 px-1 text-[9px]"
+                              >
+                                {partIndex + 1}/{totalParts}
+                              </Badge>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    },
+                  )}
                 </div>
               ) : (
                 verses.map((verse) => {
@@ -676,6 +791,7 @@ export function BiblePage() {
                     <div
                       key={verse.id || verse.verse}
                       id={`verse-row-${verse.verse}`}
+                      data-verse={verse.verse}
                       onClick={() => {
                         if (
                           document.activeElement instanceof HTMLElement &&
