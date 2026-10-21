@@ -241,6 +241,10 @@ pub fn run() {
             let db = database::Db::new(conn);
             app.manage(db.clone());
 
+            if let Some(window) = app.get_webview_window("main") {
+                crate::services::window_state::apply_startup_geometry(&window);
+            }
+
             let media_dir = crate::services::theme_media::media_base_dir(&handle)
                 .unwrap_or_else(|_| std::path::PathBuf::from("theme-media"));
             let clients: crate::server::Clients = std::sync::Arc::new(
@@ -318,6 +322,8 @@ pub fn run() {
             commands::server::get_remote_clients,
             commands::preferences::get_close_to_tray,
             commands::preferences::set_close_to_tray,
+            commands::preferences::get_start_maximized,
+            commands::preferences::set_start_maximized,
             commands::presentation::go_live,
             commands::presentation::set_blackout,
             commands::presentation::get_live_slide,
@@ -372,8 +378,16 @@ pub fn run() {
             commands::bible::delete_bible,
         ])
         .on_window_event(|window, event| {
+            if matches!(
+                event,
+                tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_)
+            ) {
+                crate::services::window_state::save_geometry(window);
+                return;
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
+                    crate::services::window_state::save_geometry(window);
                     api.prevent_close();
                     let app = window.app_handle().clone();
                     if crate::commands::preferences::close_to_tray(&app)
