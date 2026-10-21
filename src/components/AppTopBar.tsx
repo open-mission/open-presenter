@@ -112,11 +112,14 @@ export function AppTopBar() {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const live = usePresentationStore.getState().live;
+      if (live.content.kind === "blank") return;
+
       const target = e.target as HTMLElement | null;
       if (
-        target?.tagName === "INPUT" ||
-        target?.tagName === "TEXTAREA" ||
-        target?.isContentEditable
+        target?.closest(
+          "input, textarea, [contenteditable='true'], [role='dialog']",
+        )
       ) {
         return;
       }
@@ -297,8 +300,12 @@ export function AppTopBar() {
         <Button
           type="button"
           size="sm"
-          variant={live.cleared && !live.blackout ? "secondary" : "outline"}
-          className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+          variant={live.textHidden ? "secondary" : "outline"}
+          className={`h-8 gap-1.5 px-2.5 text-xs font-medium transition-all ${
+            live.textHidden
+              ? "bg-primary/15 text-primary border-primary/30 font-semibold"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
           onClick={() => void usePresentationStore.getState().toggleClear()}
           title="Ocultar ou restaurar texto (C)"
         >

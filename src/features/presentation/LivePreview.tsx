@@ -179,6 +179,7 @@ export function LivePreview() {
         background: live.background,
         blackout: false,
         cleared: false,
+        textHidden: false,
         updatedAt: live.updatedAt,
       }
     : null;

@@ -49,6 +49,7 @@ export interface LiveSlide {
   background: BackgroundLayer;
   blackout: boolean;
   cleared: boolean;
+  textHidden: boolean;
   updatedAt: string;
   nextUp?: SlideContent;
   prevUp?: SlideContent;

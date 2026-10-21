@@ -243,6 +243,7 @@ pub async fn present(
         background: current.background,
         blackout: false,
         cleared: false,
+        text_hidden: false,
         updated_at: now_millis().to_string(),
         next_up,
         prev_up,
@@ -259,6 +260,7 @@ pub async fn clear(State(state): State<Arc<ServerState>>, headers: HeaderMap) ->
     let live = LiveSlide {
         cleared: true,
         blackout: false,
+        text_hidden: false,
         next_up: None,
         prev_up: None,
         updated_at: now_millis().to_string(),
@@ -311,6 +313,7 @@ pub async fn toggle_wallpaper(
     let live = LiveSlide {
         cleared: next_cleared,
         blackout: false,
+        text_hidden: false,
         updated_at: now_millis().to_string(),
         ..current
     };
@@ -531,6 +534,7 @@ pub async fn present_song(
         background: current.background,
         blackout: false,
         cleared: false,
+        text_hidden: false,
         updated_at: now_millis().to_string(),
         next_up,
         prev_up,
@@ -625,6 +629,7 @@ pub async fn present_image(
         background: current.background,
         blackout: false,
         cleared: false,
+        text_hidden: false,
         updated_at: now_millis().to_string(),
         next_up: None,
         prev_up: None,
@@ -911,6 +916,7 @@ pub async fn present_bible(
         background: current.background,
         blackout: false,
         cleared: false,
+        text_hidden: false,
         updated_at: now_millis().to_string(),
         next_up,
         prev_up,

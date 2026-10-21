@@ -18,6 +18,7 @@ export function LiveControls() {
       content: preview,
       cleared: false,
       blackout: false,
+      textHidden: false,
       nextUp: undefined,
       updatedAt: new Date().toISOString(),
     };
