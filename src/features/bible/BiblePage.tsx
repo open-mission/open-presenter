@@ -4,17 +4,18 @@ import {
   ArrowRight,
   BookOpen,
   Columns2,
-  Download,
   EyeOff,
   LayoutGrid,
   List,
   Loader2,
+  MoreHorizontal,
   Play,
   Radio,
   Scissors,
   Search,
+  Settings2,
   Sparkles,
-  Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,11 +36,17 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useBibleStore } from "./store";
 import { usePresentationStore } from "../presentation/store";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { CompareModal } from "./CompareModal";
 import { BibleCommandPalette } from "./BibleCommandPalette";
 import { shouldOpenPaletteOnKey } from "./bibleShortcuts";
-import { toast } from "sonner";
-import { isTauri } from "@/core/ipc/tauri";
+import { ManageBibleVersionsDialog } from "./ManageBibleVersionsDialog";
+import { pickBibleFiles } from "./bibleFilePicker";
 
 export function BiblePage() {
   const versions = useBibleStore((s) => s.versions);
@@ -68,8 +75,7 @@ export function BiblePage() {
 
   const loadInitial = useBibleStore((s) => s.loadInitial);
   const setActiveVersion = useBibleStore((s) => s.setActiveVersion);
-  const importBibleFile = useBibleStore((s) => s.importBibleFile);
-  const deleteBibleVersion = useBibleStore((s) => s.deleteBibleVersion);
+  const importBibleFiles = useBibleStore((s) => s.importBibleFiles);
   const selectBook = useBibleStore((s) => s.selectBook);
   const selectChapter = useBibleStore((s) => s.selectChapter);
   const selectVerse = useBibleStore((s) => s.selectVerse);
@@ -101,6 +107,7 @@ export function BiblePage() {
   const [wordSearchInput, setWordSearchInput] = useState("");
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [paletteInitialQuery, setPaletteInitialQuery] = useState("");
+  const [isManageVersionsOpen, setIsManageVersionsOpen] = useState(false);
   const versesContainerRef = useRef<HTMLDivElement>(null);
 
   function openPalette(initial = "") {
@@ -129,11 +136,6 @@ export function BiblePage() {
   const activeBook = useMemo(
     () => books.find((b) => b.id === activeBookId),
     [books, activeBookId],
-  );
-
-  const activeVersion = useMemo(
-    () => versions.find((v) => v.id === activeVersionId),
-    [versions, activeVersionId],
   );
 
   const verseCards = useMemo(() => {
@@ -307,35 +309,9 @@ export function BiblePage() {
   ]);
 
   async function handleImport() {
-    if (!isTauri()) {
-      toast.info("A importação de arquivos SQLite/JSON está disponível no aplicativo Desktop.");
-      return;
-    }
-
-    try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const selected = await open({
-        multiple: false,
-        title: "Selecione o arquivo da Bíblia (SQLite ou JSON)",
-        filters: [
-          { name: "Bíblias", extensions: ["sqlite", "db", "json"] },
-        ],
-      });
-
-      if (selected && typeof selected === "string") {
-        await importBibleFile(selected);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`Falha ao abrir seletor: ${msg}`);
-    }
-  }
-
-  async function handleDeleteVersion() {
-    if (!activeVersionId) return;
-    if (confirm(`Deseja realmente remover a versão "${activeVersion?.name || activeVersionId}"?`)) {
-      await deleteBibleVersion(activeVersionId);
-    }
+    const paths = await pickBibleFiles(true);
+    if (paths.length === 0) return;
+    await importBibleFiles(paths);
   }
 
   function handleQuickRefSubmit(e: React.FormEvent) {
@@ -385,30 +361,29 @@ export function BiblePage() {
             </Badge>
           )}
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void handleImport()}
-            className="h-9 text-xs cursor-pointer"
-            title="Importar Bíblia em formato SQLite (.sqlite, .db) ou JSON (.json)"
-          >
-            <Download className="size-3.5 mr-1" />
-            Importar
-          </Button>
-
-          {versions.length > 0 && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => void handleDeleteVersion()}
-              className="size-9 text-muted-foreground hover:text-destructive cursor-pointer"
-              title="Excluir versão atual"
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-9"
+                title="Mais ações da Bíblia"
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => void handleImport()}>
+                <Upload className="mr-2 size-4" />
+                Importar Bíblia…
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsManageVersionsOpen(true)}>
+                <Settings2 className="mr-2 size-4" />
+                Gerenciar versões…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Campo Central: Referência Rápida (Ex: Jo 3:16) */}
@@ -1108,6 +1083,10 @@ export function BiblePage() {
 
       {/* Modal de Comparação de Versões */}
       <CompareModal />
+      <ManageBibleVersionsDialog
+        open={isManageVersionsOpen}
+        onOpenChange={setIsManageVersionsOpen}
+      />
 
       {/* Command Palette de Referências Bíblicas (⌘K / Ctrl+K) */}
       <BibleCommandPalette
