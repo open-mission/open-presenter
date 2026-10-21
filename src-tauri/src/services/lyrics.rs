@@ -66,19 +66,28 @@ pub fn parse_sections(text: &str) -> Vec<SongSection> {
     let mut sections = Vec::new();
     let mut lines: Vec<String> = Vec::new();
     let mut label: Option<SectionType> = None;
+    let mut blank_run = 0usize;
+    let mut can_blank = false;
 
     for raw in normalized.lines() {
         let trimmed = raw.trim();
         if trimmed.is_empty() {
             if lines.is_empty() {
+                if can_blank {
+                    blank_run += 1;
+                }
                 continue;
             }
             // Se as linhas até agora contêm apenas comentários, permite que a linha
             // em branco seja apenas espaçamento entre o comentário e a letra
             if lines.iter().all(|l| l.trim().starts_with("//")) {
+                blank_run = 0;
+                can_blank = false;
                 continue;
             }
             flush(&mut sections, &mut lines, &mut label);
+            blank_run = 1;
+            can_blank = true;
             continue;
         }
 
@@ -88,7 +97,18 @@ pub fn parse_sections(text: &str) -> Vec<SongSection> {
             lines.retain(|l| !l.trim().starts_with("//"));
             flush(&mut sections, &mut lines, &mut label);
             label = SectionType::from_label(&name);
+            blank_run = 0;
+            can_blank = false;
             continue;
+        }
+
+        // Um bloco que começa com comentário suprime o slide vazio, como o
+        // comportamento anterior de espaçamento ao redor de comentários.
+        if !trimmed.starts_with("//") && blank_run >= 2 && can_blank {
+            sections.push(SongSection {
+                section_type: None,
+                lines: Vec::new(),
+            });
         }
 
         if is_chord_line(raw) {
@@ -96,6 +116,8 @@ pub fn parse_sections(text: &str) -> Vec<SongSection> {
         } else {
             lines.push(trimmed.to_string());
         }
+        blank_run = 0;
+        can_blank = false;
     }
 
     flush(&mut sections, &mut lines, &mut label);
@@ -103,7 +125,9 @@ pub fn parse_sections(text: &str) -> Vec<SongSection> {
 }
 
 pub fn sections_to_text(sections: &[SongSection]) -> String {
-    let mut blocks: Vec<String> = Vec::new();
+    let mut out = String::new();
+    let mut wrote_block = false;
+    let mut pending_empty = false;
 
     for section in sections {
         let lines: Vec<&str> = section
@@ -113,20 +137,27 @@ pub fn sections_to_text(sections: &[SongSection]) -> String {
             .filter(|line| !line.trim().is_empty())
             .collect();
         if lines.is_empty() {
+            if wrote_block {
+                pending_empty = true;
+            }
             continue;
         }
 
-        let mut block = String::new();
-        if let Some(section_type) = section.section_type {
-            block.push_str("##(");
-            block.push_str(section_type.as_label());
-            block.push_str(")\n");
+        if wrote_block {
+            out.push_str(if pending_empty { "\n\n\n" } else { "\n\n" });
         }
-        block.push_str(&lines.join("\n"));
-        blocks.push(block);
+
+        if let Some(section_type) = section.section_type {
+            out.push_str("##(");
+            out.push_str(section_type.as_label());
+            out.push_str(")\n");
+        }
+        out.push_str(&lines.join("\n"));
+        wrote_block = true;
+        pending_empty = false;
     }
 
-    blocks.join("\n\n")
+    out
 }
 
 pub fn split_sections(sections: &[SongSection], lines_per_slide: usize) -> Vec<SongSection> {
@@ -159,6 +190,71 @@ mod tests {
                 lines: lines.into_iter().map(str::to_string).collect(),
             })
             .collect()
+    }
+
+    #[test]
+    fn uma_linha_em_branco_nao_cria_slide_vazio() {
+        let sections = parse_sections("A\n\nB");
+        assert_eq!(
+            sections,
+            blocks(vec![(None, vec!["A"]), (None, vec!["B"])])
+        );
+    }
+
+    #[test]
+    fn duas_linhas_em_branco_criam_um_slide_vazio() {
+        let sections = parse_sections("A\n\n\nB");
+        assert_eq!(
+            sections,
+            blocks(vec![
+                (None, vec!["A"]),
+                (None, vec![]),
+                (None, vec!["B"]),
+            ])
+        );
+    }
+
+    #[test]
+    fn tres_ou_mais_linhas_em_branco_colapsam_em_um_slide_vazio() {
+        let sections = parse_sections("A\n\n\n\n\nB");
+        assert_eq!(sections.len(), 3);
+        assert!(sections[1].lines.is_empty());
+    }
+
+    #[test]
+    fn brancos_iniciais_e_finais_sao_ignorados() {
+        assert_eq!(
+            parse_sections("\n\nA\n\n\n"),
+            blocks(vec![(None, vec!["A"])])
+        );
+    }
+
+    #[test]
+    fn comentarios_sozinhos_nao_criam_slide_vazio() {
+        let sections = parse_sections("A\n\n\n// observação\nB");
+        assert_eq!(sections.len(), 2);
+        assert_eq!(sections[0].lines, vec!["A"]);
+        assert_eq!(sections[1].lines, vec!["// observação", "B"]);
+    }
+
+    #[test]
+    fn round_trip_preserva_slide_vazio_entre_blocos() {
+        let original = blocks(vec![
+            (None, vec!["A"]),
+            (None, vec![]),
+            (None, vec!["B"]),
+        ]);
+        let text = sections_to_text(&original);
+        assert_eq!(text, "A\n\n\nB");
+        assert_eq!(parse_sections(&text), original);
+    }
+
+    #[test]
+    fn split_sections_preserva_secao_vazia() {
+        let sections = blocks(vec![(None, vec![]), (None, vec!["A", "B"])]);
+        let split = split_sections(&sections, 1);
+        assert!(split[0].lines.is_empty());
+        assert_eq!(split.len(), 3);
     }
 
     #[test]
@@ -252,7 +348,10 @@ mod tests {
     #[test]
     fn normaliza_bom_crlf_espacos_e_linhas_em_branco_repetidas() {
         let sections = parse_sections("\u{FEFF}a  \r\n\r\n\r\n\r\n  b\t\r\n");
-        assert_eq!(sections, blocks(vec![(None, vec!["a"]), (None, vec!["b"])]));
+        assert_eq!(
+            sections,
+            blocks(vec![(None, vec!["a"]), (None, vec![]), (None, vec!["b"])])
+        );
     }
 
     #[test]
