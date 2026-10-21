@@ -214,8 +214,8 @@ export default function SongEditorView() {
     }
   }, [draft.id, confirmDelete, handleClose]);
 
-  const handleSetSlideLabel = useCallback((slideIndex: number, newType: SectionType | null) => {
-    setText((currText) => assignSectionLabel(currText, slideIndex, newType));
+  const handleSetSectionLabel = useCallback((sectionIndex: number, newType: SectionType | null) => {
+    setText((currText) => assignSectionLabel(currText, sectionIndex, newType));
   }, []);
 
   // Atalhos de teclado
@@ -286,7 +286,7 @@ export default function SongEditorView() {
             slides={preview}
             songTitle={draft.title}
             songArtist={draft.artist}
-            onSetLabel={handleSetSlideLabel}
+            onSetLabel={handleSetSectionLabel}
           />
         </div>
       </div>

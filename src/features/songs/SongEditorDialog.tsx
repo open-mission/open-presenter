@@ -164,10 +164,10 @@ export function SongEditorDialog() {
   }, [draft, confirmDelete, deleteSong]);
 
   // Atribuição de rótulo via botão direito no slide da Coluna 2
-  const handleSetSlideLabel = useCallback(
-    (slideIndex: number, newType: SectionType | null) => {
+  const handleSetSectionLabel = useCallback(
+    (sectionIndex: number, newType: SectionType | null) => {
       setText((currText) => {
-        const updated = assignSectionLabel(currText, slideIndex, newType);
+        const updated = assignSectionLabel(currText, sectionIndex, newType);
         return updated;
       });
     },
@@ -254,7 +254,7 @@ export function SongEditorDialog() {
               slides={preview}
               songTitle={draft.title}
               songArtist={draft.artist}
-              onSetLabel={handleSetSlideLabel}
+              onSetLabel={handleSetSectionLabel}
             />
           </div>
         </div>

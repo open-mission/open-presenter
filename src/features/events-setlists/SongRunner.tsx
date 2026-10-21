@@ -136,7 +136,9 @@ interface RunnerBlockProps {
 function RunnerBlock({ block, active, onProject }: RunnerBlockProps) {
   const color =
     block.sectionType === null ? null : SECTION_COLOR[block.sectionType];
-  const preview = block.slide.lines.slice(0, 2).join("\n");
+  const preview = block.isBlank
+    ? "Slide vazio"
+    : block.slide.lines.slice(0, 2).join("\n");
 
   return (
     <button
@@ -159,7 +161,12 @@ function RunnerBlock({ block, active, onProject }: RunnerBlockProps) {
       >
         {block.label ?? "—"}
       </Badge>
-      <span className="line-clamp-2 text-sm whitespace-pre-line text-muted-foreground">
+      <span
+        className={cn(
+          "line-clamp-2 text-sm whitespace-pre-line text-muted-foreground",
+          block.isBlank && "italic",
+        )}
+      >
         {preview}
       </span>
     </button>
