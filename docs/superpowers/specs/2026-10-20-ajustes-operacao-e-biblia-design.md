@@ -1,7 +1,7 @@
 # Ajustes de operação ao vivo e Bíblia — desenho
 
 Data: 2026-10-20
-Status: proposta
+Status: aprovado
 
 ## 1. Intenção e porquê
 
