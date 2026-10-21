@@ -316,6 +316,8 @@ impl LinesPerSlide {
 #[serde(rename_all = "camelCase")]
 pub struct SongDefaults {
     pub lines_per_slide: LinesPerSlide,
+    #[serde(default)]
+    pub add_empty_slide_at_start: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -254,16 +254,29 @@ pub fn insert_new(
 }
 
 pub const LINES_PER_SLIDE_KEY: &str = "songs.lines_per_slide";
+pub const ADD_EMPTY_SLIDE_AT_START_KEY: &str = "songs.add_empty_slide_at_start";
 
 pub fn song_defaults(conn: &Connection) -> Result<SongDefaults, AppError> {
     let value = settings::get_setting(conn, LINES_PER_SLIDE_KEY)?;
+    let add_empty_slide_at_start =
+        settings::get_setting(conn, ADD_EMPTY_SLIDE_AT_START_KEY)?.as_deref() == Some("true");
     Ok(SongDefaults {
         lines_per_slide: LinesPerSlide::from_setting(value.as_deref()),
+        add_empty_slide_at_start,
     })
 }
 
 pub fn save_song_defaults(conn: &Connection, defaults: SongDefaults) -> Result<(), AppError> {
-    settings::set_setting(conn, LINES_PER_SLIDE_KEY, defaults.lines_per_slide.as_str())
+    settings::set_setting(conn, LINES_PER_SLIDE_KEY, defaults.lines_per_slide.as_str())?;
+    settings::set_setting(
+        conn,
+        ADD_EMPTY_SLIDE_AT_START_KEY,
+        if defaults.add_empty_slide_at_start {
+            "true"
+        } else {
+            "false"
+        },
+    )
 }
 
 pub fn apply_layout(sections: Vec<SongSection>, defaults: SongDefaults) -> Vec<SongSection> {
@@ -423,10 +436,32 @@ mod tests {
     }
 
     #[test]
+    fn defaults_de_musica_incluem_slide_inicial() {
+        let conn = open_in_memory();
+        assert!(!song_defaults(&conn).unwrap().add_empty_slide_at_start);
+
+        save_song_defaults(
+            &conn,
+            SongDefaults {
+                lines_per_slide: LinesPerSlide::Two,
+                add_empty_slide_at_start: true,
+            },
+        )
+        .unwrap();
+
+        let saved = song_defaults(&conn).unwrap();
+        assert!(saved.add_empty_slide_at_start);
+        assert_eq!(saved.lines_per_slide, LinesPerSlide::Two);
+    }
+
+    #[test]
     fn from_setting_mapeia_valores_com_default_dois() {
         assert_eq!(LinesPerSlide::from_setting(Some("1")), LinesPerSlide::One);
         assert_eq!(LinesPerSlide::from_setting(Some("2")), LinesPerSlide::Two);
-        assert_eq!(LinesPerSlide::from_setting(Some("keep")), LinesPerSlide::Keep);
+        assert_eq!(
+            LinesPerSlide::from_setting(Some("keep")),
+            LinesPerSlide::Keep
+        );
         assert_eq!(LinesPerSlide::from_setting(Some("x")), LinesPerSlide::Two);
         assert_eq!(LinesPerSlide::from_setting(Some("")), LinesPerSlide::Two);
         assert_eq!(LinesPerSlide::from_setting(None), LinesPerSlide::Two);
@@ -435,11 +470,34 @@ mod tests {
     #[test]
     fn defaults_persistem_com_default_dois_na_ausencia() {
         let conn = open_in_memory();
-        assert_eq!(song_defaults(&conn).unwrap().lines_per_slide, LinesPerSlide::Two);
-        save_song_defaults(&conn, SongDefaults { lines_per_slide: LinesPerSlide::Keep }).unwrap();
-        assert_eq!(song_defaults(&conn).unwrap().lines_per_slide, LinesPerSlide::Keep);
-        save_song_defaults(&conn, SongDefaults { lines_per_slide: LinesPerSlide::One }).unwrap();
-        assert_eq!(song_defaults(&conn).unwrap().lines_per_slide, LinesPerSlide::One);
+        assert_eq!(
+            song_defaults(&conn).unwrap().lines_per_slide,
+            LinesPerSlide::Two
+        );
+        save_song_defaults(
+            &conn,
+            SongDefaults {
+                lines_per_slide: LinesPerSlide::Keep,
+                add_empty_slide_at_start: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            song_defaults(&conn).unwrap().lines_per_slide,
+            LinesPerSlide::Keep
+        );
+        save_song_defaults(
+            &conn,
+            SongDefaults {
+                lines_per_slide: LinesPerSlide::One,
+                add_empty_slide_at_start: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            song_defaults(&conn).unwrap().lines_per_slide,
+            LinesPerSlide::One
+        );
     }
 
     #[test]
@@ -449,11 +507,24 @@ mod tests {
             lines: vec!["a".into(), "b".into(), "c".into()],
         }];
         assert_eq!(
-            apply_layout(sections.clone(), SongDefaults { lines_per_slide: LinesPerSlide::Keep }),
+            apply_layout(
+                sections.clone(),
+                SongDefaults {
+                    lines_per_slide: LinesPerSlide::Keep,
+                    add_empty_slide_at_start: false
+                }
+            ),
             sections
         );
         assert_eq!(
-            apply_layout(sections, SongDefaults { lines_per_slide: LinesPerSlide::Two }).len(),
+            apply_layout(
+                sections,
+                SongDefaults {
+                    lines_per_slide: LinesPerSlide::Two,
+                    add_empty_slide_at_start: false
+                }
+            )
+            .len(),
             2
         );
     }
@@ -462,16 +533,28 @@ mod tests {
     fn serde_espelha_contrato_do_front() {
         let json = serde_json::to_value(SongDefaults {
             lines_per_slide: LinesPerSlide::Keep,
+            add_empty_slide_at_start: false,
         })
         .unwrap();
-        assert_eq!(json, serde_json::json!({ "linesPerSlide": "keep" }));
         assert_eq!(
-            serde_json::to_value(SongDefaults { lines_per_slide: LinesPerSlide::One }).unwrap(),
-            serde_json::json!({ "linesPerSlide": "1" })
+            json,
+            serde_json::json!({ "linesPerSlide": "keep", "addEmptySlideAtStart": false })
         );
         assert_eq!(
-            serde_json::from_value::<SongDefaults>(serde_json::json!({ "linesPerSlide": "2" })).unwrap(),
-            SongDefaults { lines_per_slide: LinesPerSlide::Two }
+            serde_json::to_value(SongDefaults {
+                lines_per_slide: LinesPerSlide::One,
+                add_empty_slide_at_start: true,
+            })
+            .unwrap(),
+            serde_json::json!({ "linesPerSlide": "1", "addEmptySlideAtStart": true })
+        );
+        assert_eq!(
+            serde_json::from_value::<SongDefaults>(serde_json::json!({ "linesPerSlide": "2" }))
+                .unwrap(),
+            SongDefaults {
+                lines_per_slide: LinesPerSlide::Two,
+                add_empty_slide_at_start: false,
+            }
         );
     }
 }

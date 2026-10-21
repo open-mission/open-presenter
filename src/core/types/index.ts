@@ -185,6 +185,7 @@ export type WeekStart = "sunday" | "monday";
 
 export interface SongDefaults {
   linesPerSlide: LinesPerSlide;
+  addEmptySlideAtStart: boolean;
 }
 
 export interface EventItem {

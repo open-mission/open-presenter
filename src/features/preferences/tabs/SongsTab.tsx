@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import {
+import { useEffect, useState } from "react";import {
   ChevronDown,
   ChevronUp,
   FolderOpen,
@@ -16,8 +15,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { getSongDefaults, setSongDefaults } from "@/core/ipc/commands";
-import { isTauri } from "@/core/ipc/tauri";
+import { Switch } from "@/components/ui/switch";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import type { LinesPerSlide } from "@/core/types";
 import { useSongsStore } from "@/features/songs/store";
 import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
@@ -66,30 +65,32 @@ export function SongsTab() {
   const resetDefaults = useSongGroupsStore((s) => s.resetDefaults);
 
   const [recordingGroupId, setRecordingGroupId] = useState<string | null>(null);
-  const [linesPerSlide, setLinesPerSlide] = useState<LinesPerSlide | null>(null);
+  const linesPerSlide = useSongDefaultsStore((s) => s.linesPerSlide);
+  const addEmptySlideAtStart = useSongDefaultsStore(
+    (s) => s.addEmptySlideAtStart,
+  );
+  const defaultsLoaded = useSongDefaultsStore((s) => s.loaded);
+  const defaultsLoading = useSongDefaultsStore((s) => s.loading);
+  const loadSongDefaults = useSongDefaultsStore((s) => s.load);
+  const updateSongDefaults = useSongDefaultsStore((s) => s.update);
 
-  // Load persisted lines-per-slide preference
   useEffect(() => {
-    if (!isTauri()) return;
-    let cancelled = false;
-    void getSongDefaults()
-      .then((defaults) => {
-        if (!cancelled) setLinesPerSlide(defaults.linesPerSlide);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          toast.error(err instanceof Error ? err.message : String(err));
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void loadSongDefaults().catch((err) => {
+      toast.error(err instanceof Error ? err.message : String(err));
+    });
+  }, [loadSongDefaults]);
 
   async function handleLinesPerSlideChange(value: LinesPerSlide) {
     try {
-      const saved = await setSongDefaults({ linesPerSlide: value });
-      setLinesPerSlide(saved.linesPerSlide);
+      await updateSongDefaults({ linesPerSlide: value });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function handleAddEmptySlideChange(value: boolean) {
+    try {
+      await updateSongDefaults({ addEmptySlideAtStart: value });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
@@ -181,10 +182,14 @@ export function SongsTab() {
           {LINES_PER_SLIDE_OPTIONS.map((option) => (
             <label
               key={option.value}
-              className={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-colors ${
+              className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-colors ${
                 linesPerSlide === option.value
                   ? "bg-primary/5 font-medium text-foreground"
                   : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+              } ${
+                defaultsLoading || !defaultsLoaded
+                  ? "cursor-not-allowed opacity-60"
+                  : "cursor-pointer"
               }`}
             >
               <input
@@ -193,11 +198,30 @@ export function SongsTab() {
                 value={option.value}
                 checked={linesPerSlide === option.value}
                 onChange={() => void handleLinesPerSlideChange(option.value)}
+                disabled={defaultsLoading || !defaultsLoaded}
                 className="accent-primary"
               />
               <span>{option.label}</span>
             </label>
           ))}
+        </div>
+
+        <div className="flex items-center justify-between gap-6 rounded-xl border border-border/80 bg-card/60 p-4 shadow-2xs">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">
+              Adicionar slide vazio no início de todas as músicas
+            </p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Vale para músicas existentes e novas. Não altera a letra salva;
+              apenas acrescenta um slide em branco antes do primeiro slide.
+            </p>
+          </div>
+          <Switch
+            checked={addEmptySlideAtStart}
+            onCheckedChange={(value) => void handleAddEmptySlideChange(value)}
+            disabled={defaultsLoading || !defaultsLoaded}
+            aria-label="Adicionar slide vazio no início de todas as músicas"
+          />
         </div>
       </div>
 
