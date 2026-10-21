@@ -887,6 +887,8 @@ export default function RemoteView() {
                   ? "Papel de parede"
                   : live?.cleared
                   ? "Sem texto"
+                  : live?.textHidden
+                  ? "Sem texto (fundo do tema)"
                   : live?.content.title || "Nenhum slide"}
               </span>
               {live?.content.section && (
@@ -954,6 +956,8 @@ export default function RemoteView() {
                   ? "Papel de parede no telão"
                   : live?.cleared
                   ? "Sem texto (telão desocupado)"
+                  : live?.textHidden
+                  ? "Sem texto (fundo do tema)"
                   : liveImage
                   ? `[Imagem] ${live?.content.title}`
                   : live?.content.lines.join(" · ") ||
@@ -987,6 +991,13 @@ export default function RemoteView() {
                 <div className="flex flex-col items-center gap-1 py-4 text-zinc-500">
                   <EyeOff className="size-5 text-zinc-600" />
                   <p className="text-xs font-medium">Telão livre / Sem texto</p>
+                </div>
+              ) : live?.textHidden ? (
+                <div className="flex flex-col items-center gap-1 py-4 text-zinc-500">
+                  <EyeOff className="size-5 text-zinc-600" />
+                  <p className="text-xs font-medium">
+                    Sem texto (fundo do tema)
+                  </p>
                 </div>
               ) : liveImage ? (
                 <img

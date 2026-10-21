@@ -29,6 +29,7 @@ import type { BibleVerse } from "@/core/types";
 interface BibleCommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialQuery?: string;
 }
 
 interface PopularReference {
@@ -51,7 +52,11 @@ const POPULAR_REFERENCES: PopularReference[] = [
   { ref: "Isaías 40:31", bookId: 23, bookName: "Isaías", chapter: 40, verse: 31, label: "Os que esperam no Senhor renovam as suas forças..." },
 ];
 
-export function BibleCommandPalette({ open, onOpenChange }: BibleCommandPaletteProps) {
+export function BibleCommandPalette({
+  open,
+  onOpenChange,
+  initialQuery = "",
+}: BibleCommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [versePreview, setVersePreview] = useState<BibleVerse | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -64,13 +69,13 @@ export function BibleCommandPalette({ open, onOpenChange }: BibleCommandPaletteP
   // Foco automático ao abrir
   useEffect(() => {
     if (open) {
-      setQuery("");
+      setQuery(initialQuery);
       setVersePreview(null);
       setTimeout(() => {
         inputRef.current?.focus();
       }, 50);
     }
-  }, [open]);
+  }, [open, initialQuery]);
 
   // Executa o parser em tempo real sobre o texto digitado
   const parsed = useMemo<ParsedBibleReference | null>(() => {

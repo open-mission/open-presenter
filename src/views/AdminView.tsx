@@ -1,9 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { openOutputWindow } from "@/core/ipc/commands";
 import type { OutputTarget } from "@/core/types";
 import { AppTopBar } from "@/components/AppTopBar";
 import { AppDock } from "@/components/AppDock";
+import { ResizeHandle } from "@/components/ResizeHandle";
+import {
+  fitPanelLayout,
+  SETLIST_WIDTH_DEFAULT,
+  SETLIST_WIDTH_MAX,
+  SETLIST_WIDTH_MIN,
+  SLIDES_WIDTH_DEFAULT,
+  SLIDES_WIDTH_MAX,
+  SLIDES_WIDTH_MIN,
+} from "@/core/lib/panelLayout";
+import { usePanelLayoutStore } from "@/features/presentation/panelLayoutStore";
+import { cn } from "@/core/lib/utils";
 import { PreferencesDialog } from "@/features/preferences/PreferencesDialog";
 import { SetlistSidebar } from "@/features/events-setlists/SetlistSidebar";
 import { SongSlidesColumn } from "@/features/events-setlists/SongSlidesColumn";
@@ -19,6 +31,7 @@ import { SongEditorDialog } from "@/features/songs/SongEditorDialog";
 import { OnlineLyricsDialog } from "@/features/songs/OnlineLyricsDialog";
 import { ImportReportDialog } from "@/features/songs/ImportReportDialog";
 import { useSetlistStore } from "@/features/events-setlists/store";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import { useNativeMenu } from "@/core/ipc/useNativeMenu";
 import { useNavigationStore } from "@/features/navigation/store";
 import { SongsPage } from "@/features/songs/SongsPage";
@@ -46,12 +59,38 @@ export default function AdminView() {
   useBibleLiveSync();
   useUpdateChecker();
   const loadSetlists = useSetlistStore((s) => s.load);
+  const loadSongDefaults = useSongDefaultsStore((s) => s.load);
+  const addEmptySlideAtStart = useSongDefaultsStore(
+    (s) => s.addEmptySlideAtStart,
+  );
   const outputsLoaded = useOutputManagerStore((s) => s.loaded);
   const activeTab = useNavigationStore((s) => s.activeTab);
   const setActiveTab = useNavigationStore((s) => s.setActiveTab);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const ensureSeededThemes = useSlideThemesStore((s) => s.ensureSeeded);
+
+  const setlistWidth = usePanelLayoutStore((s) => s.setlistWidth);
+  const slidesWidth = usePanelLayoutStore((s) => s.slidesWidth);
+  const monitorsVisible = usePanelLayoutStore((s) => s.monitorsVisible);
+  const setSetlistWidth = usePanelLayoutStore((s) => s.setSetlistWidth);
+  const setSlidesWidth = usePanelLayoutStore((s) => s.setSlidesWidth);
+  const mainRef = useRef<HTMLElement>(null);
+  const [mainWidth, setMainWidth] = useState(0);
+
+  useEffect(() => {
+    const element = mainRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => setMainWidth(element.clientWidth));
+    observer.observe(element);
+    setMainWidth(element.clientWidth);
+    return () => observer.disconnect();
+  }, [activeTab]);
+
+  const fitted =
+    monitorsVisible && mainWidth > 0
+      ? fitPanelLayout({ setlistWidth, slidesWidth }, mainWidth - 192)
+      : { setlistWidth, slidesWidth };
 
   useEffect(() => {
     void ensureSeededThemes();
@@ -60,6 +99,22 @@ export default function AdminView() {
   useEffect(() => {
     void loadSetlists();
   }, [loadSetlists]);
+
+  useEffect(() => {
+    void loadSongDefaults().catch((err) => {
+      console.error("Falha ao carregar preferências de música:", err);
+    });
+  }, [loadSongDefaults]);
+
+  const previousAddEmptySlideAtStart = useRef(addEmptySlideAtStart);
+  useEffect(() => {
+    const previous = previousAddEmptySlideAtStart.current;
+    previousAddEmptySlideAtStart.current = addEmptySlideAtStart;
+    if (previous === addEmptySlideAtStart) return;
+    useSetlistStore
+      .getState()
+      .shiftRunnerIndex(addEmptySlideAtStart ? 1 : -1, addEmptySlideAtStart);
+  }, [addEmptySlideAtStart]);
 
   useEffect(() => {
     if (!outputsLoaded) return;
@@ -90,22 +145,54 @@ export default function AdminView() {
 
         {/* View 1: Apresentação & Culto ao Vivo */}
         {activeTab === "presentation" && (
-          <main className="flex flex-1 overflow-hidden">
-            {/* Column 1: Programação do Culto (Collapsible) */}
+          <main ref={mainRef} className="flex flex-1 overflow-hidden">
             <SetlistSidebar
               collapsed={!sidebarOpen}
+              width={fitted.setlistWidth}
               onToggleSidebar={() => setSidebarOpen((v) => !v)}
             />
 
-            {/* Column 2: Estrofes & Letras da Música Selecionada */}
-            <SongSlidesColumn />
+            {sidebarOpen && (
+              <ResizeHandle
+                label="Redimensionar programação"
+                value={fitted.setlistWidth}
+                min={SETLIST_WIDTH_MIN}
+                max={SETLIST_WIDTH_MAX}
+                defaultValue={SETLIST_WIDTH_DEFAULT}
+                onChange={setSetlistWidth}
+              />
+            )}
 
-            {/* Column 3: Monitores de Preview */}
-            <section className="flex flex-1 flex-col overflow-hidden border-r border-border/60 bg-muted/10">
+            <div
+              className={cn(
+                "flex min-h-0",
+                monitorsVisible ? "shrink-0" : "flex-1",
+              )}
+              style={monitorsVisible ? { width: fitted.slidesWidth } : undefined}
+            >
+              <SongSlidesColumn />
+            </div>
+
+            {monitorsVisible && (
+              <ResizeHandle
+                label="Redimensionar letra e versículos"
+                value={fitted.slidesWidth}
+                min={SLIDES_WIDTH_MIN}
+                max={SLIDES_WIDTH_MAX}
+                defaultValue={SLIDES_WIDTH_DEFAULT}
+                onChange={setSlidesWidth}
+              />
+            )}
+
+            <section
+              className={cn(
+                "flex min-w-0 flex-1 flex-col overflow-hidden border-r border-border/60 bg-muted/10",
+                !monitorsVisible && "hidden",
+              )}
+            >
               <LivePreview />
             </section>
 
-            {/* Column 4: Trilho de Temas (quick-switch) */}
             <ThemeRail />
           </main>
         )}

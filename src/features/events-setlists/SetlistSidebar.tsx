@@ -57,6 +57,7 @@ import {
 import { mediaKindLabel } from "@/core/lib/media";
 import { openMediaLibrary, openThemeEditor } from "@/core/ipc/commands";
 import type { EventItem, EventPart, EventSummary, MediaKind } from "@/core/types";
+import { SETLIST_WIDTH_DEFAULT } from "@/core/lib/panelLayout";
 import { useSongsStore } from "@/features/songs/store";
 import { createEmptyStudioTheme } from "@/features/slide-themes/seedThemes";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
@@ -221,9 +222,11 @@ const BG_COLOR_PRESETS = [
 
 export function SetlistSidebar({
   collapsed = false,
+  width = SETLIST_WIDTH_DEFAULT,
   onToggleSidebar,
 }: {
   collapsed?: boolean;
+  width?: number;
   onToggleSidebar?: () => void;
 }) {
   const events = useSetlistStore((s) => s.events);
@@ -600,7 +603,10 @@ export function SetlistSidebar({
   }
 
   return (
-    <aside className="flex h-full w-72 min-h-0 flex-col border-r border-border bg-muted/20 sm:w-80 shrink-0 select-none overflow-hidden">
+    <aside
+      className="flex h-full min-h-0 flex-col border-r border-border bg-muted/20 shrink-0 select-none overflow-hidden"
+      style={{ width }}
+    >
       {/* List Mode Switcher: Culto / Evento | Temporário */}
       <div className="flex h-14 shrink-0 items-center gap-1.5 border-b border-border bg-background/50 p-2">
         <div className="grid min-w-0 flex-1 grid-cols-2 rounded-lg bg-muted/60 p-0.5 text-xs font-medium">

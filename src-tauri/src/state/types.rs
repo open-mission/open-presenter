@@ -94,6 +94,8 @@ pub struct LiveSlide {
     pub background: BackgroundLayer,
     pub blackout: bool,
     pub cleared: bool,
+    #[serde(default, rename = "textHidden")]
+    pub text_hidden: bool,
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "nextUp")]
@@ -316,6 +318,8 @@ impl LinesPerSlide {
 #[serde(rename_all = "camelCase")]
 pub struct SongDefaults {
     pub lines_per_slide: LinesPerSlide,
+    #[serde(default)]
+    pub add_empty_slide_at_start: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

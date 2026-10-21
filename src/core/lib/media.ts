@@ -77,6 +77,8 @@ export function buildMediaSlides(itemId: string, media: MediaItem): RunnerSlide[
         return [
           {
             index: 0,
+            sectionIndex: null,
+            isBlank: false,
             label: "Apresentação",
             sectionType: null,
             slide: slideForText(itemId, media, [], 0, 1),
@@ -85,6 +87,8 @@ export function buildMediaSlides(itemId: string, media: MediaItem): RunnerSlide[
       }
       return blocks.map((lines, index) => ({
         index,
+        sectionIndex: null,
+        isBlank: false,
         label:
           blocks.length > 1
             ? `Texto ${index + 1}`
@@ -100,6 +104,8 @@ export function buildMediaSlides(itemId: string, media: MediaItem): RunnerSlide[
       return [
         {
           index: 0,
+          sectionIndex: null,
+          isBlank: false,
           label: MEDIA_KIND_LABEL[media.kind],
           sectionType: null,
           slide: slideForMedia(itemId, media, 0),
@@ -112,6 +118,8 @@ export function buildMediaSlides(itemId: string, media: MediaItem): RunnerSlide[
       }
       return files.map((path, index) => ({
         index,
+        sectionIndex: null,
+        isBlank: false,
         label: `Imagem ${index + 1}`,
         sectionType: null,
         slide: slideForMedia(

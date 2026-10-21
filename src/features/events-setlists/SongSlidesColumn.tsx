@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   Eye,
+  LayoutGrid,
+  List,
   Music,
   Pencil,
   Play,
@@ -11,6 +13,8 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SlideThumbnail } from "@/components/SlideThumbnail";
+import { ViewModeToggle } from "@/components/ViewModeToggle";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -36,7 +40,10 @@ import {
   resolveSlideNumberIndex,
 } from "@/core/lib/slideNumbers";
 import { saveSong } from "@/core/ipc/commands";
+import { usePersistentViewMode } from "@/core/lib/usePersistentViewMode";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import type { EventItem, SectionType, ServiceEvent, Song } from "@/core/types";
+import { usePublicThemeResolver } from "@/features/slide-themes/usePublicThemeResolver";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSongsStore } from "@/features/songs/store";
 import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
@@ -92,11 +99,21 @@ function SongSlidesContent() {
   const projectSection = useSetlistStore((s) => s.projectSection);
   const selectItem = useSetlistStore((s) => s.selectItem);
   const groups = useSongGroupsStore((s) => s.groups);
+  const addEmptySlideAtStart = useSongDefaultsStore(
+    (s) => s.addEmptySlideAtStart,
+  );
+  const [viewMode, setViewMode] = usePersistentViewMode(
+    "open_presenter_setlist_song_view",
+    "list",
+    ["list", "slides"] as const,
+  );
+  const resolveTheme = usePublicThemeResolver();
 
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const previewIndexRef = useRef<number | null>(null);
   const [numberBuffer, setNumberBuffer] = useState("");
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const sectionRef = useRef<HTMLElement>(null);
 
   const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null);
   const [dragOverSlide, setDragOverSlide] = useState<{
@@ -118,7 +135,20 @@ function SongSlidesContent() {
     }
   }, [item, song, loadItemSong]);
 
-  const slides = song === undefined ? [] : buildSongSlides(song);
+  const slides = useMemo(
+    () =>
+      song === undefined
+        ? []
+        : buildSongSlides(song, { addEmptySlideAtStart }),
+    [song, addEmptySlideAtStart],
+  );
+  const thumbnailThemes = useMemo(
+    () =>
+      new Map(
+        slides.map((slide) => [slide.slide.id, resolveTheme(slide.slide)]),
+      ),
+    [slides, resolveTheme],
+  );
   const slideGroups = computeSlideGroups(slides);
   const nextItem = resolveNextItem(item, event);
 
@@ -130,6 +160,7 @@ function SongSlidesContent() {
     live.content.kind !== "blank";
 
   const labeledGroups = slideGroups.filter((g) => g.label !== null);
+  const previousAddEmptySlideAtStart = useRef(addEmptySlideAtStart);
 
   // Sync preview slide on song load or change
   useEffect(() => {
@@ -142,6 +173,27 @@ function SongSlidesContent() {
       usePresentationStore.getState().setPreview(null);
     }
   }, [selectedItemId, song]);
+
+  useEffect(() => {
+    const previous = previousAddEmptySlideAtStart.current;
+    previousAddEmptySlideAtStart.current = addEmptySlideAtStart;
+    if (previous === addEmptySlideAtStart) return;
+
+    setPreviewIndex((current) => {
+      if (current === null) return null;
+      if (slides.length === 0) {
+        usePresentationStore.getState().setPreview(null);
+        return null;
+      }
+      const delta = addEmptySlideAtStart ? 1 : -1;
+      const nextIdx = Math.max(
+        0,
+        Math.min(slides.length - 1, current + delta),
+      );
+      usePresentationStore.getState().setPreview(slides[nextIdx]?.slide ?? null);
+      return nextIdx;
+    });
+  }, [addEmptySlideAtStart, slides]);
 
   // Keyboard navigation: ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Enter and Escape
   useEffect(() => {
@@ -335,6 +387,7 @@ function SongSlidesContent() {
       ) {
         return;
       }
+      if (!sectionRef.current?.contains(document.activeElement)) return;
       if (slides.length === 0 || !item) return;
 
       const pressedChar = e.key.toUpperCase();
@@ -503,17 +556,27 @@ function SongSlidesContent() {
     position: "before" | "after",
   ) {
     if (!song || !item) return;
-    if (sourceIndex === targetIndex) return;
+    const source = slides[sourceIndex]?.sectionIndex;
+    const target = slides[targetIndex]?.sectionIndex;
+    if (
+      source === null ||
+      source === undefined ||
+      target === null ||
+      target === undefined ||
+      source === target
+    ) {
+      return;
+    }
 
     const sections = [...song.sections];
-    const [moved] = sections.splice(sourceIndex, 1);
+    const [moved] = sections.splice(source, 1);
     if (!moved) return;
 
-    let destIndex = targetIndex;
+    let destIndex = target;
     if (position === "before") {
-      destIndex = sourceIndex < targetIndex ? targetIndex - 1 : targetIndex;
+      destIndex = source < target ? target - 1 : target;
     } else {
-      destIndex = sourceIndex < targetIndex ? targetIndex : targetIndex + 1;
+      destIndex = source < target ? target : target + 1;
     }
     const safeDest = Math.max(0, Math.min(sections.length, destIndex));
     sections.splice(safeDest, 0, moved);
@@ -538,12 +601,25 @@ function SongSlidesContent() {
 
   return (
     <section
+      ref={sectionRef}
+      tabIndex={-1}
+      onPointerDown={(e) => {
+        const target = e.target as HTMLElement | null;
+        if (
+          target?.closest(
+            "button, a, input, textarea, select, [role='button'], [contenteditable='true']",
+          )
+        ) {
+          return;
+        }
+        sectionRef.current?.focus({ preventScroll: true });
+      }}
       onContextMenu={(e) => {
         // Prevent default browser context menu throughout column
         e.preventDefault();
       }}
       onClick={() => setNumberBuffer("")}
-      className="relative flex h-full w-80 min-h-0 flex-col border-r border-border bg-background sm:w-96 shrink-0 select-none overflow-hidden"
+      className="relative flex h-full w-full min-w-0 flex-col border-r border-border bg-background select-none overflow-hidden outline-none"
     >
       {/* Top Header with increased padding top & bottom */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
@@ -560,18 +636,28 @@ function SongSlidesContent() {
 
         {/* Action: Apresentar slide selecionado para o público */}
         {item && slides.length > 0 && (
-          <Button
-            type="button"
-            size="sm"
-            variant="default"
-            disabled={previewIndex === null}
-            className="h-8 gap-1.5 px-3 text-xs font-semibold shadow-xs transition-all active:scale-95"
-            onClick={() => handlePresent()}
-            title="Apresentar slide para o público (Enter)"
-          >
-            <Play className="size-3.5 fill-current" />
-            Apresentar
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <ViewModeToggle
+              value={viewMode}
+              onChange={setViewMode}
+              options={[
+                { value: "list", label: "Lista", icon: List },
+                { value: "slides", label: "Slides", icon: LayoutGrid },
+              ]}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="default"
+              disabled={previewIndex === null}
+              className="h-8 gap-1.5 px-3 text-xs font-semibold shadow-xs transition-all active:scale-95"
+              onClick={() => handlePresent()}
+              title="Apresentar slide para o público (Enter)"
+            >
+              <Play className="size-3.5 fill-current" />
+              Apresentar
+            </Button>
+          </div>
         )}
       </div>
 
@@ -712,6 +798,10 @@ function SongSlidesContent() {
                             </kbd>
                           )}
                         </span>
+                      ) : group.isBlank ? (
+                        <span className="rounded-md bg-muted/60 px-2 py-0.5 text-[10px] font-medium italic text-muted-foreground">
+                          Slide vazio
+                        </span>
                       ) : (
                         <span className="text-[10px] text-muted-foreground/40 italic">
                           Sem grupo
@@ -735,6 +825,9 @@ function SongSlidesContent() {
                       const isBeingDragged =
                         (dragSlideRef.current ?? draggedSlideIndex) === block.index;
                       const isHoveredOver = dragOverSlide?.index === block.index;
+                      const editSectionIndex = block.sectionIndex;
+                      const canEditSection =
+                        editSectionIndex !== null && !block.isBlank;
 
                       return (
                         <div
@@ -751,8 +844,9 @@ function SongSlidesContent() {
                                 ref={(el) => {
                                   slideRefs.current[block.index] = el;
                                 }}
-                                draggable={true}
+                                draggable={canEditSection}
                                 onDragStart={(e) => {
+                                  if (!canEditSection) return;
                                   e.stopPropagation();
                                   dragSlideRef.current = block.index;
                                   setDraggedSlideIndex(block.index);
@@ -803,7 +897,11 @@ function SongSlidesContent() {
                                 }}
                                 onClick={() => handleSelectPreview(block.index)}
                                 onDoubleClick={() => handlePresent(block.index)}
-                                className={`group relative flex cursor-grab active:cursor-grabbing flex-col gap-2 p-3.5 transition-all outline-none select-none ${
+                                className={`group relative flex flex-col gap-2 p-3.5 transition-all outline-none select-none ${
+                                  canEditSection
+                                    ? "cursor-grab active:cursor-grabbing"
+                                    : ""
+                                } ${
                                   isLive
                                     ? "bg-emerald-500/15 ring-2 ring-inset ring-emerald-500/60 shadow-xs"
                                     : isPreview
@@ -855,23 +953,50 @@ function SongSlidesContent() {
                                   </div>
                                 </div>
 
-                                {/* Lyrics Text Preview */}
-                                <div className="space-y-1">
-                                  {block.slide.lines.map((line, lIdx) => (
-                                    <p
-                                      key={lIdx}
-                                      className={`text-xs leading-relaxed ${
-                                        isLive
-                                          ? "font-semibold text-foreground"
-                                          : isPreview
-                                          ? "font-medium text-foreground"
-                                          : "text-foreground/90 group-hover:text-foreground"
-                                      }`}
-                                    >
-                                      {line}
-                                    </p>
-                                  ))}
-                                </div>
+                                {/* Lyrics Text Preview / Themed thumbnail */}
+                                {viewMode === "slides" ? (
+                                  <div className="relative">
+                                    <SlideThumbnail
+                                      content={block.slide}
+                                      theme={
+                                        thumbnailThemes.get(block.slide.id) ??
+                                        null
+                                      }
+                                      className="pointer-events-none"
+                                    />
+                                    {block.isBlank && (
+                                      <Badge
+                                        variant="outline"
+                                        className="pointer-events-none absolute left-1.5 top-1.5 border-white/20 bg-black/60 text-[9px] font-medium text-white"
+                                      >
+                                        Slide vazio
+                                      </Badge>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1">
+                                    {block.slide.lines.length === 0 ? (
+                                      <p className="text-xs italic text-muted-foreground/60">
+                                        (Slide vazio)
+                                      </p>
+                                    ) : (
+                                      block.slide.lines.map((line, lIdx) => (
+                                        <p
+                                          key={lIdx}
+                                          className={`text-xs leading-relaxed ${
+                                            isLive
+                                              ? "font-semibold text-foreground"
+                                              : isPreview
+                                              ? "font-medium text-foreground"
+                                              : "text-foreground/90 group-hover:text-foreground"
+                                          }`}
+                                        >
+                                          {line}
+                                        </p>
+                                      ))
+                                    )}
+                                  </div>
+                                )}
 
                                 {/* Bottom indicator hint */}
                                 <div className="flex items-center justify-between text-[10px] text-muted-foreground/60">
@@ -899,7 +1024,7 @@ function SongSlidesContent() {
 
                             {/* 2. Rótulo > */}
                             <ContextMenuSub>
-                              <ContextMenuSubTrigger>
+                              <ContextMenuSubTrigger disabled={!canEditSection}>
                                 <Tag className="size-3.5 mr-2" />
                                 <span>Rótulo</span>
                               </ContextMenuSubTrigger>
@@ -908,7 +1033,14 @@ function SongSlidesContent() {
                                   ([typeKey, typeLabel]) => (
                                     <ContextMenuItem
                                       key={typeKey}
-                                      onClick={() => handleUpdateSectionLabel(block.index, typeKey)}
+                                      disabled={!canEditSection}
+                                      onClick={() => {
+                                        if (editSectionIndex === null) return;
+                                        void handleUpdateSectionLabel(
+                                          editSectionIndex,
+                                          typeKey,
+                                        );
+                                      }}
                                       className="flex items-center justify-between"
                                     >
                                       <div className="flex items-center gap-2">
@@ -926,7 +1058,11 @@ function SongSlidesContent() {
                                 )}
                                 <ContextMenuSeparator />
                                 <ContextMenuItem
-                                  onClick={() => handleRemoveSectionLabel(block.index)}
+                                  disabled={!canEditSection}
+                                  onClick={() => {
+                                    if (editSectionIndex === null) return;
+                                    void handleRemoveSectionLabel(editSectionIndex);
+                                  }}
                                   className="text-xs text-muted-foreground"
                                 >
                                   Remover rótulo
@@ -936,14 +1072,20 @@ function SongSlidesContent() {
 
                             {/* 3. Dividir > */}
                             <ContextMenuSub>
-                              <ContextMenuSubTrigger>
+                              <ContextMenuSubTrigger disabled={!canEditSection}>
                                 <Split className="size-3.5 mr-2" />
                                 <span>Dividir</span>
                               </ContextMenuSubTrigger>
                               <ContextMenuSubContent className="w-44">
                                 <ContextMenuItem
-                                  disabled={block.slide.lines.length <= 2}
-                                  onClick={() => handleSplitSection(block.index, 2)}
+                                  disabled={
+                                    !canEditSection ||
+                                    block.slide.lines.length <= 2
+                                  }
+                                  onClick={() => {
+                                    if (editSectionIndex === null) return;
+                                    void handleSplitSection(editSectionIndex, 2);
+                                  }}
                                   className="flex items-center justify-between"
                                 >
                                   <span>2 Linhas</span>
@@ -954,8 +1096,14 @@ function SongSlidesContent() {
                                   )}
                                 </ContextMenuItem>
                                 <ContextMenuItem
-                                  disabled={block.slide.lines.length <= 1}
-                                  onClick={() => handleSplitSection(block.index, 1)}
+                                  disabled={
+                                    !canEditSection ||
+                                    block.slide.lines.length <= 1
+                                  }
+                                  onClick={() => {
+                                    if (editSectionIndex === null) return;
+                                    void handleSplitSection(editSectionIndex, 1);
+                                  }}
                                   className="flex items-center justify-between"
                                 >
                                   <span>1 Linha</span>

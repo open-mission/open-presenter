@@ -25,12 +25,14 @@ export function ScaledStage({
   props,
   className,
   showBackground = true,
+  disableShader = false,
 }: {
   theme: SlideTheme;
   asset: ThemeAsset;
   props: Record<string, string>;
   className?: string;
   showBackground?: boolean;
+  disableShader?: boolean;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
@@ -59,7 +61,7 @@ export function ScaledStage({
     >
       {showBackground && (
         <div className="absolute inset-0 overflow-hidden" style={themeBackgroundStyle(theme)}>
-          {isIsfBackground(theme.css.background) && (
+          {!disableShader && isIsfBackground(theme.css.background) && (
             <ShaderCanvas shader={theme.css.background} />
           )}
         </div>

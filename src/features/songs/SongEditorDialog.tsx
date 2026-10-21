@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { lyricsToText, parseLyrics } from "@/core/ipc/commands";
 import { buildSongSlides, type RunnerSlide } from "@/core/lib/lyrics";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import type { SectionType, Song, SongSection } from "@/core/types";
 import { SongLyricsEditor } from "./SongLyricsEditor";
 import {
@@ -14,17 +15,24 @@ import { useSongsStore } from "./store";
 
 const PREVIEW_DEBOUNCE_MS = 250;
 
-function previewSlides(sections: SongSection[], draft: EditorSongDraft): RunnerSlide[] {
-  return buildSongSlides({
-    id: draft.id,
-    title: draft.title,
-    artist: draft.artist,
-    album: draft.album,
-    composer: draft.composer,
-    songKey: draft.songKey,
-    bpm: draft.bpm,
-    sections,
-  });
+function previewSlides(
+  sections: SongSection[],
+  draft: EditorSongDraft,
+  addEmptySlideAtStart: boolean,
+): RunnerSlide[] {
+  return buildSongSlides(
+    {
+      id: draft.id,
+      title: draft.title,
+      artist: draft.artist,
+      album: draft.album,
+      composer: draft.composer,
+      songKey: draft.songKey,
+      bpm: draft.bpm,
+      sections,
+    },
+    { addEmptySlideAtStart },
+  );
 }
 
 function hasContent(sections: SongSection[]): boolean {
@@ -38,6 +46,9 @@ export function SongEditorDialog() {
   const closeEditor = useSongsStore((s) => s.closeEditor);
   const saveEditor = useSongsStore((s) => s.saveEditor);
   const deleteSong = useSongsStore((s) => s.deleteSong);
+  const addEmptySlideAtStart = useSongDefaultsStore(
+    (s) => s.addEmptySlideAtStart,
+  );
 
   const [draft, setDraft] = useState<EditorSongDraft | null>(null);
   const [text, setText] = useState("");
@@ -73,7 +84,11 @@ export function SongEditorDialog() {
     setDraft(currentDraft);
     setPreview(
       hasContent(editorSong.sections)
-        ? previewSlides(editorSong.sections, currentDraft)
+        ? previewSlides(
+            editorSong.sections,
+            currentDraft,
+            useSongDefaultsStore.getState().addEmptySlideAtStart,
+          )
         : [],
     );
 
@@ -102,7 +117,7 @@ export function SongEditorDialog() {
       parseLyrics(text)
         .then((sections) => {
           if (!cancelled) {
-            setPreview(previewSlides(sections, draft));
+            setPreview(previewSlides(sections, draft, addEmptySlideAtStart));
           }
         })
         .catch(() => {});
@@ -112,7 +127,7 @@ export function SongEditorDialog() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [draft, text, textReady]);
+  }, [draft, text, textReady, addEmptySlideAtStart]);
 
   const updateDraft = useCallback((patch: Partial<EditorSongDraft>) => {
     setDraft((curr) => (curr === null ? curr : { ...curr, ...patch }));
@@ -164,10 +179,10 @@ export function SongEditorDialog() {
   }, [draft, confirmDelete, deleteSong]);
 
   // Atribuição de rótulo via botão direito no slide da Coluna 2
-  const handleSetSlideLabel = useCallback(
-    (slideIndex: number, newType: SectionType | null) => {
+  const handleSetSectionLabel = useCallback(
+    (sectionIndex: number, newType: SectionType | null) => {
       setText((currText) => {
-        const updated = assignSectionLabel(currText, slideIndex, newType);
+        const updated = assignSectionLabel(currText, sectionIndex, newType);
         return updated;
       });
     },
@@ -254,7 +269,7 @@ export function SongEditorDialog() {
               slides={preview}
               songTitle={draft.title}
               songArtist={draft.artist}
-              onSetLabel={handleSetSlideLabel}
+              onSetLabel={handleSetSectionLabel}
             />
           </div>
         </div>

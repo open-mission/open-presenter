@@ -1,16 +1,29 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { computeSlideGroups, splitSection } from "./lyrics.ts";
+import { buildSongSlides, computeSlideGroups, splitSection } from "./lyrics.ts";
 import type { RunnerSlide } from "./lyrics.ts";
-import type { SectionType, SongSection } from "../types";
+import type { SectionType, Song, SongSection } from "../types";
+
+function makeSong(overrides: Partial<Song> = {}): Song {
+  return {
+    id: "song-1",
+    title: "Música",
+    artist: "Artista",
+    sections: [],
+    ...overrides,
+  };
+}
 
 function slide(
   index: number,
   label: string | null,
   sectionType: SectionType | null = null,
+  isBlank = false,
 ): RunnerSlide {
   return {
     index,
+    sectionIndex: index,
+    isBlank,
     label,
     sectionType,
     slide: {
@@ -21,6 +34,63 @@ function slide(
     },
   };
 }
+
+test("marca sectionIndex e isBlank em todas as seções", () => {
+  const song = makeSong({
+    sections: [
+      { sectionType: "verse", lines: ["A"] },
+      { sectionType: null, lines: [] },
+      { sectionType: "chorus", lines: ["B"] },
+    ],
+  });
+  const slides = buildSongSlides(song);
+  assert.deepEqual(
+    slides.map((s) => s.sectionIndex),
+    [0, 1, 2],
+  );
+  assert.deepEqual(
+    slides.map((s) => s.isBlank),
+    [false, true, false],
+  );
+  assert.deepEqual(
+    slides.map((s) => s.index),
+    [0, 1, 2],
+  );
+});
+
+test("prefixa slide sintético quando addEmptySlideAtStart é true", () => {
+  const song = makeSong({
+    sections: [{ sectionType: "verse", lines: ["A"] }],
+  });
+  const slides = buildSongSlides(song, { addEmptySlideAtStart: true });
+  assert.equal(slides.length, 2);
+  assert.equal(slides[0].index, 0);
+  assert.equal(slides[0].sectionIndex, null);
+  assert.equal(slides[0].isBlank, true);
+  assert.equal(slides[0].label, null);
+  assert.deepEqual(slides[0].slide, {
+    id: `${song.id}#empty-start`,
+    kind: "lyric",
+    title: "",
+    lines: [],
+  });
+  assert.equal(slides[1].index, 1);
+  assert.equal(slides[1].sectionIndex, 0);
+  assert.equal(slides[1].isBlank, false);
+});
+
+test("slide vazio abre um grupo próprio", () => {
+  const groups = computeSlideGroups([
+    { index: 0, label: "Verso", sectionType: "verse" },
+    { index: 1, label: null, sectionType: null, isBlank: true },
+    { index: 2, label: null, sectionType: null },
+  ]);
+  assert.deepEqual(
+    groups.map((g) => g.indices),
+    [[0], [1], [2]],
+  );
+  assert.equal(groups[1].isBlank, true);
+});
 
 test("estrofe rotulada absorve os slides seguintes sem rótulo", () => {
   const groups = computeSlideGroups([

@@ -243,6 +243,7 @@ pub async fn present(
         background: current.background,
         blackout: false,
         cleared: false,
+        text_hidden: false,
         updated_at: now_millis().to_string(),
         next_up,
         prev_up,
@@ -259,6 +260,7 @@ pub async fn clear(State(state): State<Arc<ServerState>>, headers: HeaderMap) ->
     let live = LiveSlide {
         cleared: true,
         blackout: false,
+        text_hidden: false,
         next_up: None,
         prev_up: None,
         updated_at: now_millis().to_string(),
@@ -311,6 +313,7 @@ pub async fn toggle_wallpaper(
     let live = LiveSlide {
         cleared: next_cleared,
         blackout: false,
+        text_hidden: false,
         updated_at: now_millis().to_string(),
         ..current
     };
@@ -435,7 +438,11 @@ pub async fn song_slides(
         Ok(None) => return (StatusCode::NOT_FOUND, "música não encontrada").into_response(),
         Err(err) => return internal(&err.to_string()),
     };
-    let slides = slide_builder::build_song_slides(&song);
+    let defaults = match db.with_conn(songs::song_defaults) {
+        Ok(defaults) => defaults,
+        Err(err) => return internal(&err.to_string()),
+    };
+    let slides = slide_builder::build_song_slides(&song, defaults.add_empty_slide_at_start);
     Json(slides).into_response()
 }
 
@@ -506,7 +513,11 @@ pub async fn present_song(
         Ok(None) => return (StatusCode::NOT_FOUND, "música não encontrada").into_response(),
         Err(err) => return internal(&err.to_string()),
     };
-    let slides = slide_builder::build_song_slides(&song);
+    let defaults = match db.with_conn(songs::song_defaults) {
+        Ok(defaults) => defaults,
+        Err(err) => return internal(&err.to_string()),
+    };
+    let slides = slide_builder::build_song_slides(&song, defaults.add_empty_slide_at_start);
     let Some(slide) = slides.get(request.index) else {
         return (StatusCode::NOT_FOUND, "slide não encontrado").into_response();
     };
@@ -523,6 +534,7 @@ pub async fn present_song(
         background: current.background,
         blackout: false,
         cleared: false,
+        text_hidden: false,
         updated_at: now_millis().to_string(),
         next_up,
         prev_up,
@@ -617,6 +629,7 @@ pub async fn present_image(
         background: current.background,
         blackout: false,
         cleared: false,
+        text_hidden: false,
         updated_at: now_millis().to_string(),
         next_up: None,
         prev_up: None,
@@ -903,6 +916,7 @@ pub async fn present_bible(
         background: current.background,
         blackout: false,
         cleared: false,
+        text_hidden: false,
         updated_at: now_millis().to_string(),
         next_up,
         prev_up,

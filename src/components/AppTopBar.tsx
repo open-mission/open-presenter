@@ -7,11 +7,14 @@ import {
   Image,
   Moon,
   Music,
+  PanelRightClose,
+  PanelRightOpen,
   Plus,
   Smartphone,
 } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/core/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +33,8 @@ import { usePresentationStore } from "@/features/presentation/store";
 import { useRemoteStore } from "@/features/remote/store";
 import { useSongsStore } from "@/features/songs/store";
 import { useSetlistStore } from "@/features/events-setlists/store";
+import { useNavigationStore } from "@/features/navigation/store";
+import { usePanelLayoutStore } from "@/features/presentation/panelLayoutStore";
 import { HeaderTimerControls } from "@/features/stage-display/HeaderTimerControls";
 
 function statusTitle(
@@ -63,6 +68,9 @@ export function AppTopBar() {
   const serverRunning = useOutputManagerStore((s) => s.server.running);
   const remoteConfig = useRemoteStore((s) => s.config);
   const ensureRemoteToken = useRemoteStore((s) => s.ensureToken);
+  const activeTab = useNavigationStore((s) => s.activeTab);
+  const monitorsVisible = usePanelLayoutStore((s) => s.monitorsVisible);
+  const toggleMonitors = usePanelLayoutStore((s) => s.toggleMonitors);
 
   useEffect(() => {
     if (isTauri()) void ensureRemoteToken();
@@ -112,11 +120,14 @@ export function AppTopBar() {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const live = usePresentationStore.getState().live;
+      if (live.content.kind === "blank") return;
+
       const target = e.target as HTMLElement | null;
       if (
-        target?.tagName === "INPUT" ||
-        target?.tagName === "TEXTAREA" ||
-        target?.isContentEditable
+        target?.closest(
+          "input, textarea, [contenteditable='true'], [role='dialog']",
+        )
       ) {
         return;
       }
@@ -273,6 +284,34 @@ export function AppTopBar() {
           </div>
         </div>
 
+        {/* Mostrar/Ocultar painel de monitores */}
+        {activeTab === "presentation" && (
+          <Button
+            type="button"
+            size="sm"
+            variant={monitorsVisible ? "secondary" : "outline"}
+            className={cn(
+              "h-8 gap-1.5 px-2.5 text-xs font-medium transition-all",
+              monitorsVisible
+                ? "bg-primary/15 text-primary border-primary/30 font-semibold"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            onClick={toggleMonitors}
+            title={
+              monitorsVisible
+                ? "Ocultar painel de monitores"
+                : "Mostrar painel de monitores"
+            }
+          >
+            {monitorsVisible ? (
+              <PanelRightClose className="size-3.5" />
+            ) : (
+              <PanelRightOpen className="size-3.5" />
+            )}
+            <span className="hidden lg:inline">Monitores</span>
+          </Button>
+        )}
+
         {/* Mostrar Plano de Fundo */}
         <Button
           type="button"
@@ -297,8 +336,12 @@ export function AppTopBar() {
         <Button
           type="button"
           size="sm"
-          variant={live.cleared && !live.blackout ? "secondary" : "outline"}
-          className="h-8 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+          variant={live.textHidden ? "secondary" : "outline"}
+          className={`h-8 gap-1.5 px-2.5 text-xs font-medium transition-all ${
+            live.textHidden
+              ? "bg-primary/15 text-primary border-primary/30 font-semibold"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
           onClick={() => void usePresentationStore.getState().toggleClear()}
           title="Ocultar ou restaurar texto (C)"
         >

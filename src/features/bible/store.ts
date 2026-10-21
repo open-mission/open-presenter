@@ -29,6 +29,27 @@ import { toast } from "sonner";
 const SPLIT_VERSES_KEY = "open_presenter_bible_split_verses";
 const SPLIT_THRESHOLD_KEY = "open_presenter_bible_split_threshold";
 
+export interface BibleImportProgress {
+  done: number;
+  total: number;
+  file: string;
+}
+
+export interface BibleImportError {
+  file: string;
+  error: string;
+}
+
+export interface BibleImportResult {
+  imported: BibleVersion[];
+  errors: BibleImportError[];
+}
+
+export interface ImportBibleFilesOptions {
+  onProgress?: (progress: BibleImportProgress) => void;
+  silent?: boolean;
+}
+
 interface BibleState {
   versions: BibleVersion[];
   activeVersionId: string;
@@ -63,7 +84,15 @@ interface BibleState {
 
   loadInitial(): Promise<void>;
   setActiveVersion(versionId: string): Promise<void>;
-  importBibleFile(path: string, customName?: string): Promise<boolean>;
+  importBibleFiles(
+    paths: string[],
+    options?: ImportBibleFilesOptions,
+  ): Promise<BibleImportResult>;
+  importBibleFile(
+    path: string,
+    customName?: string,
+    options?: { silent?: boolean },
+  ): Promise<boolean>;
   deleteBibleVersion(versionId: string): Promise<boolean>;
 
   setTestamentFilter(filter: "all" | "ot" | "nt"): void;
@@ -200,23 +229,70 @@ export const useBibleStore = create<BibleState>((set, get) => ({
     }
   },
 
-  importBibleFile: async (path: string, customName?: string) => {
+  importBibleFile: async (path: string, customName?: string, options?) => {
     try {
       set({ loading: true, error: null });
       const imported = await importBible(path, customName);
-      toast.success(`Bíblia "${imported.name}" importada com sucesso!`);
+      if (!options?.silent) {
+        toast.success(`Bíblia "${imported.name}" importada com sucesso!`);
+      }
       const versions = await listBibleVersions();
       set({ versions });
       await get().setActiveVersion(imported.id);
       return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`Falha ao importar Bíblia: ${msg}`);
+      if (!options?.silent) {
+        toast.error(`Falha ao importar Bíblia: ${msg}`);
+      }
       set({ error: msg });
       return false;
     } finally {
       set({ loading: false });
     }
+  },
+
+  importBibleFiles: async (paths, options) => {
+    const imported: BibleVersion[] = [];
+    const errors: BibleImportError[] = [];
+    const total = paths.length;
+
+    for (let index = 0; index < paths.length; index++) {
+      const path = paths[index];
+      const file = path.split(/[\\/]/).pop() ?? path;
+      options?.onProgress?.({ done: index + 1, total, file });
+      try {
+        const version = await importBible(path);
+        imported.push(version);
+      } catch (err: unknown) {
+        errors.push({
+          file,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    if (imported.length > 0) {
+      const versions = await listBibleVersions();
+      set({ versions });
+      if (!get().activeVersionId) {
+        await get().setActiveVersion(imported[0].id);
+      }
+    }
+
+    if (!options?.silent) {
+      if (errors.length === 0) {
+        toast.success(
+          `${imported.length} ${imported.length === 1 ? "versão importada" : "versões importadas"}.`,
+        );
+      } else {
+        toast.error(
+          `${imported.length} importada(s), ${errors.length} com erro.`,
+        );
+      }
+    }
+
+    return { imported, errors };
   },
 
   deleteBibleVersion: async (versionId: string) => {

@@ -1,9 +1,13 @@
-import { useEffect, useState } from "react";
-import { BookOpen, Play, Radio, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BookOpen, LayoutGrid, List, Play, Radio, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SlideThumbnail } from "@/components/SlideThumbnail";
+import { ViewModeToggle } from "@/components/ViewModeToggle";
+import { usePersistentViewMode } from "@/core/lib/usePersistentViewMode";
 import type { EventItem, SlideContent } from "@/core/types";
 import { usePresentationStore } from "@/features/presentation/store";
+import { usePublicThemeResolver } from "@/features/slide-themes/usePublicThemeResolver";
 import { buildScriptureItemSlides, useSetlistStore } from "./store";
 
 export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
@@ -15,6 +19,16 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
 
   const [slides, setSlides] = useState<SlideContent[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
+  const [viewMode, setViewMode] = usePersistentViewMode(
+    "open_presenter_setlist_scripture_view",
+    "list",
+    ["list", "slides"] as const,
+  );
+  const resolveTheme = usePublicThemeResolver();
+  const thumbnailThemes = useMemo(
+    () => new Map(slides.map((slide) => [slide.id, resolveTheme(slide)])),
+    [slides, resolveTheme],
+  );
 
   const ref = item.scripture;
   const isLiveItem =
@@ -90,7 +104,7 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
   if (!ref) return null;
 
   return (
-    <section className="relative flex h-full w-80 min-h-0 flex-col border-r border-border bg-background sm:w-96 shrink-0 select-none overflow-hidden">
+    <section className="relative flex h-full w-full min-w-0 flex-col border-r border-border bg-background select-none overflow-hidden">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2.5 pr-3">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
@@ -115,6 +129,14 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <ViewModeToggle
+            value={viewMode}
+            onChange={setViewMode}
+            options={[
+              { value: "list", label: "Lista", icon: List },
+              { value: "slides", label: "Slides", icon: LayoutGrid },
+            ]}
+          />
           <Button
             type="button"
             variant="ghost"
@@ -142,7 +164,13 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 space-y-2 overflow-y-auto p-3">
+      <div
+        className={
+          viewMode === "slides"
+            ? "grid flex-1 min-h-0 grid-cols-1 gap-2 overflow-y-auto p-3"
+            : "flex-1 min-h-0 space-y-2 overflow-y-auto p-3"
+        }
+      >
         {slides.length === 0 ? (
           <div className="flex h-48 items-center justify-center p-4 text-center text-xs text-muted-foreground">
             Não foi possível carregar o texto deste versículo.
@@ -182,9 +210,17 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
                     </span>
                   )}
                 </div>
-                <p className="whitespace-pre-line text-xs leading-relaxed text-foreground/90">
-                  {slide.lines.join("\n")}
-                </p>
+                {viewMode === "slides" ? (
+                  <SlideThumbnail
+                    content={slide}
+                    theme={thumbnailThemes.get(slide.id) ?? null}
+                    className="rounded-lg pointer-events-none"
+                  />
+                ) : (
+                  <p className="whitespace-pre-line text-xs leading-relaxed text-foreground/90">
+                    {slide.lines.join("\n")}
+                  </p>
+                )}
                 <span className="text-[10px] font-medium text-primary">
                   1 clique: prévia · 2 cliques: apresentar
                 </span>

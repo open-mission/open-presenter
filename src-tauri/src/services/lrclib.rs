@@ -212,6 +212,10 @@ mod tests {
                 },
                 SongSection {
                     section_type: None,
+                    lines: vec![]
+                },
+                SongSection {
+                    section_type: None,
                     lines: vec!["tres".to_string(), "quatro".to_string()]
                 }
             ]

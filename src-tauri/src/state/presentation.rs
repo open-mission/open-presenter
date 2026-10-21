@@ -14,6 +14,7 @@ fn blank_slide() -> LiveSlide {
         "background": { "id": "bg-default", "kind": "color", "value": "#000000" },
         "blackout": false,
         "cleared": true,
+        "textHidden": false,
         "updatedAt": "1970-01-01T00:00:00.000Z"
     }))
     .expect("blank slide JSON é válido")
@@ -120,6 +121,25 @@ mod tests {
             "elements": [],
         }))
         .expect("tema JSON válido")
+    }
+
+    #[test]
+    fn live_slide_sem_text_hidden_no_json_usa_false() {
+        let live: LiveSlide = serde_json::from_value(serde_json::json!({
+            "content": {
+                "id": "x",
+                "kind": "lyric",
+                "title": "T",
+                "lines": ["L"],
+                "notes": null
+            },
+            "background": { "id": "bg", "kind": "color", "value": "#000" },
+            "blackout": false,
+            "cleared": false,
+            "updatedAt": "0"
+        }))
+        .unwrap();
+        assert!(!live.text_hidden);
     }
 
     #[test]

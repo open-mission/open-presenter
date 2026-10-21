@@ -51,6 +51,7 @@ import { getSong } from "@/core/ipc/commands";
 import { SECTION_LABEL } from "@/core/config/lyrics";
 import { computeSlideGroups, type SlideGroup } from "@/core/lib/lyrics";
 import { songGroupColor } from "@/core/lib/songGroups";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import {
   buildSongSlides,
   cleanCommentText,
@@ -184,11 +185,15 @@ export function SongsPage() {
     }
   }, [songs, selectedSongId]);
 
+  const addEmptySlideAtStart = useSongDefaultsStore(
+    (s) => s.addEmptySlideAtStart,
+  );
+
   // Computed slides for selected song
   const slides = useMemo(() => {
     if (!selectedSong) return [];
-    return buildSongSlides(selectedSong);
-  }, [selectedSong]);
+    return buildSongSlides(selectedSong, { addEmptySlideAtStart });
+  }, [selectedSong, addEmptySlideAtStart]);
 
   const songGroups = useSongGroupsStore((s) => s.groups);
 

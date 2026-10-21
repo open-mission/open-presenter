@@ -49,6 +49,7 @@ export interface LiveSlide {
   background: BackgroundLayer;
   blackout: boolean;
   cleared: boolean;
+  textHidden: boolean;
   updatedAt: string;
   nextUp?: SlideContent;
   prevUp?: SlideContent;
@@ -185,6 +186,7 @@ export type WeekStart = "sunday" | "monday";
 
 export interface SongDefaults {
   linesPerSlide: LinesPerSlide;
+  addEmptySlideAtStart: boolean;
 }
 
 export interface EventItem {

@@ -67,6 +67,7 @@ async function buildScriptureItem(item: EventItem): Promise<RemoteItem> {
 async function buildRemoteItem(
   item: EventItem,
   cache: Record<string, Song>,
+  addEmptySlideAtStart: boolean,
 ): Promise<RemoteItem> {
   if (item.scripture) {
     return buildScriptureItem(item);
@@ -95,7 +96,9 @@ async function buildRemoteItem(
   if (item.songId) {
     const song = cache[item.songId] ?? (await getSong(item.songId));
     if (song) {
-      const slides: RemoteSlide[] = buildSongSlides(song).map((entry) => ({
+      const slides: RemoteSlide[] = buildSongSlides(song, {
+        addEmptySlideAtStart,
+      }).map((entry) => ({
         index: entry.index,
         label: entry.label,
         sectionType: entry.sectionType,
@@ -127,13 +130,16 @@ export async function buildRemoteSetlist(
   event: ServiceEvent,
   cache: Record<string, Song> = {},
   groups: SongGroupConfig[] = [],
+  addEmptySlideAtStart = false,
 ): Promise<RemoteSetlist> {
   const parts = await Promise.all(
     event.parts.map(async (part) => ({
       id: part.id,
       title: part.title || "Programação",
       items: await Promise.all(
-        part.items.map((item) => buildRemoteItem(item, cache)),
+        part.items.map((item) =>
+          buildRemoteItem(item, cache, addEmptySlideAtStart),
+        ),
       ),
     })),
   );
