@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { openThemeEditor } from "@/core/ipc/commands";
 import type { SlideContent, SlideTheme } from "@/core/types";
-import { ScaledStage } from "@/features/slide-themes/ScaledStage";
+import { ThemePreview } from "./ThemePreview";
 import {
   DEFAULT_MUSIC_THEME_GUID,
   DEFAULT_PUBLIC_THEME_GUID,
@@ -419,7 +419,6 @@ export function StudioPage() {
                 !live.cleared &&
                 !live.blackout &&
                 live.content.kind !== "blank";
-              const preview = previewTheme(theme, "text");
 
               return (
                 <div
@@ -436,18 +435,7 @@ export function StudioPage() {
                     className="relative aspect-video w-full overflow-hidden bg-black cursor-pointer"
                     title="1 clique: ver detalhes · 2 cliques: apresentar ao vivo"
                   >
-                    <ScaledStage
-                      theme={preview.theme}
-                      asset={preview.asset}
-                      props={{
-                        title: theme.title,
-                        titulo: theme.title,
-                        lyrics: theme.title,
-                        letra: theme.title,
-                        text: theme.title,
-                        texto: theme.title,
-                      }}
-                    />
+                    <ThemePreview theme={theme} asset="text" title={theme.title} />
 
                     {/* Status Badge */}
                     <div className="absolute left-2 top-2 z-20 pointer-events-none">
@@ -595,7 +583,6 @@ export function StudioPage() {
                 !live.cleared &&
                 !live.blackout &&
                 live.content.kind !== "blank";
-              const preview = previewTheme(theme, "text");
 
               return (
                 <div
@@ -611,18 +598,7 @@ export function StudioPage() {
                       className="relative h-12 w-20 shrink-0 overflow-hidden rounded-md bg-black border border-border/80 cursor-pointer"
                       onClick={() => void openThemeEditor(theme.guid)}
                     >
-                      <ScaledStage
-                        theme={preview.theme}
-                        asset={preview.asset}
-                        props={{
-                          title: theme.title,
-                          titulo: theme.title,
-                          lyrics: theme.title,
-                          letra: theme.title,
-                          text: theme.title,
-                          texto: theme.title,
-                        }}
-                      />
+                      <ThemePreview theme={theme} asset="text" title={theme.title} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
