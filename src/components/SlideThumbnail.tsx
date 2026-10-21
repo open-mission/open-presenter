@@ -48,6 +48,7 @@ export const SlideThumbnail = memo(function SlideThumbnail({
             hideText: textHidden,
           })}
           showBackground={showBackground}
+          disableShader
         />
       ) : (
         <SlideCanvas

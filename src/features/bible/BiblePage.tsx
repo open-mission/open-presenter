@@ -51,6 +51,7 @@ export function BiblePage() {
   const activePartIndex = useBibleStore((s) => s.activePartIndex);
   const liveVerseKey = useBibleStore((s) => s.liveVerseKey);
   const splitLongVerses = useBibleStore((s) => s.splitLongVerses);
+  const splitThresholdChars = useBibleStore((s) => s.splitThresholdChars);
   const setSplitLongVerses = useBibleStore((s) => s.setSplitLongVerses);
   const getVerseParts = useBibleStore((s) => s.getVerseParts);
 
@@ -160,6 +161,8 @@ export function BiblePage() {
     activeChapter,
     getVerseParts,
     resolveTheme,
+    splitLongVerses,
+    splitThresholdChars,
   ]);
 
   const isCurrentLiveScripture =
