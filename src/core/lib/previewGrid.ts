@@ -16,7 +16,7 @@ export const SETLIST_PREVIEW_GRID: PreviewGridConfig = {
   minLevel: 1,
   maxLevel: 5,
   defaultLevel: 4,
-  minWidths: { 1: 340, 2: 270, 3: 210, 4: 165, 5: 130 },
+  minWidths: { 1: 260, 2: 170, 3: 114, 4: 84, 5: 62 },
 };
 
 export function clampPreviewLevel(config: PreviewGridConfig, level: number): number {
