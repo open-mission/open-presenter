@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
 import { useMediaPort } from "@/core/config/mediaPort";
 import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
@@ -15,6 +15,7 @@ import {
 import { typographyFromCss } from "./textMeasure.ts";
 import { useAutoFit } from "./useAutoFit.ts";
 import { buildFitGeometryKey } from "./fitGeometry.ts";
+import { areElementRenderPropsEqual } from "./elementMemo.ts";
 
 const BACKGROUND_KEYS = new Set([
   "background",
@@ -387,7 +388,7 @@ function AutoScaledText({
   );
 }
 
-function ThemeElementView({
+const ThemeElementView = memo(function ThemeElementViewImpl({
   element,
   props,
 }: {
@@ -456,7 +457,7 @@ function ThemeElementView({
         />
       );
   }
-}
+}, areElementRenderPropsEqual);
 
 export function ThemeRenderer({
   theme,
