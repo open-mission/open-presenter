@@ -92,6 +92,12 @@ pub fn parse_sections(text: &str) -> Vec<SongSection> {
         }
 
         if let Some(name) = label_from_line(trimmed) {
+            if blank_run >= 2 && can_blank {
+                sections.push(SongSection {
+                    section_type: None,
+                    lines: Vec::new(),
+                });
+            }
             // Comentários que imediatamente antecedem um rótulo ## (como //Primeira Estrofe em Holyrics)
             // são cabeçalhos descritivos e não pertencem ao bloco anterior
             lines.retain(|l| !l.trim().starts_with("//"));
@@ -247,6 +253,44 @@ mod tests {
         let text = sections_to_text(&original);
         assert_eq!(text, "A\n\n\nB");
         assert_eq!(parse_sections(&text), original);
+    }
+
+    #[test]
+    fn rotulo_apos_slide_vazio_preserva_o_vazio() {
+        let sections = parse_sections("A\n\n\n##(Refrão)\nB");
+        assert_eq!(
+            sections,
+            blocks(vec![
+                (None, vec!["A"]),
+                (None, vec![]),
+                (Some(SectionType::Chorus), vec!["B"]),
+            ])
+        );
+    }
+
+    #[test]
+    fn round_trip_preserva_vazio_antes_de_rotulo() {
+        let original = blocks(vec![
+            (None, vec!["A"]),
+            (None, vec![]),
+            (Some(SectionType::Chorus), vec!["B"]),
+        ]);
+        let text = sections_to_text(&original);
+        assert_eq!(text, "A\n\n\n##(Refrão)\nB");
+        assert_eq!(parse_sections(&text), original);
+    }
+
+    #[test]
+    fn saida_do_editor_com_rotulo_mantem_o_vazio() {
+        let sections = parse_sections("A\n\n\n## Refrão\nB");
+        assert_eq!(
+            sections,
+            blocks(vec![
+                (None, vec!["A"]),
+                (None, vec![]),
+                (Some(SectionType::Chorus), vec!["B"]),
+            ])
+        );
     }
 
     #[test]
