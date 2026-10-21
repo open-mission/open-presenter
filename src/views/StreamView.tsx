@@ -99,6 +99,7 @@ export default function StreamView() {
           theme={theme}
           asset={asset}
           cleared={shouldClear}
+          textHidden={live.textHidden}
           durationMs={300}
           transitionBackground={false}
         />

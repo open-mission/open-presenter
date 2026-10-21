@@ -147,6 +147,7 @@ export default function PublicView() {
             theme={theme}
             asset={asset}
             cleared={live.cleared}
+            textHidden={live.textHidden}
             durationMs={300}
             transitionBackground={false}
           />

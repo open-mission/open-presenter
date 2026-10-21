@@ -499,6 +499,7 @@ export function LivePreview() {
                               theme={liveTheme}
                               asset={kindToAsset(live.content.kind)}
                               cleared={live.cleared}
+                              textHidden={live.textHidden}
                               durationMs={300}
                               transitionBackground={false}
                             />
