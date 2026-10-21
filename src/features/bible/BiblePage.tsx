@@ -88,6 +88,11 @@ export function BiblePage() {
     "list",
     ["list", "slides"] as const,
   );
+  const [booksView, setBooksView] = usePersistentViewMode(
+    "open_presenter_bible_books_view",
+    "list",
+    ["list", "cards"] as const,
+  );
   const resolveTheme = usePublicThemeResolver();
 
   const [quickRefInput, setQuickRefInput] = useState("");
@@ -535,7 +540,23 @@ export function BiblePage() {
         /* Layout Principal 3 Colunas: [Livros] | [Capítulos] | [Versículos] */
         <main className="flex flex-1 overflow-hidden">
           {/* Coluna 1: Livros da Bíblia */}
-          <section className="flex w-64 shrink-0 flex-col border-r border-border bg-card/25">
+          <section
+            className={cn(
+              "flex shrink-0 flex-col border-r border-border bg-card/25",
+              booksView === "cards" ? "w-80 xl:w-96" : "w-64",
+            )}
+          >
+            <div className="flex h-9 items-center justify-between border-b border-border/60 px-3">
+              <span className="text-xs font-bold text-foreground">Livros</span>
+              <ViewModeToggle
+                value={booksView}
+                onChange={setBooksView}
+                options={[
+                  { value: "list", label: "Lista", icon: List },
+                  { value: "cards", label: "Cards", icon: LayoutGrid },
+                ]}
+              />
+            </div>
             {/* Filtros OT / NT */}
             <div className="p-2 border-b border-border/60 space-y-2">
               <div className="flex rounded-lg bg-muted/60 p-0.5 text-xs font-medium">
@@ -583,39 +604,97 @@ export function BiblePage() {
             </div>
 
             {/* Lista de Livros */}
-            <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
-              {filteredBooks.map((book) => {
-                const isActive = book.id === activeBookId;
-                return (
-                  <button
-                    key={book.id}
-                    type="button"
-                    onClick={() => void selectBook(book.id)}
-                    className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer ${
-                      isActive
-                        ? "bg-primary text-primary-foreground font-bold shadow-xs"
-                        : "text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5 truncate">
-                      <span className={`text-[11px] font-mono shrink-0 ${isActive ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                        {book.abbrev}
-                      </span>
-                      <span className="truncate">{book.name}</span>
-                    </span>
-                    <span
-                      className={`text-[10px] rounded px-1 shrink-0 ${
+            {booksView === "cards" ? (
+              <div className="flex-1 overflow-y-auto p-2">
+                <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
+                  {filteredBooks.map((book) => {
+                    const isActive = book.id === activeBookId;
+                    const isOld = book.testamentReferenceId === 1;
+                    return (
+                      <button
+                        key={book.id}
+                        type="button"
+                        onClick={() => void selectBook(book.id)}
+                        className={cn(
+                          "flex min-h-20 flex-col justify-between rounded-lg border p-2.5 text-left transition-all",
+                          isActive
+                            ? "border-primary bg-primary text-primary-foreground shadow-xs"
+                            : isOld
+                            ? "border-amber-500/30 bg-amber-500/5 hover:border-amber-500/60"
+                            : "border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/60",
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-1">
+                          <span className="text-xs font-bold leading-tight">
+                            {book.name}
+                          </span>
+                          <span
+                            className={cn(
+                              "font-mono text-[10px]",
+                              isActive
+                                ? "text-primary-foreground/80"
+                                : "text-muted-foreground",
+                            )}
+                          >
+                            {book.abbrev}
+                          </span>
+                        </div>
+                        <span
+                          className={cn(
+                            "text-[10px]",
+                            isActive
+                              ? "text-primary-foreground/80"
+                              : "text-muted-foreground",
+                          )}
+                        >
+                          {book.chapterCount} capítulos
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
+                {filteredBooks.map((book) => {
+                  const isActive = book.id === activeBookId;
+                  return (
+                    <button
+                      key={book.id}
+                      type="button"
+                      onClick={() => void selectBook(book.id)}
+                      className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer ${
                         isActive
-                          ? "bg-primary-foreground/20 text-primary-foreground"
-                          : "bg-muted text-muted-foreground"
+                          ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                          : "text-foreground hover:bg-muted"
                       }`}
                     >
-                      {book.chapterCount}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                      <span className="flex items-center gap-1.5 truncate">
+                        <span
+                          className={`text-[11px] font-mono shrink-0 ${
+                            isActive
+                              ? "text-primary-foreground/80"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {book.abbrev}
+                        </span>
+                        <span className="truncate">{book.name}</span>
+                      </span>
+                      <span
+                        className={`text-[10px] rounded px-1 shrink-0 ${
+                          isActive
+                            ? "bg-primary-foreground/20 text-primary-foreground"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {book.chapterCount}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </section>
 
           {/* Coluna 2: Capítulos do Livro Selecionado */}
