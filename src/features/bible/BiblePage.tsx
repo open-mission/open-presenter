@@ -37,6 +37,7 @@ import { useBibleStore } from "./store";
 import { usePresentationStore } from "../presentation/store";
 import { CompareModal } from "./CompareModal";
 import { BibleCommandPalette } from "./BibleCommandPalette";
+import { shouldOpenPaletteOnKey } from "./bibleShortcuts";
 import { toast } from "sonner";
 import { isTauri } from "@/core/ipc/tauri";
 
@@ -99,7 +100,13 @@ export function BiblePage() {
   const [quickRefInput, setQuickRefInput] = useState("");
   const [wordSearchInput, setWordSearchInput] = useState("");
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [paletteInitialQuery, setPaletteInitialQuery] = useState("");
   const versesContainerRef = useRef<HTMLDivElement>(null);
+
+  function openPalette(initial = "") {
+    setPaletteInitialQuery(initial);
+    setIsCommandPaletteOpen(true);
+  }
 
   useEffect(() => {
     void loadInitial();
@@ -186,7 +193,8 @@ export function BiblePage() {
       // Abre Command Palette com Cmd+K (Mac) ou Ctrl+K (Windows/Linux)
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setIsCommandPaletteOpen((prev) => !prev);
+        if (!isCommandPaletteOpen) openPalette();
+        else setIsCommandPaletteOpen(false);
         return;
       }
 
@@ -194,8 +202,35 @@ export function BiblePage() {
       if (
         target?.tagName === "INPUT" ||
         target?.tagName === "TEXTAREA" ||
-        target?.isContentEditable
+        target?.isContentEditable ||
+        target?.closest('[role="dialog"]')
       ) {
+        return;
+      }
+
+      // Se a paleta já está aberta, não captura mais nada aqui
+      if (isCommandPaletteOpen) {
+        return;
+      }
+
+      // Digitação direta de um caractere abre a paleta pré-preenchida,
+      // respeitando a precedência dos atalhos globais (B/C/F) com apresentação ativa
+      const live = usePresentationStore.getState().live;
+      const presentationActive = live.content.kind !== "blank";
+      if (
+        shouldOpenPaletteOnKey(
+          {
+            key: e.key,
+            metaKey: e.metaKey,
+            ctrlKey: e.ctrlKey,
+            altKey: e.altKey,
+          },
+          presentationActive,
+        )
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        openPalette(e.key);
         return;
       }
 
@@ -258,8 +293,8 @@ export function BiblePage() {
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [
     presentCurrentVerse,
     presentNextVerse,
@@ -268,6 +303,7 @@ export function BiblePage() {
     isCurrentLiveScripture,
     isSearching,
     clearSearch,
+    isCommandPaletteOpen,
   ]);
 
   async function handleImport() {
@@ -401,7 +437,7 @@ export function BiblePage() {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => setIsCommandPaletteOpen(true)}
+          onClick={() => openPalette()}
           className="h-9 px-3 gap-2 text-xs font-semibold cursor-pointer border-border/70 hover:border-primary/60 bg-background shrink-0"
           title="Abrir Command Palette para buscar referências bíblicas (⌘K / Ctrl+K)"
         >
@@ -1076,7 +1112,11 @@ export function BiblePage() {
       {/* Command Palette de Referências Bíblicas (⌘K / Ctrl+K) */}
       <BibleCommandPalette
         open={isCommandPaletteOpen}
-        onOpenChange={setIsCommandPaletteOpen}
+        onOpenChange={(open) => {
+          setIsCommandPaletteOpen(open);
+          if (!open) setPaletteInitialQuery("");
+        }}
+        initialQuery={paletteInitialQuery}
       />
     </div>
   );
