@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -7,6 +8,7 @@ import {
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { Lock } from "lucide-react";
 import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
+import { createFrameCoalescer, type FrameCoalescer } from "@/core/lib/frameCoalescer";
 import { ThemeRenderer } from "../slide-themes/ThemeRenderer";
 import { useThemeEditorStore } from "./store";
 import {
@@ -63,6 +65,8 @@ interface Gesture {
 type PreviewPatch = Partial<Pick<ThemeElement, "x" | "y">> & {
   css?: Record<string, string>;
 };
+
+type PointerPos = { clientX: number; clientY: number };
 
 export interface SmartGuide {
   type: "vertical" | "horizontal";
@@ -129,6 +133,21 @@ export function Canvas({
     Record<string, { w: number; h: number }>
   >({});
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const updateGestureRef = useRef<(pos: PointerPos) => void>(() => {});
+  const gestureFrameRef = useRef<FrameCoalescer<PointerPos> | null>(null);
+
+  updateGestureRef.current = updateGesture;
+
+  if (gestureFrameRef.current === null) {
+    gestureFrameRef.current = createFrameCoalescer<PointerPos>((pos) => {
+      updateGestureRef.current(pos);
+    });
+  }
+
+  useEffect(() => {
+    return () => gestureFrameRef.current?.cancel();
+  }, []);
 
   useLayoutEffect(() => {
     if (typeof zoom === "number") {
@@ -685,6 +704,7 @@ export function Canvas({
     const g = gestureRef.current;
     gestureRef.current = null;
     setActiveGuides([]);
+    gestureFrameRef.current?.cancel();
     if (g) commitGesture(g);
   }
 
@@ -692,6 +712,7 @@ export function Canvas({
     e: ReactPointerEvent<HTMLDivElement>,
     el: ThemeElement,
   ): void {
+    gestureFrameRef.current?.cancel();
     const pos = toLogical(e);
     const box = resolveBox(el);
     let groupOrigs: Record<string, { left: number; top: number; width: number; height: number }> | undefined;
@@ -720,6 +741,7 @@ export function Canvas({
     el: ThemeElement,
     dir: ResizeDir,
   ): void {
+    gestureFrameRef.current?.cancel();
     const pos = toLogical(e);
     const box = resolveBox(el);
     gestureRef.current = {
@@ -910,16 +932,20 @@ export function Canvas({
                       beginMove(e, el);
                     }}
                     onPointerMove={(e) => {
-                      if (gestureRef.current?.id === el.id) updateGesture(e);
+                      if (gestureRef.current?.id === el.id) {
+                        gestureFrameRef.current?.push({ clientX: e.clientX, clientY: e.clientY });
+                      }
                     }}
                     onPointerUp={(e) => {
                       if (gestureRef.current?.id === el.id) {
                         e.stopPropagation();
+                        gestureFrameRef.current?.flush();
                         endGesture();
                       }
                     }}
                     onPointerCancel={() => {
                       if (gestureRef.current?.id === el.id) {
+                        gestureFrameRef.current?.cancel();
                         gestureRef.current = null;
                         setPreview((prev) => {
                           const next = { ...prev };
@@ -978,12 +1004,13 @@ export function Canvas({
                                 onPointerMove={(e) => {
                                   if (gestureRef.current?.id === el.id) {
                                     e.stopPropagation();
-                                    updateGesture(e);
+                                    gestureFrameRef.current?.push({ clientX: e.clientX, clientY: e.clientY });
                                   }
                                 }}
                                 onPointerUp={(e) => {
                                   if (gestureRef.current?.id === el.id) {
                                     e.stopPropagation();
+                                    gestureFrameRef.current?.flush();
                                     endGesture();
                                   }
                                 }}
