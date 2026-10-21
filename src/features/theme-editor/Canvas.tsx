@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -7,8 +8,10 @@ import {
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
 import { Lock } from "lucide-react";
 import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
+import { createFrameCoalescer, type FrameCoalescer } from "@/core/lib/frameCoalescer";
 import { ThemeRenderer } from "../slide-themes/ThemeRenderer";
 import { useThemeEditorStore } from "./store";
+import { buildSnapBoxes, type ElementBox } from "./snapBoxes";
 import {
   LOGICAL_H,
   LOGICAL_W,
@@ -58,11 +61,14 @@ interface Gesture {
   orig: { left: number; top: number; width: number; height: number };
   last: { left: number; top: number; width: number; height: number };
   groupOrigs?: Record<string, { left: number; top: number; width: number; height: number }>;
+  snapBoxes?: Map<string, ElementBox>;
 }
 
 type PreviewPatch = Partial<Pick<ThemeElement, "x" | "y">> & {
   css?: Record<string, string>;
 };
+
+type PointerPos = { clientX: number; clientY: number };
 
 export interface SmartGuide {
   type: "vertical" | "horizontal";
@@ -71,6 +77,8 @@ export interface SmartGuide {
 }
 
 const MIN_SIZE = 20;
+
+const EMPTY_SNAP_BOXES: ReadonlyMap<string, ElementBox> = new Map();
 
 const FALLBACK_SIZE: Record<ThemeElement["type"], { w: number; h: number }> = {
   TEXT: { w: 400, h: 100 },
@@ -129,6 +137,21 @@ export function Canvas({
     Record<string, { w: number; h: number }>
   >({});
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  const updateGestureRef = useRef<(pos: PointerPos) => void>(() => {});
+  const gestureFrameRef = useRef<FrameCoalescer<PointerPos> | null>(null);
+
+  updateGestureRef.current = updateGesture;
+
+  if (gestureFrameRef.current === null) {
+    gestureFrameRef.current = createFrameCoalescer<PointerPos>((pos) => {
+      updateGestureRef.current(pos);
+    });
+  }
+
+  useEffect(() => {
+    return () => gestureFrameRef.current?.cancel();
+  }, []);
 
   useLayoutEffect(() => {
     if (typeof zoom === "number") {
@@ -277,7 +300,7 @@ export function Canvas({
     dy: number,
     width: number,
     height: number,
-    excludeId: string,
+    boxes: ReadonlyMap<string, ElementBox>,
   ): { left: number; top: number; guides: SmartGuide[] } {
     if (!snap) {
       return {
@@ -301,8 +324,6 @@ export function Canvas({
     const marginR = logicalW * 0.95;
     const centerTargetX = logicalW / 2;
 
-    const otherElements = visibleElements.filter((el) => el.id !== excludeId);
-
     let snappedX = false;
     if (Math.abs(left - marginL) <= SNAP_DIST) {
       left = marginL;
@@ -325,26 +346,25 @@ export function Canvas({
       guides.push({ type: "vertical", pos: logicalW, label: `${logicalW}px` });
       snappedX = true;
     } else {
-      for (const other of otherElements) {
-        const box = resolveBox(other);
+      for (const [otherId, box] of boxes) {
         const otherRight = box.left + box.width;
         const otherCenterX = box.left + box.width / 2;
 
         if (Math.abs(left - box.left) <= SNAP_DIST) {
           left = box.left;
-          guides.push({ type: "vertical", pos: box.left, label: other.id });
+          guides.push({ type: "vertical", pos: box.left, label: otherId });
           snappedX = true;
           break;
         }
         if (Math.abs(right - otherRight) <= SNAP_DIST) {
           left = otherRight - width;
-          guides.push({ type: "vertical", pos: otherRight, label: other.id });
+          guides.push({ type: "vertical", pos: otherRight, label: otherId });
           snappedX = true;
           break;
         }
         if (Math.abs(centerX - otherCenterX) <= SNAP_DIST) {
           left = Math.round(otherCenterX - width / 2);
-          guides.push({ type: "vertical", pos: otherCenterX, label: other.id });
+          guides.push({ type: "vertical", pos: otherCenterX, label: otherId });
           snappedX = true;
           break;
         }
@@ -383,26 +403,25 @@ export function Canvas({
       guides.push({ type: "horizontal", pos: logicalH, label: `${logicalH}px` });
       snappedY = true;
     } else {
-      for (const other of otherElements) {
-        const box = resolveBox(other);
+      for (const [otherId, box] of boxes) {
         const otherBottom = box.top + box.height;
         const otherCenterY = box.top + box.height / 2;
 
         if (Math.abs(top - box.top) <= SNAP_DIST) {
           top = box.top;
-          guides.push({ type: "horizontal", pos: box.top, label: other.id });
+          guides.push({ type: "horizontal", pos: box.top, label: otherId });
           snappedY = true;
           break;
         }
         if (Math.abs(bottom - otherBottom) <= SNAP_DIST) {
           top = otherBottom - height;
-          guides.push({ type: "horizontal", pos: otherBottom, label: other.id });
+          guides.push({ type: "horizontal", pos: otherBottom, label: otherId });
           snappedY = true;
           break;
         }
         if (Math.abs(centerY - otherCenterY) <= SNAP_DIST) {
           top = Math.round(otherCenterY - height / 2);
-          guides.push({ type: "horizontal", pos: otherCenterY, label: other.id });
+          guides.push({ type: "horizontal", pos: otherCenterY, label: otherId });
           snappedY = true;
           break;
         }
@@ -610,7 +629,7 @@ export function Canvas({
         dy,
         g.orig.width,
         g.orig.height,
-        g.id,
+        g.snapBoxes ?? EMPTY_SNAP_BOXES,
       );
       g.last = {
         ...g.last,
@@ -685,6 +704,7 @@ export function Canvas({
     const g = gestureRef.current;
     gestureRef.current = null;
     setActiveGuides([]);
+    gestureFrameRef.current?.cancel();
     if (g) commitGesture(g);
   }
 
@@ -692,14 +712,17 @@ export function Canvas({
     e: ReactPointerEvent<HTMLDivElement>,
     el: ThemeElement,
   ): void {
+    gestureFrameRef.current?.cancel();
     const pos = toLogical(e);
     const box = resolveBox(el);
+    const excludeIds = new Set([el.id]);
     let groupOrigs: Record<string, { left: number; top: number; width: number; height: number }> | undefined;
     if (el.groupId) {
       groupOrigs = {};
       for (const member of theme.elements) {
         if (member.groupId === el.groupId && !member.locked) {
           groupOrigs[member.id] = resolveBox(member);
+          excludeIds.add(member.id);
         }
       }
     }
@@ -711,6 +734,7 @@ export function Canvas({
       orig: box,
       last: { ...box },
       groupOrigs,
+      snapBoxes: buildSnapBoxes(visibleElements, excludeIds, resolveBox),
     };
     e.currentTarget.setPointerCapture(e.pointerId);
   }
@@ -720,6 +744,7 @@ export function Canvas({
     el: ThemeElement,
     dir: ResizeDir,
   ): void {
+    gestureFrameRef.current?.cancel();
     const pos = toLogical(e);
     const box = resolveBox(el);
     gestureRef.current = {
@@ -910,16 +935,20 @@ export function Canvas({
                       beginMove(e, el);
                     }}
                     onPointerMove={(e) => {
-                      if (gestureRef.current?.id === el.id) updateGesture(e);
+                      if (gestureRef.current?.id === el.id) {
+                        gestureFrameRef.current?.push({ clientX: e.clientX, clientY: e.clientY });
+                      }
                     }}
                     onPointerUp={(e) => {
                       if (gestureRef.current?.id === el.id) {
                         e.stopPropagation();
+                        gestureFrameRef.current?.flush();
                         endGesture();
                       }
                     }}
                     onPointerCancel={() => {
                       if (gestureRef.current?.id === el.id) {
+                        gestureFrameRef.current?.cancel();
                         gestureRef.current = null;
                         setPreview((prev) => {
                           const next = { ...prev };
@@ -978,12 +1007,13 @@ export function Canvas({
                                 onPointerMove={(e) => {
                                   if (gestureRef.current?.id === el.id) {
                                     e.stopPropagation();
-                                    updateGesture(e);
+                                    gestureFrameRef.current?.push({ clientX: e.clientX, clientY: e.clientY });
                                   }
                                 }}
                                 onPointerUp={(e) => {
                                   if (gestureRef.current?.id === el.id) {
                                     e.stopPropagation();
+                                    gestureFrameRef.current?.flush();
                                     endGesture();
                                   }
                                 }}
