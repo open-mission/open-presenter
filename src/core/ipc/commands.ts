@@ -163,6 +163,14 @@ export async function setCloseToTray(enabled: boolean): Promise<void> {
   await invokeStrict("set_close_to_tray", { enabled });
 }
 
+export async function getStartMaximized(): Promise<boolean> {
+  return (await invokeCommand<boolean>("get_start_maximized")) ?? true;
+}
+
+export async function setStartMaximized(enabled: boolean): Promise<void> {
+  await invokeStrict("set_start_maximized", { enabled });
+}
+
 export async function getConnectedClients(): Promise<ConnectedClient[]> {
   return (await invokeCommand<ConnectedClient[]>("get_connected_clients")) ?? [];
 }
