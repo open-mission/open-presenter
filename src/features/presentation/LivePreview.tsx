@@ -34,8 +34,7 @@ import { usePreferencesStore } from "@/features/preferences/store";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
-import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
-import { contextForSlide } from "@/features/slide-themes/themeResolution";
+import { usePublicThemeResolver } from "@/features/slide-themes/usePublicThemeResolver";
 import { usePresentationStore } from "./store";
 import { SlideCanvas } from "./SlideCanvas";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
@@ -58,10 +57,7 @@ export function LivePreview() {
   const serverRunning = useOutputManagerStore((s) => s.server.running);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
   const loadThemes = useSlideThemesStore((s) => s.load);
-  const themes = useSlideThemesStore((s) => s.themes);
-  const bindings = useSlideThemesStore((s) => s.bindings);
-  const eventThemeGuid = useSlideThemesStore((s) => s.eventThemeGuid);
-  const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
+  const resolvePublicTheme = usePublicThemeResolver();
 
   // Layout & Visibility store (persistente)
   const showPreview = usePreviewLayoutStore((s) => s.showPreview);
@@ -77,50 +73,14 @@ export function LivePreview() {
   const resetZoom = usePreviewLayoutStore((s) => s.resetZoom);
   const showAll = usePreviewLayoutStore((s) => s.showAll);
 
-  const previewContext = preview
-    ? contextForSlide(preview.kind, preview.media?.kind) ?? "music"
-    : "music";
-  const liveContext =
-    contextForSlide(live.content.kind, live.content.media?.kind) ?? "music";
-
-  const previewTheme = useMemo(() => {
-    if (!preview) return null;
-    let base = preview.media?.themeId
-      ? themes.find((t) => t.guid === preview.media?.themeId) ?? null
-      : null;
-    if (!base) {
-      base = resolveTheme(
-        "public",
-        preview.kind,
-        preview.media?.themeId,
-        preview.media?.kind,
-      );
-    }
-    if (base?.pages?.length) {
-      const page = getPageForContext(base, previewContext) ?? base.pages[0];
-      return page ? materializePage(base, page) : base;
-    }
-    return base;
-  }, [preview, previewContext, themes, bindings, eventThemeGuid, resolveTheme]);
-
-  const liveTheme = useMemo(() => {
-    let base = live.content.media?.themeId
-      ? themes.find((t) => t.guid === live.content.media?.themeId) ?? null
-      : null;
-    if (!base) {
-      base = resolveTheme(
-        "public",
-        live.content.kind,
-        live.content.media?.themeId,
-        live.content.media?.kind,
-      );
-    }
-    if (base?.pages?.length) {
-      const page = getPageForContext(base, liveContext) ?? base.pages[0];
-      return page ? materializePage(base, page) : base;
-    }
-    return base;
-  }, [live.content, liveContext, themes, bindings, eventThemeGuid, resolveTheme]);
+  const previewTheme = useMemo(
+    () => resolvePublicTheme(preview),
+    [preview, resolvePublicTheme],
+  );
+  const liveTheme = useMemo(
+    () => resolvePublicTheme(live.content),
+    [live.content, resolvePublicTheme],
+  );
 
   const effectiveBackground: BackgroundLayer = useMemo(() => {
     const isPresentation = Boolean(live.content.media?.themeId);
