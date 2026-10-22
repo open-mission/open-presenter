@@ -31,6 +31,11 @@ export function usePublicThemeResolver(): PublicThemeResolver {
         );
       }
       if (base?.pages?.length) {
+        if (base.category === "presentation") {
+          const slideIndex = content.media?.index ?? 0;
+          const page = base.pages[slideIndex] ?? base.pages[0];
+          return page ? materializePage(base, page) : base;
+        }
         const page = getPageForContext(base, context) ?? base.pages[0];
         return page ? materializePage(base, page) : base;
       }

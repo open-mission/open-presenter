@@ -44,6 +44,8 @@ export interface CanvasProps {
   showGrid: boolean;
   gridSize: number;
   showLimit: boolean;
+  showRulers?: boolean;
+  showGuides?: boolean;
   snap: boolean;
   zoom?: "fit" | number;
   resolution?: { width: number; height: number };
@@ -85,6 +87,9 @@ const FALLBACK_SIZE: Record<ThemeElement["type"], { w: number; h: number }> = {
   IMAGE: { w: 320, h: 180 },
   VIDEO: { w: 320, h: 180 },
   RECTANGLE: { w: 200, h: 120 },
+  CIRCLE: { w: 160, h: 160 },
+  TRIANGLE: { w: 160, h: 160 },
+  STAR: { w: 180, h: 180 },
 };
 
 const HANDLE_CURSORS: Record<ResizeDir, string> = {
@@ -109,6 +114,67 @@ const HANDLE_OFFSETS: Record<ResizeDir, { x: number; y: number }> = {
   w: { x: 0, y: 0.5 },
 };
 
+function RulerTop({ width }: { width: number }) {
+  const step = 100;
+  const ticks = [];
+  for (let x = 0; x <= width; x += 20) {
+    const isMajor = x % step === 0;
+    const isMid = x % (step / 2) === 0;
+    const h = isMajor ? 14 : isMid ? 9 : 5;
+    ticks.push(
+      <g key={x}>
+        <line x1={x} y1={20 - h} x2={x} y2={20} stroke="rgba(255,255,255,0.35)" strokeWidth={1} />
+        {isMajor && x > 0 && (
+          <text x={x + 3} y={11} fill="rgba(255,255,255,0.7)" fontSize={9} fontFamily="monospace">
+            {x}
+          </text>
+        )}
+      </g>
+    );
+  }
+  return (
+    <div className="absolute top-0 left-0 right-0 h-5 bg-card/85 border-b border-border/70 z-30 pointer-events-none select-none overflow-hidden">
+      <svg width={width} height={20} className="w-full h-full">
+        {ticks}
+      </svg>
+    </div>
+  );
+}
+
+function RulerLeft({ height }: { height: number }) {
+  const step = 100;
+  const ticks = [];
+  for (let y = 0; y <= height; y += 20) {
+    const isMajor = y % step === 0;
+    const isMid = y % (step / 2) === 0;
+    const w = isMajor ? 14 : isMid ? 9 : 5;
+    ticks.push(
+      <g key={y}>
+        <line x1={20 - w} y1={y} x2={20} y2={y} stroke="rgba(255,255,255,0.35)" strokeWidth={1} />
+        {isMajor && y > 0 && (
+          <text
+            x={11}
+            y={y - 3}
+            fill="rgba(255,255,255,0.7)"
+            fontSize={9}
+            fontFamily="monospace"
+            transform={`rotate(-90, 11, ${y - 3})`}
+          >
+            {y}
+          </text>
+        )}
+      </g>
+    );
+  }
+  return (
+    <div className="absolute top-0 bottom-0 left-0 w-5 bg-card/85 border-r border-border/70 z-30 pointer-events-none select-none overflow-hidden">
+      <svg width={20} height={height} className="w-full h-full">
+        {ticks}
+      </svg>
+    </div>
+  );
+}
+
 export function Canvas({
   theme,
   asset,
@@ -119,6 +185,8 @@ export function Canvas({
   showGrid,
   gridSize,
   showLimit,
+  showRulers = false,
+  showGuides = true,
   snap,
   zoom = "fit",
   resolution,
@@ -838,6 +906,40 @@ export function Canvas({
                   backgroundSize: `${gridSize}px ${gridSize}px`,
                 }}
               />
+            )}
+            {showRulers && (
+              <>
+                <RulerTop width={logicalW} />
+                <RulerLeft height={logicalH} />
+              </>
+            )}
+            {showGuides && (
+              <>
+                {/* Guia Central Vertical */}
+                <div
+                  className="pointer-events-none absolute top-0 bottom-0 z-20 border-l border-dashed border-indigo-400/40"
+                  style={{ left: `${logicalW / 2}px` }}
+                />
+                {/* Guia Central Horizontal */}
+                <div
+                  className="pointer-events-none absolute left-0 right-0 z-20 border-t border-dashed border-indigo-400/40"
+                  style={{ top: `${logicalH / 2}px` }}
+                />
+                {/* Margem de Título Segura (80%) */}
+                <div
+                  className="pointer-events-none absolute rounded-sm border border-dotted border-amber-400/30 z-20"
+                  style={{
+                    left: logicalW * 0.1,
+                    top: logicalH * 0.1,
+                    width: logicalW * 0.8,
+                    height: logicalH * 0.8,
+                  }}
+                >
+                  <span className="absolute -top-4 left-0 text-[9px] text-amber-400/70 font-mono">
+                    Margem de Título (80%)
+                  </span>
+                </div>
+              </>
             )}
             {showLimit && (
               <div

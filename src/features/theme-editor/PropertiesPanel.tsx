@@ -16,7 +16,9 @@ import {
   ArrowUp,
   Ban,
   ChevronDown,
+  Circle,
   Clock,
+  Code,
   Eye,
   EyeOff,
   Film,
@@ -29,13 +31,15 @@ import {
   Sliders,
   Sparkles,
   Square,
+  Star,
+  Triangle,
   Type,
   Unlock,
   WrapText,
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { ThemeElement } from "@/core/types";
+import type { SlideTheme, ThemeElement, ThemeElementType } from "@/core/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -213,6 +217,275 @@ interface PropertiesPanelProps {
   selectedId: string | null;
 }
 
+function SlideSettingsSection({
+  draft,
+}: {
+  draft: SlideTheme;
+  updateCss: (patch: Record<string, string>) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <Section title="CONFIGURAÇÕES DO SLIDE" icon={Sliders} defaultOpen={true}>
+        <Field label="Título do Tema / Apresentação">
+          <Input
+            value={draft.title}
+            disabled
+            className="h-8 text-xs font-mono"
+          />
+        </Field>
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+          <span>Categoria</span>
+          <span className="font-semibold text-foreground uppercase">{draft.category ?? "theme"}</span>
+        </div>
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+          <span>Elementos no Slide</span>
+          <span className="font-mono text-foreground">{draft.elements.length}</span>
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function TextBoxBackgroundSection({
+  el,
+  updateElement,
+  guid,
+}: {
+  el: ThemeElement;
+  updateElement: UpdateElement;
+  guid: string;
+}) {
+  const currentBg = el.css.background || el.css.backgroundColor || el.fill || "transparent";
+  const isTransparent = currentBg === "transparent" || !currentBg;
+  const isGradient = currentBg.includes("gradient");
+  const isImage = currentBg.includes("url(");
+  const isShader = isIsfBackground(currentBg);
+
+  const [activeTab, setActiveTab] = useState<"none" | "solid" | "gradient" | "image" | "shader">(() =>
+    isShader ? "shader" : isImage ? "image" : isGradient ? "gradient" : isTransparent ? "none" : "solid",
+  );
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const currentSize = el.css.backgroundSize || "cover";
+  const currentPos = el.css.backgroundPosition || "center";
+  const currentRepeat = el.css.backgroundRepeat || "no-repeat";
+  const currentPadding = el.css.padding || "0px";
+
+  async function handleImageFile(file: File) {
+    setUploading(true);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const saved = await saveThemeMedia(guid, file.name, Array.from(bytes));
+      updateElement(el.id, {
+        css: {
+          ...el.css,
+          background: `url(${saved})`,
+          backgroundSize: currentSize,
+          backgroundPosition: currentPos,
+          backgroundRepeat: currentRepeat,
+        },
+      });
+    } catch (e) {
+      console.error("Falha ao salvar imagem de fundo da caixa de texto", e);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <Section title="PLANO DE FUNDO DA CAIXA" icon={Palette} defaultOpen={true}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => {
+          setActiveTab(v as "none" | "solid" | "gradient" | "image" | "shader");
+          if (v === "none") {
+            const nextCss = { ...el.css };
+            delete nextCss.background;
+            delete nextCss.backgroundColor;
+            delete nextCss.backgroundImage;
+            updateElement(el.id, { css: nextCss, fill: undefined });
+          }
+        }}
+        className="w-full"
+      >
+        <TabsList className="grid grid-cols-5 h-8 p-0.5">
+          <TabsTrigger value="none" className="text-[10px]">Nenhum</TabsTrigger>
+          <TabsTrigger value="solid" className="text-[10px]">Cor</TabsTrigger>
+          <TabsTrigger value="gradient" className="text-[10px]">Gradiente</TabsTrigger>
+          <TabsTrigger value="image" className="text-[10px]">Imagem</TabsTrigger>
+          <TabsTrigger value="shader" className="text-[10px]">Shader</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="none" className="pt-2">
+          <p className="text-xs text-muted-foreground">Fundo transparente.</p>
+        </TabsContent>
+
+        <TabsContent value="solid" className="pt-2 flex flex-col gap-2.5">
+          <Field label="Cor de Fundo da Caixa">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="color"
+                value={asHex(currentBg, "#000000")}
+                onChange={(e) =>
+                  updateElement(el.id, {
+                    css: { ...el.css, background: e.target.value },
+                    fill: e.target.value,
+                  })
+                }
+                className="size-8 rounded border border-border cursor-pointer p-0 shrink-0"
+              />
+              <Input
+                value={currentBg}
+                onChange={(e) =>
+                  updateElement(el.id, {
+                    css: { ...el.css, background: e.target.value },
+                    fill: e.target.value,
+                  })
+                }
+                className="h-8 font-mono text-xs"
+                placeholder="#000000 ou rgba(0,0,0,0.5)"
+              />
+            </div>
+          </Field>
+        </TabsContent>
+
+        <TabsContent value="gradient" className="pt-2">
+          <GradientBuilder
+            value={isGradient ? currentBg : "linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)"}
+            onChange={(val) =>
+              updateElement(el.id, {
+                css: { ...el.css, background: val },
+                fill: val,
+              })
+            }
+          />
+        </TabsContent>
+
+        <TabsContent value="image" className="pt-2 flex flex-col gap-2.5">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleImageFile(file);
+            }}
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={uploading}
+              onClick={() => fileRef.current?.click()}
+              className="h-8 text-xs gap-1.5 flex-1 cursor-pointer"
+            >
+              <ImageIcon className="size-3.5" />
+              {uploading ? "Enviando..." : "Escolher Imagem de Fundo"}
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <Field label="Ajuste (Tamanho)">
+              <Select
+                value={currentSize}
+                onValueChange={(val) =>
+                  updateElement(el.id, {
+                    css: { ...el.css, backgroundSize: val },
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cover">Preencher (Cover)</SelectItem>
+                  <SelectItem value="contain">Ajustar (Contain)</SelectItem>
+                  <SelectItem value="auto">Original (Auto)</SelectItem>
+                  <SelectItem value="100% 100%">Esticar (100%)</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field label="Posição">
+              <Select
+                value={currentPos}
+                onValueChange={(val) =>
+                  updateElement(el.id, {
+                    css: { ...el.css, backgroundPosition: val },
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="center">Centro</SelectItem>
+                  <SelectItem value="top">Superior</SelectItem>
+                  <SelectItem value="bottom">Inferior</SelectItem>
+                  <SelectItem value="left">Esquerda</SelectItem>
+                  <SelectItem value="right">Direita</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="shader" className="pt-2 flex flex-col gap-2">
+          <Field label="Shader ISF / Efeito">
+            <Input
+              value={isShader ? currentBg : ""}
+              placeholder="isf:nome-do-shader ou generator"
+              onChange={(e) =>
+                updateElement(el.id, {
+                  css: { ...el.css, background: e.target.value },
+                })
+              }
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+        </TabsContent>
+      </Tabs>
+
+      {/* Espaçamento interno (Padding) */}
+      <div className="pt-2 border-t border-border/40 flex flex-col gap-1.5">
+        <Field label="Espaçamento Interno (Padding)">
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={currentPadding}
+              onChange={(e) =>
+                updateElement(el.id, {
+                  css: { ...el.css, padding: e.target.value },
+                })
+              }
+              placeholder="ex: 16px ou 12px 24px"
+              className="h-8 font-mono text-xs"
+            />
+            <div className="flex gap-1">
+              {["0px", "8px", "16px", "24px"].map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() =>
+                    updateElement(el.id, {
+                      css: { ...el.css, padding: p },
+                    })
+                  }
+                  className="px-1.5 py-0.5 text-[10px] rounded border border-border bg-card/60 hover:bg-muted font-mono cursor-pointer"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+        </Field>
+      </div>
+    </Section>
+  );
+}
+
 export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
   const draft = useThemeEditorStore((s) => s.draft);
   const activePageId = useThemeEditorStore((s) => s.activePageId);
@@ -230,29 +503,115 @@ export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
   const selected = viewTheme.elements.find((el) => el.id === selectedId) ?? null;
 
   if (!selected) {
-    return <ThemeBackground draft={viewTheme} updateCss={updateCss} />;
+    return (
+      <Tabs defaultValue="background" className="w-full flex flex-col">
+        <TabsList className="grid grid-cols-2 h-9 p-1 bg-muted/60 mb-2">
+          <TabsTrigger value="background" className="text-xs gap-1.5 cursor-pointer">
+            <Palette className="size-3.5" />
+            Fundo do Slide
+          </TabsTrigger>
+          <TabsTrigger value="slide" className="text-xs gap-1.5 cursor-pointer">
+            <Sliders className="size-3.5" />
+            Slide & Tela
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="background" className="space-y-3">
+          <ThemeBackground draft={viewTheme} updateCss={updateCss} />
+        </TabsContent>
+
+        <TabsContent value="slide" className="space-y-3">
+          <SlideSettingsSection draft={viewTheme} updateCss={updateCss} />
+        </TabsContent>
+      </Tabs>
+    );
   }
 
+  const isText = selected.type === "TEXT";
+  const isMedia = selected.type === "IMAGE" || selected.type === "VIDEO";
+  const isShape =
+    selected.type === "RECTANGLE" ||
+    selected.type === "CIRCLE" ||
+    selected.type === "TRIANGLE" ||
+    selected.type === "STAR";
+
   return (
-    <div className="flex flex-col gap-3">
-      <GeneralSection selected={selected} updateElement={updateElement} />
-      <PositionSection el={selected} updateElement={updateElement} />
-      {selected.type === "TEXT" && (
-        <TextSection el={selected} updateElement={updateElement} />
-      )}
-      {selected.type === "RECTANGLE" && (
-        <RectangleSection el={selected} updateElement={updateElement} />
-      )}
-      {(selected.type === "IMAGE" || selected.type === "VIDEO") && (
-        <ElementMediaSection
-          guid={draft.guid}
-          el={selected}
-          updateElement={updateElement}
-        />
-      )}
-      <AppearanceSection el={selected} updateElement={updateElement} />
-      <TransitionsSection el={selected} updateElement={updateElement} />
-      <AdvancedCssSection el={selected} updateElement={updateElement} />
+    <div className="flex flex-col gap-2">
+      <Tabs
+        defaultValue={isText ? "text" : isMedia ? "media" : "shape"}
+        className="w-full flex flex-col"
+      >
+        <TabsList
+          className={cn(
+            "grid h-9 p-1 bg-muted/60 mb-2",
+            isText ? "grid-cols-4" : isMedia ? "grid-cols-4" : "grid-cols-3",
+          )}
+        >
+          {isText && (
+            <TabsTrigger value="text" className="text-xs gap-1.5 cursor-pointer">
+              <Type className="size-3.5" />
+              Texto
+            </TabsTrigger>
+          )}
+          {isMedia && (
+            <TabsTrigger value="media" className="text-xs gap-1.5 cursor-pointer">
+              <ImageIcon className="size-3.5" />
+              Mídia
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="shape" className="text-xs gap-1.5 cursor-pointer">
+            <Square className="size-3.5" />
+            Forma
+          </TabsTrigger>
+          <TabsTrigger value="transitions" className="text-xs gap-1.5 cursor-pointer">
+            <Sparkles className="size-3.5" />
+            Animação
+          </TabsTrigger>
+          <TabsTrigger value="advanced" className="text-xs gap-1.5 cursor-pointer">
+            <Code className="size-3.5" />
+            CSS
+          </TabsTrigger>
+        </TabsList>
+
+        {isText && (
+          <TabsContent value="text" className="space-y-3">
+            <TextSection el={selected} updateElement={updateElement} />
+          </TabsContent>
+        )}
+
+        {isMedia && (
+          <TabsContent value="media" className="space-y-3">
+            <ElementMediaSection
+              guid={draft.guid}
+              el={selected}
+              updateElement={updateElement}
+            />
+          </TabsContent>
+        )}
+
+        <TabsContent value="shape" className="space-y-3">
+          <GeneralSection selected={selected} updateElement={updateElement} />
+          <PositionSection el={selected} updateElement={updateElement} />
+          {isText ? (
+            <TextBoxBackgroundSection
+              el={selected}
+              updateElement={updateElement}
+              guid={draft.guid}
+            />
+          ) : isShape ? (
+            <RectangleSection el={selected} updateElement={updateElement} />
+          ) : null}
+          <AppearanceSection el={selected} updateElement={updateElement} />
+        </TabsContent>
+
+        <TabsContent value="transitions" className="space-y-3">
+          <TransitionsSection el={selected} updateElement={updateElement} />
+        </TabsContent>
+
+        <TabsContent value="advanced" className="space-y-3">
+          <AdvancedCssSection el={selected} updateElement={updateElement} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -1012,6 +1371,15 @@ function RectangleSection({
   el: ThemeElement;
   updateElement: UpdateElement;
 }) {
+  const shapeInfo: Partial<Record<ThemeElementType, { title: string; icon: LucideIcon }>> = {
+    RECTANGLE: { title: "PREENCHIMENTO DO RETÂNGULO", icon: Square },
+    CIRCLE: { title: "PREENCHIMENTO DO CÍRCULO", icon: Circle },
+    TRIANGLE: { title: "PREENCHIMENTO DO TRIÂNGULO", icon: Triangle },
+    STAR: { title: "PREENCHIMENTO DA ESTRELA", icon: Star },
+  };
+  const currentShape = shapeInfo[el.type] ?? { title: "PREENCHIMENTO DA FORMA", icon: Square };
+  const ShapeIcon = currentShape.icon;
+
   const currentFill = el.fill ?? "#1e3a8a";
   const isGradient = currentFill.includes("gradient");
   const isNoise = hasNoiseLayer(currentFill);
@@ -1048,7 +1416,7 @@ function RectangleSection({
   }
 
   return (
-    <Section title="PREENCHIMENTO DO RETÂNGULO" icon={Square} defaultOpen={true}>
+    <Section title={currentShape.title} icon={ShapeIcon} defaultOpen={true}>
       {/* Mini preview do preenchimento */}
       <div
         className="h-10 w-full rounded-lg border border-border shadow-inner overflow-hidden flex items-center justify-center text-[10px] font-mono text-muted-foreground/70"

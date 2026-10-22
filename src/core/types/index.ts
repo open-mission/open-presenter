@@ -331,7 +331,14 @@ export interface ImageTreeNode {
   children?: ImageTreeNode[];
 }
 
-export type ThemeElementType = "TEXT" | "IMAGE" | "VIDEO" | "RECTANGLE";
+export type ThemeElementType =
+  | "TEXT"
+  | "IMAGE"
+  | "VIDEO"
+  | "RECTANGLE"
+  | "CIRCLE"
+  | "TRIANGLE"
+  | "STAR";
 
 export type ThemeAsset = "music" | "bible" | "text" | "rest";
 
@@ -360,6 +367,7 @@ export interface ThemePage {
   context: ThemeContext;
   css: Record<string, string>;
   elements: ThemeElement[];
+  name?: string;
 }
 
 export interface SlideTheme {

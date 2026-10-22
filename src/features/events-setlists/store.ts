@@ -397,6 +397,11 @@ export function generateRecurrenceDates(params: CreateRecurringEventParams): str
   return dates;
 }
 
+function resolvePresentationTheme(themeId?: string) {
+  if (!themeId) return null;
+  return useSlideThemesStore.getState().themes.find((t) => t.guid === themeId) ?? null;
+}
+
 export const useSetlistStore = create<SetlistState>((set, get) => ({
   events: [],
   activeEventId: null,
@@ -1183,7 +1188,11 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       return;
     }
     if (item?.media) {
-      const slides = buildMediaSlides(item.id, item.media);
+      const slides = buildMediaSlides(
+        item.id,
+        item.media,
+        resolvePresentationTheme(item.media.themeId),
+      );
       usePresentationStore.getState().setPreview(slides[0]?.slide ?? null);
       return;
     }
@@ -1238,7 +1247,11 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     if (item.scripture) {
       slides = await buildScriptureItemSlides(item);
     } else if (item.media != null) {
-      slides = buildMediaSlides(item.id, item.media).map((entry) => entry.slide);
+      slides = buildMediaSlides(
+        item.id,
+        item.media,
+        resolvePresentationTheme(item.media.themeId),
+      ).map((entry) => entry.slide);
     } else {
       const song = await get().loadItemSong(itemId);
       if (song === null) return;
@@ -1255,7 +1268,12 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
         if (nextItem.scripture) {
           nextUp = (await buildScriptureItemSlides(nextItem))[0] ?? null;
         } else if (nextItem.media != null) {
-          nextUp = buildMediaSlides(nextItem.id, nextItem.media)[0]?.slide ?? null;
+          nextUp =
+            buildMediaSlides(
+              nextItem.id,
+              nextItem.media,
+              resolvePresentationTheme(nextItem.media.themeId),
+            )[0]?.slide ?? null;
         } else if (nextItem.song != null) {
           const nextSong = await get().loadItemSong(nextItem.id);
           if (nextSong !== null) {
@@ -1283,7 +1301,11 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     if (item.scripture) {
       count = (await buildScriptureItemSlides(item)).length;
     } else if (item.media != null) {
-      count = buildMediaSlides(item.id, item.media).length;
+      count = buildMediaSlides(
+        item.id,
+        item.media,
+        resolvePresentationTheme(item.media.themeId),
+      ).length;
     } else {
       const song = await get().loadItemSong(selectedItemId);
       if (song === null) return;

@@ -535,6 +535,9 @@ pub enum ThemeElementType {
     Image,
     Video,
     Rectangle,
+    Circle,
+    Triangle,
+    Star,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -575,6 +578,8 @@ pub struct ThemePage {
     pub context: String,
     pub css: HashMap<String, String>,
     pub elements: Vec<ThemeElement>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

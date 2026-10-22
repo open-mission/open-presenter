@@ -24,6 +24,7 @@ import {
   resolveStageRestRenderTheme,
 } from "@/features/slide-themes/themeResolution";
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
+import { materializePage } from "@/features/slide-themes/pages";
 import { SlideCanvas } from "@/features/presentation/SlideCanvas";
 
 export default function StageView() {
@@ -81,7 +82,7 @@ export default function StageView() {
       DEFAULT_STAGE_THEME,
     ) ?? { theme: DEFAULT_STAGE_THEME, asset: "music" as const };
 
-  const presentationTheme = isPresentation
+  const rawPresentationTheme = isPresentation
     ? (themes.find((t) => t.guid === live.content.media?.themeId) ??
        (broadcastPublicTheme?.guid === live.content.media?.themeId
          ? broadcastPublicTheme
@@ -91,6 +92,20 @@ export default function StageView() {
          : null) ??
        liveTheme.theme)
     : null;
+
+  const presentationTheme = useMemo(() => {
+    if (!rawPresentationTheme) return null;
+    if (
+      rawPresentationTheme.category === "presentation" &&
+      rawPresentationTheme.pages?.length
+    ) {
+      const slideIndex = live.content.media?.index ?? 0;
+      const page =
+        rawPresentationTheme.pages[slideIndex] ?? rawPresentationTheme.pages[0];
+      return page ? materializePage(rawPresentationTheme, page) : rawPresentationTheme;
+    }
+    return rawPresentationTheme;
+  }, [rawPresentationTheme, live.content.media?.index]);
 
   const [now, setNow] = useState(() => Date.now());
 

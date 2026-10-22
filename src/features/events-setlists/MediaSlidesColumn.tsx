@@ -65,8 +65,8 @@ export function MediaSlidesColumn({
   );
   const isStudioPresentation = Boolean(media?.themeId);
   const slides = useMemo(
-    () => (media ? buildMediaSlides(item.id, media) : []),
-    [item.id, media],
+    () => (media ? buildMediaSlides(item.id, media, studioTheme) : []),
+    [item.id, media, studioTheme],
   );
   const runnerIndex = useSetlistStore((s) => s.runnerIndex);
   const projectSection = useSetlistStore((s) => s.projectSection);

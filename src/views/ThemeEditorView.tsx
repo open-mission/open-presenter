@@ -2,18 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
+  Circle,
   Clock,
   Download,
   FileJson,
-  Grid3x3,
-  Image,
   Film,
   Frame,
+  Grid3x3,
+  Image,
   Menu,
   Pencil,
   Redo,
+  Ruler,
+  Shapes,
   Sparkles,
   Square,
+  Star,
+  Triangle,
   Tv,
   Type,
   Undo,
@@ -128,6 +133,8 @@ export default function ThemeEditorView() {
   const [snap, setSnap] = useState(true);
   const [showLimit, setShowLimit] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
+  const [showRulers, setShowRulers] = useState(false);
+  const [showGuides, setShowGuides] = useState(true);
   const [gridSize, setGridSize] = useState(40);
   const [simulateCamera, setSimulateCamera] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -324,7 +331,17 @@ export default function ThemeEditorView() {
     window.addEventListener("mouseup", onMouseUp);
   }
 
-  function handleAdd(kind: "text" | "color" | "image" | "video" | "noise") {
+  function handleAdd(
+    kind:
+      | "text"
+      | "color"
+      | "circle"
+      | "triangle"
+      | "star"
+      | "image"
+      | "video"
+      | "noise",
+  ) {
     if (!draft) return;
     const current = viewOf(
       draft,
@@ -363,6 +380,52 @@ export default function ThemeEditorView() {
           locked: false,
           css: { ...baseCss(760, 390, 400, 300) },
           fill: "#1e3a8a",
+        };
+        break;
+      case "circle":
+        el = {
+          id: uniqueId("circulo", ids),
+          name: "Círculo",
+          type: "CIRCLE",
+          x: 810,
+          y: 390,
+          visible: true,
+          locked: false,
+          css: { ...baseCss(810, 390, 300, 300), borderRadius: "50%" },
+          fill: "#4f46e5",
+        };
+        break;
+      case "triangle":
+        el = {
+          id: uniqueId("triangulo", ids),
+          name: "Triângulo",
+          type: "TRIANGLE",
+          x: 810,
+          y: 390,
+          visible: true,
+          locked: false,
+          css: {
+            ...baseCss(810, 390, 300, 300),
+            clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)",
+          },
+          fill: "#f59e0b",
+        };
+        break;
+      case "star":
+        el = {
+          id: uniqueId("estrela", ids),
+          name: "Estrela",
+          type: "STAR",
+          x: 810,
+          y: 390,
+          visible: true,
+          locked: false,
+          css: {
+            ...baseCss(810, 390, 300, 300),
+            clipPath:
+              "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
+          },
+          fill: "#eab308",
         };
         break;
       case "noise":
@@ -939,10 +1002,32 @@ export default function ThemeEditorView() {
           <Type className="size-3.5" />
           Texto
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => handleAdd("color")} title="Adicionar Retângulo com cor, gradiente ou textura">
-          <Square className="size-3.5" />
-          Retângulo
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5" title="Adicionar formas geométricas">
+              <Shapes className="size-3.5" />
+              Formas
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onSelect={() => handleAdd("color")} className="gap-2 cursor-pointer">
+              <Square className="size-3.5" />
+              Retângulo
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleAdd("circle")} className="gap-2 cursor-pointer">
+              <Circle className="size-3.5" />
+              Círculo / Elipse
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleAdd("triangle")} className="gap-2 cursor-pointer">
+              <Triangle className="size-3.5" />
+              Triângulo
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleAdd("star")} className="gap-2 cursor-pointer">
+              <Star className="size-3.5" />
+              Estrela
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button
           variant="ghost"
           size="sm"
@@ -1028,6 +1113,26 @@ export default function ThemeEditorView() {
           title="Margem de segurança (90%)"
         >
           Limite
+        </Button>
+        <Button
+          variant={showRulers ? "secondary" : "ghost"}
+          size="sm"
+          aria-pressed={showRulers}
+          onClick={() => setShowRulers((v) => !v)}
+          title="Exibir ou ocultar réguas de medição em pixels"
+        >
+          <Ruler className="size-3.5" />
+          Réguas
+        </Button>
+        <Button
+          variant={showGuides ? "secondary" : "ghost"}
+          size="sm"
+          aria-pressed={showGuides}
+          onClick={() => setShowGuides((v) => !v)}
+          title="Exibir ou ocultar guias centrais e de segurança"
+        >
+          <Frame className="size-3.5" />
+          Guias
         </Button>
         <Button
           variant={showGrid ? "secondary" : "ghost"}
@@ -1223,6 +1328,8 @@ export default function ThemeEditorView() {
               showGrid={showGrid}
               gridSize={gridSize}
               showLimit={showLimit}
+              showRulers={showRulers}
+              showGuides={showGuides}
               snap={snap}
               zoom={zoom}
               resolution={resolution}

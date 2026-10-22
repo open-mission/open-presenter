@@ -58,6 +58,10 @@ interface ThemeEditorState {
   selectPage(pageId: string): void;
   addPage(context: ThemeContext, mode: "duplicate" | "blank"): void;
   removePage(pageId: string): void;
+  addPresentationSlide(mode: "duplicate" | "blank"): void;
+  duplicatePage(pageId: string): void;
+  movePage(pageId: string, dir: -1 | 1): void;
+  renamePage(pageId: string, name: string): void;
   upgradeToV2(context: ThemeContext, category?: SlideTheme["category"]): void;
   undo(): void;
   redo(): void;
@@ -103,14 +107,29 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
           });
           return;
         }
+        const themeDraft = clone(theme);
+        if (
+          themeDraft.category === "presentation" &&
+          (!themeDraft.pages || themeDraft.pages.length === 0)
+        ) {
+          themeDraft.pages = [
+            {
+              id: crypto.randomUUID(),
+              context: "text",
+              name: "Slide 1",
+              css: { ...(themeDraft.css ?? {}) },
+              elements: structuredClone(themeDraft.elements ?? []),
+            },
+          ];
+        }
         set({
           guid,
-          draft: clone(theme),
-          savedJson: JSON.stringify(theme),
+          draft: themeDraft,
+          savedJson: JSON.stringify(themeDraft),
           past: [],
           future: [],
           error: null,
-          activePageId: firstPageId(theme),
+          activePageId: firstPageId(themeDraft),
         });
       } catch {
         set({
@@ -345,6 +364,75 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       set({ activePageId: nextActive });
     },
 
+    addPresentationSlide: (mode) => {
+      const { draft, activePageId } = get();
+      if (!draft) return;
+      const next = clone(draft);
+      const pages = next.pages ? [...next.pages] : [];
+      const current = getActivePage(next, activePageId) ?? pages[0];
+      const newPage: ThemePage = {
+        id: crypto.randomUUID(),
+        context: "text",
+        name: `Slide ${pages.length + 1}`,
+        css: mode === "duplicate" && current ? { ...current.css } : { ...(next.css ?? {}) },
+        elements:
+          mode === "duplicate" && current ? structuredClone(current.elements) : [],
+      };
+      const activeIdx = pages.findIndex((p) => p.id === activePageId);
+      if (activeIdx >= 0) {
+        pages.splice(activeIdx + 1, 0, newPage);
+      } else {
+        pages.push(newPage);
+      }
+      next.pages = pages;
+      mutate(next);
+      set({ activePageId: newPage.id });
+    },
+
+    duplicatePage: (pageId) => {
+      const { draft } = get();
+      if (!draft) return;
+      const next = clone(draft);
+      if (!next.pages) return;
+      const idx = next.pages.findIndex((p) => p.id === pageId);
+      if (idx < 0) return;
+      const src = next.pages[idx];
+      const newPage: ThemePage = {
+        id: crypto.randomUUID(),
+        context: src.context,
+        name: `${src.name || `Slide ${idx + 1}`} (Cópia)`,
+        css: { ...src.css },
+        elements: structuredClone(src.elements),
+      };
+      next.pages.splice(idx + 1, 0, newPage);
+      mutate(next);
+      set({ activePageId: newPage.id });
+    },
+
+    movePage: (pageId, dir) => {
+      const { draft } = get();
+      if (!draft) return;
+      const next = clone(draft);
+      if (!next.pages) return;
+      const idx = next.pages.findIndex((p) => p.id === pageId);
+      const target = idx + dir;
+      if (idx < 0 || target < 0 || target >= next.pages.length) return;
+      const [moved] = next.pages.splice(idx, 1);
+      next.pages.splice(target, 0, moved);
+      mutate(next);
+    },
+
+    renamePage: (pageId, name) => {
+      const { draft } = get();
+      if (!draft) return;
+      const next = clone(draft);
+      if (!next.pages) return;
+      const page = next.pages.find((p) => p.id === pageId);
+      if (!page) return;
+      page.name = name;
+      mutate(next);
+    },
+
     upgradeToV2: (context, category) => {
       const { draft } = get();
       if (!draft || draft.pages?.length) return;
@@ -403,8 +491,13 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       const { draft } = get();
       if (!draft) return;
       try {
-        await saveTheme(draft);
-        set({ savedJson: JSON.stringify(draft), error: null });
+        const toSave = clone(draft);
+        if (toSave.category === "presentation" && toSave.pages?.length) {
+          toSave.elements = structuredClone(toSave.pages[0].elements);
+          toSave.css = { ...toSave.pages[0].css };
+        }
+        await saveTheme(toSave);
+        set({ savedJson: JSON.stringify(toSave), draft: toSave, error: null });
       } catch {
         set({ error: "Falha ao salvar tema" });
       }
@@ -414,6 +507,20 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       const { draft, savedJson } = get();
       if (!draft || savedJson === null) return;
       const restored = JSON.parse(savedJson) as SlideTheme;
+      if (
+        restored.category === "presentation" &&
+        (!restored.pages || restored.pages.length === 0)
+      ) {
+        restored.pages = [
+          {
+            id: crypto.randomUUID(),
+            context: "text",
+            name: "Slide 1",
+            css: { ...(restored.css ?? {}) },
+            elements: structuredClone(restored.elements ?? []),
+          },
+        ];
+      }
       mutate(restored);
       set({ activePageId: firstPageId(restored) });
     },

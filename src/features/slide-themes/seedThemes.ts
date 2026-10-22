@@ -927,62 +927,73 @@ export function createEmptyStudioTheme(
   bgGradient?: string,
 ): SlideTheme {
   const now = new Date().toISOString();
+  const css = {
+    background:
+      bgGradient ||
+      "linear-gradient(135deg, #1e1b4b 0%, #0f172a 50%, #020617 100%)",
+  };
+  const elements: ThemeElement[] = [
+    {
+      id: "titulo",
+      type: "TEXT",
+      x: 10,
+      y: 20,
+      visible: true,
+      locked: false,
+      css: {
+        top: "20%",
+        left: "10%",
+        width: "80%",
+        height: "22%",
+        textAlign: "center",
+        fontSize: "64px",
+        fontWeight: "800",
+        letterSpacing: "2px",
+        color: "#ffffff",
+        textShadow: "0 4px 16px rgba(0,0,0,0.8)",
+        autoShrink: "true",
+      },
+      text: title,
+    },
+    {
+      id: "subtitulo",
+      type: "TEXT",
+      x: 15,
+      y: 48,
+      visible: true,
+      locked: false,
+      css: {
+        top: "48%",
+        left: "15%",
+        width: "70%",
+        height: "26%",
+        textAlign: "center",
+        fontSize: "36px",
+        fontWeight: "500",
+        lineHeight: "1.4",
+        color: "#cbd5e1",
+        textShadow: "0 2px 10px rgba(0,0,0,0.8)",
+        whiteSpace: "pre-wrap",
+        autoShrink: "true",
+      },
+      text: "Digite aqui a mensagem, comunicado ou versículo deste slide.",
+    },
+  ];
   return {
     guid: crypto.randomUUID(),
     title,
     category: "presentation",
     createdAt: now,
     updatedAt: now,
-    css: {
-      background:
-        bgGradient ||
-        "linear-gradient(135deg, #1e1b4b 0%, #0f172a 50%, #020617 100%)",
-    },
-    elements: [
+    css,
+    elements,
+    pages: [
       {
-        id: "titulo",
-        type: "TEXT",
-        x: 10,
-        y: 20,
-        visible: true,
-        locked: false,
-        css: {
-          top: "20%",
-          left: "10%",
-          width: "80%",
-          height: "22%",
-          textAlign: "center",
-          fontSize: "64px",
-          fontWeight: "800",
-          letterSpacing: "2px",
-          color: "#ffffff",
-          textShadow: "0 4px 16px rgba(0,0,0,0.8)",
-          autoShrink: "true",
-        },
-        text: title,
-      },
-      {
-        id: "subtitulo",
-        type: "TEXT",
-        x: 15,
-        y: 48,
-        visible: true,
-        locked: false,
-        css: {
-          top: "48%",
-          left: "15%",
-          width: "70%",
-          height: "26%",
-          textAlign: "center",
-          fontSize: "36px",
-          fontWeight: "500",
-          lineHeight: "1.4",
-          color: "#cbd5e1",
-          textShadow: "0 2px 10px rgba(0,0,0,0.8)",
-          whiteSpace: "pre-wrap",
-          autoShrink: "true",
-        },
-        text: "Digite aqui a mensagem, comunicado ou versículo deste slide.",
+        id: crypto.randomUUID(),
+        context: "text",
+        name: "Slide 1",
+        css: { ...css },
+        elements: structuredClone(elements),
       },
     ],
   };

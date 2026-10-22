@@ -364,6 +364,58 @@ pub fn build_remote_item(
     }
 
     if let Some(ref media) = item.media {
+        if let Some(ref theme_id) = media.theme_id {
+            if let Ok(Some(theme)) = crate::services::themes::get_theme(conn, theme_id) {
+                if theme.category.as_deref() == Some("presentation") {
+                    if let Some(ref pages) = theme.pages {
+                        if !pages.is_empty() {
+                            let total = pages.len();
+                            let slides = pages
+                                .iter()
+                                .enumerate()
+                                .map(|(index, page)| {
+                                    let label = page
+                                        .name
+                                        .clone()
+                                        .unwrap_or_else(|| format!("Slide {}", index + 1));
+                                    let section = if total > 1 {
+                                        Some(format!("{}/{}", index + 1, total))
+                                    } else {
+                                        None
+                                    };
+                                    let mut slide_media = media.clone();
+                                    slide_media.index = Some(index);
+                                    RemoteSlide {
+                                        index,
+                                        label: Some(label),
+                                        section_type: None,
+                                        content: SlideContent {
+                                            id: format!("{}#{index}", item.id),
+                                            kind: SlideKind::Custom,
+                                            title: page.name.clone().unwrap_or_else(|| media.title.clone()),
+                                            lines: Vec::new(),
+                                            notes: None,
+                                            section,
+                                            media: Some(slide_media),
+                                            scripture: None,
+                                        },
+                                    }
+                                })
+                                .collect();
+                            return RemoteItem {
+                                id: item.id.clone(),
+                                kind: "media".to_string(),
+                                title: media.title.clone(),
+                                subtitle: Some("Apresentação".to_string()),
+                                next_item_id: item.next_item_id.clone(),
+                                slides,
+                            };
+                        }
+                    }
+                }
+            }
+        }
+
         let slides = build_media_slides(&item.id, media);
         return RemoteItem {
             id: item.id.clone(),

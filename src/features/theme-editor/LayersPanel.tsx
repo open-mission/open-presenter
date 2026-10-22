@@ -3,6 +3,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  Circle,
   Eye,
   EyeOff,
   Film,
@@ -13,7 +14,9 @@ import {
   Image,
   Lock,
   Square,
+  Star,
   Trash2,
+  Triangle,
   Type,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -29,6 +32,9 @@ const TYPE_ICONS: Record<ThemeElementType, LucideIcon> = {
   IMAGE: Image,
   VIDEO: Film,
   RECTANGLE: Square,
+  CIRCLE: Circle,
+  TRIANGLE: Triangle,
+  STAR: Star,
 };
 
 const TYPE_LABELS: Record<ThemeElementType, string> = {
@@ -36,6 +42,9 @@ const TYPE_LABELS: Record<ThemeElementType, string> = {
   IMAGE: "Imagem",
   VIDEO: "Vídeo",
   RECTANGLE: "Retângulo",
+  CIRCLE: "Círculo",
+  TRIANGLE: "Triângulo",
+  STAR: "Estrela",
 };
 
 interface LayersPanelProps {

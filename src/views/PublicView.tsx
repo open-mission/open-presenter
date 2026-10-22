@@ -71,11 +71,16 @@ export default function PublicView() {
   const theme = useMemo(() => {
     if (!rawTheme) return null;
     if (rawTheme.pages?.length) {
+      if (rawTheme.category === "presentation") {
+        const slideIndex = live.content.media?.index ?? 0;
+        const page = rawTheme.pages[slideIndex] ?? rawTheme.pages[0];
+        return page ? materializePage(rawTheme, page) : rawTheme;
+      }
       const page = getPageForContext(rawTheme, context) ?? rawTheme.pages[0];
       return page ? materializePage(rawTheme, page) : rawTheme;
     }
     return rawTheme;
-  }, [rawTheme, context]);
+  }, [rawTheme, context, live.content.media?.index]);
 
   useEffect(() => {
     void loadThemes();
