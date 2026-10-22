@@ -133,8 +133,32 @@ pub fn run() {
                 .select_all()
                 .build()?;
 
+            let next_slide_item = MenuItemBuilder::with_id("presentation-next", "Próximo Slide")
+                .accelerator("Right")
+                .build(app)?;
+
+            let prev_slide_item = MenuItemBuilder::with_id("presentation-prev", "Slide Anterior")
+                .accelerator("Left")
+                .build(app)?;
+
+            let blackout_item = MenuItemBuilder::with_id("presentation-blackout", "Tela Preta (Blackout)")
+                .accelerator("CmdOrCtrl+B")
+                .build(app)?;
+
+            let clear_item = MenuItemBuilder::with_id("presentation-clear", "Limpar Texto")
+                .accelerator("CmdOrCtrl+Shift+L")
+                .build(app)?;
+
+            let presentation_menu = SubmenuBuilder::new(app, "Apresentação")
+                .item(&next_slide_item)
+                .item(&prev_slide_item)
+                .separator()
+                .item(&blackout_item)
+                .item(&clear_item)
+                .build()?;
+
             let menu = MenuBuilder::new(app)
-                .items(&[&app_menu, &file_menu, &edit_menu, &help_menu])
+                .items(&[&app_menu, &file_menu, &edit_menu, &presentation_menu, &help_menu])
                 .build()?;
 
             app.set_menu(menu)?;
@@ -163,6 +187,18 @@ pub fn run() {
                     }
                     "import-holyrics" => {
                         let _ = app_handle.emit("import-holyrics", ());
+                    }
+                    "presentation-next" => {
+                        let _ = app_handle.emit("presentation-next", ());
+                    }
+                    "presentation-prev" => {
+                        let _ = app_handle.emit("presentation-prev", ());
+                    }
+                    "presentation-blackout" => {
+                        let _ = app_handle.emit("presentation-blackout", ());
+                    }
+                    "presentation-clear" => {
+                        let _ = app_handle.emit("presentation-clear", ());
                     }
                     "quit-app" => {
                         let app = app_handle.clone();
@@ -245,6 +281,18 @@ pub fn run() {
                 crate::services::window_state::apply_startup_geometry(&window);
             }
 
+            let timeout_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+                if let Some(window) = timeout_handle.get_webview_window("main") {
+                    if !window.is_visible().unwrap_or(false) {
+                        crate::services::window_state::apply_startup_geometry(&window);
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+            });
+
             let media_dir = crate::services::theme_media::media_base_dir(&handle)
                 .unwrap_or_else(|_| std::path::PathBuf::from("theme-media"));
             let clients: crate::server::Clients = std::sync::Arc::new(
@@ -299,6 +347,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::presentation::show_main_window,
             commands::presentation::list_monitors,
             commands::presentation::open_output_window,
             commands::presentation::close_output_window,

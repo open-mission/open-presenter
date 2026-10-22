@@ -19,12 +19,69 @@
     <meta
       name="theme-color"
       media="(prefers-color-scheme: dark)"
-      content="#111318"
+      content="#0a0a0a"
     />
     <title>Open Presenter</title>
+    <style>
+      html, body, #root {
+        min-width: 0;
+        min-height: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #0a0a0a;
+        color: #fafafa;
+      }
+      body {
+        overflow: hidden;
+        -webkit-font-smoothing: antialiased;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #app-splash-screen {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #0a0a0a;
+        z-index: 99999;
+        gap: 16px;
+      }
+      #app-splash-screen svg {
+        width: 72px;
+        height: 72px;
+        animation: splash-pulse 1.8s ease-in-out infinite;
+      }
+      @keyframes splash-pulse {
+        0%, 100% { opacity: 0.85; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.04); }
+      }
+    </style>
+    <script>
+      try {
+        var t = localStorage.getItem("open_presenter_theme");
+        if (t === "light") {
+          document.documentElement.classList.remove("dark");
+        } else if (t === "system" && window.matchMedia && !window.matchMedia("(prefers-color-scheme: dark)").matches) {
+          document.documentElement.classList.remove("dark");
+        } else {
+          document.documentElement.classList.add("dark");
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="app-splash-screen" aria-hidden="true">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+          <rect x="38" y="38" width="436" height="436" rx="84" fill="#171717"/>
+          <path d="M142 150 L292 111 Q309 107 309 126 L309 379 Q309 397 292 393 L142 362 Q126 359 126 343 L126 177 Q126 155 142 150 Z" stroke="#FFFFFF" stroke-width="20" stroke-linejoin="round"/>
+          <path d="M333 145 L366 163 Q375 168 375 181 L375 331 Q375 343 365 348 L333 366 Z" fill="#FFFFFF"/>
+          <path d="M203 207 Q203 195 215 202 L259 234 Q270 242 259 250 L215 282 Q203 289 203 277 Z" fill="#FFFFFF"/>
+        </svg>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

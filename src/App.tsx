@@ -12,11 +12,24 @@ import RemoteView from "./features/remote/RemoteView";
 import { Toaster } from "@/components/ui/sonner";
 import { useMediaPortSync } from "@/core/config/mediaPort";
 import { initSongGroupsSync } from "@/features/songs/songGroupsStore";
+import { useDesktopShortcuts } from "@/core/hooks/useDesktopShortcuts";
+import { showMainWindow } from "@/core/ipc/commands";
+import { isTauri } from "@/core/ipc/tauri";
 
 export default function App() {
   useMediaPortSync();
+  useDesktopShortcuts();
 
-  useEffect(() => initSongGroupsSync(), []);
+  useEffect(() => {
+    initSongGroupsSync();
+
+    if (isTauri()) {
+      // Revela a janela principal quando o React monta a árvore DOM, eliminando o flash branco
+      showMainWindow().catch((err) => {
+        console.error("Falha ao revelar janela principal:", err);
+      });
+    }
+  }, []);
 
   return (
     <HashRouter>

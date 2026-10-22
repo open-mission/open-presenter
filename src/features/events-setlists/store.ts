@@ -35,6 +35,8 @@ import { useOutputManagerStore } from "@/features/output-manager/store";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { appendItemToEvent, transferItemBetweenEvents } from "./temporaryUtils";
 
+const LAST_ACTIVE_EVENT_KEY = "open_presenter_last_event_id";
+
 export type RecurrenceFrequency = "none" | "weekly" | "biweekly" | "monthly";
 
 export type MonthlyRecurrenceMode = "day_of_month" | "nth_weekday";
@@ -465,13 +467,27 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       set({ events, error: null });
 
       const currentActiveId = get().activeEventId;
-      // Seleciona o próximo evento baseado em data/horário caso não haja nenhum selecionado ou não exista mais
+      // Restaura o último evento trabalhado ou o próximo evento agendado
       if (!currentActiveId || !events.some((e) => e.id === currentActiveId)) {
-        const nextEvent = pickNextUpcomingEvent(events);
-        if (nextEvent) {
-          await get().selectEvent(nextEvent.id);
-        } else if (events.length > 0) {
-          await get().selectEvent(events[0].id);
+        let restoredId: string | null = null;
+        try {
+          const stored = localStorage.getItem(LAST_ACTIVE_EVENT_KEY);
+          if (stored && events.some((e) => e.id === stored)) {
+            restoredId = stored;
+          }
+        } catch {
+          // localStorage pode estar indisponível
+        }
+
+        if (restoredId) {
+          await get().selectEvent(restoredId);
+        } else {
+          const nextEvent = pickNextUpcomingEvent(events);
+          if (nextEvent) {
+            await get().selectEvent(nextEvent.id);
+          } else if (events.length > 0) {
+            await get().selectEvent(events[0].id);
+          }
         }
       }
     } catch (err) {
@@ -486,6 +502,11 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     }
     try {
       const event = await getEvent(id);
+      try {
+        localStorage.setItem(LAST_ACTIVE_EVENT_KEY, id);
+      } catch {
+        // localStorage pode estar indisponível
+      }
       set({
         listMode: "event",
         lastSelectedEventId: id,

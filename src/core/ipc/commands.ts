@@ -31,6 +31,10 @@ import type {
 } from "../types";
 import { invokeCommand, invokeStrict, isTauri } from "./tauri";
 
+export async function showMainWindow(): Promise<void> {
+  await invokeCommand("show_main_window");
+}
+
 export async function listMonitors(): Promise<MonitorInfo[]> {
   return (await invokeCommand<MonitorInfo[]>("list_monitors")) ?? [];
 }
