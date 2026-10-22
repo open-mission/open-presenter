@@ -573,6 +573,13 @@ pub struct ThemeElement {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeGuide {
+    pub id: String,
+    pub axis: String,
+    pub pos: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemePage {
     pub id: String,
     pub context: String,
@@ -580,6 +587,8 @@ pub struct ThemePage {
     pub elements: Vec<ThemeElement>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guides: Option<Vec<ThemeGuide>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -596,6 +605,8 @@ pub struct SlideTheme {
     pub created_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guides: Option<Vec<ThemeGuide>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

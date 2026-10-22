@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft,
   Circle,
   Clock,
   Download,
@@ -20,9 +19,11 @@ import {
   Star,
   Triangle,
   Tv,
+  Trash2,
   Type,
   Undo,
   Video,
+  X,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -32,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { exportThemeAsImage } from "@/features/theme-editor/exportImage";
 import { exportThemeAsJson } from "@/features/slide-themes/themeIo";
+import { closeCurrentWindow } from "@/core/lib/closeWindow";
 import {
   contextToAsset,
   getActivePage,
@@ -124,11 +126,18 @@ export default function ThemeEditorView() {
   const revert = useThemeEditorStore((s) => s.revert);
   const addElement = useThemeEditorStore((s) => s.addElement);
   const addElements = useThemeEditorStore((s) => s.addElements);
-  const removeElement = useThemeEditorStore((s) => s.removeElement);
+  const removeSelection = useThemeEditorStore((s) => s.removeSelection);
+  const duplicateSelection = useThemeEditorStore((s) => s.duplicateSelection);
+  const groupSelection = useThemeEditorStore((s) => s.groupSelection);
+  const ungroupSelection = useThemeEditorStore((s) => s.ungroupSelection);
+  const selectAll = useThemeEditorStore((s) => s.selectAll);
   const upgradeToV2 = useThemeEditorStore((s) => s.upgradeToV2);
   const setCategory = useThemeEditorStore((s) => s.setCategory);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selection = useThemeEditorStore((s) => s.selection);
+  const select = useThemeEditorStore((s) => s.select);
+  const clearSelection = useThemeEditorStore((s) => s.clearSelection);
+  const clearGuides = useThemeEditorStore((s) => s.clearGuides);
   const [sampleAsset, setSampleAsset] = useState<ThemeAsset>("music");
   const [snap, setSnap] = useState(true);
   const [showLimit, setShowLimit] = useState(true);
@@ -164,7 +173,7 @@ export default function ThemeEditorView() {
     let unlisten: (() => void) | null = null;
     void listenCommand<string | null>("theme-editor://open", (payload) => {
       if (typeof payload === "string" && payload !== "") {
-        setSelectedId(null);
+        clearSelection();
         void load(payload);
       }
     }).then((fn) => {
@@ -173,11 +182,11 @@ export default function ThemeEditorView() {
     return () => {
       unlisten?.();
     };
-  }, [load]);
+  }, [load, clearSelection]);
 
   useEffect(() => {
-    setSelectedId(null);
-  }, [activePageId]);
+    clearSelection();
+  }, [activePageId, clearSelection]);
 
   useEffect(() => {
     if (draft?.category === "stream" || draft?.guid === DEFAULT_STREAM_THEME_GUID) {
@@ -201,24 +210,19 @@ export default function ThemeEditorView() {
         if (!isInput) {
           e.preventDefault();
           e.stopPropagation();
-          if (selectedId) {
-            removeElement(selectedId);
-            setSelectedId(null);
-          }
+          removeSelection();
           return;
         }
       }
 
       if (e.key === "Escape" && !isInput) {
-        if (selectedId) {
-          e.preventDefault();
-          setSelectedId(null);
-        }
+        e.preventDefault();
+        clearSelection();
         return;
       }
 
       const mod = e.ctrlKey || e.metaKey;
-      if (!mod) return;
+      if (!mod || e.repeat) return;
       const key = e.key.toLowerCase();
       if (key === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -229,11 +233,30 @@ export default function ThemeEditorView() {
       } else if (key === "s") {
         e.preventDefault();
         void handleSave();
+      } else if (key === "d") {
+        e.preventDefault();
+        duplicateSelection();
+      } else if (key === "g") {
+        e.preventDefault();
+        if (e.shiftKey) ungroupSelection();
+        else groupSelection();
+      } else if (key === "a") {
+        e.preventDefault();
+        selectAll();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId, removeElement, undo, redo]);
+  }, [
+    removeSelection,
+    undo,
+    redo,
+    clearSelection,
+    duplicateSelection,
+    groupSelection,
+    ungroupSelection,
+    selectAll,
+  ]);
 
   async function handleSave() {
     setSaving(true);
@@ -277,12 +300,21 @@ export default function ThemeEditorView() {
     }
   }
 
-  function handleBack() {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate("/preferences");
+  function closeEditor() {
+    void closeCurrentWindow(() => navigate("/preferences"));
+  }
+
+  function blockContextMenu(e: React.MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (
+      target.isContentEditable ||
+      target.closest(
+        "input, textarea, select, [contenteditable='true']",
+      )
+    ) {
+      return;
     }
+    e.preventDefault();
   }
 
   function handleLayersDividerMouseDown(e: React.MouseEvent) {
@@ -472,7 +504,7 @@ export default function ThemeEditorView() {
         break;
     }
     addElement(el);
-    setSelectedId(el.id);
+    select(el.id);
   }
 
   function handleAddSymbol(symbol: string) {
@@ -481,8 +513,8 @@ export default function ThemeEditorView() {
       draft,
       useThemeEditorStore.getState().activePageId,
     );
-    if (selectedId) {
-      const el = current.elements.find((e) => e.id === selectedId);
+    if (selection.anchorId) {
+      const el = current.elements.find((e) => e.id === selection.anchorId);
       if (el && el.type === "TEXT") {
         useThemeEditorStore.getState().updateElement(el.id, {
           ...el,
@@ -508,7 +540,7 @@ export default function ThemeEditorView() {
       text: symbol,
     };
     addElement(newEl);
-    setSelectedId(newEl.id);
+    select(newEl.id);
   }
 
   function handleAddWidget(
@@ -666,7 +698,7 @@ export default function ThemeEditorView() {
         break;
     }
     addElement(el);
-    setSelectedId(el.id);
+    select(el.id);
   }
 
   function handleInsertLowerThird() {
@@ -720,23 +752,26 @@ export default function ThemeEditorView() {
     };
 
     addElements([boxEl, textEl]);
-    setSelectedId(textId);
+    select(textId);
     setSimulateCamera(true);
     toast.success("Barra Lower Third adicionada!");
   }
 
   if (!guid || (!draft && error)) {
     return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background text-foreground">
+      <div
+        className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background text-foreground"
+        onContextMenu={blockContextMenu}
+      >
         <h1 className="text-lg font-semibold">Editor de Temas</h1>
         <p className="max-w-md text-center text-sm text-muted-foreground">
           {!guid
             ? "Nenhum tema selecionado. Abra o editor a partir da galeria de temas."
             : (error ?? "Tema não encontrado.")}
         </p>
-        <Button variant="outline" onClick={handleBack}>
-          <ArrowLeft className="size-4" />
-          Voltar
+        <Button variant="outline" onClick={closeEditor}>
+          <X className="size-4" />
+          Fechar
         </Button>
       </div>
     );
@@ -776,12 +811,12 @@ export default function ThemeEditorView() {
   const redoable = canRedo();
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-background text-foreground">
+    <div
+      className="flex h-screen w-screen flex-col bg-background text-foreground"
+      onContextMenu={blockContextMenu}
+    >
       {/* Top Header */}
       <header className="flex items-center gap-2 border-b border-border px-3 py-2 bg-card/40">
-        <Button variant="ghost" size="icon-sm" aria-label="Voltar" onClick={handleBack}>
-          <ArrowLeft />
-        </Button>
 
         {/* Theme Title with Edit Pencil button */}
         <div className="flex items-center gap-1.5 rounded px-2 py-1 hover:bg-accent/50 group transition-colors">
@@ -986,8 +1021,8 @@ export default function ThemeEditorView() {
             <DropdownMenuItem disabled={!dirty} onSelect={() => revert()}>
               Reverter alterações
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={handleBack}>
-              Fechar editor
+            <DropdownMenuItem onSelect={closeEditor}>
+              Fechar janela
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -1134,6 +1169,17 @@ export default function ThemeEditorView() {
           <Frame className="size-3.5" />
           Guias
         </Button>
+        {(viewTheme.guides?.length ?? 0) > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => clearGuides()}
+            title="Remover todas as guias desta página"
+          >
+            <Trash2 className="size-3.5" />
+            Limpar guias
+          </Button>
+        )}
         <Button
           variant={showGrid ? "secondary" : "ghost"}
           size="sm"
@@ -1215,7 +1261,7 @@ export default function ThemeEditorView() {
           style={{ width: `${layersWidth}px`, minWidth: "180px" }}
           className="shrink-0 flex flex-col h-full overflow-y-auto border-r border-border p-3 bg-card/20"
         >
-          <LayersPanel selectedId={selectedId} onSelect={setSelectedId} />
+          <LayersPanel />
         </aside>
 
         {/* Resizable Divider Handle for Layers */}
@@ -1320,8 +1366,6 @@ export default function ThemeEditorView() {
               theme={viewTheme}
               asset={activeAsset}
               props={sample.props}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
               onChange={(el) =>
                 useThemeEditorStore.getState().updateElement(el.id, el)
               }
@@ -1353,7 +1397,7 @@ export default function ThemeEditorView() {
           style={{ width: `${propertiesWidth}px`, minWidth: "320px" }}
           className="shrink-0 flex flex-col h-full overflow-y-auto border-l border-border p-3 bg-card/20"
         >
-          <PropertiesPanel selectedId={selectedId} />
+          <PropertiesPanel />
         </aside>
       </div>
 

@@ -1,6 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseCssLinearGradient } from "./exportImage.ts";
+import {
+  exportElementBox,
+  parseCssLinearGradient,
+  textElementBox,
+} from "./exportImage.ts";
 
 test("parseCssLinearGradient com ângulo explícito e porcentagens", () => {
   const gradient = parseCssLinearGradient(
@@ -43,3 +47,59 @@ test("parseCssLinearGradient com valor não-gradiente retorna null", () => {
   assert.equal(parseCssLinearGradient("url('/wallpaper.jpg')"), null);
   assert.equal(parseCssLinearGradient(""), null);
 });
+
+test("exportElementBox respeita px e porcentagem", () => {
+  const el = {
+    id: "a",
+    type: "RECTANGLE" as const,
+    x: 0,
+    y: 0,
+    visible: true,
+    locked: false,
+    css: { left: "100px", top: "10%", width: "50%", height: "200px" },
+  };
+  assert.deepEqual(exportElementBox(el, 1000, 500), {
+    left: 100,
+    top: 50,
+    width: 500,
+    height: 200,
+  });
+});
+
+test("exportElementBox cai para os padrões quando faltam medidas", () => {
+  const el = {
+    id: "a",
+    type: "IMAGE" as const,
+    x: 10,
+    y: 20,
+    visible: true,
+    locked: false,
+    css: {},
+  };
+  assert.deepEqual(exportElementBox(el, 1000, 500), {
+    left: 100,
+    top: 100,
+    width: 800,
+    height: 150,
+  });
+});
+
+test("textElementBox usa o fallback de altura do texto", () => {
+  const el = {
+    id: "t",
+    type: "TEXT" as const,
+    x: 0,
+    y: 0,
+    visible: true,
+    locked: false,
+    text: "oi",
+    css: { left: "100px", top: "10%" },
+  };
+  assert.deepEqual(textElementBox(el, 1000, 500), {
+    left: 100,
+    top: 50,
+    width: 800,
+    height: 425,
+  });
+});
+

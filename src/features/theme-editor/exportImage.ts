@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import type { SlideTheme, ThemeElement } from "../../core/types";
+import { parseRotateDeg, type Rect } from "./geometry.ts";
 import {
   fitFontSize,
   lineHeightPx,
@@ -176,6 +177,54 @@ function parseDimension(
   return isNaN(num) ? fallback : num;
 }
 
+export function exportElementBox(
+  el: ThemeElement,
+  width: number,
+  height: number,
+): Rect {
+  const left =
+    el.css.left !== undefined
+      ? parseDimension(el.css.left, width)
+      : (el.x / 100) * width;
+  const top =
+    el.css.top !== undefined
+      ? parseDimension(el.css.top, height)
+      : (el.y / 100) * height;
+  const boxWidth =
+    el.css.width !== undefined
+      ? parseDimension(el.css.width, width, width * 0.8)
+      : width * 0.8;
+  const boxHeight =
+    el.css.height !== undefined
+      ? parseDimension(el.css.height, height, height * 0.3)
+      : height * 0.3;
+  return { left, top, width: boxWidth, height: boxHeight };
+}
+
+export function textElementBox(
+  el: ThemeElement,
+  width: number,
+  height: number,
+): Rect {
+  const left =
+    el.css.left !== undefined
+      ? parseDimension(el.css.left, width)
+      : (el.x / 100) * width;
+  const top =
+    el.css.top !== undefined
+      ? parseDimension(el.css.top, height)
+      : (el.y / 100) * height;
+  const boxWidth =
+    el.css.width !== undefined
+      ? parseDimension(el.css.width, width, width * 0.8)
+      : width * 0.8;
+  const boxHeight =
+    el.css.height !== undefined
+      ? parseDimension(el.css.height, height, height * 0.3)
+      : Math.max(0, height - top - height * 0.05);
+  return { left, top, width: boxWidth, height: boxHeight };
+}
+
 function loadImage(src: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -219,22 +268,11 @@ function drawTextElement(
     text = text.replace(/\b\p{L}/gu, (char) => char.toUpperCase());
   }
 
-  const boxX =
-    element.css.left !== undefined
-      ? parseDimension(element.css.left, w)
-      : (element.x / 100) * w;
-  const boxY =
-    element.css.top !== undefined
-      ? parseDimension(element.css.top, h)
-      : (element.y / 100) * h;
-  const boxW =
-    element.css.width !== undefined
-      ? parseDimension(element.css.width, w, w * 0.8)
-      : w * 0.8;
-  const boxH =
-    element.css.height !== undefined
-      ? parseDimension(element.css.height, h, h * 0.3)
-      : Math.max(0, h - boxY - h * 0.05);
+  const box = textElementBox(element, w, h);
+  const boxX = box.left;
+  const boxY = box.top;
+  const boxW = box.width;
+  const boxH = box.height;
 
   const padding = parsePadding(element.css);
   const contentX = boxX + padding.left;
@@ -552,23 +590,26 @@ export async function exportThemeAsImage(
     for (const el of theme.elements) {
       if (!el.visible) continue;
 
+      const box =
+        el.type === "TEXT"
+          ? textElementBox(el, width, height)
+          : exportElementBox(el, width, height);
+      const angle = parseRotateDeg(el.css.rotate);
+
+      ctx.save();
+      if (angle !== 0) {
+        const cx = box.left + box.width / 2;
+        const cy = box.top + box.height / 2;
+        ctx.translate(cx, cy);
+        ctx.rotate((angle * Math.PI) / 180);
+        ctx.translate(-cx, -cy);
+      }
+
       if (el.type === "RECTANGLE" || el.css.backgroundColor) {
-        const boxX =
-          el.css.left !== undefined
-            ? parseDimension(el.css.left, width)
-            : (el.x / 100) * width;
-        const boxY =
-          el.css.top !== undefined
-            ? parseDimension(el.css.top, height)
-            : (el.y / 100) * height;
-        const boxW =
-          el.css.width !== undefined
-            ? parseDimension(el.css.width, width, width * 0.8)
-            : width * 0.8;
-        const boxH =
-          el.css.height !== undefined
-            ? parseDimension(el.css.height, height, height * 0.3)
-            : height * 0.3;
+        const boxX = box.left;
+        const boxY = box.top;
+        const boxW = box.width;
+        const boxH = box.height;
 
         ctx.save();
         const bgColor = el.css.backgroundColor || el.fill;
@@ -605,22 +646,10 @@ export async function exportThemeAsImage(
         const src = el.src || el.url || "";
         const img = await loadImage(src);
         if (img) {
-          const boxX =
-            el.css.left !== undefined
-              ? parseDimension(el.css.left, width)
-              : (el.x / 100) * width;
-          const boxY =
-            el.css.top !== undefined
-              ? parseDimension(el.css.top, height)
-              : (el.y / 100) * height;
-          const boxW =
-            el.css.width !== undefined
-              ? parseDimension(el.css.width, width, width * 0.8)
-              : width * 0.8;
-          const boxH =
-            el.css.height !== undefined
-              ? parseDimension(el.css.height, height, height * 0.3)
-              : height * 0.3;
+          const boxX = box.left;
+          const boxY = box.top;
+          const boxW = box.width;
+          const boxH = box.height;
 
           ctx.save();
           const radius = parseDimension(el.css.borderRadius, boxW, 0);
@@ -637,6 +666,8 @@ export async function exportThemeAsImage(
       if (el.type === "TEXT" || el.text) {
         drawTextElement(ctx, el, width, height, sampleProps);
       }
+
+      ctx.restore();
     }
 
     const dataUrl = canvas.toDataURL(mimeType, quality);

@@ -362,12 +362,19 @@ export interface ThemeElement {
   groupName?: string;
 }
 
+export interface ThemeGuide {
+  id: string;
+  axis: "x" | "y";
+  pos: number;
+}
+
 export interface ThemePage {
   id: string;
   context: ThemeContext;
   css: Record<string, string>;
   elements: ThemeElement[];
   name?: string;
+  guides?: ThemeGuide[];
 }
 
 export interface SlideTheme {
@@ -379,6 +386,7 @@ export interface SlideTheme {
   category?: "presentation" | "theme" | string;
   createdAt?: string;
   updatedAt?: string;
+  guides?: ThemeGuide[];
 }
 
 export interface ThemeBinding {

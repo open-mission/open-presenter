@@ -5,18 +5,43 @@ import {
   useRef,
   useState,
 } from "react";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type {
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import { Lock } from "lucide-react";
-import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
+import type {
+  SlideTheme,
+  ThemeAsset,
+  ThemeElement,
+  ThemeGuide,
+} from "@/core/types";
 import { createFrameCoalescer, type FrameCoalescer } from "@/core/lib/frameCoalescer";
 import { ThemeRenderer } from "../slide-themes/ThemeRenderer";
 import { useThemeEditorStore } from "./store";
 import { buildSnapBoxes, type ElementBox } from "./snapBoxes";
 import {
+  FALLBACK_SIZE,
   LOGICAL_H,
   LOGICAL_W,
+  type Point,
+  type Rect,
   elementRect,
+  rotatePoint,
+  unionRects,
+  visualRect,
 } from "./geometry";
+import { type ResizeDir, SelectionOverlay } from "./SelectionOverlay";
+import { groupMemberIds } from "./selection";
+import { Rulers } from "./Rulers";
+import { type GuideAxis, snapGuidePosition } from "./guides";
+import {
+  elementRotation,
+  normalizeDeg,
+  rotateElementsInList,
+  scaleElementsInList,
+  setElementRotation,
+} from "./transform";
 
 export interface CanvasResolution {
   width: number;
@@ -38,8 +63,6 @@ export interface CanvasProps {
   theme: SlideTheme;
   asset: ThemeAsset;
   props: Record<string, string>;
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
   onChange: (el: ThemeElement) => void;
   showGrid: boolean;
   gridSize: number;
@@ -52,135 +75,55 @@ export interface CanvasProps {
   simulateCamera?: boolean;
 }
 
-type ResizeDir = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
-
 interface Gesture {
-  id: string;
-  mode: "move" | "resize";
-  dir?: ResizeDir;
+  mode: "move" | "resize" | "rotate";
+  baseIds: string[];
+  ids: string[];
   startLX: number;
   startLY: number;
-  orig: { left: number; top: number; width: number; height: number };
-  last: { left: number; top: number; width: number; height: number };
-  groupOrigs?: Record<string, { left: number; top: number; width: number; height: number }>;
-  snapBoxes?: Map<string, ElementBox>;
+  origBox: Rect;
+  last: Rect;
+  memberOrigs: Record<string, Rect>;
+  rotations: Record<string, number>;
+  snapBoxes: Map<string, ElementBox>;
+  dir?: ResizeDir;
+  center: Point;
+  startAngle: number;
+  rotationDelta: number;
+  localRotation: number;
+  uniform: boolean;
 }
 
 type PreviewPatch = Partial<Pick<ThemeElement, "x" | "y">> & {
   css?: Record<string, string>;
 };
 
-type PointerPos = { clientX: number; clientY: number };
+type PointerPos = { clientX: number; clientY: number; shiftKey?: boolean };
 
 export interface SmartGuide {
   type: "vertical" | "horizontal";
   pos: number;
   label?: string;
+  kind?: "screen" | "user";
+}
+
+interface GuideDrag {
+  id: string;
+  axis: GuideAxis;
+  pos: number;
+  isNew: boolean;
+  armed: boolean;
+  remove: boolean;
 }
 
 const MIN_SIZE = 20;
 
 const EMPTY_SNAP_BOXES: ReadonlyMap<string, ElementBox> = new Map();
 
-const FALLBACK_SIZE: Record<ThemeElement["type"], { w: number; h: number }> = {
-  TEXT: { w: 400, h: 100 },
-  IMAGE: { w: 320, h: 180 },
-  VIDEO: { w: 320, h: 180 },
-  RECTANGLE: { w: 200, h: 120 },
-  CIRCLE: { w: 160, h: 160 },
-  TRIANGLE: { w: 160, h: 160 },
-  STAR: { w: 180, h: 180 },
-};
-
-const HANDLE_CURSORS: Record<ResizeDir, string> = {
-  nw: "nwse-resize",
-  se: "nwse-resize",
-  ne: "nesw-resize",
-  sw: "nesw-resize",
-  n: "ns-resize",
-  s: "ns-resize",
-  e: "ew-resize",
-  w: "ew-resize",
-};
-
-const HANDLE_OFFSETS: Record<ResizeDir, { x: number; y: number }> = {
-  nw: { x: 0, y: 0 },
-  n: { x: 0.5, y: 0 },
-  ne: { x: 1, y: 0 },
-  e: { x: 1, y: 0.5 },
-  se: { x: 1, y: 1 },
-  s: { x: 0.5, y: 1 },
-  sw: { x: 0, y: 1 },
-  w: { x: 0, y: 0.5 },
-};
-
-function RulerTop({ width }: { width: number }) {
-  const step = 100;
-  const ticks = [];
-  for (let x = 0; x <= width; x += 20) {
-    const isMajor = x % step === 0;
-    const isMid = x % (step / 2) === 0;
-    const h = isMajor ? 14 : isMid ? 9 : 5;
-    ticks.push(
-      <g key={x}>
-        <line x1={x} y1={20 - h} x2={x} y2={20} stroke="rgba(255,255,255,0.35)" strokeWidth={1} />
-        {isMajor && x > 0 && (
-          <text x={x + 3} y={11} fill="rgba(255,255,255,0.7)" fontSize={9} fontFamily="monospace">
-            {x}
-          </text>
-        )}
-      </g>
-    );
-  }
-  return (
-    <div className="absolute top-0 left-0 right-0 h-5 bg-card/85 border-b border-border/70 z-30 pointer-events-none select-none overflow-hidden">
-      <svg width={width} height={20} className="w-full h-full">
-        {ticks}
-      </svg>
-    </div>
-  );
-}
-
-function RulerLeft({ height }: { height: number }) {
-  const step = 100;
-  const ticks = [];
-  for (let y = 0; y <= height; y += 20) {
-    const isMajor = y % step === 0;
-    const isMid = y % (step / 2) === 0;
-    const w = isMajor ? 14 : isMid ? 9 : 5;
-    ticks.push(
-      <g key={y}>
-        <line x1={20 - w} y1={y} x2={20} y2={y} stroke="rgba(255,255,255,0.35)" strokeWidth={1} />
-        {isMajor && y > 0 && (
-          <text
-            x={11}
-            y={y - 3}
-            fill="rgba(255,255,255,0.7)"
-            fontSize={9}
-            fontFamily="monospace"
-            transform={`rotate(-90, 11, ${y - 3})`}
-          >
-            {y}
-          </text>
-        )}
-      </g>
-    );
-  }
-  return (
-    <div className="absolute top-0 bottom-0 left-0 w-5 bg-card/85 border-r border-border/70 z-30 pointer-events-none select-none overflow-hidden">
-      <svg width={20} height={height} className="w-full h-full">
-        {ticks}
-      </svg>
-    </div>
-  );
-}
-
 export function Canvas({
   theme,
   asset,
   props: sampleProps,
-  selectedId,
-  onSelect,
   onChange,
   showGrid,
   gridSize,
@@ -195,6 +138,15 @@ export function Canvas({
   const logicalW = resolution?.width ?? LOGICAL_W;
   const logicalH = resolution?.height ?? LOGICAL_H;
 
+  const selection = useThemeEditorStore((s) => s.selection);
+  const select = useThemeEditorStore((s) => s.select);
+  const toggleSelect = useThemeEditorStore((s) => s.toggleSelect);
+  const enterGroup = useThemeEditorStore((s) => s.enterGroup);
+  const clearSelection = useThemeEditorStore((s) => s.clearSelection);
+  const addGuide = useThemeEditorStore((s) => s.addGuide);
+  const moveGuide = useThemeEditorStore((s) => s.moveGuide);
+  const removeGuide = useThemeEditorStore((s) => s.removeGuide);
+
   const wrapRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
@@ -205,9 +157,12 @@ export function Canvas({
     Record<string, { w: number; h: number }>
   >({});
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [guideDrag, setGuideDrag] = useState<GuideDrag | null>(null);
 
   const updateGestureRef = useRef<(pos: PointerPos) => void>(() => {});
   const gestureFrameRef = useRef<FrameCoalescer<PointerPos> | null>(null);
+  const gestureListenersRef = useRef<(() => void) | null>(null);
+  const guideListenersRef = useRef<(() => void) | null>(null);
 
   updateGestureRef.current = updateGesture;
 
@@ -218,7 +173,11 @@ export function Canvas({
   }
 
   useEffect(() => {
-    return () => gestureFrameRef.current?.cancel();
+    return () => {
+      gestureFrameRef.current?.cancel();
+      gestureListenersRef.current?.();
+      guideListenersRef.current?.();
+    };
   }, []);
 
   useLayoutEffect(() => {
@@ -242,6 +201,8 @@ export function Canvas({
     observer.observe(node);
     return () => observer.disconnect();
   }, [zoom, logicalW, logicalH]);
+
+  const userGuides = theme.guides ?? [];
 
   const visibleElements = useMemo(
     () =>
@@ -328,12 +289,7 @@ export function Canvas({
     };
   }
 
-  function resolveBox(el: ThemeElement): {
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-  } {
+  function resolveBox(el: ThemeElement): Rect {
     const current = withPatch(el);
     const rect = elementRect(current);
     const fallback =
@@ -344,6 +300,164 @@ export function Canvas({
       width: rect.width ?? fallback.w,
       height: rect.height ?? fallback.h,
     };
+  }
+
+  function resolveVisualBox(el: ThemeElement): Rect {
+    return visualRect(resolveBox(el), elementRotation(withPatch(el)));
+  }
+
+  function selectionBoxFor(ids: readonly string[]): Rect | null {
+    const idSet = new Set(ids);
+    return unionRects(
+      theme.elements.filter((el) => idSet.has(el.id)).map(resolveVisualBox),
+    );
+  }
+
+  function guideSnapTargets(axis: GuideAxis, excludeId: string): number[] {
+    const size = axis === "x" ? logicalW : logicalH;
+    const targets = [0, size / 2, size];
+    for (const el of visibleElements) {
+      const box = resolveVisualBox(el);
+      if (axis === "x") {
+        targets.push(box.left, box.left + box.width / 2, box.left + box.width);
+      } else {
+        targets.push(box.top, box.top + box.height / 2, box.top + box.height);
+      }
+    }
+    for (const guide of userGuides) {
+      if (guide.axis === axis && guide.id !== excludeId) targets.push(guide.pos);
+    }
+    return targets;
+  }
+
+  function startGuideDrag(
+    e: ReactPointerEvent<HTMLDivElement>,
+    options: { id?: string; axis: GuideAxis; pos: number; isNew: boolean },
+  ): void {
+    e.preventDefault();
+    gestureFrameRef.current?.cancel();
+    const id = options.id ?? crypto.randomUUID();
+    const drag: GuideDrag = {
+      id,
+      axis: options.axis,
+      pos: options.pos,
+      isNew: options.isNew,
+      armed: !options.isNew,
+      remove: false,
+    };
+    setGuideDrag(drag);
+    const limit = options.axis === "x" ? logicalW : logicalH;
+
+    const move = (event: PointerEvent) => {
+      const point = toLogical(event);
+      const raw = options.axis === "x" ? point.x : point.y;
+      const overRuler = options.axis === "x" ? point.y <= 20 : point.x <= 20;
+      const armed =
+        drag.armed || (options.axis === "x" ? point.y > 44 : point.x > 44);
+      let next = raw;
+      if (snap) {
+        const target = snapGuidePosition(
+          raw,
+          guideSnapTargets(options.axis, id),
+          6,
+        );
+        if (target !== null) next = target;
+      }
+      drag.pos = Math.min(Math.max(Math.round(next), 0), limit);
+      drag.armed = armed;
+      drag.remove = armed && (overRuler || raw < -8 || raw > limit + 8);
+      setGuideDrag({ ...drag });
+    };
+
+    const cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", cancel);
+    };
+    const finish = () => {
+      cleanup();
+      guideListenersRef.current = null;
+      setGuideDrag(null);
+      if (drag.remove) {
+        if (!drag.isNew) removeGuide(drag.id);
+        return;
+      }
+      if (drag.isNew) addGuide(drag.axis, drag.pos);
+      else moveGuide(drag.id, drag.pos);
+    };
+    const cancel = () => {
+      cleanup();
+      guideListenersRef.current = null;
+      setGuideDrag(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", cancel);
+    guideListenersRef.current = cleanup;
+  }
+
+  function startGuideFromRuler(
+    axis: GuideAxis,
+    e: ReactPointerEvent<HTMLDivElement>,
+  ): void {
+    const point = toLogical(e);
+    const pos = axis === "x" ? point.x : point.y;
+    startGuideDrag(e, {
+      axis,
+      pos: Math.max(0, Math.round(pos)),
+      isNew: true,
+    });
+  }
+
+  function handleEmptyPointerDown(
+    e: ReactPointerEvent<HTMLDivElement>,
+  ): void {
+    if (e.target !== e.currentTarget) return;
+    if (editingId) {
+      (document.activeElement as HTMLElement | null)?.blur();
+      return;
+    }
+    clearSelection();
+  }
+
+  function hitTestMember(point: { x: number; y: number }): ThemeElement | null {
+    const idSet = new Set(selection.ids);
+    for (let index = theme.elements.length - 1; index >= 0; index -= 1) {
+      const el = theme.elements[index];
+      if (!idSet.has(el.id) || !el.visible) continue;
+      const box = resolveVisualBox(el);
+      if (
+        point.x >= box.left &&
+        point.x <= box.left + box.width &&
+        point.y >= box.top &&
+        point.y <= box.top + box.height
+      ) {
+        return el;
+      }
+    }
+    return null;
+  }
+
+  function handleGroupPointerDown(e: ReactPointerEvent<HTMLDivElement>): void {
+    if (e.button !== 0) return;
+    const member = hitTestMember(toLogical(e));
+    if (member && e.shiftKey) {
+      toggleSelect(member.id);
+      return;
+    }
+    if (member && (e.metaKey || e.ctrlKey) && member.groupId) {
+      enterGroup(member.groupId, member.id);
+      return;
+    }
+    if (e.shiftKey || e.metaKey || e.ctrlKey) return;
+    beginMove(e, selection.ids);
+  }
+
+  function handleGroupDoubleClick(e: ReactMouseEvent<HTMLDivElement>): void {
+    const member = hitTestMember(toLogical(e));
+    if (!member) return;
+    if (member.groupId) enterGroup(member.groupId, member.id);
+    if (member.type === "TEXT" && !member.locked) setEditingId(member.id);
   }
 
   function toLogical(e: { clientX: number; clientY: number }): {
@@ -369,6 +483,7 @@ export function Canvas({
     width: number,
     height: number,
     boxes: ReadonlyMap<string, ElementBox>,
+    userGuides: readonly ThemeGuide[] = [],
   ): { left: number; top: number; guides: SmartGuide[] } {
     if (!snap) {
       return {
@@ -439,6 +554,26 @@ export function Canvas({
       }
     }
 
+    if (!snappedX && userGuides.length > 0) {
+      const positions = userGuides
+        .filter((guide) => guide.axis === "x")
+        .map((guide) => guide.pos);
+      const candidates = [
+        { value: left, offset: 0 },
+        { value: centerX, offset: -width / 2 },
+        { value: right, offset: -width },
+      ];
+      for (const candidate of candidates) {
+        const target = snapGuidePosition(candidate.value, positions, SNAP_DIST);
+        if (target !== null) {
+          left = target + candidate.offset;
+          guides.push({ type: "vertical", pos: target, kind: "user" });
+          snappedX = true;
+          break;
+        }
+      }
+    }
+
     if (!snappedX && gridSize > 0) {
       left = Math.round(left / gridSize) * gridSize;
     } else {
@@ -496,6 +631,26 @@ export function Canvas({
       }
     }
 
+    if (!snappedY && userGuides.length > 0) {
+      const positions = userGuides
+        .filter((guide) => guide.axis === "y")
+        .map((guide) => guide.pos);
+      const candidates = [
+        { value: top, offset: 0 },
+        { value: centerY, offset: -height / 2 },
+        { value: bottom, offset: -height },
+      ];
+      for (const candidate of candidates) {
+        const target = snapGuidePosition(candidate.value, positions, SNAP_DIST);
+        if (target !== null) {
+          top = target + candidate.offset;
+          guides.push({ type: "horizontal", pos: target, kind: "user" });
+          snappedY = true;
+          break;
+        }
+      }
+    }
+
     if (!snappedY && gridSize > 0) {
       top = Math.round(top / gridSize) * gridSize;
     } else {
@@ -510,6 +665,7 @@ export function Canvas({
     dir: ResizeDir,
     dx: number,
     dy: number,
+    userGuides: readonly ThemeGuide[] = [],
   ): { left: number; top: number; width: number; height: number; guides: SmartGuide[] } {
     let { left, top, width, height } = orig;
     const right = orig.left + orig.width;
@@ -535,8 +691,20 @@ export function Canvas({
         } else if (Math.abs(candRight - logicalW / 2) <= SNAP_DIST) {
           candRight = logicalW / 2;
           guides.push({ type: "vertical", pos: logicalW / 2 });
-        } else if (gridSize > 0) {
-          candRight = Math.round(candRight / gridSize) * gridSize;
+        } else {
+          const snapped = snapGuidePosition(
+            candRight,
+            userGuides
+              .filter((guide) => guide.axis === "x")
+              .map((guide) => guide.pos),
+            SNAP_DIST,
+          );
+          if (snapped !== null) {
+            candRight = snapped;
+            guides.push({ type: "vertical", pos: snapped, kind: "user" });
+          } else if (gridSize > 0) {
+            candRight = Math.round(candRight / gridSize) * gridSize;
+          }
         }
       }
       width = Math.max(MIN_SIZE, candRight - left);
@@ -554,8 +722,20 @@ export function Canvas({
         } else if (Math.abs(candBottom - logicalH / 2) <= SNAP_DIST) {
           candBottom = logicalH / 2;
           guides.push({ type: "horizontal", pos: logicalH / 2 });
-        } else if (gridSize > 0) {
-          candBottom = Math.round(candBottom / gridSize) * gridSize;
+        } else {
+          const snapped = snapGuidePosition(
+            candBottom,
+            userGuides
+              .filter((guide) => guide.axis === "y")
+              .map((guide) => guide.pos),
+            SNAP_DIST,
+          );
+          if (snapped !== null) {
+            candBottom = snapped;
+            guides.push({ type: "horizontal", pos: snapped, kind: "user" });
+          } else if (gridSize > 0) {
+            candBottom = Math.round(candBottom / gridSize) * gridSize;
+          }
         }
       }
       height = Math.max(MIN_SIZE, candBottom - top);
@@ -573,8 +753,20 @@ export function Canvas({
         } else if (Math.abs(candLeft - logicalW / 2) <= SNAP_DIST) {
           candLeft = logicalW / 2;
           guides.push({ type: "vertical", pos: logicalW / 2 });
-        } else if (gridSize > 0) {
-          candLeft = Math.round(candLeft / gridSize) * gridSize;
+        } else {
+          const snapped = snapGuidePosition(
+            candLeft,
+            userGuides
+              .filter((guide) => guide.axis === "x")
+              .map((guide) => guide.pos),
+            SNAP_DIST,
+          );
+          if (snapped !== null) {
+            candLeft = snapped;
+            guides.push({ type: "vertical", pos: snapped, kind: "user" });
+          } else if (gridSize > 0) {
+            candLeft = Math.round(candLeft / gridSize) * gridSize;
+          }
         }
       }
       candLeft = Math.min(right - MIN_SIZE, candLeft);
@@ -594,8 +786,20 @@ export function Canvas({
         } else if (Math.abs(candTop - logicalH / 2) <= SNAP_DIST) {
           candTop = logicalH / 2;
           guides.push({ type: "horizontal", pos: logicalH / 2 });
-        } else if (gridSize > 0) {
-          candTop = Math.round(candTop / gridSize) * gridSize;
+        } else {
+          const snapped = snapGuidePosition(
+            candTop,
+            userGuides
+              .filter((guide) => guide.axis === "y")
+              .map((guide) => guide.pos),
+            SNAP_DIST,
+          );
+          if (snapped !== null) {
+            candTop = snapped;
+            guides.push({ type: "horizontal", pos: snapped, kind: "user" });
+          } else if (gridSize > 0) {
+            candTop = Math.round(candTop / gridSize) * gridSize;
+          }
         }
       }
       candTop = Math.min(bottom - MIN_SIZE, candTop);
@@ -612,219 +816,461 @@ export function Canvas({
     };
   }
 
-  function commitGesture(g: Gesture): void {
-    const orig = theme.elements.find((el) => el.id === g.id);
-    if (!orig) return;
-    setActiveGuides([]);
+  function clearPreview(ids: readonly string[]): void {
     setPreview((prev) => {
       const next = { ...prev };
-      delete next[g.id];
-      if (g.groupOrigs) {
-        for (const mId of Object.keys(g.groupOrigs)) {
-          delete next[mId];
-        }
-      }
+      for (const id of ids) delete next[id];
       return next;
-    });
-
-    if (g.mode === "move" && g.groupOrigs && Object.keys(g.groupOrigs).length > 1) {
-      const effectiveDx = Math.round(g.last.left) - Math.round(g.orig.left);
-      const effectiveDy = Math.round(g.last.top) - Math.round(g.orig.top);
-      if (effectiveDx === 0 && effectiveDy === 0) return;
-
-      const patches: { id: string; patch: Partial<ThemeElement> }[] = [];
-      for (const [mId, mOrig] of Object.entries(g.groupOrigs)) {
-        const memberEl = theme.elements.find((el) => el.id === mId);
-        if (!memberEl) continue;
-        const newLeft = Math.max(0, Math.round(mOrig.left + effectiveDx));
-        const newTop = Math.max(0, Math.round(mOrig.top + effectiveDy));
-        patches.push({
-          id: mId,
-          patch: {
-            x: newLeft,
-            y: newTop,
-            css: {
-              ...memberEl.css,
-              left: `${newLeft}px`,
-              top: `${newTop}px`,
-            },
-          },
-        });
-      }
-      useThemeEditorStore.getState().updateElements(patches);
-      return;
-    }
-
-    const left = Math.max(0, Math.round(g.last.left));
-    const top = Math.max(0, Math.round(g.last.top));
-    const width = Math.max(MIN_SIZE, Math.round(g.last.width));
-    const height = Math.max(MIN_SIZE, Math.round(g.last.height));
-    const o = g.orig;
-    if (
-      left === Math.max(0, Math.round(o.left)) &&
-      top === Math.max(0, Math.round(o.top)) &&
-      width === Math.max(MIN_SIZE, Math.round(o.width)) &&
-      height === Math.max(MIN_SIZE, Math.round(o.height))
-    ) {
-      return;
-    }
-    onChange({
-      ...orig,
-      x: left,
-      y: top,
-      css: {
-        ...orig.css,
-        left: `${left}px`,
-        top: `${top}px`,
-        width: `${width}px`,
-        height: `${height}px`,
-      },
     });
   }
 
-  function updateGesture(e: { clientX: number; clientY: number }): void {
+  function isLocalResize(g: Gesture): boolean {
+    return (
+      g.mode === "resize" &&
+      g.ids.length === 1 &&
+      (g.rotations[g.ids[0]] ?? 0) % 360 !== 0
+    );
+  }
+
+  function commitGesture(g: Gesture): void {
+    setActiveGuides([]);
+    clearPreview(g.ids);
+
+    if (g.mode === "move") {
+      const dx = Math.round(g.last.left - g.origBox.left);
+      const dy = Math.round(g.last.top - g.origBox.top);
+      if (dx === 0 && dy === 0) return;
+      const patches: { id: string; patch: Partial<ThemeElement> }[] = [];
+      for (const [id, orig] of Object.entries(g.memberOrigs)) {
+        const el = theme.elements.find((item) => item.id === id);
+        if (!el) continue;
+        const left = Math.max(0, Math.round(orig.left + dx));
+        const top = Math.max(0, Math.round(orig.top + dy));
+        patches.push({
+          id,
+          patch: {
+            x: left,
+            y: top,
+            css: { ...el.css, left: `${left}px`, top: `${top}px` },
+          },
+        });
+      }
+      if (patches.length > 0) {
+        useThemeEditorStore.getState().updateElements(patches);
+      }
+      return;
+    }
+
+    if (g.mode === "rotate") {
+      if (g.rotationDelta === 0) return;
+      const patches: { id: string; patch: Partial<ThemeElement> }[] = [];
+      if (g.ids.length === 1) {
+        const el = theme.elements.find((item) => item.id === g.ids[0]);
+        if (!el) return;
+        const next = setElementRotation(
+          el,
+          (g.rotations[el.id] ?? 0) + g.rotationDelta,
+        );
+        patches.push({ id: el.id, patch: { css: next.css } });
+      } else {
+        const idSet = new Set(g.ids);
+        const rotated = rotateElementsInList(
+          theme.elements,
+          g.center,
+          g.rotationDelta,
+        );
+        for (const el of rotated) {
+          if (!idSet.has(el.id)) continue;
+          patches.push({ id: el.id, patch: { x: el.x, y: el.y, css: el.css } });
+        }
+      }
+      if (patches.length > 0) {
+        useThemeEditorStore.getState().updateElements(patches);
+      }
+      return;
+    }
+
+    if (isLocalResize(g)) {
+      const id = g.ids[0];
+      const el = theme.elements.find((item) => item.id === id);
+      const base = g.memberOrigs[id];
+      if (!el) return;
+      const left = Math.max(0, Math.round(g.last.left));
+      const top = Math.max(0, Math.round(g.last.top));
+      const width = Math.max(MIN_SIZE, Math.round(g.last.width));
+      const height = Math.max(MIN_SIZE, Math.round(g.last.height));
+      if (
+        base &&
+        left === Math.round(base.left) &&
+        top === Math.round(base.top) &&
+        width === Math.round(base.width) &&
+        height === Math.round(base.height)
+      ) {
+        return;
+      }
+      useThemeEditorStore.getState().updateElements([
+        {
+          id,
+          patch: {
+            x: left,
+            y: top,
+            css: {
+              ...el.css,
+              left: `${left}px`,
+              top: `${top}px`,
+              width: `${width}px`,
+              height: `${height}px`,
+            },
+          },
+        },
+      ]);
+      return;
+    }
+
+    const idSet = new Set(g.ids);
+    const scaled = scaleElementsInList(theme.elements, g.origBox, g.last);
+    const patches = scaled
+      .filter((el) => idSet.has(el.id))
+      .map((el) => ({ id: el.id, patch: { x: el.x, y: el.y, css: el.css } }));
+    if (patches.length > 0) {
+      useThemeEditorStore.getState().updateElements(patches);
+    }
+  }
+
+  function updateGesture(e: PointerPos): void {
     const g = gestureRef.current;
     if (!g) return;
     const pos = toLogical(e);
     const dx = pos.x - g.startLX;
     const dy = pos.y - g.startLY;
+    const shift = Boolean(e.shiftKey);
 
     if (g.mode === "move") {
       const snapped = calculateSnap(
-        g.orig.left,
-        g.orig.top,
+        g.origBox.left,
+        g.origBox.top,
         dx,
         dy,
-        g.orig.width,
-        g.orig.height,
+        g.origBox.width,
+        g.origBox.height,
         g.snapBoxes ?? EMPTY_SNAP_BOXES,
+        userGuides,
       );
-      g.last = {
-        ...g.last,
-        left: snapped.left,
-        top: snapped.top,
-      };
+      g.last = { ...g.origBox, left: snapped.left, top: snapped.top };
       setActiveGuides(snapped.guides);
 
-      const effectiveDx = snapped.left - g.orig.left;
-      const effectiveDy = snapped.top - g.orig.top;
-
+      const effectiveDx = snapped.left - g.origBox.left;
+      const effectiveDy = snapped.top - g.origBox.top;
       setPreview((prev) => {
         const next = { ...prev };
-        if (g.groupOrigs) {
-          for (const [mId, mOrig] of Object.entries(g.groupOrigs)) {
-            const mLeft = Math.round(mOrig.left + effectiveDx);
-            const mTop = Math.round(mOrig.top + effectiveDy);
-            next[mId] = {
-              x: mLeft,
-              y: mTop,
-              css: {
-                left: `${mLeft}px`,
-                top: `${mTop}px`,
-                width: `${Math.round(mOrig.width)}px`,
-                height: `${Math.round(mOrig.height)}px`,
-              },
-            };
-          }
-        } else {
-          next[g.id] = {
-            x: Math.round(snapped.left),
-            y: Math.round(snapped.top),
-            css: {
-              left: `${Math.round(snapped.left)}px`,
-              top: `${Math.round(snapped.top)}px`,
-              width: `${Math.round(g.last.width)}px`,
-              height: `${Math.round(g.last.height)}px`,
-            },
+        for (const [id, orig] of Object.entries(g.memberOrigs)) {
+          const left = Math.round(orig.left + effectiveDx);
+          const top = Math.round(orig.top + effectiveDy);
+          next[id] = {
+            x: left,
+            y: top,
+            css: { left: `${left}px`, top: `${top}px` },
           };
         }
         return next;
       });
       return;
-    } else {
-      const snapped = calculateResizeSnap(
-        g.orig,
-        g.dir ?? "se",
-        dx,
-        dy,
-      );
-      g.last = snapped;
-      setActiveGuides(snapped.guides);
     }
 
-    const { left, top, width, height } = g.last;
-    setPreview((prev) => ({
-      ...prev,
-      [g.id]: {
-        x: Math.round(left),
-        y: Math.round(top),
-        css: {
-          left: `${left}px`,
-          top: `${top}px`,
-          width: `${width}px`,
-          height: `${height}px`,
+    if (g.mode === "rotate") {
+      const angle =
+        (Math.atan2(pos.y - g.center.y, pos.x - g.center.x) * 180) / Math.PI;
+      let delta = normalizeDeg(angle - g.startAngle);
+      if (shift) {
+        if (g.ids.length === 1) {
+          const rotation = g.rotations[g.ids[0]] ?? 0;
+          delta = Math.round(normalizeDeg(rotation + delta) / 15) * 15 - rotation;
+        } else {
+          delta = Math.round(delta / 15) * 15;
+        }
+      }
+      g.rotationDelta = delta;
+
+      if (g.ids.length === 1) {
+        const el = theme.elements.find((item) => item.id === g.ids[0]);
+        if (!el) return;
+        const next = setElementRotation(el, (g.rotations[el.id] ?? 0) + delta);
+        setPreview((prev) => ({ ...prev, [el.id]: { css: next.css } }));
+        return;
+      }
+
+      const idSet = new Set(g.ids);
+      const rotated = rotateElementsInList(theme.elements, g.center, delta);
+      setPreview((prev) => {
+        const next = { ...prev };
+        for (const el of rotated) {
+          if (!idSet.has(el.id)) continue;
+          next[el.id] = { x: el.x, y: el.y, css: el.css };
+        }
+        return next;
+      });
+      return;
+    }
+
+    if (isLocalResize(g)) {
+      const id = g.ids[0];
+      const el = theme.elements.find((item) => item.id === id);
+      const base = g.memberOrigs[id];
+      if (!el || !base) return;
+      const angle = g.rotations[id] ?? 0;
+      const rad = (-angle * Math.PI) / 180;
+      const lx = dx * Math.cos(rad) - dy * Math.sin(rad);
+      const ly = dx * Math.sin(rad) + dy * Math.cos(rad);
+
+      let left = 0;
+      let top = 0;
+      let right = base.width;
+      let bottom = base.height;
+      if (g.dir?.includes("e")) right += lx;
+      if (g.dir?.includes("w")) left += lx;
+      if (g.dir?.includes("s")) bottom += ly;
+      if (g.dir?.includes("n")) top += ly;
+
+      let width = Math.max(MIN_SIZE, right - left);
+      let height = Math.max(MIN_SIZE, bottom - top);
+      if (shift && g.dir && g.dir.length === 2) {
+        const factor = Math.max(width / base.width, height / base.height);
+        width = Math.max(MIN_SIZE, base.width * factor);
+        height = Math.max(MIN_SIZE, base.height * factor);
+      }
+
+      const localX = (left + right) / 2 - base.width / 2;
+      const localY = (top + bottom) / 2 - base.height / 2;
+      const offset = rotatePoint({ x: localX, y: localY }, { x: 0, y: 0 }, angle);
+      const centerX = base.left + base.width / 2 + offset.x;
+      const centerY = base.top + base.height / 2 + offset.y;
+      const nextLeft = Math.max(0, centerX - width / 2);
+      const nextTop = Math.max(0, centerY - height / 2);
+      g.last = { left: nextLeft, top: nextTop, width, height };
+      setActiveGuides([]);
+      const roundedLeft = Math.round(nextLeft);
+      const roundedTop = Math.round(nextTop);
+      const roundedWidth = Math.round(width);
+      const roundedHeight = Math.round(height);
+      setPreview((prev) => ({
+        ...prev,
+        [id]: {
+          x: roundedLeft,
+          y: roundedTop,
+          css: {
+            left: `${roundedLeft}px`,
+            top: `${roundedTop}px`,
+            width: `${roundedWidth}px`,
+            height: `${roundedHeight}px`,
+          },
         },
-      },
-    }));
+      }));
+      return;
+    }
+
+    const snapped = calculateResizeSnap(
+      g.origBox,
+      g.dir ?? "se",
+      dx,
+      dy,
+      userGuides,
+    );
+    let last: Rect = {
+      left: snapped.left,
+      top: snapped.top,
+      width: snapped.width,
+      height: snapped.height,
+    };
+    if (shift && g.dir && g.dir.length === 2) {
+      const factor = Math.max(
+        last.width / g.origBox.width,
+        last.height / g.origBox.height,
+      );
+      const width = g.origBox.width * factor;
+      const height = g.origBox.height * factor;
+      let left = last.left;
+      let top = last.top;
+      if (g.dir.includes("w")) left = g.origBox.left + g.origBox.width - width;
+      if (g.dir.includes("n")) top = g.origBox.top + g.origBox.height - height;
+      last = { left, top, width, height };
+    }
+    g.last = last;
+    setActiveGuides(snapped.guides);
+
+    const idSet = new Set(g.ids);
+    const scaled = scaleElementsInList(theme.elements, g.origBox, last);
+    setPreview((prev) => {
+      const next = { ...prev };
+      for (const el of scaled) {
+        if (!idSet.has(el.id)) continue;
+        next[el.id] = { x: el.x, y: el.y, css: el.css };
+      }
+      return next;
+    });
   }
 
   function endGesture(): void {
     const g = gestureRef.current;
     gestureRef.current = null;
+    gestureListenersRef.current?.();
+    gestureListenersRef.current = null;
     setActiveGuides([]);
     gestureFrameRef.current?.cancel();
     if (g) commitGesture(g);
   }
 
+  function cancelGesture(): void {
+    const g = gestureRef.current;
+    gestureRef.current = null;
+    gestureListenersRef.current?.();
+    gestureListenersRef.current = null;
+    setActiveGuides([]);
+    gestureFrameRef.current?.cancel();
+    if (g) clearPreview(g.ids);
+  }
+
+  function trackGesture(): void {
+    const move = (event: PointerEvent) => {
+      gestureFrameRef.current?.push({
+        clientX: event.clientX,
+        clientY: event.clientY,
+        shiftKey: event.shiftKey,
+      });
+    };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", cancel);
+    };
+    const finish = () => {
+      gestureFrameRef.current?.flush();
+      endGesture();
+    };
+    const cancel = () => cancelGesture();
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", cancel);
+    gestureListenersRef.current = cleanup;
+  }
+
   function beginMove(
-    e: ReactPointerEvent<HTMLDivElement>,
-    el: ThemeElement,
+    e: ReactPointerEvent<HTMLElement>,
+    ids: readonly string[],
   ): void {
     gestureFrameRef.current?.cancel();
-    const pos = toLogical(e);
-    const box = resolveBox(el);
-    const excludeIds = new Set([el.id]);
-    let groupOrigs: Record<string, { left: number; top: number; width: number; height: number }> | undefined;
-    if (el.groupId) {
-      groupOrigs = {};
-      for (const member of theme.elements) {
-        if (member.groupId === el.groupId && !member.locked) {
-          groupOrigs[member.id] = resolveBox(member);
-          excludeIds.add(member.id);
-        }
+    const idSet = new Set(ids);
+    const memberOrigs: Record<string, Rect> = {};
+    for (const member of theme.elements) {
+      if (idSet.has(member.id) && !member.locked) {
+        memberOrigs[member.id] = resolveBox(member);
       }
     }
+    if (Object.keys(memberOrigs).length === 0) return;
+    const origBox = selectionBoxFor(ids);
+    if (!origBox || origBox.width <= 0 || origBox.height <= 0) return;
+    const pos = toLogical(e);
     gestureRef.current = {
-      id: el.id,
       mode: "move",
+      baseIds: [...ids],
+      ids: Object.keys(memberOrigs),
       startLX: pos.x,
       startLY: pos.y,
-      orig: box,
-      last: { ...box },
-      groupOrigs,
-      snapBoxes: buildSnapBoxes(visibleElements, excludeIds, resolveBox),
+      origBox,
+      last: { ...origBox },
+      memberOrigs,
+      rotations: {},
+      snapBoxes: buildSnapBoxes(visibleElements, idSet, resolveVisualBox),
+      center: { x: origBox.left + origBox.width / 2, y: origBox.top + origBox.height / 2 },
+      startAngle: 0,
+      rotationDelta: 0,
+      localRotation: 0,
+      uniform: false,
     };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    trackGesture();
   }
 
   function beginResize(
     e: ReactPointerEvent<HTMLDivElement>,
-    el: ThemeElement,
+    ids: readonly string[],
     dir: ResizeDir,
   ): void {
     gestureFrameRef.current?.cancel();
+    const idSet = new Set(ids);
+    const members = theme.elements.filter(
+      (el) => idSet.has(el.id) && !el.locked,
+    );
+    if (members.length === 0) return;
+    const memberOrigs: Record<string, Rect> = {};
+    const rotations: Record<string, number> = {};
+    for (const member of members) {
+      memberOrigs[member.id] = resolveBox(member);
+      rotations[member.id] = elementRotation(member);
+    }
+    const single = members.length === 1;
+    const local = single && rotations[members[0].id] % 360 !== 0;
+    const box = local ? memberOrigs[members[0].id] : selectionBoxFor(ids);
+    if (!box || box.width <= 0 || box.height <= 0) return;
     const pos = toLogical(e);
-    const box = resolveBox(el);
     gestureRef.current = {
-      id: el.id,
       mode: "resize",
       dir,
+      baseIds: [...ids],
+      ids: members.map((member) => member.id),
       startLX: pos.x,
       startLY: pos.y,
-      orig: box,
+      origBox: { ...box },
       last: { ...box },
+      memberOrigs,
+      rotations,
+      snapBoxes: EMPTY_SNAP_BOXES as Map<string, ElementBox>,
+      center: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+      startAngle: 0,
+      rotationDelta: 0,
+      localRotation: 0,
+      uniform: false,
     };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    trackGesture();
+  }
+
+  function beginRotate(
+    e: ReactPointerEvent<HTMLDivElement>,
+    ids: readonly string[],
+  ): void {
+    gestureFrameRef.current?.cancel();
+    const idSet = new Set(ids);
+    const members = theme.elements.filter(
+      (el) => idSet.has(el.id) && !el.locked,
+    );
+    if (members.length === 0) return;
+    const box = selectionBoxFor(ids);
+    if (!box) return;
+    const memberOrigs: Record<string, Rect> = {};
+    const rotations: Record<string, number> = {};
+    for (const member of members) {
+      memberOrigs[member.id] = resolveBox(member);
+      rotations[member.id] = elementRotation(member);
+    }
+    const pos = toLogical(e);
+    const center = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    gestureRef.current = {
+      mode: "rotate",
+      baseIds: [...ids],
+      ids: members.map((member) => member.id),
+      startLX: pos.x,
+      startLY: pos.y,
+      origBox: box,
+      last: box,
+      memberOrigs,
+      rotations,
+      snapBoxes: EMPTY_SNAP_BOXES as Map<string, ElementBox>,
+      center,
+      startAngle:
+        (Math.atan2(pos.y - center.y, pos.x - center.x) * 180) / Math.PI,
+      rotationDelta: 0,
+      localRotation: rotations[members[0].id] ?? 0,
+      uniform: false,
+    };
+    trackGesture();
   }
 
   function commitText(el: ThemeElement, text: string): void {
@@ -836,6 +1282,15 @@ export function Canvas({
 
   const stageWidth = Math.round(logicalW * scale);
   const stageHeight = Math.round(logicalH * scale);
+  const selectionBox =
+    selection.ids.length >= 2 ? selectionBoxFor(selection.ids) : null;
+  const selectedElement =
+    selection.ids.length === 1
+      ? (theme.elements.find((el) => el.id === selection.ids[0]) ?? null)
+      : null;
+  const hasUnlockedSelection = theme.elements.some(
+    (el) => selection.ids.includes(el.id) && !el.locked,
+  );
 
   return (
     <div
@@ -846,9 +1301,7 @@ export function Canvas({
           "conic-gradient(#1b1b1f 25%, #131316 0 50%, #1b1b1f 0 75%, #131316 0)",
         backgroundSize: "24px 24px",
       }}
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onSelect(null);
-      }}
+      onPointerDown={handleEmptyPointerDown}
     >
       <div
         className="relative shrink-0 shadow-2xl overflow-hidden border border-white/10 rounded-sm"
@@ -856,9 +1309,7 @@ export function Canvas({
           width: stageWidth,
           height: stageHeight,
         }}
-        onPointerDown={(e) => {
-          if (e.target === e.currentTarget) onSelect(null);
-        }}
+        onPointerDown={handleEmptyPointerDown}
       >
         <div
           ref={stageRef}
@@ -908,10 +1359,11 @@ export function Canvas({
               />
             )}
             {showRulers && (
-              <>
-                <RulerTop width={logicalW} />
-                <RulerLeft height={logicalH} />
-              </>
+              <Rulers
+                width={logicalW}
+                height={logicalH}
+                onStartGuide={startGuideFromRuler}
+              />
             )}
             {showGuides && (
               <>
@@ -967,21 +1419,31 @@ export function Canvas({
                         top: 0,
                         bottom: 0,
                         width: "1.5px",
-                        backgroundColor: "#ec4899",
-                        boxShadow: "0 0 6px rgba(236, 72, 153, 0.9)",
+                        backgroundColor:
+                          g.kind === "user" ? "#22d3ee" : "#ec4899",
+                        boxShadow:
+                          g.kind === "user"
+                            ? "0 0 6px rgba(34, 211, 238, 0.9)"
+                            : "0 0 6px rgba(236, 72, 153, 0.9)",
                       }
                     : {
                         top: `${g.pos}px`,
                         left: 0,
                         right: 0,
                         height: "1.5px",
-                        backgroundColor: "#ec4899",
-                        boxShadow: "0 0 6px rgba(236, 72, 153, 0.9)",
+                        backgroundColor:
+                          g.kind === "user" ? "#22d3ee" : "#ec4899",
+                        boxShadow:
+                          g.kind === "user"
+                            ? "0 0 6px rgba(34, 211, 238, 0.9)"
+                            : "0 0 6px rgba(236, 72, 153, 0.9)",
                       }
                 }
               >
                 <span
-                  className="absolute bg-pink-600 text-white font-mono text-[9px] px-1 py-0.5 rounded shadow pointer-events-none whitespace-nowrap"
+                  className={`pointer-events-none absolute whitespace-nowrap rounded px-1 py-0.5 font-mono text-[9px] text-white shadow ${
+                    g.kind === "user" ? "bg-cyan-600" : "bg-pink-600"
+                  }`}
                   style={
                     g.type === "vertical"
                       ? { top: "8px", left: "4px" }
@@ -992,11 +1454,98 @@ export function Canvas({
                 </span>
               </div>
             ))}
-            <div className="absolute inset-0">
+            {userGuides
+              .filter((guide) => guide.id !== guideDrag?.id)
+              .map((guide) => {
+                const vertical = guide.axis === "x";
+                return (
+                  <div
+                    key={guide.id}
+                    className="absolute z-40"
+                    title="Arraste para mover; duplo-clique para remover"
+                    style={
+                      vertical
+                        ? {
+                            left: guide.pos - 4,
+                            top: 0,
+                            bottom: 0,
+                            width: 8,
+                            cursor: "grab",
+                          }
+                        : {
+                            top: guide.pos - 4,
+                            left: 0,
+                            right: 0,
+                            height: 8,
+                            cursor: "grab",
+                          }
+                    }
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      if (e.button !== 0) return;
+                      startGuideDrag(e, {
+                        id: guide.id,
+                        axis: guide.axis,
+                        pos: guide.pos,
+                        isNew: false,
+                      });
+                    }}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      removeGuide(guide.id);
+                    }}
+                  >
+                    <div
+                      className="pointer-events-none absolute bg-cyan-400/80"
+                      style={
+                        vertical
+                          ? { left: 3.25, top: 0, bottom: 0, width: "1.5px" }
+                          : { top: 3.25, left: 0, right: 0, height: "1.5px" }
+                      }
+                    />
+                  </div>
+                );
+              })}
+            {guideDrag && (
+              <div
+                className="pointer-events-none absolute z-40"
+                style={
+                  guideDrag.axis === "x"
+                    ? {
+                        left: guideDrag.pos - 0.75,
+                        top: 0,
+                        bottom: 0,
+                        width: 1.5,
+                        backgroundColor: guideDrag.remove ? "#f87171" : "#22d3ee",
+                      }
+                    : {
+                        top: guideDrag.pos - 0.75,
+                        left: 0,
+                        right: 0,
+                        height: 1.5,
+                        backgroundColor: guideDrag.remove ? "#f87171" : "#22d3ee",
+                      }
+                }
+              >
+                <span
+                  className={`absolute rounded px-1 py-0.5 font-mono text-[9px] text-white shadow ${
+                    guideDrag.remove ? "bg-red-500" : "bg-cyan-600"
+                  }`}
+                  style={
+                    guideDrag.axis === "x"
+                      ? { top: "8px", left: "4px" }
+                      : { left: "8px", top: "4px" }
+                  }
+                >
+                  {Math.round(guideDrag.pos)}px
+                </span>
+              </div>
+            )}
+            <div className="absolute inset-0" onPointerDown={handleEmptyPointerDown}>
               {visibleElements.map((el) => {
                 const box = resolveBox(el);
-                const selected = el.id === selectedId;
                 const interactive = !el.locked;
+                const rotation = elementRotation(withPatch(el));
                 const editing = editingId === el.id;
                 if (editing && el.type === "TEXT") {
                   return (
@@ -1004,6 +1553,7 @@ export function Canvas({
                       key={el.id}
                       el={el}
                       box={box}
+                      rotation={elementRotation(withPatch(el))}
                       maxWidth={logicalW - box.left}
                       onCommit={commitText}
                       onCancel={() => setEditingId(null)}
@@ -1016,59 +1566,61 @@ export function Canvas({
                     role="button"
                     tabIndex={0}
                     aria-label={`Elemento ${el.id}`}
-                    className={
-                      selected
-                        ? "absolute border-2 border-primary"
-                        : "absolute border border-transparent hover:border-white/40"
-                    }
+                    className="absolute border border-transparent hover:border-white/40"
                     style={{
                       left: box.left,
                       top: box.top,
                       width: box.width,
                       height: box.height,
+                      transform: rotation ? `rotate(${rotation}deg)` : undefined,
                       cursor: interactive ? "move" : "not-allowed",
                       touchAction: "none",
                     }}
                     onPointerDown={(e) => {
                       e.stopPropagation();
-                      onSelect(el.id);
-                      if (!interactive || editingId) return;
                       if (e.button !== 0) return;
-                      beginMove(e, el);
-                    }}
-                    onPointerMove={(e) => {
-                      if (gestureRef.current?.id === el.id) {
-                        gestureFrameRef.current?.push({ clientX: e.clientX, clientY: e.clientY });
+                      const canGesture = !el.locked && !editingId;
+                      if (e.shiftKey) {
+                        toggleSelect(el.id);
+                        return;
                       }
-                    }}
-                    onPointerUp={(e) => {
-                      if (gestureRef.current?.id === el.id) {
-                        e.stopPropagation();
-                        gestureFrameRef.current?.flush();
-                        endGesture();
+                      const mod = e.metaKey || e.ctrlKey;
+                      if (el.groupId && mod) {
+                        enterGroup(el.groupId, el.id);
+                        if (canGesture) beginMove(e, [el.id]);
+                        return;
                       }
-                    }}
-                    onPointerCancel={() => {
-                      if (gestureRef.current?.id === el.id) {
-                        gestureFrameRef.current?.cancel();
-                        gestureRef.current = null;
-                        setPreview((prev) => {
-                          const next = { ...prev };
-                          delete next[el.id];
-                          return next;
+                      if (el.groupId && selection.enteredGroupId === el.groupId) {
+                        select([el.id], {
+                          anchorId: el.id,
+                          enteredGroupId: el.groupId,
                         });
+                        if (canGesture) beginMove(e, [el.id]);
+                        return;
                       }
+                      if (el.groupId) {
+                        const ids = groupMemberIds(theme.elements, el.groupId);
+                        select(ids, { anchorId: el.id });
+                        if (canGesture) beginMove(e, ids);
+                        return;
+                      }
+                      if (
+                        selection.ids.length > 1 &&
+                        selection.ids.includes(el.id)
+                      ) {
+                        if (canGesture) beginMove(e, selection.ids);
+                        return;
+                      }
+                      select([el.id], { anchorId: el.id });
+                      if (canGesture) beginMove(e, [el.id]);
                     }}
                     onDoubleClick={(e) => {
-                      if (el.type !== "TEXT" || !interactive) return;
                       e.stopPropagation();
+                      if (el.locked) return;
                       gestureRef.current = null;
-                      setPreview((prev) => {
-                        const next = { ...prev };
-                        delete next[el.id];
-                        return next;
-                      });
-                      setEditingId(el.id);
+                      clearPreview([el.id]);
+                      if (el.groupId) enterGroup(el.groupId, el.id);
+                      if (el.type === "TEXT") setEditingId(el.id);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Delete" || e.key === "Backspace") {
@@ -1082,52 +1634,44 @@ export function Canvas({
                         Bloqueado
                       </span>
                     )}
-                    {selected && interactive && (
-                      <>
-                        {(Object.keys(HANDLE_OFFSETS) as ResizeDir[]).map(
-                          (dir) => {
-                            const offset = HANDLE_OFFSETS[dir];
-                            return (
-                              <div
-                                key={dir}
-                                className="absolute z-10 rounded-[2px] border border-primary bg-background shadow"
-                                style={
-                                  {
-                                    width: 18,
-                                    height: 18,
-                                    left: `calc(${offset.x * 100}% - 9px)`,
-                                    top: `calc(${offset.y * 100}% - 9px)`,
-                                    cursor: HANDLE_CURSORS[dir],
-                                    touchAction: "none",
-                                  } as CSSProperties
-                                }
-                                onPointerDown={(e) => {
-                                  e.stopPropagation();
-                                  if (e.button !== 0) return;
-                                  beginResize(e, el, dir);
-                                }}
-                                onPointerMove={(e) => {
-                                  if (gestureRef.current?.id === el.id) {
-                                    e.stopPropagation();
-                                    gestureFrameRef.current?.push({ clientX: e.clientX, clientY: e.clientY });
-                                  }
-                                }}
-                                onPointerUp={(e) => {
-                                  if (gestureRef.current?.id === el.id) {
-                                    e.stopPropagation();
-                                    gestureFrameRef.current?.flush();
-                                    endGesture();
-                                  }
-                                }}
-                              />
-                            );
-                          },
-                        )}
-                      </>
-                    )}
                   </div>
                 );
               })}
+              {selectedElement && !editingId && (
+                <SelectionOverlay
+                  variant="item"
+                  box={resolveBox(selectedElement)}
+                  rotation={elementRotation(withPatch(selectedElement))}
+                  showHandles={!selectedElement.locked}
+                  showRotateHandle={!selectedElement.locked}
+                  onResizeStart={(dir, e) => {
+                    if (e.button !== 0) return;
+                    beginResize(e, [selectedElement.id], dir);
+                  }}
+                  onRotateStart={(e) => {
+                    if (e.button !== 0) return;
+                    beginRotate(e, [selectedElement.id]);
+                  }}
+                />
+              )}
+              {selectionBox && (
+                <SelectionOverlay
+                  variant="group"
+                  box={selectionBox}
+                  showHandles={hasUnlockedSelection}
+                  showRotateHandle={hasUnlockedSelection}
+                  onMoveStart={handleGroupPointerDown}
+                  onResizeStart={(dir, e) => {
+                    if (e.button !== 0) return;
+                    beginResize(e, selection.ids, dir);
+                  }}
+                  onRotateStart={(e) => {
+                    if (e.button !== 0) return;
+                    beginRotate(e, selection.ids);
+                  }}
+                  onDoubleClick={handleGroupDoubleClick}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -1138,12 +1682,14 @@ export function Canvas({
 function TextEditor({
   el,
   box,
+  rotation,
   maxWidth,
   onCommit,
   onCancel,
 }: {
   el: ThemeElement;
   box: { left: number; top: number; width: number; height: number };
+  rotation: number;
   maxWidth: number;
   onCommit: (el: ThemeElement, text: string) => void;
   onCancel: () => void;
@@ -1176,6 +1722,7 @@ function TextEditor({
         minWidth: Math.max(box.width, 200),
         minHeight: Math.max(box.height, 60),
         maxWidth,
+        transform: rotation ? `rotate(${rotation}deg)` : undefined,
       }}
       onPointerDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}

@@ -12,6 +12,36 @@ import {
   removeGroupInList,
   updateElementsInList,
 } from "./groups.ts";
+import type { AlignEdge } from "./geometry.ts";
+import { type ReorderDirection, reorderElementsInList } from "./elements.ts";
+import {
+  type EditorSelection,
+  EMPTY_SELECTION,
+  alignmentTargetFor,
+  duplicateSelectionInList,
+  groupSelectionInList,
+  pruneSelection,
+  removeSelectionInList,
+  selectableIds,
+  selectionVisualBox,
+  toggleInSelection,
+} from "./selection.ts";
+import {
+  type GuideAxis,
+  addGuideToTheme,
+  clearGuidesInTheme,
+  guidesOfTheme,
+  moveGuideInTheme,
+  removeGuideFromTheme,
+} from "./guides.ts";
+import {
+  alignElementsInList,
+  distributeElementsInList,
+  rotateElementsInList,
+  scaleElementsInList,
+  setElementRotation,
+  translateElementsInList,
+} from "./transform.ts";
 
 const HISTORY_LIMIT = 50;
 
@@ -36,7 +66,31 @@ interface ThemeEditorState {
   future: SlideTheme[];
   error: string | null;
   activePageId: string | null;
+  selection: EditorSelection;
   load(guid: string): Promise<void>;
+  select(
+    ids: string | string[],
+    options?: { anchorId?: string; enteredGroupId?: string | null },
+  ): void;
+  toggleSelect(id: string): void;
+  clearSelection(): void;
+  enterGroup(groupId: string, itemId: string): void;
+  selectAll(): void;
+  duplicateSelection(): void;
+  removeSelection(): void;
+  groupSelection(name?: string): string;
+  ungroupSelection(): void;
+  translateSelection(dx: number, dy: number): void;
+  scaleSelection(factorX: number, factorY: number): void;
+  rotateSelectionBy(deltaDeg: number): void;
+  setSelectionRotation(deg: number): void;
+  alignSelection(edge: AlignEdge): void;
+  distributeSelection(axis: "x" | "y"): void;
+  reorderSelection(direction: ReorderDirection): void;
+  addGuide(axis: GuideAxis, pos: number): string;
+  moveGuide(id: string, pos: number): void;
+  removeGuide(id: string): void;
+  clearGuides(): void;
   updateCss(patch: Record<string, string>): void;
   updateElement(id: string, patch: Partial<ThemeElement>): void;
   updateElements(patches: { id: string; patch: Partial<ThemeElement> }[]): void;
@@ -83,6 +137,21 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
     });
   }
 
+  function activeElements(theme: SlideTheme, pageId: string | null): ThemeElement[] {
+    const page = getActivePage(theme, pageId);
+    return page ? page.elements : theme.elements;
+  }
+
+  function withElements(
+    theme: SlideTheme,
+    pageId: string | null,
+    elements: ThemeElement[],
+  ): void {
+    const page = getActivePage(theme, pageId);
+    if (page) page.elements = elements;
+    else theme.elements = elements;
+  }
+
   return {
     guid: null,
     draft: null,
@@ -91,6 +160,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
     future: [],
     error: null,
     activePageId: null,
+    selection: EMPTY_SELECTION,
 
     load: async (guid) => {
       try {
@@ -104,6 +174,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
             future: [],
             error: "Tema não encontrado",
             activePageId: null,
+            selection: EMPTY_SELECTION,
           });
           return;
         }
@@ -130,6 +201,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
           future: [],
           error: null,
           activePageId: firstPageId(themeDraft),
+          selection: EMPTY_SELECTION,
         });
       } catch {
         set({
@@ -140,6 +212,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
           future: [],
           error: "Tema não encontrado",
           activePageId: null,
+          selection: EMPTY_SELECTION,
         });
       }
     },
@@ -176,6 +249,224 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       if (page) page.elements = updateElementsInList(page.elements, patches);
       else next.elements = updateElementsInList(next.elements, patches);
       mutate(next);
+    },
+
+    select: (ids, options) => {
+      const { draft, activePageId } = get();
+      if (!draft) return;
+      const list = activeElements(draft, activePageId);
+      const existing = new Set(list.map((el) => el.id));
+      const wanted = (Array.isArray(ids) ? ids : [ids]).filter((id) =>
+        existing.has(id),
+      );
+      if (wanted.length === 0) {
+        set({ selection: EMPTY_SELECTION });
+        return;
+      }
+      const anchorId =
+        options?.anchorId && wanted.includes(options.anchorId)
+          ? options.anchorId
+          : wanted[0];
+      set({
+        selection: {
+          ids: wanted,
+          anchorId,
+          enteredGroupId: options?.enteredGroupId ?? null,
+        },
+      });
+    },
+
+    toggleSelect: (id) => {
+      const { draft, activePageId } = get();
+      if (!draft) return;
+      set({
+        selection: toggleInSelection(
+          activeElements(draft, activePageId),
+          get().selection,
+          id,
+        ),
+      });
+    },
+
+    clearSelection: () => set({ selection: EMPTY_SELECTION }),
+
+    enterGroup: (groupId, itemId) => {
+      get().select([itemId], { anchorId: itemId, enteredGroupId: groupId });
+    },
+
+    selectAll: () => {
+      const { draft, activePageId } = get();
+      if (!draft) return;
+      const ids = selectableIds(activeElements(draft, activePageId));
+      get().select(ids, { anchorId: ids[0] });
+    },
+
+    duplicateSelection: () => {
+      const { draft, activePageId, selection } = get();
+      if (!draft || selection.ids.length === 0) return;
+      const list = activeElements(draft, activePageId);
+      const result = duplicateSelectionInList(list, selection);
+      if (result.elements === list) return;
+      const next = clone(draft);
+      withElements(next, activePageId, result.elements);
+      mutate(next);
+      set({ selection: result.selection });
+    },
+
+    removeSelection: () => {
+      const { draft, activePageId, selection } = get();
+      if (!draft || selection.ids.length === 0) return;
+      const list = activeElements(draft, activePageId);
+      const page = getActivePage(draft, activePageId);
+      const result = removeSelectionInList(list, selection, {
+        minKeep: page ? 0 : 1,
+      });
+      if (result.elements === list) return;
+      const next = clone(draft);
+      withElements(next, activePageId, result.elements);
+      mutate(next);
+      set({ selection: result.selection });
+    },
+
+    groupSelection: (name) => {
+      const { draft, activePageId, selection } = get();
+      if (!draft) return "";
+      const list = activeElements(draft, activePageId);
+      const result = groupSelectionInList(list, selection, name);
+      if (!result.groupId) return "";
+      const next = clone(draft);
+      withElements(next, activePageId, result.elements);
+      mutate(next);
+      set({ selection: result.selection });
+      return result.groupId;
+    },
+
+    ungroupSelection: () => {
+      const { draft, activePageId, selection } = get();
+      if (!draft) return;
+      const list = activeElements(draft, activePageId);
+      const idSet = new Set(selection.ids);
+      const groupId =
+        selection.enteredGroupId ??
+        list.find((el) => idSet.has(el.id) && el.groupId)?.groupId;
+      if (!groupId) return;
+      const elements = ungroupElementsInList(list, groupId);
+      const next = clone(draft);
+      withElements(next, activePageId, elements);
+      mutate(next);
+      set({ selection: pruneSelection(elements, selection) });
+    },
+
+    translateSelection: (dx, dy) => {
+      const { draft, activePageId, selection } = get();
+      if (!draft || selection.ids.length === 0 || (dx === 0 && dy === 0)) return;
+      const list = activeElements(draft, activePageId);
+      const elements = translateElementsInList(list, selection.ids, dx, dy);
+      const next = clone(draft);
+      withElements(next, activePageId, elements);
+      mutate(next);
+    },
+
+    scaleSelection: (factorX, factorY) => {
+      const { draft, activePageId, selection } = get();
+      if (!draft || selection.ids.length === 0) return;
+      const list = activeElements(draft, activePageId);
+      const box = selectionVisualBox(list, selection.ids);
+      if (!box || box.width <= 0 || box.height <= 0) return;
+      const elements = scaleElementsInList(list, box, {
+        ...box,
+        width: box.width * factorX,
+        height: box.height * factorY,
+      });
+      const next = clone(draft);
+      withElements(next, activePageId, elements);
+      mutate(next);
+    },
+
+    rotateSelectionBy: (deltaDeg) => {
+      const { draft, activePageId, selection } = get();
+      if (!draft || selection.ids.length === 0 || deltaDeg === 0) return;
+      const list = activeElements(draft, activePageId);
+      const box = selectionVisualBox(list, selection.ids);
+      if (!box) return;
+      const center = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      const elements = rotateElementsInList(list, center, deltaDeg);
+      const next = clone(draft);
+      withElements(next, activePageId, elements);
+      mutate(next);
+    },
+
+    setSelectionRotation: (deg) => {
+      const { draft, activePageId, selection } = get();
+      if (!draft || selection.ids.length !== 1) return;
+      const list = activeElements(draft, activePageId);
+      const el = list.find((item) => item.id === selection.ids[0]);
+      if (!el) return;
+      get().updateElement(el.id, { css: setElementRotation(el, deg).css });
+    },
+
+    alignSelection: (edge) => {
+      const { draft, activePageId, selection } = get();
+      if (!draft || selection.ids.length === 0) return;
+      const list = activeElements(draft, activePageId);
+      const target = alignmentTargetFor(list, selection);
+      const elements = alignElementsInList(list, selection.ids, edge, target);
+      const next = clone(draft);
+      withElements(next, activePageId, elements);
+      mutate(next);
+    },
+
+    distributeSelection: (axis) => {
+      const { draft, activePageId, selection } = get();
+      if (!draft || selection.ids.length === 0) return;
+      const list = activeElements(draft, activePageId);
+      const elements = distributeElementsInList(list, selection.ids, axis);
+      const next = clone(draft);
+      withElements(next, activePageId, elements);
+      mutate(next);
+    },
+
+    reorderSelection: (direction) => {
+      const { draft, activePageId, selection } = get();
+      if (!draft || selection.ids.length === 0) return;
+      const list = activeElements(draft, activePageId);
+      const elements = reorderElementsInList(list, selection.ids, direction);
+      if (elements.every((el, index) => el === list[index])) return;
+      const next = clone(draft);
+      withElements(next, activePageId, elements);
+      mutate(next);
+    },
+
+    addGuide: (axis, pos) => {
+      const { draft, activePageId } = get();
+      if (!draft) return "";
+      const id = crypto.randomUUID();
+      mutate(
+        addGuideToTheme(draft, activePageId, { id, axis, pos: Math.round(pos) }),
+      );
+      return id;
+    },
+
+    moveGuide: (id, pos) => {
+      const { draft, activePageId } = get();
+      if (!draft) return;
+      const next = moveGuideInTheme(draft, activePageId, id, Math.round(pos));
+      if (next === draft) return;
+      mutate(next);
+    },
+
+    removeGuide: (id) => {
+      const { draft, activePageId } = get();
+      if (!draft) return;
+      if (!guidesOfTheme(draft, activePageId).some((guide) => guide.id === id)) return;
+      mutate(removeGuideFromTheme(draft, activePageId, id));
+    },
+
+    clearGuides: () => {
+      const { draft, activePageId } = get();
+      if (!draft) return;
+      if (guidesOfTheme(draft, activePageId).length === 0) return;
+      mutate(clearGuidesInTheme(draft, activePageId));
     },
 
     groupElements: (ids, name) => {
@@ -336,7 +627,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
     selectPage: (pageId) => {
       const { draft } = get();
       if (!draft?.pages?.some((page) => page.id === pageId)) return;
-      set({ activePageId: pageId });
+      set({ activePageId: pageId, selection: EMPTY_SELECTION });
     },
 
     addPage: (context, mode) => {
@@ -348,7 +639,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       const next = clone(draft);
       next.pages = [...(next.pages ?? []), page];
       mutate(next);
-      set({ activePageId: page.id });
+      set({ activePageId: page.id, selection: EMPTY_SELECTION });
     },
 
     removePage: (pageId) => {
@@ -361,7 +652,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       next.pages = pages;
       const nextActive = pages[Math.max(0, index - 1)]?.id ?? pages[0].id;
       mutate(next);
-      set({ activePageId: nextActive });
+      set({ activePageId: nextActive, selection: EMPTY_SELECTION });
     },
 
     addPresentationSlide: (mode) => {
@@ -386,7 +677,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       }
       next.pages = pages;
       mutate(next);
-      set({ activePageId: newPage.id });
+      set({ activePageId: newPage.id, selection: EMPTY_SELECTION });
     },
 
     duplicatePage: (pageId) => {
@@ -406,7 +697,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       };
       next.pages.splice(idx + 1, 0, newPage);
       mutate(next);
-      set({ activePageId: newPage.id });
+      set({ activePageId: newPage.id, selection: EMPTY_SELECTION });
     },
 
     movePage: (pageId, dir) => {
@@ -420,6 +711,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       const [moved] = next.pages.splice(idx, 1);
       next.pages.splice(target, 0, moved);
       mutate(next);
+      set({ selection: EMPTY_SELECTION });
     },
 
     renamePage: (pageId, name) => {
@@ -441,6 +733,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
         context,
         css: { ...draft.css },
         elements: structuredClone(draft.elements),
+        guides: draft.guides ? structuredClone(draft.guides) : undefined,
       };
       const guid = draft.guid;
       const next = cloneTheme(draft, draft.title);
@@ -450,7 +743,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       next.css = {};
       next.elements = [];
       mutate(next);
-      set({ activePageId: page.id });
+      set({ activePageId: page.id, selection: EMPTY_SELECTION });
     },
 
     undo: () => {
@@ -462,6 +755,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
         activePageId: validPageId(previous, get().activePageId),
         past: past.slice(0, -1),
         future: [clone(draft), ...future],
+        selection: EMPTY_SELECTION,
       });
     },
 
@@ -474,6 +768,7 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
         activePageId: validPageId(nextTheme, get().activePageId),
         past: [...past, clone(draft)].slice(-HISTORY_LIMIT),
         future: rest,
+        selection: EMPTY_SELECTION,
       });
     },
 
