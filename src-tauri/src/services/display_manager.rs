@@ -201,7 +201,9 @@ pub fn open_preferences_window(app: &AppHandle) -> Result<(), AppError> {
     .background_color(Color(10, 10, 10, 255))
     .decorations(true);
 
-    builder.build().map_err(AppError::Tauri)?;
+    let window = builder.build().map_err(AppError::Tauri)?;
+    let _ = window.show();
+    let _ = window.set_focus();
     Ok(())
 }
 
@@ -234,7 +236,9 @@ pub fn open_shortcuts_window(app: &AppHandle) -> Result<(), AppError> {
     .background_color(Color(10, 10, 10, 255))
     .decorations(true);
 
-    builder.build().map_err(AppError::Tauri)?;
+    let window = builder.build().map_err(AppError::Tauri)?;
+    let _ = window.show();
+    let _ = window.set_focus();
     Ok(())
 }
 
@@ -268,7 +272,9 @@ pub fn open_theme_editor_window(app: &AppHandle, guid: Option<String>) -> Result
         .background_color(Color(10, 10, 10, 255))
         .decorations(true);
 
-    builder.build().map_err(AppError::Tauri)?;
+    let window = builder.build().map_err(AppError::Tauri)?;
+    let _ = window.show();
+    let _ = window.set_focus();
     Ok(())
 }
 
@@ -299,9 +305,12 @@ pub fn open_song_editor_window(app: &AppHandle, song_id: Option<String>) -> Resu
         .resizable(true)
         .center()
         .focused(true)
+        .background_color(Color(10, 10, 10, 255))
         .decorations(true);
 
-    builder.build().map_err(AppError::Tauri)?;
+    let window = builder.build().map_err(AppError::Tauri)?;
+    let _ = window.show();
+    let _ = window.set_focus();
     Ok(())
 }
 

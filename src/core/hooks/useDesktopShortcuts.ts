@@ -1,10 +1,10 @@
 import { useEffect } from "react";
-import { isTauri } from "@/core/ipc/tauri";
+import { isMainWindow, isTauri } from "@/core/ipc/tauri";
 
 /**
  * Previne recargas acidentais de página (F5, Cmd+R, Ctrl+R), fechamento indevido
- * por Cmd+W / Ctrl+W e atalhos de zoom web no desktop, preservando o comportamento
- * nativo de uma aplicação desktop.
+ * por Cmd+W / Ctrl+W na janela principal e atalhos de zoom web no desktop, preservando
+ * o comportamento nativo de uma aplicação desktop.
  */
 export function useDesktopShortcuts(): void {
   useEffect(() => {
@@ -21,9 +21,10 @@ export function useDesktopShortcuts(): void {
         return;
       }
 
-      // 2. No desktop (Tauri), previne fechar a janela abruptamente via Cmd+W / Ctrl+W
-      // para passar pelo fluxo de fechamento seguro / confirmação
-      if (isTauri() && modifier && key === "w") {
+      // 2. Na janela principal do desktop (Tauri), previne fechar a janela abruptamente via Cmd+W / Ctrl+W
+      // para passar pelo fluxo de fechamento seguro / confirmação.
+      // Em subjanelas (preferências, atalhos, editores), o atalho deve fechar normalmente a janela ativa.
+      if (isTauri() && modifier && key === "w" && isMainWindow()) {
         event.preventDefault();
         event.stopPropagation();
         return;

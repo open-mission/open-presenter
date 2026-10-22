@@ -14,7 +14,7 @@ import { useMediaPortSync } from "@/core/config/mediaPort";
 import { initSongGroupsSync } from "@/features/songs/songGroupsStore";
 import { useDesktopShortcuts } from "@/core/hooks/useDesktopShortcuts";
 import { showMainWindow } from "@/core/ipc/commands";
-import { isTauri } from "@/core/ipc/tauri";
+import { isMainWindow } from "@/core/ipc/tauri";
 
 export default function App() {
   useMediaPortSync();
@@ -23,8 +23,9 @@ export default function App() {
   useEffect(() => {
     initSongGroupsSync();
 
-    if (isTauri()) {
-      // Revela a janela principal quando o React monta a árvore DOM, eliminando o flash branco
+    if (isMainWindow()) {
+      // Revela a janela principal apenas quando estiver nela, eliminando o flash branco
+      // e sem roubar o foco de subjanelas (preferências, atalhos, editores).
       showMainWindow().catch((err) => {
         console.error("Falha ao revelar janela principal:", err);
       });
