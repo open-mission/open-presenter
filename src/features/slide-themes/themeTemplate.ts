@@ -314,6 +314,7 @@ export function buildStageProps(options: {
   countdownMinutes?: number;
   blackout?: boolean;
   cleared?: boolean;
+  activeMessage?: string | null;
 }): Record<string, string> {
   const {
     content,
@@ -327,6 +328,7 @@ export function buildStageProps(options: {
     countdownMinutes = 0,
     blackout = false,
     cleared = false,
+    activeMessage = "",
   } = options;
 
   const date = new Date(nowMs);
@@ -458,6 +460,11 @@ export function buildStageProps(options: {
     stopwatch: cronometro,
     timer: timerFormatted,
     countdown: timerFormatted,
+    stage_message: activeMessage ?? "",
+    message: activeMessage ?? "",
+    mensagem: activeMessage ?? "",
+    aviso: activeMessage ?? "",
+    alerta: activeMessage ?? "",
     // Legacy aliases (pt-BR)
     titulo: cleanTitle,
     referencia: cleanReference,

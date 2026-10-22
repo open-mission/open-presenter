@@ -27,6 +27,10 @@ export const SAMPLES: Record<
       stopwatch: "04:15",
       timer: "15:00",
       countdown: "15:00",
+      stage_message: "Pastor no altar em 5 min",
+      message: "Pastor no altar em 5 min",
+      aviso: "Pastor no altar em 5 min",
+      alerta: "Pastor no altar em 5 min",
       // Legacy aliases (pt-BR)
       titulo: "Santo, Santo, Santo",
       artista: "Hinário",
@@ -177,6 +181,8 @@ export const VARIABLE_KEYS: Record<ThemeAsset, string[]> = {
     "stopwatch",
     "timer",
     "countdown",
+    "stage_message",
+    "aviso",
   ],
   bible: [
     "title",
@@ -203,6 +209,8 @@ export const VARIABLE_KEYS: Record<ThemeAsset, string[]> = {
     "stopwatch",
     "timer",
     "countdown",
+    "stage_message",
+    "aviso",
   ],
   rest: [
     "title",
@@ -211,6 +219,8 @@ export const VARIABLE_KEYS: Record<ThemeAsset, string[]> = {
     "stopwatch",
     "timer",
     "countdown",
+    "stage_message",
+    "aviso",
     "HH:MM",
   ],
   text: [
@@ -228,6 +238,8 @@ export const VARIABLE_KEYS: Record<ThemeAsset, string[]> = {
     "stopwatch",
     "timer",
     "countdown",
+    "stage_message",
+    "aviso",
   ],
 };
 

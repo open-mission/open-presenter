@@ -3,7 +3,10 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::broadcast;
 
-use crate::state::{types::EVENT_SLIDE, LiveSlide, LiveThemes, PresentationState, StageTimer};
+use crate::state::{
+    types::{EVENT_SLIDE, EVENT_STAGE_MESSAGE},
+    CommunicationAlert, LiveSlide, LiveThemes, PresentationState, StageTimer,
+};
 
 #[derive(Debug, Clone)]
 pub struct Broadcaster {
@@ -129,6 +132,31 @@ impl Broadcaster {
             app.state::<PresentationState>().wallpaper()
         } else {
             self.fallback.wallpaper()
+        }
+    }
+
+    pub fn publish_stage_message(&self, message: Option<CommunicationAlert>) {
+        if let Some(app) = &self.app {
+            let state = app.state::<PresentationState>();
+            state.set_stage_message(message.clone());
+            let _ = app.emit(EVENT_STAGE_MESSAGE, &message);
+        } else {
+            self.fallback.set_stage_message(message.clone());
+        }
+
+        let envelope = serde_json::json!({
+            "channel": EVENT_STAGE_MESSAGE,
+            "payload": message,
+            "version": 1,
+        });
+        let _ = self.ws_tx.send(envelope.to_string());
+    }
+
+    pub fn current_stage_message(&self) -> Option<CommunicationAlert> {
+        if let Some(app) = &self.app {
+            app.state::<PresentationState>().stage_message()
+        } else {
+            self.fallback.stage_message()
         }
     }
 

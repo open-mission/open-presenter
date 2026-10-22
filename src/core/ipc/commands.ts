@@ -4,6 +4,7 @@ import type {
   BibleVerse,
   BibleVerseCompare,
   BibleVersion,
+  CommunicationAlert,
   ConnectedClient,
   EventSummary,
   ImageTreeNode,
@@ -137,6 +138,50 @@ export async function fetchStageTimer(): Promise<StageTimer | null> {
 
 export async function fetchPublicWallpaper(): Promise<string | null> {
   return invokeCommand<string | null>("get_public_wallpaper");
+}
+
+export async function sendStageMessage(
+  message: CommunicationAlert,
+): Promise<void> {
+  if (isTauri()) {
+    await invokeCommand("send_stage_message", { message });
+  } else {
+    try {
+      await fetch("/api/v1/stage-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(message),
+      });
+    } catch (e) {
+      console.error("[commands] Falha ao enviar mensagem de palco:", e);
+    }
+  }
+}
+
+export async function clearStageMessage(): Promise<void> {
+  if (isTauri()) {
+    await invokeCommand("clear_stage_message");
+  } else {
+    try {
+      await fetch("/api/v1/stage-message", { method: "DELETE" });
+    } catch (e) {
+      console.error("[commands] Falha ao limpar mensagem de palco:", e);
+    }
+  }
+}
+
+export async function fetchStageMessage(): Promise<CommunicationAlert | null> {
+  if (isTauri()) {
+    return invokeCommand<CommunicationAlert | null>("get_stage_message");
+  } else {
+    try {
+      const res = await fetch("/api/v1/stage-message");
+      if (!res.ok) return null;
+      return (await res.json()) as CommunicationAlert | null;
+    } catch {
+      return null;
+    }
+  }
 }
 
 export async function setPublicWallpaper(wallpaper: string | null): Promise<void> {

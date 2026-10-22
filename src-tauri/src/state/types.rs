@@ -667,6 +667,55 @@ pub fn now_millis() -> u64 {
         .unwrap_or(0)
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CommunicationDisplayMode {
+    #[default]
+    BannerTop,
+    BannerBottom,
+    Overlay,
+    VariableOnly,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CommunicationLevel {
+    #[default]
+    Info,
+    Warning,
+    Urgent,
+}
+
+fn default_comm_scroll() -> bool {
+    true
+}
+
+fn default_comm_target() -> String {
+    "stage".to_string()
+}
+
+/// Alerta / Mensagem do painel de comunicação, exibido no retorno (Stage)
+/// e extensível para outros canais (app de retorno, WhatsApp, etc.).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CommunicationAlert {
+    pub id: String,
+    pub text: String,
+    #[serde(default)]
+    pub display_mode: CommunicationDisplayMode,
+    #[serde(default = "default_comm_scroll")]
+    pub scroll: bool,
+    #[serde(default)]
+    pub level: CommunicationLevel,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sender: Option<String>,
+    #[serde(default = "default_comm_target")]
+    pub target: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_dismiss_seconds: Option<u32>,
+    pub created_at: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BibleVersion {

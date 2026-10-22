@@ -449,7 +449,7 @@ export default function ThemeEditorView() {
   }
 
   function handleAddWidget(
-    widget: "clock" | "stopwatch" | "timer" | "next_verse" | "next_preview" | "lyrics",
+    widget: "clock" | "stopwatch" | "timer" | "next_verse" | "next_preview" | "lyrics" | "stage_message",
   ) {
     if (!draft) return;
     const current = viewOf(
@@ -560,6 +560,25 @@ export default function ThemeEditorView() {
             autoShrink: "true",
           },
           text: "Próximo: {next_preview}",
+        };
+        break;
+      case "stage_message":
+        el = {
+          id: uniqueId("aviso_operador", ids),
+          type: "TEXT",
+          x: 120,
+          y: 920,
+          visible: true,
+          locked: false,
+          css: {
+            ...baseCss(120, 920, 1680, 100),
+            textAlign: "center",
+            fontSize: "36px",
+            fontWeight: "700",
+            color: "#38bdf8",
+            autoShrink: "true",
+          },
+          text: "{stage_message}",
         };
         break;
       case "lyrics":
@@ -971,6 +990,9 @@ export default function ThemeEditorView() {
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => handleAddWidget("next_preview")}>
               Próximo (Início com ...) ({`{next_preview}`})
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleAddWidget("stage_message")}>
+              Aviso do Operador ({`{stage_message}`})
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

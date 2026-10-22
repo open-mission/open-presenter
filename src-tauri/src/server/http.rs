@@ -128,6 +128,12 @@ pub fn router(state: ServerState) -> Router {
             "/api/v1/timer/countdown",
             post(crate::server::remote::timer_set_countdown),
         )
+        .route(
+            "/api/v1/stage-message",
+            get(get_stage_message_handler)
+                .post(post_stage_message_handler)
+                .delete(delete_stage_message_handler),
+        )
         .route("/api/v1/songs", get(crate::server::remote::list_songs))
         .route("/api/v1/songs/{id}/slides", get(crate::server::remote::song_slides))
         .route("/api/v1/lyrics/search", get(crate::server::remote::search_lyrics))
@@ -349,6 +355,45 @@ async fn ws_handler(
     ws.on_upgrade(move |socket| handle_socket(socket, state, id))
 }
 
+async fn get_stage_message_handler(
+    State(state): State<Arc<ServerState>>,
+) -> impl IntoResponse {
+    axum::Json(state.broadcaster.current_stage_message())
+}
+
+async fn post_stage_message_handler(
+    State(state): State<Arc<ServerState>>,
+    axum::Json(message): axum::Json<crate::state::types::CommunicationAlert>,
+) -> impl IntoResponse {
+    let auto_dismiss = message.auto_dismiss_seconds;
+    let message_id = message.id.clone();
+    let bc = state.broadcaster.clone();
+    state.broadcaster.publish_stage_message(Some(message));
+
+    if let Some(secs) = auto_dismiss {
+        if secs > 0 {
+            tokio::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(secs as u64)).await;
+                if bc
+                    .current_stage_message()
+                    .map(|m| m.id == message_id)
+                    .unwrap_or(false)
+                {
+                    bc.publish_stage_message(None);
+                }
+            });
+        }
+    }
+    axum::http::StatusCode::OK
+}
+
+async fn delete_stage_message_handler(
+    State(state): State<Arc<ServerState>>,
+) -> impl IntoResponse {
+    state.broadcaster.publish_stage_message(None);
+    axum::http::StatusCode::OK
+}
+
 async fn handle_socket(socket: WebSocket, state: Arc<ServerState>, client_id: String) {
     let _guard = ClientGuard::new(&state.clients, client_id.clone());
     let (mut sender, mut receiver) = socket.split();
@@ -387,6 +432,15 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>, client_id: St
         "version": 1,
     }));
     if let Ok(text) = wallpaper_snapshot {
+        let _ = sender.send(Message::Text(text.into())).await;
+    }
+
+    let message_snapshot = serde_json::to_string(&serde_json::json!({
+        "channel": crate::state::types::EVENT_STAGE_MESSAGE,
+        "payload": state.broadcaster.current_stage_message(),
+        "version": 1,
+    }));
+    if let Ok(text) = message_snapshot {
         let _ = sender.send(Message::Text(text.into())).await;
     }
 

@@ -54,6 +54,10 @@ const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
         keys: ["C"],
         description: "Clear: limpa o texto mantendo o fundo na tela pública",
       },
+      {
+        keys: ["⌘", "M"],
+        description: "Abre o Painel de Comunicação & Avisos para o Retorno (Stage)",
+      },
     ],
   },
   {

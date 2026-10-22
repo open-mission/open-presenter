@@ -110,14 +110,28 @@ export interface ConnectedClient {
   kind: ClientKind;
 }
 
-export type StageAlertLevel = "info" | "warning" | "urgent";
+export type CommunicationDisplayMode =
+  | "banner_top"
+  | "banner_bottom"
+  | "overlay"
+  | "variable_only";
 
-export interface StageMessage {
+export type CommunicationLevel = "info" | "warning" | "urgent";
+
+export interface CommunicationAlert {
   id: string;
   text: string;
-  level: StageAlertLevel;
+  displayMode: CommunicationDisplayMode;
+  scroll: boolean;
+  level: CommunicationLevel;
+  sender?: string;
+  target?: string;
+  autoDismissSeconds?: number;
   createdAt: string;
 }
+
+export type StageAlertLevel = CommunicationLevel;
+export type StageMessage = CommunicationAlert;
 
 export interface StageTimer {
   running: boolean;
