@@ -1,3 +1,4 @@
+use tauri::webview::Color;
 use tauri::{AppHandle, Emitter, Manager, Monitor, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
 use crate::error::AppError;
@@ -80,6 +81,10 @@ pub async fn open_output_window(
         .focused(false)
         .visible(true)
         .transparent(target == OutputTarget::Stream);
+
+    if target != OutputTarget::Stream {
+        builder = builder.background_color(Color(0, 0, 0, 255));
+    }
 
     if let Some(monitor) = chosen_monitor {
         let position = monitor.position();
@@ -193,6 +198,7 @@ pub fn open_preferences_window(app: &AppHandle) -> Result<(), AppError> {
     .resizable(true)
     .center()
     .focused(true)
+    .background_color(Color(10, 10, 10, 255))
     .decorations(true);
 
     builder.build().map_err(AppError::Tauri)?;
@@ -225,6 +231,7 @@ pub fn open_shortcuts_window(app: &AppHandle) -> Result<(), AppError> {
     .resizable(true)
     .center()
     .focused(true)
+    .background_color(Color(10, 10, 10, 255))
     .decorations(true);
 
     builder.build().map_err(AppError::Tauri)?;
@@ -258,6 +265,7 @@ pub fn open_theme_editor_window(app: &AppHandle, guid: Option<String>) -> Result
         .resizable(true)
         .center()
         .focused(true)
+        .background_color(Color(10, 10, 10, 255))
         .decorations(true);
 
     builder.build().map_err(AppError::Tauri)?;

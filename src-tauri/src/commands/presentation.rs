@@ -177,3 +177,14 @@ pub async fn close_shortcuts_window(app: tauri::AppHandle) -> Result<(), AppErro
     display_manager::close_shortcuts_window(&app)
 }
 
+#[tauri::command]
+pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), AppError> {
+    use tauri::Manager;
+    if let Some(window) = app.get_webview_window("main") {
+        crate::services::window_state::apply_startup_geometry(&window);
+        window.show().map_err(AppError::Tauri)?;
+        let _ = window.set_focus();
+    }
+    Ok(())
+}
+

@@ -16,6 +16,10 @@ export function useNativeMenu() {
     let unlistenPrefs: (() => void) | null = null;
     let unlistenShortcuts: (() => void) | null = null;
     let unlistenWhatsNew: (() => void) | null = null;
+    let unlistenNext: (() => void) | null = null;
+    let unlistenPrev: (() => void) | null = null;
+    let unlistenBlackout: (() => void) | null = null;
+    let unlistenClear: (() => void) | null = null;
 
     function handleOpenShortcuts() {
       if (isTauri()) {
@@ -66,6 +70,30 @@ export function useNativeMenu() {
       useUpdatesStore.getState().openWhatsNew();
     }).then((fn) => {
       unlistenWhatsNew = fn;
+    });
+
+    void listenCommand("presentation-next", () => {
+      void useSetlistStore.getState().projectNext();
+    }).then((fn) => {
+      unlistenNext = fn;
+    });
+
+    void listenCommand("presentation-prev", () => {
+      void useSetlistStore.getState().projectPrev();
+    }).then((fn) => {
+      unlistenPrev = fn;
+    });
+
+    void listenCommand("presentation-blackout", () => {
+      void usePresentationStore.getState().toggleBlackout();
+    }).then((fn) => {
+      unlistenBlackout = fn;
+    });
+
+    void listenCommand("presentation-clear", () => {
+      void usePresentationStore.getState().toggleClear();
+    }).then((fn) => {
+      unlistenClear = fn;
     });
 
     // Keyboard shortcut fallback for browser & desktop environments
@@ -136,6 +164,10 @@ export function useNativeMenu() {
       unlistenPrefs?.();
       unlistenShortcuts?.();
       unlistenWhatsNew?.();
+      unlistenNext?.();
+      unlistenPrev?.();
+      unlistenBlackout?.();
+      unlistenClear?.();
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
