@@ -1,0 +1,77 @@
+---
+title: Como Adicionar Novas Features
+description: Guia passo a passo para desenvolvedores e agentes criarem novas funcionalidades no Open Presenter.
+---
+
+# Guia Passo a Passo: Criando Novas Features
+
+Ao implementar uma nova funcionalidade no Open Presenter, siga estritamente este checklist para manter a coesão arquitetural e conformidade com o `AGENTS.md`.
+
+---
+
+## 1. Definir os Tipos Compartilhados (Rust ↔ TS)
+
+Se a feature trafega dados entre backend e frontend:
+1. No Rust: Adicione a struct/enum em `src-tauri/src/state/types.rs`.
+   - Adicione `#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]`.
+   - Use `#[serde(rename_all = "camelCase")]` para manter compatibilidade com convenções JavaScript.
+2. No TypeScript: Adicione a interface/tipo correspondente em `src/core/types/index.ts`.
+   - Mantenha os nomes dos campos **exatamente idênticos** aos campos do Rust.
+
+---
+
+## 2. Implementar a Lógica no Rust (Backend)
+
+1. Crie ou estenda o serviço em `src-tauri/src/services/`.
+2. Adicione a função do comando IPC em `src-tauri/src/commands/`.
+   - Injetar dependências via `State<'_, T>`.
+   - Retornar `Result<T, AppError>`.
+3. Registre o novo comando no `invoke_handler` em `src-tauri/src/lib.rs`.
+
+---
+
+## 3. Expor o Comando no Frontend (IPC Wrapper)
+
+Em `src/core/ipc/commands.ts`:
+```typescript
+export async function minhaNovaAcao(param: string): Promise<Resultado> {
+  return invokeStrict("minha_nova_acao", { param });
+}
+```
+
+---
+
+## 4. Criar o Módulo Vertical na Feature
+
+Crie uma nova pasta em `src/features/<nome-da-feature>/`:
+- `store.ts`: Zustand store para armazenar estado reativo e despachar ações.
+- `types.ts`: Tipos locais exclusivos da feature.
+- Componentes visuais atômicos da feature.
+- `index.ts`: Ponto de exportação limpo para o restante do app.
+
+---
+
+## 5. Integrar na View de Destino
+
+Integre os componentes nas views correspondentes:
+- `src/views/AdminView.tsx`: Painel do operador.
+- `src/views/PublicView.tsx`: Telão público.
+- `src/views/StageView.tsx`: Retorno de palco.
+- `src/views/StreamView.tsx`: Transmissão OBS.
+
+---
+
+## 6. Validar com a Tríade de Testes
+
+Antes de submeter o código ou commitar:
+
+```bash
+# 1. Verificação de tipos TypeScript
+npm run typecheck
+
+# 2. Testes unitários do frontend
+npm test
+
+# 3. Compilação e verificação de tipos Rust
+cd src-tauri && CARGO_INCREMENTAL=0 cargo check -p open-presenter
+```

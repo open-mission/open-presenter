@@ -1,0 +1,45 @@
+---
+title: Testes & Garantia de Qualidade
+description: Como rodar testes locais, padrões do Node test runner e boas práticas de código.
+---
+
+# Testes & Garantia de Qualidade
+
+A integridade do Open Presenter é protegida por uma suíte de testes rápidos e autônomos que rodam em menos de 2 segundos.
+
+---
+
+## 🧪 O Test Runner Nativo (`node --test`)
+
+O projeto não utiliza Jest ou Vitest (que adicionam centenas de megabytes de dependências pesadas). Em vez disso, utiliza o **Node Native Test Runner**:
+
+```bash
+npm test
+```
+
+### Regras para Escrever Testes Unitários:
+1. Arquivos de teste terminam com `*.test.ts`.
+2. Como o Node executa TypeScript nativamente via loaders rápidos:
+   - Os imports relativos em arquivos de teste devem incluir a extensão `.ts` explícita (ex.: `import { buildProps } from "./themeTemplate.ts";`).
+   - **Não importe `@tauri-apps/api`** diretamente dentro dos testes unitários, pois a API do Tauri exige o ambiente runtime de janela do desktop. Isole lógica de negócio e regras de apresentação de efeitos colaterais de IPC.
+
+---
+
+## 🔍 TypeScript Strict (`npm run typecheck`)
+
+O projeto opera sob as regras mais estritas do compilador TypeScript (`tsconfig.json`):
+- `noUnusedLocals`: Variáveis declaradas e não usadas são erros de build.
+- `noUnusedParameters`: Parâmetros de funções não utilizados são proibidos.
+- Sem declarações `any` arbitrárias: Sempre crie interfaces bem tipadas.
+
+---
+
+## 🦀 Verificação no Rust (`cargo check`)
+
+Devido à limitação comum de espaço em disco e consumo de memória em compilações concorrentes:
+- Nunca rode `cargo build --release` para verificações rápidas.
+- Use sempre:
+  ```bash
+  cd src-tauri && CARGO_INCREMENTAL=0 cargo check -p open-presenter
+  ```
+- O flag `CARGO_INCREMENTAL=0` evita explosão de arquivos temporários de compilação em disco.
