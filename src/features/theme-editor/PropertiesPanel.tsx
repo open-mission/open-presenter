@@ -22,6 +22,8 @@ import {
   Eye,
   EyeOff,
   Film,
+  FolderMinus,
+  FolderPlus,
   Image as ImageIcon,
   Layers,
   Lock,
@@ -56,8 +58,16 @@ import { saveThemeMedia } from "@/core/ipc/commands";
 import { resolveCssMediaUrls } from "./media";
 import { VARIABLE_KEYS } from "@/features/slide-themes/samples";
 import { getActivePage, materializePage } from "@/features/slide-themes/pages";
-import { alignToScreen } from "./geometry";
+import {
+  LOGICAL_H,
+  LOGICAL_W,
+  elementBox,
+  parseRotateDeg,
+  toPct,
+} from "./geometry";
 import type { AlignEdge } from "./geometry";
+import { selectionVisualBox } from "./selection";
+import type { ReorderDirection } from "./elements";
 import { useThemeEditorStore } from "./store";
 import { FontPicker } from "./FontPicker";
 import { SymbolsPicker } from "./SymbolsPicker";
@@ -85,13 +95,24 @@ const FONT_WEIGHTS = [
 
 const ALL_VARIABLES = [...new Set(Object.values(VARIABLE_KEYS).flat())].sort();
 
-const ALIGN_BUTTONS: { label: string; edge: AlignEdge; icon: LucideIcon }[] = [
-  { label: "Esquerda", edge: "left", icon: AlignHorizontalJustifyStart },
-  { label: "Centro H", edge: "centerX", icon: AlignHorizontalJustifyCenter },
-  { label: "Direita", edge: "right", icon: AlignHorizontalJustifyEnd },
-  { label: "Topo", edge: "top", icon: AlignVerticalJustifyStart },
-  { label: "Meio V", edge: "middle", icon: AlignVerticalJustifyCenter },
-  { label: "Fundo", edge: "bottom", icon: AlignVerticalJustifyEnd },
+const ALIGN_BUTTONS: { title: string; edge: AlignEdge; icon: LucideIcon }[] = [
+  { title: "Alinhar à esquerda", edge: "left", icon: AlignHorizontalJustifyStart },
+  { title: "Centralizar", edge: "centerX", icon: AlignHorizontalJustifyCenter },
+  { title: "Alinhar à direita", edge: "right", icon: AlignHorizontalJustifyEnd },
+  { title: "Alinhar ao topo", edge: "top", icon: AlignVerticalJustifyStart },
+  { title: "Alinhar ao meio", edge: "middle", icon: AlignVerticalJustifyCenter },
+  { title: "Alinhar à base", edge: "bottom", icon: AlignVerticalJustifyEnd },
+];
+
+const ORDER_BUTTONS: {
+  label: string;
+  direction: ReorderDirection;
+  icon: LucideIcon;
+}[] = [
+  { label: "Trazer para frente", direction: "front", icon: ArrowUp },
+  { label: "Avançar", direction: "forward", icon: ArrowRight },
+  { label: "Recuar", direction: "backward", icon: ArrowLeft },
+  { label: "Enviar para trás", direction: "back", icon: ArrowDown },
 ];
 
 const CASE_BUTTONS = [
@@ -164,7 +185,7 @@ type UpdateElement = (id: string, patch: Partial<ThemeElement>) => void;
 function Section({
   title,
   icon: Icon,
-  defaultOpen = true,
+  defaultOpen = false,
   children,
 }: {
   title: string;
@@ -213,10 +234,6 @@ function Field({
   );
 }
 
-interface PropertiesPanelProps {
-  selectedId: string | null;
-}
-
 function SlideSettingsSection({
   draft,
 }: {
@@ -225,7 +242,7 @@ function SlideSettingsSection({
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <Section title="CONFIGURAÇÕES DO SLIDE" icon={Sliders} defaultOpen={true}>
+      <Section title="CONFIGURAÇÕES DO SLIDE" icon={Sliders}>
         <Field label="Título do Tema / Apresentação">
           <Input
             value={draft.title}
@@ -294,7 +311,7 @@ function TextBoxBackgroundSection({
   }
 
   return (
-    <Section title="PLANO DE FUNDO DA CAIXA" icon={Palette} defaultOpen={true}>
+    <Section title="PLANO DE FUNDO DA CAIXA" icon={Palette}>
       <Tabs
         value={activeTab}
         onValueChange={(v) => {
@@ -486,11 +503,12 @@ function TextBoxBackgroundSection({
   );
 }
 
-export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
+export function PropertiesPanel() {
   const draft = useThemeEditorStore((s) => s.draft);
   const activePageId = useThemeEditorStore((s) => s.activePageId);
   const updateCss = useThemeEditorStore((s) => s.updateCss);
   const updateElement = useThemeEditorStore((s) => s.updateElement);
+  const selection = useThemeEditorStore((s) => s.selection);
 
   if (!draft) {
     return (
@@ -500,7 +518,12 @@ export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
 
   const page = getActivePage(draft, activePageId);
   const viewTheme = page ? materializePage(draft, page) : draft;
-  const selected = viewTheme.elements.find((el) => el.id === selectedId) ?? null;
+  const members = viewTheme.elements.filter((el) =>
+    selection.ids.includes(el.id),
+  );
+  const selected =
+    members.find((el) => el.id === selection.anchorId) ?? members[0] ?? null;
+  const scope = members.length > 1 ? "selection" : "item";
 
   if (!selected) {
     return (
@@ -535,39 +558,80 @@ export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
     selected.type === "TRIANGLE" ||
     selected.type === "STAR";
 
+  const organize = (
+    <div className="space-y-3">
+      <GeometrySection
+        scope={scope}
+        el={scope === "item" ? selected : null}
+        elements={viewTheme.elements}
+      />
+      <AlignDistributeSection />
+      <OrderSection />
+      <GroupSection selected={selected} />
+      {scope === "item" && (
+        <GeneralSection selected={selected} updateElement={updateElement} />
+      )}
+    </div>
+  );
+
+  if (scope === "selection") {
+    return <div className="flex flex-col gap-2">{organize}</div>;
+  }
+
+  const appearance = (
+    <div className="space-y-3">
+      {isText && (
+        <TextBoxBackgroundSection
+          el={selected}
+          updateElement={updateElement}
+          guid={draft.guid}
+        />
+      )}
+      {isShape && (
+        <RectangleSection el={selected} updateElement={updateElement} />
+      )}
+      <AppearanceSection el={selected} updateElement={updateElement} />
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-2">
       <Tabs
-        defaultValue={isText ? "text" : isMedia ? "media" : "shape"}
+        key={`${selected.type}-${scope}`}
+        defaultValue={isText ? "text" : isMedia ? "media" : "organize"}
         className="w-full flex flex-col"
       >
         <TabsList
           className={cn(
             "grid h-9 p-1 bg-muted/60 mb-2",
-            isText ? "grid-cols-4" : isMedia ? "grid-cols-4" : "grid-cols-3",
+            isText || isMedia ? "grid-cols-5" : "grid-cols-4",
           )}
         >
           {isText && (
-            <TabsTrigger value="text" className="text-xs gap-1.5 cursor-pointer">
+            <TabsTrigger value="text" className="text-[10px] gap-1 cursor-pointer">
               <Type className="size-3.5" />
               Texto
             </TabsTrigger>
           )}
           {isMedia && (
-            <TabsTrigger value="media" className="text-xs gap-1.5 cursor-pointer">
+            <TabsTrigger value="media" className="text-[10px] gap-1 cursor-pointer">
               <ImageIcon className="size-3.5" />
               Mídia
             </TabsTrigger>
           )}
-          <TabsTrigger value="shape" className="text-xs gap-1.5 cursor-pointer">
-            <Square className="size-3.5" />
-            Forma
+          <TabsTrigger value="organize" className="text-[10px] gap-1 cursor-pointer">
+            <Move className="size-3.5" />
+            Organizar
           </TabsTrigger>
-          <TabsTrigger value="transitions" className="text-xs gap-1.5 cursor-pointer">
+          <TabsTrigger value="appearance" className="text-[10px] gap-1 cursor-pointer">
+            <Palette className="size-3.5" />
+            Aparência
+          </TabsTrigger>
+          <TabsTrigger value="transitions" className="text-[10px] gap-1 cursor-pointer">
             <Sparkles className="size-3.5" />
             Animação
           </TabsTrigger>
-          <TabsTrigger value="advanced" className="text-xs gap-1.5 cursor-pointer">
+          <TabsTrigger value="advanced" className="text-[10px] gap-1 cursor-pointer">
             <Code className="size-3.5" />
             CSS
           </TabsTrigger>
@@ -589,19 +653,12 @@ export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
           </TabsContent>
         )}
 
-        <TabsContent value="shape" className="space-y-3">
-          <GeneralSection selected={selected} updateElement={updateElement} />
-          <PositionSection el={selected} updateElement={updateElement} />
-          {isText ? (
-            <TextBoxBackgroundSection
-              el={selected}
-              updateElement={updateElement}
-              guid={draft.guid}
-            />
-          ) : isShape ? (
-            <RectangleSection el={selected} updateElement={updateElement} />
-          ) : null}
-          <AppearanceSection el={selected} updateElement={updateElement} />
+        <TabsContent value="organize" className="space-y-3">
+          {organize}
+        </TabsContent>
+
+        <TabsContent value="appearance" className="space-y-3">
+          {appearance}
         </TabsContent>
 
         <TabsContent value="transitions" className="space-y-3">
@@ -616,6 +673,142 @@ export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
   );
 }
 
+function AlignDistributeSection() {
+  const selection = useThemeEditorStore((s) => s.selection);
+  const alignSelection = useThemeEditorStore((s) => s.alignSelection);
+  const distributeSelection = useThemeEditorStore((s) => s.distributeSelection);
+  const disabled = selection.ids.length === 0;
+
+  return (
+    <Section title="ALINHAR & DISTRIBUIR" icon={AlignCenter}>
+      <div className="grid grid-cols-6 gap-1">
+        {ALIGN_BUTTONS.map(({ title, edge, icon: Icon }) => (
+          <Button
+            key={edge}
+            type="button"
+            variant="outline"
+            size="sm"
+            title={title}
+            disabled={disabled}
+            className="h-8 cursor-pointer p-0 hover:bg-muted"
+            onClick={() => alignSelection(edge)}
+          >
+            <Icon className="size-3.5 text-foreground" />
+          </Button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          title="Distribuir horizontalmente"
+          disabled={selection.ids.length < 3}
+          className="h-8 cursor-pointer gap-1 text-[11px]"
+          onClick={() => distributeSelection("x")}
+        >
+          <ArrowLeft className="size-3.5" />
+          Distribuir H
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          title="Distribuir verticalmente"
+          disabled={selection.ids.length < 3}
+          className="h-8 cursor-pointer gap-1 text-[11px]"
+          onClick={() => distributeSelection("y")}
+        >
+          <ArrowDown className="size-3.5" />
+          Distribuir V
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
+function OrderSection() {
+  const selection = useThemeEditorStore((s) => s.selection);
+  const reorderSelection = useThemeEditorStore((s) => s.reorderSelection);
+
+  return (
+    <Section title="ORDEM" icon={Layers}>
+      <div className="grid grid-cols-4 gap-1">
+        {ORDER_BUTTONS.map(({ label, direction, icon: Icon }) => (
+          <Button
+            key={direction}
+            type="button"
+            variant="outline"
+            size="sm"
+            title={label}
+            disabled={selection.ids.length === 0}
+            className="h-8 cursor-pointer p-0"
+            onClick={() => reorderSelection(direction)}
+          >
+            <Icon className="size-3.5" />
+          </Button>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function GroupSection({ selected }: { selected: ThemeElement }) {
+  const selection = useThemeEditorStore((s) => s.selection);
+  const groupSelection = useThemeEditorStore((s) => s.groupSelection);
+  const ungroupSelection = useThemeEditorStore((s) => s.ungroupSelection);
+  const renameGroup = useThemeEditorStore((s) => s.renameGroup);
+  const groupId = selection.enteredGroupId ?? selected.groupId ?? null;
+
+  return (
+    <Section title="AGRUPAR" icon={FolderPlus}>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 flex-1 cursor-pointer gap-1 text-xs"
+          disabled={selection.ids.length < 2}
+          onClick={() => groupSelection()}
+        >
+          <FolderPlus className="size-3.5" />
+          Agrupar
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 flex-1 cursor-pointer gap-1 text-xs"
+          disabled={!groupId}
+          onClick={() => ungroupSelection()}
+        >
+          <FolderMinus className="size-3.5" />
+          Desagrupar
+        </Button>
+      </div>
+      {groupId && (
+        <Field label="Nome do grupo">
+          <Input
+            key={groupId}
+            defaultValue={selected.groupName ?? "Grupo"}
+            className="h-8 text-xs"
+            onBlur={(e) => {
+              const name = e.target.value.trim();
+              if (name) renameGroup(groupId, name);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
+          />
+        </Field>
+      )}
+    </Section>
+  );
+}
+
 function GeneralSection({
   selected,
   updateElement,
@@ -624,7 +817,7 @@ function GeneralSection({
   updateElement: UpdateElement;
 }) {
   return (
-    <Section title="ELEMENTO" icon={Layers} defaultOpen={true}>
+    <Section title="ELEMENTO" icon={Layers}>
       <Field label="Identificador">
         <Input value={selected.id} disabled aria-label="Nome do elemento" className="h-8 font-mono text-xs" />
       </Field>
@@ -657,32 +850,84 @@ function GeneralSection({
   );
 }
 
-function PositionSection({
+function GeometrySection({
+  scope,
   el,
-  updateElement,
+  elements,
 }: {
-  el: ThemeElement;
-  updateElement: UpdateElement;
+  scope: "item" | "selection";
+  el: ThemeElement | null;
+  elements: ThemeElement[];
 }) {
-  function setPos(k: "left" | "top", value: string) {
+  const selection = useThemeEditorStore((s) => s.selection);
+  const updateElement = useThemeEditorStore((s) => s.updateElement);
+  const translateSelection = useThemeEditorStore((s) => s.translateSelection);
+  const scaleSelection = useThemeEditorStore((s) => s.scaleSelection);
+  const setSelectionRotation = useThemeEditorStore(
+    (s) => s.setSelectionRotation,
+  );
+  const rotateSelectionBy = useThemeEditorStore((s) => s.rotateSelectionBy);
+  const [rotationDelta, setRotationDelta] = useState("");
+
+  const box =
+    scope === "item" && el
+      ? elementBox(el)
+      : selectionVisualBox(elements, selection.ids);
+  if (!box) return null;
+
+  function setPos(axis: "left" | "top", value: string) {
+    if (!el || !box) return;
     const num = Number(value);
     if (!Number.isFinite(num)) return;
-    const patchCoord = k === "left" ? { x: Math.round(num) } : { y: Math.round(num) };
+    const left = axis === "left" ? Math.round(num) : Math.round(box.left);
+    const top = axis === "top" ? Math.round(num) : Math.round(box.top);
     updateElement(el.id, {
-      ...patchCoord,
-      css: { ...el.css, [k]: `${num}px` },
+      x: toPct(left, LOGICAL_W),
+      y: toPct(top, LOGICAL_H),
+      css: { ...el.css, left: `${left}px`, top: `${top}px` },
     });
   }
 
-  function setDim(k: "width" | "height", value: string) {
+  function setDim(axis: "width" | "height", value: string) {
+    if (!el) return;
     const num = Number(value);
     if (!Number.isFinite(num) || num <= 0) return;
     updateElement(el.id, {
-      css: { ...el.css, [k]: `${num}px` },
+      css: { ...el.css, [axis]: `${Math.round(num)}px` },
     });
   }
 
+  function moveSelection(axis: "left" | "top", value: string) {
+    if (!box) return;
+    const num = Number(value);
+    if (!Number.isFinite(num)) return;
+    if (axis === "left") translateSelection(num - box.left, 0);
+    else translateSelection(0, num - box.top);
+  }
+
+  function resizeSelection(axis: "width" | "height", value: string) {
+    if (!box) return;
+    const num = Number(value);
+    if (!Number.isFinite(num) || num <= 0) return;
+    if (axis === "width") scaleSelection(num / box.width, 1);
+    else scaleSelection(1, num / box.height);
+  }
+
+  function setRotation(value: string) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return;
+    setSelectionRotation(Math.max(-180, Math.min(180, num)));
+  }
+
+  function applyRotationDelta() {
+    const num = Number(rotationDelta);
+    setRotationDelta("");
+    if (!Number.isFinite(num) || num === 0) return;
+    rotateSelectionBy(num);
+  }
+
   function setScale(value: string) {
+    if (!el) return;
     const num = Number(value);
     if (!Number.isFinite(num) || num <= 0) return;
     updateElement(el.id, {
@@ -691,6 +936,7 @@ function PositionSection({
   }
 
   function setMargin(side: string, value: string) {
+    if (!el) return;
     const num = Number(value);
     if (!Number.isFinite(num) || num < 0) return;
     const css = { ...el.css };
@@ -703,23 +949,33 @@ function PositionSection({
   }
 
   return (
-    <Section title="POSIÇÃO & DIMENSÕES" icon={Move} defaultOpen={true}>
-      {/* Flex wrap para Posição e Dimensão com min-w */}
+    <Section
+      title={scope === "item" ? "GEOMETRIA" : "GEOMETRIA DA SELEÇÃO"}
+      icon={Move}
+    >
       <div className="flex flex-wrap gap-2">
         <Field label="X (px)" className="min-w-[110px] flex-1">
           <Input
             type="number"
             className="h-8 font-mono text-xs"
-            value={pxOf(el.css.left)}
-            onChange={(e) => setPos("left", e.target.value)}
+            value={Math.round(box.left)}
+            onChange={(e) =>
+              scope === "item"
+                ? setPos("left", e.target.value)
+                : moveSelection("left", e.target.value)
+            }
           />
         </Field>
         <Field label="Y (px)" className="min-w-[110px] flex-1">
           <Input
             type="number"
             className="h-8 font-mono text-xs"
-            value={pxOf(el.css.top)}
-            onChange={(e) => setPos("top", e.target.value)}
+            value={Math.round(box.top)}
+            onChange={(e) =>
+              scope === "item"
+                ? setPos("top", e.target.value)
+                : moveSelection("top", e.target.value)
+            }
           />
         </Field>
         <Field label="Largura (px)" className="min-w-[110px] flex-1">
@@ -727,8 +983,12 @@ function PositionSection({
             type="number"
             min={20}
             className="h-8 font-mono text-xs"
-            value={pxOf(el.css.width)}
-            onChange={(e) => setDim("width", e.target.value)}
+            value={Math.round(box.width)}
+            onChange={(e) =>
+              scope === "item"
+                ? setDim("width", e.target.value)
+                : resizeSelection("width", e.target.value)
+            }
           />
         </Field>
         <Field label="Altura (px)" className="min-w-[110px] flex-1">
@@ -736,36 +996,51 @@ function PositionSection({
             type="number"
             min={20}
             className="h-8 font-mono text-xs"
-            value={pxOf(el.css.height)}
-            onChange={(e) => setDim("height", e.target.value)}
+            value={Math.round(box.height)}
+            onChange={(e) =>
+              scope === "item"
+                ? setDim("height", e.target.value)
+                : resizeSelection("height", e.target.value)
+            }
           />
         </Field>
+        {scope === "item" ? (
+          <Field label="Rotação (°)" className="min-w-[110px] flex-1">
+            <Input
+              type="number"
+              min={-180}
+              max={180}
+              step={1}
+              className="h-8 font-mono text-xs"
+              value={Math.round(parseRotateDeg(el?.css.rotate))}
+              onChange={(e) => setRotation(e.target.value)}
+            />
+          </Field>
+        ) : (
+          <Field label="Rotação (°)" className="min-w-[110px] flex-1">
+            <Input
+              type="number"
+              step={1}
+              placeholder="0"
+              className="h-8 font-mono text-xs"
+              value={rotationDelta}
+              onChange={(e) => setRotationDelta(e.target.value)}
+              onBlur={applyRotationDelta}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyRotationDelta();
+                }
+              }}
+            />
+          </Field>
+        )}
       </div>
 
-      {/* Alinhar à tela com ícones */}
-      <div className="flex flex-col gap-1.5 pt-1">
-        <span className="text-[11px] font-medium text-muted-foreground">
-          Alinhar à Tela
-        </span>
-        <div className="grid grid-cols-6 gap-1">
-          {ALIGN_BUTTONS.map(({ label, edge, icon: Icon }) => (
-            <Button
-              key={edge}
-              type="button"
-              variant="outline"
-              size="sm"
-              title={`Alinhar ao ${label}`}
-              className="h-8 p-0 flex items-center justify-center cursor-pointer hover:bg-muted"
-              onClick={() => updateElement(el.id, alignToScreen(el, edge))}
-            >
-              <Icon className="size-3.5 text-foreground" />
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* Escala */}
-      <div className="flex flex-col gap-1.5 pt-1 border-t border-border/40">
+      {scope === "item" && el && (
+        <>
+          {/* Escala */}
+          <div className="flex flex-col gap-1.5 pt-1 border-t border-border/40">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-medium text-foreground">
             Escala: {scalePctOf(el.css.transform)}%
@@ -833,6 +1108,8 @@ function PositionSection({
           </Field>
         </div>
       </div>
+        </>
+      )}
     </Section>
   );
 }
@@ -906,7 +1183,7 @@ function TextSection({
       : "center";
 
   return (
-    <Section title="TEXTO & TIPOGRAFIA" icon={Type} defaultOpen={true}>
+    <Section title="TEXTO & TIPOGRAFIA" icon={Type}>
       <Textarea
         ref={areaRef}
         aria-label="Conteúdo do texto"
@@ -1416,7 +1693,7 @@ function RectangleSection({
   }
 
   return (
-    <Section title={currentShape.title} icon={ShapeIcon} defaultOpen={true}>
+    <Section title={currentShape.title} icon={ShapeIcon}>
       {/* Mini preview do preenchimento */}
       <div
         className="h-10 w-full rounded-lg border border-border shadow-inner overflow-hidden flex items-center justify-center text-[10px] font-mono text-muted-foreground/70"
@@ -1660,7 +1937,7 @@ function ElementMediaSection({
   }
 
   return (
-    <Section title={isVideo ? "VÍDEO" : "IMAGEM"} icon={isVideo ? Film : ImageIcon} defaultOpen={true}>
+    <Section title={isVideo ? "VÍDEO" : "IMAGEM"} icon={isVideo ? Film : ImageIcon}>
       {(el.src ?? "") !== "" && (
         <p className="truncate px-1 font-mono text-[11px] text-muted-foreground" title={el.src}>
           {el.src}
@@ -1863,7 +2140,7 @@ function TransitionsSection({
     TRANSITION_TYPES[1];
 
   return (
-    <Section title="TRANSIÇÃO & ANIMAÇÃO" icon={Zap} defaultOpen={true}>
+    <Section title="TRANSIÇÃO & ANIMAÇÃO" icon={Zap}>
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-foreground">
@@ -1997,7 +2274,7 @@ function ThemeBackground({
 
   return (
     <div className="flex flex-col gap-4">
-      <Section title="PLANO DE FUNDO DO TEMA" icon={Palette} defaultOpen={true}>
+      <Section title="PLANO DE FUNDO DO TEMA" icon={Palette}>
         {/* Preview do Fundo */}
         <div
           className="h-20 w-full rounded-lg border border-border shadow-inner overflow-hidden relative"

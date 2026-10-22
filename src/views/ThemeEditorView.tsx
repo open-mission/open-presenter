@@ -137,7 +137,6 @@ export default function ThemeEditorView() {
   const select = useThemeEditorStore((s) => s.select);
   const clearSelection = useThemeEditorStore((s) => s.clearSelection);
   const clearGuides = useThemeEditorStore((s) => s.clearGuides);
-  const selectedId = selection.anchorId;
   const [sampleAsset, setSampleAsset] = useState<ThemeAsset>("music");
   const [snap, setSnap] = useState(true);
   const [showLimit, setShowLimit] = useState(true);
@@ -504,8 +503,8 @@ export default function ThemeEditorView() {
       draft,
       useThemeEditorStore.getState().activePageId,
     );
-    if (selectedId) {
-      const el = current.elements.find((e) => e.id === selectedId);
+    if (selection.anchorId) {
+      const el = current.elements.find((e) => e.id === selection.anchorId);
       if (el && el.type === "TEXT") {
         useThemeEditorStore.getState().updateElement(el.id, {
           ...el,
@@ -1385,7 +1384,7 @@ export default function ThemeEditorView() {
           style={{ width: `${propertiesWidth}px`, minWidth: "320px" }}
           className="shrink-0 flex flex-col h-full overflow-y-auto border-l border-border p-3 bg-card/20"
         >
-          <PropertiesPanel selectedId={selectedId} />
+          <PropertiesPanel />
         </aside>
       </div>
 
