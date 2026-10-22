@@ -2953,11 +2953,13 @@ name = "open-presenter"
 version = "0.3.8"
 dependencies = [
  "axum",
+ "flate2",
  "futures-util",
  "local-ip-address",
  "mime_guess",
  "percent-encoding",
  "reqwest",
+ "ring",
  "rusqlite",
  "rust-embed",
  "serde",

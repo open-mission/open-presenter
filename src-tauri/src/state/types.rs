@@ -314,12 +314,37 @@ impl LinesPerSlide {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SongDefaults {
     pub lines_per_slide: LinesPerSlide,
     #[serde(default)]
     pub add_empty_slide_at_start: bool,
+    #[serde(default = "default_true")]
+    pub vagalume_enabled: bool,
+    #[serde(default = "default_true")]
+    pub holyrics_enabled: bool,
+    #[serde(default = "default_true")]
+    pub lrclib_enabled: bool,
+    #[serde(default)]
+    pub vagalume_api_key: Option<String>,
+}
+
+impl Default for SongDefaults {
+    fn default() -> Self {
+        Self {
+            lines_per_slide: LinesPerSlide::Two,
+            add_empty_slide_at_start: false,
+            vagalume_enabled: true,
+            holyrics_enabled: true,
+            lrclib_enabled: true,
+            vagalume_api_key: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -381,6 +406,10 @@ pub struct OnlineLyricHit {
     pub track_name: String,
     pub artist_name: String,
     pub album_name: Option<String>,
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub provider_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

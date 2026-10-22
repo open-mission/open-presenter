@@ -29,6 +29,7 @@ interface SongsState {
   importReport: ImportReport | null;
   onlineOpen: boolean;
   onlineQuery: string;
+  onlineProvider: string | null;
   onlineResults: OnlineLyricHit[];
   onlineLoading: boolean;
   onlineError: string | null;
@@ -44,6 +45,7 @@ interface SongsState {
   openOnlineSearch(): void;
   closeOnlineSearch(): void;
   setOnlineQuery(query: string): void;
+  setOnlineProvider(provider: string | null): void;
   searchOnline(): Promise<void>;
   importOnlineHit(hit: OnlineLyricHit): Promise<void>;
 }
@@ -61,6 +63,7 @@ export const useSongsStore = create<SongsState>((set, get) => ({
   importReport: null,
   onlineOpen: false,
   onlineQuery: "",
+  onlineProvider: "all",
   onlineResults: [],
   onlineLoading: false,
   onlineError: null,
@@ -178,6 +181,8 @@ export const useSongsStore = create<SongsState>((set, get) => ({
 
   setOnlineQuery: (onlineQuery) => set({ onlineQuery }),
 
+  setOnlineProvider: (onlineProvider) => set({ onlineProvider }),
+
   searchOnline: async () => {
     const query = get().onlineQuery.trim();
     if (query === "") {
@@ -187,7 +192,9 @@ export const useSongsStore = create<SongsState>((set, get) => ({
     if (get().onlineLoading) return;
     set({ onlineLoading: true, onlineError: null });
     try {
-      const onlineResults = await searchLyricsOnline(query);
+      const activeProvider = get().onlineProvider;
+      const providerParam = activeProvider === "all" ? null : activeProvider;
+      const onlineResults = await searchLyricsOnline(query, providerParam);
       set({
         onlineLoading: false,
         onlineResults,
@@ -206,6 +213,8 @@ export const useSongsStore = create<SongsState>((set, get) => ({
         crypto.randomUUID(),
         hit.trackName,
         hit.artistName,
+        hit.provider,
+        hit.providerId,
       );
       if (isTauri()) {
         await saveSong(song);

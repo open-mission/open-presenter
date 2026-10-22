@@ -213,9 +213,10 @@ export async function importHolyrics(paths: string[]): Promise<ImportReport> {
 
 export async function searchLyricsOnline(
   query: string,
+  provider?: string | null,
 ): Promise<OnlineLyricHit[]> {
   if (isTauri()) {
-    return invokeStrict<OnlineLyricHit[]>("search_lyrics_online", { query });
+    return invokeStrict<OnlineLyricHit[]>("search_lyrics_online", { query, provider });
   }
 
   // Web fallback com retry para contornar sobrecarga transitória do LRCLIB (503/429)
@@ -266,12 +267,16 @@ export async function fetchOnlineLyrics(
   id: string,
   trackName: string,
   artistName: string,
+  provider?: string | null,
+  providerId?: string | null,
 ): Promise<Song> {
   if (isTauri()) {
     return invokeStrict<Song>("fetch_online_lyrics", {
       id,
       trackName,
       artistName,
+      provider,
+      providerId,
     });
   }
 

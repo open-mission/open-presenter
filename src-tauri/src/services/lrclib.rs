@@ -57,6 +57,8 @@ pub fn parse_search_payload(body: &str) -> Result<Vec<OnlineLyricHit>, AppError>
                 track_name: item.track_name?,
                 artist_name: item.artist_name.unwrap_or_default(),
                 album_name: item.album_name,
+                provider: Some("lrclib".into()),
+                provider_id: None,
             })
         })
         .collect())
