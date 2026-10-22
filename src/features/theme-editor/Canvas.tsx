@@ -5,7 +5,10 @@ import {
   useRef,
   useState,
 } from "react";
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react";
+import type {
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 import { Lock } from "lucide-react";
 import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
 import { createFrameCoalescer, type FrameCoalescer } from "@/core/lib/frameCoalescer";
@@ -16,14 +19,22 @@ import {
   FALLBACK_SIZE,
   LOGICAL_H,
   LOGICAL_W,
+  type Point,
   type Rect,
   elementRect,
+  rotatePoint,
   unionRects,
   visualRect,
 } from "./geometry";
-import { SelectionOverlay } from "./SelectionOverlay";
+import { type ResizeDir, SelectionOverlay } from "./SelectionOverlay";
 import { groupMemberIds } from "./selection";
-import { elementRotation } from "./transform";
+import {
+  elementRotation,
+  normalizeDeg,
+  rotateElementsInList,
+  scaleElementsInList,
+  setElementRotation,
+} from "./transform";
 
 export interface CanvasResolution {
   width: number;
@@ -57,12 +68,8 @@ export interface CanvasProps {
   simulateCamera?: boolean;
 }
 
-type ResizeDir = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
-
 interface Gesture {
-  id?: string;
-  mode: "move" | "resize";
-  dir?: ResizeDir;
+  mode: "move" | "resize" | "rotate";
   baseIds: string[];
   ids: string[];
   startLX: number;
@@ -70,15 +77,21 @@ interface Gesture {
   origBox: Rect;
   last: Rect;
   memberOrigs: Record<string, Rect>;
+  rotations: Record<string, number>;
   snapBoxes: Map<string, ElementBox>;
-  orig?: Rect;
+  dir?: ResizeDir;
+  center: Point;
+  startAngle: number;
+  rotationDelta: number;
+  localRotation: number;
+  uniform: boolean;
 }
 
 type PreviewPatch = Partial<Pick<ThemeElement, "x" | "y">> & {
   css?: Record<string, string>;
 };
 
-type PointerPos = { clientX: number; clientY: number };
+type PointerPos = { clientX: number; clientY: number; shiftKey?: boolean };
 
 export interface SmartGuide {
   type: "vertical" | "horizontal";
@@ -89,28 +102,6 @@ export interface SmartGuide {
 const MIN_SIZE = 20;
 
 const EMPTY_SNAP_BOXES: ReadonlyMap<string, ElementBox> = new Map();
-
-const HANDLE_CURSORS: Record<ResizeDir, string> = {
-  nw: "nwse-resize",
-  se: "nwse-resize",
-  ne: "nesw-resize",
-  sw: "nesw-resize",
-  n: "ns-resize",
-  s: "ns-resize",
-  e: "ew-resize",
-  w: "ew-resize",
-};
-
-const HANDLE_OFFSETS: Record<ResizeDir, { x: number; y: number }> = {
-  nw: { x: 0, y: 0 },
-  n: { x: 0.5, y: 0 },
-  ne: { x: 1, y: 0 },
-  e: { x: 1, y: 0.5 },
-  se: { x: 1, y: 1 },
-  s: { x: 0.5, y: 1 },
-  sw: { x: 0, y: 1 },
-  w: { x: 0, y: 0.5 },
-};
 
 function RulerTop({ width }: { width: number }) {
   const step = 100;
@@ -367,6 +358,46 @@ export function Canvas({
       return;
     }
     clearSelection();
+  }
+
+  function hitTestMember(point: { x: number; y: number }): ThemeElement | null {
+    const idSet = new Set(selection.ids);
+    for (let index = theme.elements.length - 1; index >= 0; index -= 1) {
+      const el = theme.elements[index];
+      if (!idSet.has(el.id) || !el.visible) continue;
+      const box = resolveVisualBox(el);
+      if (
+        point.x >= box.left &&
+        point.x <= box.left + box.width &&
+        point.y >= box.top &&
+        point.y <= box.top + box.height
+      ) {
+        return el;
+      }
+    }
+    return null;
+  }
+
+  function handleGroupPointerDown(e: ReactPointerEvent<HTMLDivElement>): void {
+    if (e.button !== 0) return;
+    const member = hitTestMember(toLogical(e));
+    if (member && e.shiftKey) {
+      toggleSelect(member.id);
+      return;
+    }
+    if (member && (e.metaKey || e.ctrlKey) && member.groupId) {
+      enterGroup(member.groupId, member.id);
+      return;
+    }
+    if (e.shiftKey || e.metaKey || e.ctrlKey) return;
+    beginMove(e, selection.ids);
+  }
+
+  function handleGroupDoubleClick(e: ReactMouseEvent<HTMLDivElement>): void {
+    const member = hitTestMember(toLogical(e));
+    if (!member) return;
+    if (member.groupId) enterGroup(member.groupId, member.id);
+    if (member.type === "TEXT" && !member.locked) setEditingId(member.id);
   }
 
   function toLogical(e: { clientX: number; clientY: number }): {
@@ -643,9 +674,17 @@ export function Canvas({
     });
   }
 
+  function isLocalResize(g: Gesture): boolean {
+    return (
+      g.mode === "resize" &&
+      g.ids.length === 1 &&
+      (g.rotations[g.ids[0]] ?? 0) % 360 !== 0
+    );
+  }
+
   function commitGesture(g: Gesture): void {
     setActiveGuides([]);
-    clearPreview(g.mode === "move" ? g.ids : [g.id ?? ""]);
+    clearPreview(g.ids);
 
     if (g.mode === "move") {
       const dx = Math.round(g.last.left - g.origBox.left);
@@ -672,41 +711,89 @@ export function Canvas({
       return;
     }
 
-    const orig = theme.elements.find((el) => el.id === g.id);
-    const base = g.orig;
-    if (!orig || !base) return;
-    const left = Math.max(0, Math.round(g.last.left));
-    const top = Math.max(0, Math.round(g.last.top));
-    const width = Math.max(MIN_SIZE, Math.round(g.last.width));
-    const height = Math.max(MIN_SIZE, Math.round(g.last.height));
-    if (
-      left === Math.max(0, Math.round(base.left)) &&
-      top === Math.max(0, Math.round(base.top)) &&
-      width === Math.max(MIN_SIZE, Math.round(base.width)) &&
-      height === Math.max(MIN_SIZE, Math.round(base.height))
-    ) {
+    if (g.mode === "rotate") {
+      if (g.rotationDelta === 0) return;
+      const patches: { id: string; patch: Partial<ThemeElement> }[] = [];
+      if (g.ids.length === 1) {
+        const el = theme.elements.find((item) => item.id === g.ids[0]);
+        if (!el) return;
+        const next = setElementRotation(
+          el,
+          (g.rotations[el.id] ?? 0) + g.rotationDelta,
+        );
+        patches.push({ id: el.id, patch: { css: next.css } });
+      } else {
+        const idSet = new Set(g.ids);
+        const rotated = rotateElementsInList(
+          theme.elements,
+          g.center,
+          g.rotationDelta,
+        );
+        for (const el of rotated) {
+          if (!idSet.has(el.id)) continue;
+          patches.push({ id: el.id, patch: { x: el.x, y: el.y, css: el.css } });
+        }
+      }
+      if (patches.length > 0) {
+        useThemeEditorStore.getState().updateElements(patches);
+      }
       return;
     }
-    onChange({
-      ...orig,
-      x: left,
-      y: top,
-      css: {
-        ...orig.css,
-        left: `${left}px`,
-        top: `${top}px`,
-        width: `${width}px`,
-        height: `${height}px`,
-      },
-    });
+
+    if (isLocalResize(g)) {
+      const id = g.ids[0];
+      const el = theme.elements.find((item) => item.id === id);
+      const base = g.memberOrigs[id];
+      if (!el) return;
+      const left = Math.max(0, Math.round(g.last.left));
+      const top = Math.max(0, Math.round(g.last.top));
+      const width = Math.max(MIN_SIZE, Math.round(g.last.width));
+      const height = Math.max(MIN_SIZE, Math.round(g.last.height));
+      if (
+        base &&
+        left === Math.round(base.left) &&
+        top === Math.round(base.top) &&
+        width === Math.round(base.width) &&
+        height === Math.round(base.height)
+      ) {
+        return;
+      }
+      useThemeEditorStore.getState().updateElements([
+        {
+          id,
+          patch: {
+            x: left,
+            y: top,
+            css: {
+              ...el.css,
+              left: `${left}px`,
+              top: `${top}px`,
+              width: `${width}px`,
+              height: `${height}px`,
+            },
+          },
+        },
+      ]);
+      return;
+    }
+
+    const idSet = new Set(g.ids);
+    const scaled = scaleElementsInList(theme.elements, g.origBox, g.last);
+    const patches = scaled
+      .filter((el) => idSet.has(el.id))
+      .map((el) => ({ id: el.id, patch: { x: el.x, y: el.y, css: el.css } }));
+    if (patches.length > 0) {
+      useThemeEditorStore.getState().updateElements(patches);
+    }
   }
 
-  function updateGesture(e: { clientX: number; clientY: number }): void {
+  function updateGesture(e: PointerPos): void {
     const g = gestureRef.current;
     if (!g) return;
     const pos = toLogical(e);
     const dx = pos.x - g.startLX;
     const dy = pos.y - g.startLY;
+    const shift = Boolean(e.shiftKey);
 
     if (g.mode === "move") {
       const snapped = calculateSnap(
@@ -739,31 +826,130 @@ export function Canvas({
       return;
     }
 
-    const snapped = calculateResizeSnap(
-      g.orig ?? g.origBox,
-      g.dir ?? "se",
-      dx,
-      dy,
-    );
-    g.last = snapped;
+    if (g.mode === "rotate") {
+      const angle =
+        (Math.atan2(pos.y - g.center.y, pos.x - g.center.x) * 180) / Math.PI;
+      let delta = normalizeDeg(angle - g.startAngle);
+      if (shift) {
+        if (g.ids.length === 1) {
+          const rotation = g.rotations[g.ids[0]] ?? 0;
+          delta = Math.round(normalizeDeg(rotation + delta) / 15) * 15 - rotation;
+        } else {
+          delta = Math.round(delta / 15) * 15;
+        }
+      }
+      g.rotationDelta = delta;
+
+      if (g.ids.length === 1) {
+        const el = theme.elements.find((item) => item.id === g.ids[0]);
+        if (!el) return;
+        const next = setElementRotation(el, (g.rotations[el.id] ?? 0) + delta);
+        setPreview((prev) => ({ ...prev, [el.id]: { css: next.css } }));
+        return;
+      }
+
+      const idSet = new Set(g.ids);
+      const rotated = rotateElementsInList(theme.elements, g.center, delta);
+      setPreview((prev) => {
+        const next = { ...prev };
+        for (const el of rotated) {
+          if (!idSet.has(el.id)) continue;
+          next[el.id] = { x: el.x, y: el.y, css: el.css };
+        }
+        return next;
+      });
+      return;
+    }
+
+    if (isLocalResize(g)) {
+      const id = g.ids[0];
+      const el = theme.elements.find((item) => item.id === id);
+      const base = g.memberOrigs[id];
+      if (!el || !base) return;
+      const angle = g.rotations[id] ?? 0;
+      const rad = (-angle * Math.PI) / 180;
+      const lx = dx * Math.cos(rad) - dy * Math.sin(rad);
+      const ly = dx * Math.sin(rad) + dy * Math.cos(rad);
+
+      let left = 0;
+      let top = 0;
+      let right = base.width;
+      let bottom = base.height;
+      if (g.dir?.includes("e")) right += lx;
+      if (g.dir?.includes("w")) left += lx;
+      if (g.dir?.includes("s")) bottom += ly;
+      if (g.dir?.includes("n")) top += ly;
+
+      let width = Math.max(MIN_SIZE, right - left);
+      let height = Math.max(MIN_SIZE, bottom - top);
+      if (shift && g.dir && g.dir.length === 2) {
+        const factor = Math.max(width / base.width, height / base.height);
+        width = Math.max(MIN_SIZE, base.width * factor);
+        height = Math.max(MIN_SIZE, base.height * factor);
+      }
+
+      const localX = (left + right) / 2 - base.width / 2;
+      const localY = (top + bottom) / 2 - base.height / 2;
+      const offset = rotatePoint({ x: localX, y: localY }, { x: 0, y: 0 }, angle);
+      const centerX = base.left + base.width / 2 + offset.x;
+      const centerY = base.top + base.height / 2 + offset.y;
+      const nextLeft = Math.max(0, centerX - width / 2);
+      const nextTop = Math.max(0, centerY - height / 2);
+      g.last = { left: nextLeft, top: nextTop, width, height };
+      setActiveGuides([]);
+      const roundedLeft = Math.round(nextLeft);
+      const roundedTop = Math.round(nextTop);
+      const roundedWidth = Math.round(width);
+      const roundedHeight = Math.round(height);
+      setPreview((prev) => ({
+        ...prev,
+        [id]: {
+          x: roundedLeft,
+          y: roundedTop,
+          css: {
+            left: `${roundedLeft}px`,
+            top: `${roundedTop}px`,
+            width: `${roundedWidth}px`,
+            height: `${roundedHeight}px`,
+          },
+        },
+      }));
+      return;
+    }
+
+    const snapped = calculateResizeSnap(g.origBox, g.dir ?? "se", dx, dy);
+    let last: Rect = {
+      left: snapped.left,
+      top: snapped.top,
+      width: snapped.width,
+      height: snapped.height,
+    };
+    if (shift && g.dir && g.dir.length === 2) {
+      const factor = Math.max(
+        last.width / g.origBox.width,
+        last.height / g.origBox.height,
+      );
+      const width = g.origBox.width * factor;
+      const height = g.origBox.height * factor;
+      let left = last.left;
+      let top = last.top;
+      if (g.dir.includes("w")) left = g.origBox.left + g.origBox.width - width;
+      if (g.dir.includes("n")) top = g.origBox.top + g.origBox.height - height;
+      last = { left, top, width, height };
+    }
+    g.last = last;
     setActiveGuides(snapped.guides);
 
-    const id = g.id;
-    if (!id) return;
-    const { left, top, width, height } = g.last;
-    setPreview((prev) => ({
-      ...prev,
-      [id]: {
-        x: Math.round(left),
-        y: Math.round(top),
-        css: {
-          left: `${left}px`,
-          top: `${top}px`,
-          width: `${width}px`,
-          height: `${height}px`,
-        },
-      },
-    }));
+    const idSet = new Set(g.ids);
+    const scaled = scaleElementsInList(theme.elements, g.origBox, last);
+    setPreview((prev) => {
+      const next = { ...prev };
+      for (const el of scaled) {
+        if (!idSet.has(el.id)) continue;
+        next[el.id] = { x: el.x, y: el.y, css: el.css };
+      }
+      return next;
+    });
   }
 
   function endGesture(): void {
@@ -783,7 +969,7 @@ export function Canvas({
     gestureListenersRef.current = null;
     setActiveGuides([]);
     gestureFrameRef.current?.cancel();
-    if (g) clearPreview(g.mode === "move" ? g.ids : [g.id ?? ""]);
+    if (g) clearPreview(g.ids);
   }
 
   function trackGesture(): void {
@@ -791,6 +977,7 @@ export function Canvas({
       gestureFrameRef.current?.push({
         clientX: event.clientX,
         clientY: event.clientY,
+        shiftKey: event.shiftKey,
       });
     };
     const cleanup = () => {
@@ -834,32 +1021,97 @@ export function Canvas({
       origBox,
       last: { ...origBox },
       memberOrigs,
+      rotations: {},
       snapBoxes: buildSnapBoxes(visibleElements, idSet, resolveVisualBox),
+      center: { x: origBox.left + origBox.width / 2, y: origBox.top + origBox.height / 2 },
+      startAngle: 0,
+      rotationDelta: 0,
+      localRotation: 0,
+      uniform: false,
     };
     trackGesture();
   }
 
   function beginResize(
     e: ReactPointerEvent<HTMLDivElement>,
-    el: ThemeElement,
+    ids: readonly string[],
     dir: ResizeDir,
   ): void {
     gestureFrameRef.current?.cancel();
+    const idSet = new Set(ids);
+    const members = theme.elements.filter(
+      (el) => idSet.has(el.id) && !el.locked,
+    );
+    if (members.length === 0) return;
+    const memberOrigs: Record<string, Rect> = {};
+    const rotations: Record<string, number> = {};
+    for (const member of members) {
+      memberOrigs[member.id] = resolveBox(member);
+      rotations[member.id] = elementRotation(member);
+    }
+    const single = members.length === 1;
+    const local = single && rotations[members[0].id] % 360 !== 0;
+    const box = local ? memberOrigs[members[0].id] : selectionBoxFor(ids);
+    if (!box || box.width <= 0 || box.height <= 0) return;
     const pos = toLogical(e);
-    const box = resolveBox(el);
     gestureRef.current = {
-      id: el.id,
       mode: "resize",
       dir,
-      baseIds: [el.id],
-      ids: [el.id],
+      baseIds: [...ids],
+      ids: members.map((member) => member.id),
+      startLX: pos.x,
+      startLY: pos.y,
+      origBox: { ...box },
+      last: { ...box },
+      memberOrigs,
+      rotations,
+      snapBoxes: EMPTY_SNAP_BOXES as Map<string, ElementBox>,
+      center: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+      startAngle: 0,
+      rotationDelta: 0,
+      localRotation: 0,
+      uniform: false,
+    };
+    trackGesture();
+  }
+
+  function beginRotate(
+    e: ReactPointerEvent<HTMLDivElement>,
+    ids: readonly string[],
+  ): void {
+    gestureFrameRef.current?.cancel();
+    const idSet = new Set(ids);
+    const members = theme.elements.filter(
+      (el) => idSet.has(el.id) && !el.locked,
+    );
+    if (members.length === 0) return;
+    const box = selectionBoxFor(ids);
+    if (!box) return;
+    const memberOrigs: Record<string, Rect> = {};
+    const rotations: Record<string, number> = {};
+    for (const member of members) {
+      memberOrigs[member.id] = resolveBox(member);
+      rotations[member.id] = elementRotation(member);
+    }
+    const pos = toLogical(e);
+    const center = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    gestureRef.current = {
+      mode: "rotate",
+      baseIds: [...ids],
+      ids: members.map((member) => member.id),
       startLX: pos.x,
       startLY: pos.y,
       origBox: box,
-      last: { ...box },
-      memberOrigs: { [el.id]: box },
+      last: box,
+      memberOrigs,
+      rotations,
       snapBoxes: EMPTY_SNAP_BOXES as Map<string, ElementBox>,
-      orig: box,
+      center,
+      startAngle:
+        (Math.atan2(pos.y - center.y, pos.x - center.x) * 180) / Math.PI,
+      rotationDelta: 0,
+      localRotation: rotations[members[0].id] ?? 0,
+      uniform: false,
     };
     trackGesture();
   }
@@ -875,6 +1127,13 @@ export function Canvas({
   const stageHeight = Math.round(logicalH * scale);
   const selectionBox =
     selection.ids.length >= 2 ? selectionBoxFor(selection.ids) : null;
+  const selectedElement =
+    selection.ids.length === 1
+      ? (theme.elements.find((el) => el.id === selection.ids[0]) ?? null)
+      : null;
+  const hasUnlockedSelection = theme.elements.some(
+    (el) => selection.ids.includes(el.id) && !el.locked,
+  );
 
   return (
     <div
@@ -1030,9 +1289,8 @@ export function Canvas({
             <div className="absolute inset-0" onPointerDown={handleEmptyPointerDown}>
               {visibleElements.map((el) => {
                 const box = resolveBox(el);
-                const selected =
-                  selection.ids.length === 1 && selection.ids[0] === el.id;
                 const interactive = !el.locked;
+                const rotation = elementRotation(withPatch(el));
                 const editing = editingId === el.id;
                 if (editing && el.type === "TEXT") {
                   return (
@@ -1040,6 +1298,7 @@ export function Canvas({
                       key={el.id}
                       el={el}
                       box={box}
+                      rotation={elementRotation(withPatch(el))}
                       maxWidth={logicalW - box.left}
                       onCommit={commitText}
                       onCancel={() => setEditingId(null)}
@@ -1052,16 +1311,13 @@ export function Canvas({
                     role="button"
                     tabIndex={0}
                     aria-label={`Elemento ${el.id}`}
-                    className={
-                      selected
-                        ? "absolute border-2 border-primary"
-                        : "absolute border border-transparent hover:border-white/40"
-                    }
+                    className="absolute border border-transparent hover:border-white/40"
                     style={{
                       left: box.left,
                       top: box.top,
                       width: box.width,
                       height: box.height,
+                      transform: rotation ? `rotate(${rotation}deg)` : undefined,
                       cursor: interactive ? "move" : "not-allowed",
                       touchAction: "none",
                     }}
@@ -1123,40 +1379,44 @@ export function Canvas({
                         Bloqueado
                       </span>
                     )}
-                    {selected && interactive && (
-                      <>
-                        {(Object.keys(HANDLE_OFFSETS) as ResizeDir[]).map(
-                          (dir) => {
-                            const offset = HANDLE_OFFSETS[dir];
-                            return (
-                              <div
-                                key={dir}
-                                className="absolute z-10 rounded-[2px] border border-primary bg-background shadow"
-                                style={
-                                  {
-                                    width: 18,
-                                    height: 18,
-                                    left: `calc(${offset.x * 100}% - 9px)`,
-                                    top: `calc(${offset.y * 100}% - 9px)`,
-                                    cursor: HANDLE_CURSORS[dir],
-                                    touchAction: "none",
-                                  } as CSSProperties
-                                }
-                                onPointerDown={(e) => {
-                                  e.stopPropagation();
-                                  if (e.button !== 0) return;
-                                  beginResize(e, el, dir);
-                                }}
-                              />
-                            );
-                          },
-                        )}
-                      </>
-                    )}
                   </div>
                 );
               })}
-              {selectionBox && <SelectionOverlay box={selectionBox} />}
+              {selectedElement && !editingId && (
+                <SelectionOverlay
+                  variant="item"
+                  box={resolveBox(selectedElement)}
+                  rotation={elementRotation(withPatch(selectedElement))}
+                  showHandles={!selectedElement.locked}
+                  showRotateHandle={!selectedElement.locked}
+                  onResizeStart={(dir, e) => {
+                    if (e.button !== 0) return;
+                    beginResize(e, [selectedElement.id], dir);
+                  }}
+                  onRotateStart={(e) => {
+                    if (e.button !== 0) return;
+                    beginRotate(e, [selectedElement.id]);
+                  }}
+                />
+              )}
+              {selectionBox && (
+                <SelectionOverlay
+                  variant="group"
+                  box={selectionBox}
+                  showHandles={hasUnlockedSelection}
+                  showRotateHandle={hasUnlockedSelection}
+                  onMoveStart={handleGroupPointerDown}
+                  onResizeStart={(dir, e) => {
+                    if (e.button !== 0) return;
+                    beginResize(e, selection.ids, dir);
+                  }}
+                  onRotateStart={(e) => {
+                    if (e.button !== 0) return;
+                    beginRotate(e, selection.ids);
+                  }}
+                  onDoubleClick={handleGroupDoubleClick}
+                />
+              )}
             </div>
           </div>
         </div>
@@ -1167,12 +1427,14 @@ export function Canvas({
 function TextEditor({
   el,
   box,
+  rotation,
   maxWidth,
   onCommit,
   onCancel,
 }: {
   el: ThemeElement;
   box: { left: number; top: number; width: number; height: number };
+  rotation: number;
   maxWidth: number;
   onCommit: (el: ThemeElement, text: string) => void;
   onCancel: () => void;
@@ -1205,6 +1467,7 @@ function TextEditor({
         minWidth: Math.max(box.width, 200),
         minHeight: Math.max(box.height, 60),
         maxWidth,
+        transform: rotation ? `rotate(${rotation}deg)` : undefined,
       }}
       onPointerDown={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
