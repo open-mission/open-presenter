@@ -99,6 +99,17 @@ test("aceita página de descanso em tema de palco", () => {
   );
 });
 
+test("preserva guias da página no round-trip", () => {
+  const theme = v2();
+  theme.pages![0].guides = [
+    { id: "g1", axis: "x", pos: 120 },
+    { id: "g2", axis: "y", pos: 540 },
+  ];
+  const imported = parseThemeFromJson(buildThemePackage(theme));
+  assert.deepEqual(imported.pages?.[0].guides, theme.pages![0].guides);
+  assert.equal(imported.pages?.[1].guides, undefined);
+});
+
 test("backup usa v2", () => {
   const backup = buildThemesBackup([v2()]);
   assert.equal(backup.version, 2);

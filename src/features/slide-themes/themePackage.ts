@@ -1,4 +1,10 @@
-import type { SlideTheme, ThemeContext, ThemeElement, ThemePage } from "@/core/types";
+import type {
+  SlideTheme,
+  ThemeContext,
+  ThemeElement,
+  ThemeGuide,
+  ThemePage,
+} from "@/core/types";
 
 export const THEME_PACKAGE_VERSION = 2;
 export const THEME_CONTEXTS: readonly ThemeContext[] = [
@@ -36,19 +42,27 @@ function normalizeElement(el: ThemeElement): ThemeElement {
 
 function buildThemePayload(theme: SlideTheme): SlideTheme {
   const pages = theme.pages?.length
-    ? theme.pages.map((page) => ({
-        ...page,
-        css: page.css ?? {},
-        elements: page.elements.map(normalizeElement),
-      }))
+    ? theme.pages.map((page) => {
+        const normalized: ThemePage = {
+          ...page,
+          css: page.css ?? {},
+          elements: page.elements.map(normalizeElement),
+          guides: page.guides?.length ? page.guides : undefined,
+        };
+        if (!normalized.guides) delete normalized.guides;
+        return normalized;
+      })
     : undefined;
-  return {
+  const payload: SlideTheme = {
     ...theme,
     category: theme.category || "theme",
     css: pages ? {} : (theme.css ?? {}),
     elements: pages ? [] : (theme.elements ?? []).map(normalizeElement),
     pages,
+    guides: pages ? undefined : theme.guides?.length ? theme.guides : undefined,
   };
+  if (!payload.guides) delete payload.guides;
+  return payload;
 }
 
 export function buildThemePackage(theme: SlideTheme): ThemePackageV2 {
@@ -114,6 +128,20 @@ function parseElements(value: unknown, label: string): ThemeElement[] {
   return value.map((element, index) => parseElement(element, `${label}[${index}]`));
 }
 
+function parseGuides(value: unknown): ThemeGuide[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const guides: ThemeGuide[] = [];
+  for (const raw of value) {
+    if (!raw || typeof raw !== "object") continue;
+    const guide = raw as Record<string, unknown>;
+    if (typeof guide.id !== "string" || !guide.id) continue;
+    if (guide.axis !== "x" && guide.axis !== "y") continue;
+    if (typeof guide.pos !== "number" || !Number.isFinite(guide.pos)) continue;
+    guides.push({ id: guide.id, axis: guide.axis, pos: guide.pos });
+  }
+  return guides.length ? guides : undefined;
+}
+
 function parsePage(raw: unknown, index: number): ThemePage {
   if (!raw || typeof raw !== "object") throw new Error(`Página #${index + 1} inválida.`);
   const page = raw as Record<string, unknown>;
@@ -121,11 +149,13 @@ function parsePage(raw: unknown, index: number): ThemePage {
   if (!THEME_CONTEXTS.includes(context as ThemeContext)) {
     throw new Error(`Página #${index + 1}: contexto inválido "${context}".`);
   }
+  const guides = parseGuides(page.guides);
   return {
     id: typeof page.id === "string" && page.id ? page.id : `page-${index + 1}`,
     context: context as ThemeContext,
     css: parseCss(page.css),
     elements: parseElements(page.elements, `pages[${index}].elements`),
+    ...(guides ? { guides } : {}),
   };
 }
 
@@ -172,6 +202,7 @@ export function parseThemeFromJson(rawJson: string | unknown, regenerateGuid = t
   }
 
   const now = new Date().toISOString();
+  const guides = pages ? undefined : parseGuides(rawTheme.guides);
   return {
     guid: regenerateGuid
       ? crypto.randomUUID()
@@ -183,5 +214,6 @@ export function parseThemeFromJson(rawJson: string | unknown, regenerateGuid = t
     pages,
     createdAt: typeof rawTheme.createdAt === "string" ? rawTheme.createdAt : now,
     updatedAt: now,
+    ...(guides ? { guides } : {}),
   };
 }
