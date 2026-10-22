@@ -155,103 +155,6 @@ export function LivePreview() {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-background">
-      {/* Barra de Ferramentas dos Monitores de Prévia */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-muted/20 px-3">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-foreground mr-1 hidden sm:inline">
-            Monitores
-          </span>
-
-          {/* Botões rápidos para alternar visibilidade de cada monitor */}
-          <Button
-            variant={showPreview ? "secondary" : "ghost"}
-            size="sm"
-            onClick={togglePreview}
-            className={`h-7 px-2 text-xs gap-1.5 cursor-pointer ${
-              !showPreview ? "text-muted-foreground/60" : ""
-            }`}
-            title={showPreview ? "Ocultar monitor de Prévia" : "Exibir monitor de Prévia"}
-          >
-            {showPreview ? (
-              <Eye className="size-3.5 text-primary" />
-            ) : (
-              <EyeOff className="size-3.5" />
-            )}
-            <span className="hidden md:inline">Prévia</span>
-          </Button>
-
-          <Button
-            variant={showLive ? "secondary" : "ghost"}
-            size="sm"
-            onClick={toggleLive}
-            className={`h-7 px-2 text-xs gap-1.5 cursor-pointer ${
-              !showLive ? "text-muted-foreground/60" : ""
-            }`}
-            title={showLive ? "Ocultar monitor Ao Vivo (Telão)" : "Exibir monitor Ao Vivo (Telão)"}
-          >
-            <Tv
-              className={`size-3.5 ${
-                showLive ? "text-emerald-500" : "text-muted-foreground"
-              }`}
-            />
-            <span className="hidden md:inline">Ao Vivo</span>
-          </Button>
-
-          <Button
-            variant={showStage ? "secondary" : "ghost"}
-            size="sm"
-            onClick={toggleStage}
-            className={`h-7 px-2 text-xs gap-1.5 cursor-pointer ${
-              !showStage ? "text-muted-foreground/60" : ""
-            }`}
-            title={showStage ? "Ocultar monitor de Retorno (Palco)" : "Exibir monitor de Retorno (Palco)"}
-          >
-            <Monitor
-              className={`size-3.5 ${
-                showStage ? "text-sky-500" : "text-muted-foreground"
-              }`}
-            />
-            <span className="hidden md:inline">Retorno</span>
-          </Button>
-        </div>
-
-        {/* Controles de Zoom (+ e - para redimensionar os monitores) */}
-        <div className="flex items-center gap-1">
-          <div className="flex items-center rounded-md border border-border/60 bg-muted/40 p-0.5 gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={zoomOut}
-              disabled={zoom <= 50}
-              className="size-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30"
-              title="Diminuir tamanho dos monitores (-)"
-            >
-              <Minus className="size-3" />
-            </Button>
-
-            <button
-              type="button"
-              onClick={resetZoom}
-              className="text-[10px] font-mono font-medium px-1.5 text-muted-foreground hover:text-foreground cursor-pointer tabular-nums select-none"
-              title="Clique para redefinir o zoom para 100%"
-            >
-              {zoom}%
-            </button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={zoomIn}
-              disabled={zoom >= 150}
-              className="size-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30"
-              title="Aumentar tamanho dos monitores (+)"
-            >
-              <Plus className="size-3" />
-            </Button>
-          </div>
-        </div>
-      </div>
-
       {/* Área dos Monitores com Menu de Contexto no Botão Direito */}
       <ContextMenu>
         <ContextMenuTrigger asChild>
@@ -265,7 +168,7 @@ export function LivePreview() {
                   Monitores de prévia ocultos
                 </p>
                 <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                  Todos os monitores foram ocultados. Use a barra de ferramentas acima ou clique com o botão direito para reexibir.
+                  Todos os monitores foram ocultados. Use o menu de monitores no cabeçalho ou clique com o botão direito para reexibir.
                 </p>
                 <Button
                   size="sm"

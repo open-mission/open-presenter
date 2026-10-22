@@ -2,23 +2,31 @@ import { useEffect } from "react";
 import {
   Calendar,
   ChevronDown,
+  Eye,
   EyeOff,
   Globe,
   Image,
+  Minus,
+  Monitor,
   Moon,
   Music,
   PanelRightClose,
   PanelRightOpen,
   Plus,
+  RotateCcw,
   Smartphone,
+  Tv,
 } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/core/lib/utils";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -35,6 +43,8 @@ import { useSongsStore } from "@/features/songs/store";
 import { useSetlistStore } from "@/features/events-setlists/store";
 import { useNavigationStore } from "@/features/navigation/store";
 import { usePanelLayoutStore } from "@/features/presentation/panelLayoutStore";
+import { usePreviewLayoutStore } from "@/features/presentation/previewLayoutStore";
+import { SetlistSelector } from "@/features/events-setlists/SetlistSelector";
 import { HeaderTimerControls } from "@/features/stage-display/HeaderTimerControls";
 
 function statusTitle(
@@ -71,6 +81,18 @@ export function AppTopBar() {
   const activeTab = useNavigationStore((s) => s.activeTab);
   const monitorsVisible = usePanelLayoutStore((s) => s.monitorsVisible);
   const toggleMonitors = usePanelLayoutStore((s) => s.toggleMonitors);
+
+  const showPreview = usePreviewLayoutStore((s) => s.showPreview);
+  const showLive = usePreviewLayoutStore((s) => s.showLive);
+  const showStage = usePreviewLayoutStore((s) => s.showStage);
+  const zoom = usePreviewLayoutStore((s) => s.zoom);
+  const togglePreview = usePreviewLayoutStore((s) => s.togglePreview);
+  const toggleLive = usePreviewLayoutStore((s) => s.toggleLive);
+  const toggleStage = usePreviewLayoutStore((s) => s.toggleStage);
+  const zoomIn = usePreviewLayoutStore((s) => s.zoomIn);
+  const zoomOut = usePreviewLayoutStore((s) => s.zoomOut);
+  const resetZoom = usePreviewLayoutStore((s) => s.resetZoom);
+  const showAll = usePreviewLayoutStore((s) => s.showAll);
 
   useEffect(() => {
     if (isTauri()) void ensureRemoteToken();
@@ -202,6 +224,8 @@ export function AppTopBar() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <SetlistSelector />
       </div>
 
       {/* Center: Stage Timer & Countdown Controls */}
@@ -284,32 +308,131 @@ export function AppTopBar() {
           </div>
         </div>
 
-        {/* Mostrar/Ocultar painel de monitores */}
+        {/* Monitores: Button Group com toggle do painel + dropdown de opções dos previews */}
         {activeTab === "presentation" && (
-          <Button
-            type="button"
-            size="sm"
-            variant={monitorsVisible ? "secondary" : "outline"}
-            className={cn(
-              "h-8 gap-1.5 px-2.5 text-xs font-medium transition-all",
-              monitorsVisible
-                ? "bg-primary/15 text-primary border-primary/30 font-semibold"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            onClick={toggleMonitors}
-            title={
-              monitorsVisible
-                ? "Ocultar painel de monitores"
-                : "Mostrar painel de monitores"
-            }
-          >
-            {monitorsVisible ? (
-              <PanelRightClose className="size-3.5" />
-            ) : (
-              <PanelRightOpen className="size-3.5" />
-            )}
-            <span className="hidden lg:inline">Monitores</span>
-          </Button>
+          <div className="inline-flex items-center -space-x-px rounded-md shadow-2xs">
+            <Button
+              type="button"
+              size="sm"
+              variant={monitorsVisible ? "secondary" : "outline"}
+              className={cn(
+                "h-8 gap-1.5 px-2.5 text-xs font-medium transition-all rounded-r-none focus:z-10 cursor-pointer",
+                monitorsVisible
+                  ? "bg-primary/15 text-primary border-primary/30 font-semibold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={toggleMonitors}
+              title={
+                monitorsVisible
+                  ? "Ocultar painel de monitores"
+                  : "Mostrar painel de monitores"
+              }
+            >
+              {monitorsVisible ? (
+                <PanelRightClose className="size-3.5" />
+              ) : (
+                <PanelRightOpen className="size-3.5" />
+              )}
+              <span className="hidden lg:inline">Monitores</span>
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={monitorsVisible ? "secondary" : "outline"}
+                  className={cn(
+                    "h-8 px-1.5 text-xs font-medium transition-all rounded-l-none border-l-0 focus:z-10 cursor-pointer",
+                    monitorsVisible
+                      ? "bg-primary/15 text-primary border-primary/30 font-semibold"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  aria-label="Opções dos monitores de prévia"
+                  title="Configurar visibilidade dos monitores"
+                >
+                  <ChevronDown className="size-3 text-muted-foreground opacity-80" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
+                  Monitores de Prévia
+                </DropdownMenuLabel>
+
+                <DropdownMenuCheckboxItem
+                  checked={showPreview}
+                  onCheckedChange={togglePreview}
+                  className="text-xs cursor-pointer"
+                >
+                  <Eye className="size-3.5 mr-2 text-primary" />
+                  <span>Prévia (Slides)</span>
+                </DropdownMenuCheckboxItem>
+
+                <DropdownMenuCheckboxItem
+                  checked={showLive}
+                  onCheckedChange={toggleLive}
+                  className="text-xs cursor-pointer"
+                >
+                  <Tv className="size-3.5 mr-2 text-emerald-500" />
+                  <span>Ao Vivo (Telão)</span>
+                </DropdownMenuCheckboxItem>
+
+                <DropdownMenuCheckboxItem
+                  checked={showStage}
+                  onCheckedChange={toggleStage}
+                  className="text-xs cursor-pointer"
+                >
+                  <Monitor className="size-3.5 mr-2 text-sky-500" />
+                  <span>Retorno (Palco)</span>
+                </DropdownMenuCheckboxItem>
+
+                {(!showPreview || !showLive || !showStage) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={showAll}
+                      className="text-xs cursor-pointer"
+                    >
+                      <Eye className="size-3.5 mr-2" />
+                      <span>Reexibir todos</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
+
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
+                  Zoom ({zoom}%)
+                </DropdownMenuLabel>
+
+                <DropdownMenuItem
+                  onClick={zoomIn}
+                  disabled={zoom >= 150}
+                  className="text-xs cursor-pointer"
+                >
+                  <Plus className="size-3.5 mr-2" />
+                  <span>Aumentar Zoom (+)</span>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={zoomOut}
+                  disabled={zoom <= 50}
+                  className="text-xs cursor-pointer"
+                >
+                  <Minus className="size-3.5 mr-2" />
+                  <span>Diminuir Zoom (-)</span>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  onClick={resetZoom}
+                  disabled={zoom === 100}
+                  className="text-xs cursor-pointer"
+                >
+                  <RotateCcw className="size-3.5 mr-2" />
+                  <span>Redefinir para 100%</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         )}
 
         {/* Mostrar Plano de Fundo */}
