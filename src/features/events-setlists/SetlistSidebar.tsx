@@ -5,14 +5,12 @@ import {
   ArrowUp,
   BookOpen,
   Calendar,
-  Check,
   ChevronDown,
   ChevronRight,
   FolderPlus,
   GripVertical,
   Image as ImageIcon,
   Images,
-  ListX,
   MoreVertical,
   Music,
   Palette,
@@ -41,22 +39,18 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { mediaKindLabel } from "@/core/lib/media";
 import { openMediaLibrary, openThemeEditor } from "@/core/ipc/commands";
-import type { EventItem, EventPart, EventSummary, MediaKind } from "@/core/types";
+import type { EventItem, EventPart, MediaKind } from "@/core/types";
 import { SETLIST_WIDTH_DEFAULT } from "@/core/lib/panelLayout";
 import { useSongsStore } from "@/features/songs/store";
 import { createEmptyStudioTheme } from "@/features/slide-themes/seedThemes";
@@ -64,11 +58,9 @@ import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { findEventItem, useSetlistStore } from "./store";
 import { MediaDialog, type VisualMediaKind } from "./MediaDialog";
 import { TextEditorDialog } from "./TextEditorDialog";
-import { EventDetailsDialog } from "./EventDetailsDialog";
 import { SongPickerDialog } from "./SongPickerDialog";
 import { StudioPickerDialog } from "./StudioPickerDialog";
 import { BibleVersePickerDialog } from "./BibleVersePickerDialog";
-import { formatEventDateTime } from "./dateUtils";
 import {
   AddItemContextItems,
   AddItemDropdown,
@@ -136,63 +128,6 @@ function itemSubtitle(item: EventItem): string {
   return item.song?.artist || "Louvor";
 }
 
-interface EventGroup {
-  title: string;
-  events: EventSummary[];
-}
-
-function groupEventsByTitle(events: EventSummary[]): EventGroup[] {
-  const groups = new Map<string, EventSummary[]>();
-  for (const summary of events) {
-    const key = summary.title.trim();
-    const bucket = groups.get(key);
-    if (bucket) {
-      bucket.push(summary);
-    } else {
-      groups.set(key, [summary]);
-    }
-  }
-  return Array.from(groups, ([title, items]) => ({ title, events: items }));
-}
-
-function itemCountLabel(count: number): string {
-  if (count === 0) return "sem itens";
-  return `${count} ${count === 1 ? "item" : "itens"}`;
-}
-
-function EventMenuItem({
-  event: eventSummary,
-  selected,
-}: {
-  event: EventSummary;
-  selected: boolean;
-}) {
-  const dt = formatEventDateTime(eventSummary.eventDate);
-  return (
-    <DropdownMenuItem
-      onSelect={() => void useSetlistStore.getState().selectEvent(eventSummary.id)}
-      className={`flex items-center justify-between gap-2 py-2 px-2.5 text-xs cursor-pointer ${
-        selected ? "bg-accent/60 font-semibold" : ""
-      }`}
-    >
-      <div className="flex flex-col min-w-0 pr-2">
-        <span className="font-semibold text-foreground truncate">
-          {eventSummary.title}
-        </span>
-        {dt.displaySummary && (
-          <span className="text-[11px] text-muted-foreground truncate">
-            {dt.displaySummary}
-          </span>
-        )}
-        <span className="text-[11px] text-muted-foreground truncate">
-          {itemCountLabel(eventSummary.itemCount ?? 0)}
-        </span>
-      </div>
-      {selected && <Check className="size-4 text-primary shrink-0" />}
-    </DropdownMenuItem>
-  );
-}
-
 const LABEL_COLOR_PRESETS = [
   { label: "Padrão", value: "" },
   { label: "Branco", value: "#ffffff" },
@@ -229,13 +164,10 @@ export function SetlistSidebar({
   width?: number;
   onToggleSidebar?: () => void;
 }) {
-  const events = useSetlistStore((s) => s.events);
-  const activeEventId = useSetlistStore((s) => s.activeEventId);
   const event = useSetlistStore((s) => s.event);
   const selectedItemId = useSetlistStore((s) => s.selectedItemId);
   const selectItem = useSetlistStore((s) => s.selectItem);
   const createEvent = useSetlistStore((s) => s.createEvent);
-  const deleteEvent = useSetlistStore((s) => s.deleteEvent);
   const addPart = useSetlistStore((s) => s.addPart);
   const renamePart = useSetlistStore((s) => s.renamePart);
   const updatePartStyle = useSetlistStore((s) => s.updatePartStyle);
@@ -250,8 +182,6 @@ export function SetlistSidebar({
   const addMedia = useSetlistStore((s) => s.addMedia);
   const listMode = useSetlistStore((s) => s.listMode);
   const switchListMode = useSetlistStore((s) => s.switchListMode);
-  const clearTemporary = useSetlistStore((s) => s.clearTemporary);
-  const clearEventItems = useSetlistStore((s) => s.clearEventItems);
   const moveItemToOtherList = useSetlistStore((s) => s.moveItemToOtherList);
 
   async function handleMoveItem(itemId: string) {
@@ -263,18 +193,6 @@ export function SetlistSidebar({
     } else {
       toast.success(`"${title}" movido para a Programação do Culto.`);
     }
-  }
-
-  async function handleClearTemporary() {
-    await clearTemporary();
-    toast.success("Lista temporária limpa.");
-  }
-
-  function handleClearEventItems() {
-    clearEventItems();
-    setClearListDialogOpen(false);
-    void save();
-    toast.success("Programação do culto limpa.");
   }
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -293,8 +211,6 @@ export function SetlistSidebar({
   const [textEditorOpen, setTextEditorOpen] = useState(false);
   const [textEditorPartId, setTextEditorPartId] = useState("");
   const [textEditorItemId, setTextEditorItemId] = useState<string | null>(null);
-  const [eventDetailsOpen, setEventDetailsOpen] = useState(false);
-  const [clearListDialogOpen, setClearListDialogOpen] = useState(false);
 
   // Collapse, color and rename section states
   const [collapsedParts, setCollapsedParts] = useState<Record<string, boolean>>({});
@@ -580,11 +496,6 @@ export function SetlistSidebar({
       (part) => part.items.length > 0 || part.title.trim() !== "",
     ) ?? false;
 
-  const totalEventItems =
-    event?.parts.reduce((total, part) => total + part.items.length, 0) ?? 0;
-
-  const eventGroups = groupEventsByTitle(events);
-
   if (collapsed) {
     return (
       <aside className="flex h-full w-10 shrink-0 flex-col items-center border-r border-border bg-muted/20 py-2 select-none">
@@ -647,195 +558,10 @@ export function SetlistSidebar({
         </Button>
       </div>
 
-      {/* Top Header: Event Title & Action Plus */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-3 sm:px-4">
-        {listMode === "temporary" ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="group flex flex-col text-left transition-colors outline-none cursor-pointer max-w-[170px] sm:max-w-[195px]"
-              >
-                <div className="flex items-center gap-1.5 font-bold text-sm tracking-tight text-foreground group-hover:text-primary transition-colors">
-                  <span className="truncate">Lista Temporária</span>
-                  <ChevronDown className="size-3.5 text-muted-foreground shrink-0 group-hover:text-primary transition-colors" />
-                </div>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 border-amber-500/40 text-amber-500 bg-amber-500/10 font-normal">
-                    Avulsa
-                  </Badge>
-                  <span className="text-[11px] text-muted-foreground truncate">
-                    Sem vínculo a culto
-                  </span>
-                </div>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuItem
-                onSelect={() => void handleClearTemporary()}
-                className="text-xs text-destructive focus:text-destructive cursor-pointer py-1.5"
-              >
-                <Trash2 className="size-3.5 mr-2" />
-                <span>Limpar lista temporária</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                className="group flex flex-col text-left transition-colors outline-none cursor-pointer max-w-[170px] sm:max-w-[195px]"
-              >
-                <div className="flex items-center gap-1.5 font-bold text-sm tracking-tight text-foreground group-hover:text-primary transition-colors">
-                  <span className="truncate">
-                    {event?.title || "Programação do Culto"}
-                  </span>
-                  <ChevronDown className="size-3.5 text-muted-foreground shrink-0 group-hover:text-primary transition-colors" />
-                </div>
-                {event?.eventDate && (
-                  <span className="text-[11px] font-medium text-muted-foreground truncate">
-                    {formatEventDateTime(event.eventDate).displaySummary}
-                  </span>
-                )}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-72 sm:w-80 max-h-[65vh] overflow-y-auto">
-            <div className="px-2.5 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-              Cultos & Eventos
-            </div>
-            {eventGroups.map((group) =>
-              group.events.length === 1 ? (
-                <EventMenuItem
-                  key={group.events[0].id}
-                  event={group.events[0]}
-                  selected={group.events[0].id === activeEventId}
-                />
-              ) : (
-                <DropdownMenuSub key={group.title}>
-                  <DropdownMenuSubTrigger
-                    className={`flex items-center gap-2 px-2.5 py-2 text-xs cursor-pointer outline-none ${
-                      group.events.some((ev) => ev.id === activeEventId)
-                        ? "bg-accent/60"
-                        : ""
-                    }`}
-                  >
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <div className="flex min-w-0 flex-col">
-                        <span className="font-semibold text-foreground truncate">
-                          {group.title}
-                        </span>
-                        <span className="text-[11px] text-muted-foreground truncate">
-                          {group.events.length}{" "}
-                          {group.events.length === 1 ? "data" : "datas"}
-                        </span>
-                      </div>
-                      {group.events.some((ev) => ev.id === activeEventId) && (
-                        <Check className="size-4 text-primary shrink-0" />
-                      )}
-                    </div>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent
-                    align="start"
-                    sideOffset={4}
-                    className="w-64 max-h-[60vh] overflow-y-auto"
-                  >
-                    {group.events.map((ev) => (
-                      <EventMenuItem
-                        key={ev.id}
-                        event={ev}
-                        selected={ev.id === activeEventId}
-                      />
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              ),
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={() => useSetlistStore.getState().openAgenda()}
-              className="text-xs cursor-pointer py-1.5"
-            >
-              <Calendar className="size-3.5 mr-2 text-primary" />
-              <span>Abrir Agenda de Eventos…</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => useSetlistStore.getState().openNewEventDialog(undefined, true)}
-              className="text-xs cursor-pointer py-1.5"
-            >
-              <Plus className="size-3.5 mr-2 text-primary" />
-              <span>Novo Culto / Evento…</span>
-            </DropdownMenuItem>
-            {event && (
-              <DropdownMenuItem
-                onSelect={() => setEventDetailsOpen(true)}
-                className="text-xs cursor-pointer py-1.5"
-              >
-                <ImageIcon className="size-3.5 mr-2 text-primary" />
-                <span>Plano de Fundo do Culto…</span>
-              </DropdownMenuItem>
-            )}
-            {event && (
-              <DropdownMenuSeparator />
-            )}
-            {event && (
-              <DropdownMenuItem
-                onSelect={() => setClearListDialogOpen(true)}
-                className="text-xs text-destructive focus:text-destructive cursor-pointer py-1.5"
-              >
-                <ListX className="size-3.5 mr-2" />
-                <span>Limpar Programação</span>
-              </DropdownMenuItem>
-            )}
-            {event && (
-              <DropdownMenuItem
-                onSelect={() => void deleteEvent(event.id)}
-                className="text-xs text-destructive focus:text-destructive cursor-pointer py-1.5"
-              >
-                <Trash2 className="size-3.5 mr-2" />
-                <span>Excluir este evento</span>
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        )}
-
-        {/* Action Buttons: Calendar Quick Access & Plus Menu */}
-        <div className="flex items-center gap-1.5">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-8 rounded-lg border-border/80 shadow-2xs hover:bg-accent hover:text-primary transition-colors cursor-pointer"
-            onClick={() => useSetlistStore.getState().openAgenda()}
-            title="Agenda & Cronograma de Eventos"
-            aria-label="Abrir agenda de eventos"
-          >
-            <Calendar className="size-4 text-foreground" />
-          </Button>
-
-          {/* Plus Action Button */}
-          <AddItemDropdown
-            trigger={
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="size-8 rounded-lg border-border/80 shadow-2xs hover:bg-accent cursor-pointer"
-                aria-label="Adicionar item"
-              >
-                <Plus className="size-4 text-foreground" />
-              </Button>
-            }
-            handlers={addItemHandlers()}
-          />
-        </div>
-      </div>
-
-      {/* Search Input Bar */}
-      <div className="border-b border-border/60 p-3 shrink-0">
-        <div className="relative flex items-center">
-          <Search className="absolute left-2.5 size-3.5 text-muted-foreground" />
+      {/* Search Input Bar & Add Item Button */}
+      <div className="flex items-center gap-1.5 border-b border-border/60 p-2.5 shrink-0">
+        <div className="relative flex-1 flex items-center">
+          <Search className="absolute left-2.5 size-3.5 text-muted-foreground pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
@@ -844,12 +570,27 @@ export function SetlistSidebar({
             className="h-8 w-full rounded-md border border-input bg-background pr-3 pl-8 text-xs text-foreground placeholder:text-muted-foreground shadow-2xs outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
+        <AddItemDropdown
+          trigger={
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="size-8 rounded-lg border-border/80 shadow-2xs hover:bg-accent cursor-pointer shrink-0"
+              aria-label="Adicionar item"
+              title="Adicionar item na programação"
+            >
+              <Plus className="size-4 text-foreground" />
+            </Button>
+          }
+          handlers={addItemHandlers()}
+        />
       </div>
 
       {/* Programação Items List with Background Context Menu */}
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2 space-y-4 [scrollbar-gutter:stable]">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2 space-y-4 scrollbar-gutter-stable">
             {!event || !hasVisibleParts ? (
               <div className="flex h-72 flex-col items-center justify-center gap-3 p-4 text-center select-none">
                 <div className="flex size-12 items-center justify-center rounded-2xl bg-muted/60 border border-border/80 text-muted-foreground shadow-2xs">
@@ -859,11 +600,11 @@ export function SetlistSidebar({
                   <p className="text-xs font-semibold text-foreground">
                     Nenhum item na programação
                   </p>
-                  <p className="text-[11px] text-muted-foreground max-w-[220px] leading-relaxed">
+                  <p className="text-[11px] text-muted-foreground max-w-55 leading-relaxed">
                     Adicione músicas, textos, mídias ou seções para montar a programação deste culto.
                   </p>
                 </div>
-                <div className="grid w-full max-w-[240px] grid-cols-2 gap-1.5 pt-1">
+                <div className="grid w-full max-w-60 grid-cols-2 gap-1.5 pt-1">
                   <Button
                     type="button"
                     size="sm"
@@ -1531,41 +1272,6 @@ export function SetlistSidebar({
         </DialogContent>
       </Dialog>
 
-      {/* Dialog for Clearing the Event Programming */}
-      <Dialog open={clearListDialogOpen} onOpenChange={setClearListDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ListX className="size-4 text-destructive" />
-              <span>Limpar Programação</span>
-            </DialogTitle>
-            <DialogDescription>
-              Todos os {totalEventItems} itens de "
-              {event?.title ?? "Programação do Culto"}" serão removidos. As
-              seções da programação são mantidas.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setClearListDialogOpen(false)}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              disabled={totalEventItems === 0}
-              onClick={handleClearEventItems}
-            >
-              Limpar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Dialog for Customizing Part Colors */}
       <Dialog
@@ -1776,14 +1482,6 @@ export function SetlistSidebar({
         itemId={textEditorItemId}
       />
 
-      {/* Event details and wallpaper configuration */}
-      {event && (
-        <EventDetailsDialog
-          eventSummary={event}
-          open={eventDetailsOpen}
-          onClose={() => setEventDetailsOpen(false)}
-        />
-      )}
     </aside>
   );
 }
