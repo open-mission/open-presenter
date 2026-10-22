@@ -12,14 +12,17 @@ export function useCommunicationSync(): void {
   useEffect(() => {
     let disposed = false;
 
-    // 1. Busca alerta ativo inicial
+    // 1. Garante que o syncBus esteja ouvindo eventos nesta janela
+    void syncBus.init();
+
+    // 2. Busca alerta ativo inicial
     void fetchStageMessage().then((initial) => {
       if (!disposed && initial !== undefined) {
         applyRemote(initial);
       }
     });
 
-    // 2. Escuta eventos em tempo real (Tauri events no desktop e /ws no navegador)
+    // 3. Escuta eventos em tempo real (Tauri events no desktop e /ws no navegador)
     const unsubscribe = syncBus.subscribe<CommunicationAlert | null>(
       TAURI_EVENTS.stageMessage,
       (payload) => {

@@ -43,6 +43,11 @@ import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 import { SlideTransition } from "./SlideTransition";
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import { StageTimerControls } from "@/features/stage-display/StageTimerControls";
+import {
+  StageAlertBanner,
+  StageAlertOverlay,
+  useCommunicationStore,
+} from "@/features/communication";
 import { useWallpaperStore } from "./wallpaperStore";
 import { usePreviewLayoutStore } from "./previewLayoutStore";
 import { wallpaperToBackground } from "./wallpaper";
@@ -52,6 +57,7 @@ export function LivePreview() {
   const live = usePresentationStore((s) => s.live);
   const preview = usePresentationStore((s) => s.preview);
   const wallpaper = useWallpaperStore((s) => s.wallpaper);
+  const activeAlert = useCommunicationStore((s) => s.activeAlert);
   const stageConfig = useOutputManagerStore((s) => s.configs.stage);
   const stageRuntime = useOutputManagerStore((s) => s.runtime.stage);
   const serverRunning = useOutputManagerStore((s) => s.server.running);
@@ -80,6 +86,13 @@ export function LivePreview() {
   const liveTheme = useMemo(
     () => resolvePublicTheme(live.content),
     [live.content, resolvePublicTheme],
+  );
+
+  const isPublicAlertTargeted = Boolean(
+    activeAlert &&
+      (activeAlert.targets?.length
+        ? activeAlert.targets.includes("public")
+        : activeAlert.target === "public"),
   );
 
   const effectiveBackground: BackgroundLayer = useMemo(() => {
@@ -343,6 +356,17 @@ export function LivePreview() {
               Tela Preta (Blackout)
             </Badge>
           </div>
+        )}
+
+        {/* Mini Preview do Aviso no Telão Público (se ativo) */}
+        {isPublicAlertTargeted && activeAlert && activeAlert.displayMode === "banner_top" && (
+          <StageAlertBanner position="top" alert={activeAlert} compact />
+        )}
+        {isPublicAlertTargeted && activeAlert && activeAlert.displayMode === "banner_bottom" && (
+          <StageAlertBanner position="bottom" alert={activeAlert} compact />
+        )}
+        {isPublicAlertTargeted && activeAlert && activeAlert.displayMode === "overlay" && (
+          <StageAlertOverlay alert={activeAlert} compact />
         )}
       </div>
 

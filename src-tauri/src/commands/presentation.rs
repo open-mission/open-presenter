@@ -202,7 +202,7 @@ pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), AppError> {
 
 #[tauri::command]
 pub async fn send_stage_message(
-    broadcaster: tauri::State<'_, crate::services::broadcaster::Broadcaster>,
+    broadcaster: State<'_, SharedBroadcaster>,
     message: crate::state::types::CommunicationAlert,
 ) -> Result<(), AppError> {
     let auto_dismiss = message.auto_dismiss_seconds;
@@ -229,7 +229,7 @@ pub async fn send_stage_message(
 
 #[tauri::command]
 pub async fn clear_stage_message(
-    broadcaster: tauri::State<'_, crate::services::broadcaster::Broadcaster>,
+    broadcaster: State<'_, SharedBroadcaster>,
 ) -> Result<(), AppError> {
     broadcaster.publish_stage_message(None);
     Ok(())
@@ -237,7 +237,7 @@ pub async fn clear_stage_message(
 
 #[tauri::command]
 pub async fn get_stage_message(
-    broadcaster: tauri::State<'_, crate::services::broadcaster::Broadcaster>,
+    broadcaster: State<'_, SharedBroadcaster>,
 ) -> Result<Option<crate::state::types::CommunicationAlert>, AppError> {
     Ok(broadcaster.current_stage_message())
 }

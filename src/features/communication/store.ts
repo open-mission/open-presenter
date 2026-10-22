@@ -98,7 +98,7 @@ export const useCommunicationStore = create<CommunicationState>((set, get) => ({
   isOpen: false,
   draftText: "",
   displayMode: "banner_top",
-  targets: ["stage"],
+  targets: ["stage", "public"],
   scroll: true,
   level: "info",
   autoDismissSeconds: 0,
@@ -177,7 +177,7 @@ export const useCommunicationStore = create<CommunicationState>((set, get) => ({
     const text = (customText ?? state.draftText).trim();
     if (!text) return;
 
-    const targets = state.targets.length > 0 ? state.targets : (["stage"] as CommunicationTarget[]);
+    const targets = state.targets.length > 0 ? state.targets : (["stage", "public"] as CommunicationTarget[]);
 
     const alert: CommunicationAlert = {
       id: `alert-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
