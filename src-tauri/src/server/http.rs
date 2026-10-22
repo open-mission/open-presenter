@@ -165,6 +165,9 @@ pub fn router(state: ServerState) -> Router {
             "/api/v1/present-bible",
             post(crate::server::remote::present_bible),
         )
+        .route("/api/v1/openapi.json", get(crate::server::openapi::openapi_json_handler))
+        .route("/api/v1/swagger", get(crate::server::openapi::swagger_ui_handler))
+        .route("/swagger", get(crate::server::openapi::swagger_ui_handler))
         .route("/api/v1/ws", get(crate::server::remote::ws))
         .route("/output/{slug}", get(output_slug_handler))
         .route("/theme-media/{*path}", get(theme_media_handler))
@@ -363,8 +366,13 @@ async fn get_stage_message_handler(
 
 async fn post_stage_message_handler(
     State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
     axum::Json(message): axum::Json<crate::state::types::CommunicationAlert>,
 ) -> impl IntoResponse {
+    if let Err(response) = crate::server::remote::guard_headers(&state, &headers) {
+        return response;
+    }
+
     let auto_dismiss = message.auto_dismiss_seconds;
     let message_id = message.id.clone();
     let bc = state.broadcaster.clone();
@@ -384,14 +392,19 @@ async fn post_stage_message_handler(
             });
         }
     }
-    axum::http::StatusCode::OK
+    axum::http::StatusCode::OK.into_response()
 }
 
 async fn delete_stage_message_handler(
     State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
 ) -> impl IntoResponse {
+    if let Err(response) = crate::server::remote::guard_headers(&state, &headers) {
+        return response;
+    }
+
     state.broadcaster.publish_stage_message(None);
-    axum::http::StatusCode::OK
+    axum::http::StatusCode::OK.into_response()
 }
 
 async fn handle_socket(socket: WebSocket, state: Arc<ServerState>, client_id: String) {

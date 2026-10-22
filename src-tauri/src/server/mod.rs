@@ -1,5 +1,6 @@
 pub mod clients;
 pub mod http;
+pub mod openapi;
 pub mod remote;
 
 pub use clients::Clients;

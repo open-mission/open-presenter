@@ -113,10 +113,17 @@ pub fn guard_headers_remote(remote: &crate::state::SharedRemoteState, headers: &
         return Err(unauthorized("token remoto não configurado"));
     }
 
-    let provided = headers
+    let bearer = headers
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "));
+
+    let api_key = headers
+        .get("x-api-key")
+        .or_else(|| headers.get("x-token"))
+        .and_then(|value| value.to_str().ok());
+
+    let provided = bearer.or(api_key);
 
     if provided != Some(remote.token.as_str()) {
         return Err(unauthorized("token remoto inválido"));
@@ -124,7 +131,7 @@ pub fn guard_headers_remote(remote: &crate::state::SharedRemoteState, headers: &
     Ok(())
 }
 
-fn guard_headers(state: &ServerState, headers: &HeaderMap) -> Result<(), Response> {
+pub fn guard_headers(state: &ServerState, headers: &HeaderMap) -> Result<(), Response> {
     guard_headers_remote(&state.remote, headers)
 }
 
