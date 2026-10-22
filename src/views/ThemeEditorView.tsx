@@ -20,6 +20,7 @@ import {
   Star,
   Triangle,
   Tv,
+  Trash2,
   Type,
   Undo,
   Video,
@@ -131,6 +132,7 @@ export default function ThemeEditorView() {
   const selection = useThemeEditorStore((s) => s.selection);
   const select = useThemeEditorStore((s) => s.select);
   const clearSelection = useThemeEditorStore((s) => s.clearSelection);
+  const clearGuides = useThemeEditorStore((s) => s.clearGuides);
   const selectedId = selection.ids.length === 1 ? selection.ids[0] : null;
   const [sampleAsset, setSampleAsset] = useState<ThemeAsset>("music");
   const [snap, setSnap] = useState(true);
@@ -1137,6 +1139,17 @@ export default function ThemeEditorView() {
           <Frame className="size-3.5" />
           Guias
         </Button>
+        {(viewTheme.guides?.length ?? 0) > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => clearGuides()}
+            title="Remover todas as guias desta página"
+          >
+            <Trash2 className="size-3.5" />
+            Limpar guias
+          </Button>
+        )}
         <Button
           variant={showGrid ? "secondary" : "ghost"}
           size="sm"

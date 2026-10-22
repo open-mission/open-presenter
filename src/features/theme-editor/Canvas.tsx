@@ -10,7 +10,12 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from "react";
 import { Lock } from "lucide-react";
-import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
+import type {
+  SlideTheme,
+  ThemeAsset,
+  ThemeElement,
+  ThemeGuide,
+} from "@/core/types";
 import { createFrameCoalescer, type FrameCoalescer } from "@/core/lib/frameCoalescer";
 import { ThemeRenderer } from "../slide-themes/ThemeRenderer";
 import { useThemeEditorStore } from "./store";
@@ -28,6 +33,8 @@ import {
 } from "./geometry";
 import { type ResizeDir, SelectionOverlay } from "./SelectionOverlay";
 import { groupMemberIds } from "./selection";
+import { Rulers } from "./Rulers";
+import { type GuideAxis, snapGuidePosition } from "./guides";
 import {
   elementRotation,
   normalizeDeg,
@@ -97,72 +104,21 @@ export interface SmartGuide {
   type: "vertical" | "horizontal";
   pos: number;
   label?: string;
+  kind?: "screen" | "user";
+}
+
+interface GuideDrag {
+  id: string;
+  axis: GuideAxis;
+  pos: number;
+  isNew: boolean;
+  armed: boolean;
+  remove: boolean;
 }
 
 const MIN_SIZE = 20;
 
 const EMPTY_SNAP_BOXES: ReadonlyMap<string, ElementBox> = new Map();
-
-function RulerTop({ width }: { width: number }) {
-  const step = 100;
-  const ticks = [];
-  for (let x = 0; x <= width; x += 20) {
-    const isMajor = x % step === 0;
-    const isMid = x % (step / 2) === 0;
-    const h = isMajor ? 14 : isMid ? 9 : 5;
-    ticks.push(
-      <g key={x}>
-        <line x1={x} y1={20 - h} x2={x} y2={20} stroke="rgba(255,255,255,0.35)" strokeWidth={1} />
-        {isMajor && x > 0 && (
-          <text x={x + 3} y={11} fill="rgba(255,255,255,0.7)" fontSize={9} fontFamily="monospace">
-            {x}
-          </text>
-        )}
-      </g>
-    );
-  }
-  return (
-    <div className="absolute top-0 left-0 right-0 h-5 bg-card/85 border-b border-border/70 z-30 pointer-events-none select-none overflow-hidden">
-      <svg width={width} height={20} className="w-full h-full">
-        {ticks}
-      </svg>
-    </div>
-  );
-}
-
-function RulerLeft({ height }: { height: number }) {
-  const step = 100;
-  const ticks = [];
-  for (let y = 0; y <= height; y += 20) {
-    const isMajor = y % step === 0;
-    const isMid = y % (step / 2) === 0;
-    const w = isMajor ? 14 : isMid ? 9 : 5;
-    ticks.push(
-      <g key={y}>
-        <line x1={20 - w} y1={y} x2={20} y2={y} stroke="rgba(255,255,255,0.35)" strokeWidth={1} />
-        {isMajor && y > 0 && (
-          <text
-            x={11}
-            y={y - 3}
-            fill="rgba(255,255,255,0.7)"
-            fontSize={9}
-            fontFamily="monospace"
-            transform={`rotate(-90, 11, ${y - 3})`}
-          >
-            {y}
-          </text>
-        )}
-      </g>
-    );
-  }
-  return (
-    <div className="absolute top-0 bottom-0 left-0 w-5 bg-card/85 border-r border-border/70 z-30 pointer-events-none select-none overflow-hidden">
-      <svg width={20} height={height} className="w-full h-full">
-        {ticks}
-      </svg>
-    </div>
-  );
-}
 
 export function Canvas({
   theme,
@@ -187,6 +143,9 @@ export function Canvas({
   const toggleSelect = useThemeEditorStore((s) => s.toggleSelect);
   const enterGroup = useThemeEditorStore((s) => s.enterGroup);
   const clearSelection = useThemeEditorStore((s) => s.clearSelection);
+  const addGuide = useThemeEditorStore((s) => s.addGuide);
+  const moveGuide = useThemeEditorStore((s) => s.moveGuide);
+  const removeGuide = useThemeEditorStore((s) => s.removeGuide);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -198,10 +157,12 @@ export function Canvas({
     Record<string, { w: number; h: number }>
   >({});
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [guideDrag, setGuideDrag] = useState<GuideDrag | null>(null);
 
   const updateGestureRef = useRef<(pos: PointerPos) => void>(() => {});
   const gestureFrameRef = useRef<FrameCoalescer<PointerPos> | null>(null);
   const gestureListenersRef = useRef<(() => void) | null>(null);
+  const guideListenersRef = useRef<(() => void) | null>(null);
 
   updateGestureRef.current = updateGesture;
 
@@ -215,6 +176,7 @@ export function Canvas({
     return () => {
       gestureFrameRef.current?.cancel();
       gestureListenersRef.current?.();
+      guideListenersRef.current?.();
     };
   }, []);
 
@@ -239,6 +201,8 @@ export function Canvas({
     observer.observe(node);
     return () => observer.disconnect();
   }, [zoom, logicalW, logicalH]);
+
+  const userGuides = theme.guides ?? [];
 
   const visibleElements = useMemo(
     () =>
@@ -349,6 +313,102 @@ export function Canvas({
     );
   }
 
+  function guideSnapTargets(axis: GuideAxis, excludeId: string): number[] {
+    const size = axis === "x" ? logicalW : logicalH;
+    const targets = [0, size / 2, size];
+    for (const el of visibleElements) {
+      const box = resolveVisualBox(el);
+      if (axis === "x") {
+        targets.push(box.left, box.left + box.width / 2, box.left + box.width);
+      } else {
+        targets.push(box.top, box.top + box.height / 2, box.top + box.height);
+      }
+    }
+    for (const guide of userGuides) {
+      if (guide.axis === axis && guide.id !== excludeId) targets.push(guide.pos);
+    }
+    return targets;
+  }
+
+  function startGuideDrag(
+    e: ReactPointerEvent<HTMLDivElement>,
+    options: { id?: string; axis: GuideAxis; pos: number; isNew: boolean },
+  ): void {
+    e.preventDefault();
+    gestureFrameRef.current?.cancel();
+    const id = options.id ?? crypto.randomUUID();
+    const drag: GuideDrag = {
+      id,
+      axis: options.axis,
+      pos: options.pos,
+      isNew: options.isNew,
+      armed: !options.isNew,
+      remove: false,
+    };
+    setGuideDrag(drag);
+    const limit = options.axis === "x" ? logicalW : logicalH;
+
+    const move = (event: PointerEvent) => {
+      const point = toLogical(event);
+      const raw = options.axis === "x" ? point.x : point.y;
+      const overRuler = options.axis === "x" ? point.y <= 20 : point.x <= 20;
+      const armed =
+        drag.armed || (options.axis === "x" ? point.y > 44 : point.x > 44);
+      let next = raw;
+      if (snap) {
+        const target = snapGuidePosition(
+          raw,
+          guideSnapTargets(options.axis, id),
+          6,
+        );
+        if (target !== null) next = target;
+      }
+      drag.pos = Math.min(Math.max(Math.round(next), 0), limit);
+      drag.armed = armed;
+      drag.remove = armed && (overRuler || raw < -8 || raw > limit + 8);
+      setGuideDrag({ ...drag });
+    };
+
+    const cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", cancel);
+    };
+    const finish = () => {
+      cleanup();
+      guideListenersRef.current = null;
+      setGuideDrag(null);
+      if (drag.remove) {
+        if (!drag.isNew) removeGuide(drag.id);
+        return;
+      }
+      if (drag.isNew) addGuide(drag.axis, drag.pos);
+      else moveGuide(drag.id, drag.pos);
+    };
+    const cancel = () => {
+      cleanup();
+      guideListenersRef.current = null;
+      setGuideDrag(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", cancel);
+    guideListenersRef.current = cleanup;
+  }
+
+  function startGuideFromRuler(
+    axis: GuideAxis,
+    e: ReactPointerEvent<HTMLDivElement>,
+  ): void {
+    const point = toLogical(e);
+    const pos = axis === "x" ? point.x : point.y;
+    startGuideDrag(e, {
+      axis,
+      pos: Math.max(0, Math.round(pos)),
+      isNew: true,
+    });
+  }
+
   function handleEmptyPointerDown(
     e: ReactPointerEvent<HTMLDivElement>,
   ): void {
@@ -423,6 +483,7 @@ export function Canvas({
     width: number,
     height: number,
     boxes: ReadonlyMap<string, ElementBox>,
+    userGuides: readonly ThemeGuide[] = [],
   ): { left: number; top: number; guides: SmartGuide[] } {
     if (!snap) {
       return {
@@ -493,6 +554,26 @@ export function Canvas({
       }
     }
 
+    if (!snappedX && userGuides.length > 0) {
+      const positions = userGuides
+        .filter((guide) => guide.axis === "x")
+        .map((guide) => guide.pos);
+      const candidates = [
+        { value: left, offset: 0 },
+        { value: centerX, offset: -width / 2 },
+        { value: right, offset: -width },
+      ];
+      for (const candidate of candidates) {
+        const target = snapGuidePosition(candidate.value, positions, SNAP_DIST);
+        if (target !== null) {
+          left = target + candidate.offset;
+          guides.push({ type: "vertical", pos: target, kind: "user" });
+          snappedX = true;
+          break;
+        }
+      }
+    }
+
     if (!snappedX && gridSize > 0) {
       left = Math.round(left / gridSize) * gridSize;
     } else {
@@ -550,6 +631,26 @@ export function Canvas({
       }
     }
 
+    if (!snappedY && userGuides.length > 0) {
+      const positions = userGuides
+        .filter((guide) => guide.axis === "y")
+        .map((guide) => guide.pos);
+      const candidates = [
+        { value: top, offset: 0 },
+        { value: centerY, offset: -height / 2 },
+        { value: bottom, offset: -height },
+      ];
+      for (const candidate of candidates) {
+        const target = snapGuidePosition(candidate.value, positions, SNAP_DIST);
+        if (target !== null) {
+          top = target + candidate.offset;
+          guides.push({ type: "horizontal", pos: target, kind: "user" });
+          snappedY = true;
+          break;
+        }
+      }
+    }
+
     if (!snappedY && gridSize > 0) {
       top = Math.round(top / gridSize) * gridSize;
     } else {
@@ -564,6 +665,7 @@ export function Canvas({
     dir: ResizeDir,
     dx: number,
     dy: number,
+    userGuides: readonly ThemeGuide[] = [],
   ): { left: number; top: number; width: number; height: number; guides: SmartGuide[] } {
     let { left, top, width, height } = orig;
     const right = orig.left + orig.width;
@@ -589,8 +691,20 @@ export function Canvas({
         } else if (Math.abs(candRight - logicalW / 2) <= SNAP_DIST) {
           candRight = logicalW / 2;
           guides.push({ type: "vertical", pos: logicalW / 2 });
-        } else if (gridSize > 0) {
-          candRight = Math.round(candRight / gridSize) * gridSize;
+        } else {
+          const snapped = snapGuidePosition(
+            candRight,
+            userGuides
+              .filter((guide) => guide.axis === "x")
+              .map((guide) => guide.pos),
+            SNAP_DIST,
+          );
+          if (snapped !== null) {
+            candRight = snapped;
+            guides.push({ type: "vertical", pos: snapped, kind: "user" });
+          } else if (gridSize > 0) {
+            candRight = Math.round(candRight / gridSize) * gridSize;
+          }
         }
       }
       width = Math.max(MIN_SIZE, candRight - left);
@@ -608,8 +722,20 @@ export function Canvas({
         } else if (Math.abs(candBottom - logicalH / 2) <= SNAP_DIST) {
           candBottom = logicalH / 2;
           guides.push({ type: "horizontal", pos: logicalH / 2 });
-        } else if (gridSize > 0) {
-          candBottom = Math.round(candBottom / gridSize) * gridSize;
+        } else {
+          const snapped = snapGuidePosition(
+            candBottom,
+            userGuides
+              .filter((guide) => guide.axis === "y")
+              .map((guide) => guide.pos),
+            SNAP_DIST,
+          );
+          if (snapped !== null) {
+            candBottom = snapped;
+            guides.push({ type: "horizontal", pos: snapped, kind: "user" });
+          } else if (gridSize > 0) {
+            candBottom = Math.round(candBottom / gridSize) * gridSize;
+          }
         }
       }
       height = Math.max(MIN_SIZE, candBottom - top);
@@ -627,8 +753,20 @@ export function Canvas({
         } else if (Math.abs(candLeft - logicalW / 2) <= SNAP_DIST) {
           candLeft = logicalW / 2;
           guides.push({ type: "vertical", pos: logicalW / 2 });
-        } else if (gridSize > 0) {
-          candLeft = Math.round(candLeft / gridSize) * gridSize;
+        } else {
+          const snapped = snapGuidePosition(
+            candLeft,
+            userGuides
+              .filter((guide) => guide.axis === "x")
+              .map((guide) => guide.pos),
+            SNAP_DIST,
+          );
+          if (snapped !== null) {
+            candLeft = snapped;
+            guides.push({ type: "vertical", pos: snapped, kind: "user" });
+          } else if (gridSize > 0) {
+            candLeft = Math.round(candLeft / gridSize) * gridSize;
+          }
         }
       }
       candLeft = Math.min(right - MIN_SIZE, candLeft);
@@ -648,8 +786,20 @@ export function Canvas({
         } else if (Math.abs(candTop - logicalH / 2) <= SNAP_DIST) {
           candTop = logicalH / 2;
           guides.push({ type: "horizontal", pos: logicalH / 2 });
-        } else if (gridSize > 0) {
-          candTop = Math.round(candTop / gridSize) * gridSize;
+        } else {
+          const snapped = snapGuidePosition(
+            candTop,
+            userGuides
+              .filter((guide) => guide.axis === "y")
+              .map((guide) => guide.pos),
+            SNAP_DIST,
+          );
+          if (snapped !== null) {
+            candTop = snapped;
+            guides.push({ type: "horizontal", pos: snapped, kind: "user" });
+          } else if (gridSize > 0) {
+            candTop = Math.round(candTop / gridSize) * gridSize;
+          }
         }
       }
       candTop = Math.min(bottom - MIN_SIZE, candTop);
@@ -804,6 +954,7 @@ export function Canvas({
         g.origBox.width,
         g.origBox.height,
         g.snapBoxes ?? EMPTY_SNAP_BOXES,
+        userGuides,
       );
       g.last = { ...g.origBox, left: snapped.left, top: snapped.top };
       setActiveGuides(snapped.guides);
@@ -917,7 +1068,13 @@ export function Canvas({
       return;
     }
 
-    const snapped = calculateResizeSnap(g.origBox, g.dir ?? "se", dx, dy);
+    const snapped = calculateResizeSnap(
+      g.origBox,
+      g.dir ?? "se",
+      dx,
+      dy,
+      userGuides,
+    );
     let last: Rect = {
       left: snapped.left,
       top: snapped.top,
@@ -1202,10 +1359,11 @@ export function Canvas({
               />
             )}
             {showRulers && (
-              <>
-                <RulerTop width={logicalW} />
-                <RulerLeft height={logicalH} />
-              </>
+              <Rulers
+                width={logicalW}
+                height={logicalH}
+                onStartGuide={startGuideFromRuler}
+              />
             )}
             {showGuides && (
               <>
@@ -1261,21 +1419,31 @@ export function Canvas({
                         top: 0,
                         bottom: 0,
                         width: "1.5px",
-                        backgroundColor: "#ec4899",
-                        boxShadow: "0 0 6px rgba(236, 72, 153, 0.9)",
+                        backgroundColor:
+                          g.kind === "user" ? "#22d3ee" : "#ec4899",
+                        boxShadow:
+                          g.kind === "user"
+                            ? "0 0 6px rgba(34, 211, 238, 0.9)"
+                            : "0 0 6px rgba(236, 72, 153, 0.9)",
                       }
                     : {
                         top: `${g.pos}px`,
                         left: 0,
                         right: 0,
                         height: "1.5px",
-                        backgroundColor: "#ec4899",
-                        boxShadow: "0 0 6px rgba(236, 72, 153, 0.9)",
+                        backgroundColor:
+                          g.kind === "user" ? "#22d3ee" : "#ec4899",
+                        boxShadow:
+                          g.kind === "user"
+                            ? "0 0 6px rgba(34, 211, 238, 0.9)"
+                            : "0 0 6px rgba(236, 72, 153, 0.9)",
                       }
                 }
               >
                 <span
-                  className="absolute bg-pink-600 text-white font-mono text-[9px] px-1 py-0.5 rounded shadow pointer-events-none whitespace-nowrap"
+                  className={`pointer-events-none absolute whitespace-nowrap rounded px-1 py-0.5 font-mono text-[9px] text-white shadow ${
+                    g.kind === "user" ? "bg-cyan-600" : "bg-pink-600"
+                  }`}
                   style={
                     g.type === "vertical"
                       ? { top: "8px", left: "4px" }
@@ -1286,6 +1454,93 @@ export function Canvas({
                 </span>
               </div>
             ))}
+            {userGuides
+              .filter((guide) => guide.id !== guideDrag?.id)
+              .map((guide) => {
+                const vertical = guide.axis === "x";
+                return (
+                  <div
+                    key={guide.id}
+                    className="absolute z-40"
+                    title="Arraste para mover; duplo-clique para remover"
+                    style={
+                      vertical
+                        ? {
+                            left: guide.pos - 4,
+                            top: 0,
+                            bottom: 0,
+                            width: 8,
+                            cursor: "grab",
+                          }
+                        : {
+                            top: guide.pos - 4,
+                            left: 0,
+                            right: 0,
+                            height: 8,
+                            cursor: "grab",
+                          }
+                    }
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      if (e.button !== 0) return;
+                      startGuideDrag(e, {
+                        id: guide.id,
+                        axis: guide.axis,
+                        pos: guide.pos,
+                        isNew: false,
+                      });
+                    }}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      removeGuide(guide.id);
+                    }}
+                  >
+                    <div
+                      className="pointer-events-none absolute bg-cyan-400/80"
+                      style={
+                        vertical
+                          ? { left: 3.25, top: 0, bottom: 0, width: "1.5px" }
+                          : { top: 3.25, left: 0, right: 0, height: "1.5px" }
+                      }
+                    />
+                  </div>
+                );
+              })}
+            {guideDrag && (
+              <div
+                className="pointer-events-none absolute z-40"
+                style={
+                  guideDrag.axis === "x"
+                    ? {
+                        left: guideDrag.pos - 0.75,
+                        top: 0,
+                        bottom: 0,
+                        width: 1.5,
+                        backgroundColor: guideDrag.remove ? "#f87171" : "#22d3ee",
+                      }
+                    : {
+                        top: guideDrag.pos - 0.75,
+                        left: 0,
+                        right: 0,
+                        height: 1.5,
+                        backgroundColor: guideDrag.remove ? "#f87171" : "#22d3ee",
+                      }
+                }
+              >
+                <span
+                  className={`absolute rounded px-1 py-0.5 font-mono text-[9px] text-white shadow ${
+                    guideDrag.remove ? "bg-red-500" : "bg-cyan-600"
+                  }`}
+                  style={
+                    guideDrag.axis === "x"
+                      ? { top: "8px", left: "4px" }
+                      : { left: "8px", top: "4px" }
+                  }
+                >
+                  {Math.round(guideDrag.pos)}px
+                </span>
+              </div>
+            )}
             <div className="absolute inset-0" onPointerDown={handleEmptyPointerDown}>
               {visibleElements.map((el) => {
                 const box = resolveBox(el);
