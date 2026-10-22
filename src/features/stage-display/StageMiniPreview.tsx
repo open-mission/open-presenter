@@ -15,10 +15,16 @@ import {
 import { SlideCanvas } from "@/features/presentation/SlideCanvas";
 import { useStageConfigStore } from "./configStore";
 import { useStageTimerStore } from "./timerStore";
+import {
+  StageAlertBanner,
+  StageAlertOverlay,
+  useCommunicationStore,
+} from "@/features/communication";
 
 export function StageMiniPreview() {
   const live = usePresentationStore((s) => s.live);
   const nextUp = usePresentationStore((s) => s.live.nextUp);
+  const activeAlert = useCommunicationStore((s) => s.activeAlert);
   const { clock24h, showSeconds, nextSlideDisplay, countdownMinutes } =
     useStageConfigStore();
   const timer = useStageTimerStore((s) => s.timer);
@@ -92,6 +98,7 @@ export function StageMiniPreview() {
     countdownMinutes,
     blackout: live.blackout,
     cleared: live.cleared,
+    activeMessage: activeAlert?.text,
   });
 
   return (
@@ -122,6 +129,21 @@ export function StageMiniPreview() {
           props={stageProps}
           className="absolute inset-0"
         />
+      )}
+
+      {/* Mini Preview do Banner Superior */}
+      {activeAlert && activeAlert.displayMode === "banner_top" && (
+        <StageAlertBanner position="top" alert={activeAlert} compact />
+      )}
+
+      {/* Mini Preview do Banner Inferior */}
+      {activeAlert && activeAlert.displayMode === "banner_bottom" && (
+        <StageAlertBanner position="bottom" alert={activeAlert} compact />
+      )}
+
+      {/* Mini Preview do Overlay */}
+      {activeAlert && activeAlert.displayMode === "overlay" && (
+        <StageAlertOverlay alert={activeAlert} compact />
       )}
     </div>
   );

@@ -22,7 +22,7 @@ use crate::services::{
 };
 use crate::state::types::{
     now_millis, ClientKind, ConnectedClient, MediaItem, MediaKind, ScriptureRef, SlideContent,
-    SlideKind, EVENT_REMOTE_SETLIST, EVENT_SLIDE, EVENT_TIMER, EVENT_WALLPAPER,
+    SlideKind, EVENT_REMOTE_SETLIST, EVENT_SLIDE, EVENT_STAGE_MESSAGE, EVENT_TIMER, EVENT_WALLPAPER,
 };
 use crate::state::{LiveSlide, RemoteItem, RemoteSetlist};
 
@@ -1050,6 +1050,11 @@ async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>, client
         "payload": state.broadcaster.current_timer(),
         "version": 1,
     });
+    let stage_message = serde_json::json!({
+        "channel": EVENT_STAGE_MESSAGE,
+        "payload": state.broadcaster.current_stage_message(),
+        "version": 1,
+    });
 
     if sender
         .send(Message::Text(slide.to_string().into()))
@@ -1074,6 +1079,13 @@ async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>, client
     }
     if sender
         .send(Message::Text(timer.to_string().into()))
+        .await
+        .is_err()
+    {
+        return;
+    }
+    if sender
+        .send(Message::Text(stage_message.to_string().into()))
         .await
         .is_err()
     {

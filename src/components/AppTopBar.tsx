@@ -42,6 +42,7 @@ import { usePanelLayoutStore } from "@/features/presentation/panelLayoutStore";
 import { usePreviewLayoutStore } from "@/features/presentation/previewLayoutStore";
 import { SetlistSelector } from "@/features/events-setlists/SetlistSelector";
 import { HeaderTimerControls } from "@/features/stage-display/HeaderTimerControls";
+import { HeaderCommunicationButton } from "@/features/communication";
 
 function statusTitle(
   label: string,
@@ -183,9 +184,10 @@ export function AppTopBar() {
         <SetlistSelector />
       </div>
 
-      {/* Center: Stage Timer & Countdown Controls */}
-      <div className="flex items-center">
+      {/* Center: Stage Timer & Countdown Controls + Communication Alerts */}
+      <div className="flex items-center gap-2">
         <HeaderTimerControls />
+        <HeaderCommunicationButton />
       </div>
 
       {/* Right section: Output status indicators, quick blackout/clear, and settings */}

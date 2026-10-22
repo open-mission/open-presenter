@@ -586,6 +586,8 @@ function TextSection({
           { label: "reference_abbr", key: "reference_abbr" },
           { label: "next_verse", key: "next_verse" },
           { label: "next_preview", key: "next_preview" },
+          { label: "stage_message", key: "stage_message" },
+          { label: "aviso", key: "aviso" },
           { label: "title", key: "title" },
         ].map((v) => (
           <button

@@ -5,6 +5,12 @@ import { StageAlerts } from "@/features/stage-display/StageAlerts";
 import { useStageConfigStore } from "@/features/stage-display/configStore";
 import { useStageTimerSync } from "@/features/stage-display/useStageTimerSync";
 import { useStageTimerStore } from "@/features/stage-display/timerStore";
+import {
+  StageAlertBanner,
+  StageAlertOverlay,
+  useCommunicationStore,
+  useCommunicationSync,
+} from "@/features/communication";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { buildProps, buildStageProps } from "@/features/slide-themes/themeTemplate";
 import {
@@ -24,6 +30,7 @@ export default function StageView() {
   usePresentationSync("stage");
   useStageTimerSync();
   useThemesSync();
+  useCommunicationSync();
 
   const live = usePresentationStore((s) => s.live);
   const nextUp = usePresentationStore((s) => s.live.nextUp);
@@ -31,6 +38,7 @@ export default function StageView() {
   const { clock24h, showSeconds, nextSlideDisplay, countdownMinutes } =
     useStageConfigStore();
   const timer = useStageTimerStore((s) => s.timer);
+  const activeAlert = useCommunicationStore((s) => s.activeAlert);
 
   const loadThemes = useSlideThemesStore((s) => s.load);
   const themes = useSlideThemesStore((s) => s.themes);
@@ -107,6 +115,7 @@ export default function StageView() {
     countdownMinutes,
     blackout: live.blackout,
     cleared: live.cleared,
+    activeMessage: activeAlert?.text,
   });
 
   return (
@@ -137,6 +146,21 @@ export default function StageView() {
           props={stageProps}
           className="absolute inset-0"
         />
+      )}
+
+      {/* Painel de Comunicação & Avisos: Banner Superior */}
+      {activeAlert && activeAlert.displayMode === "banner_top" && (
+        <StageAlertBanner position="top" alert={activeAlert} />
+      )}
+
+      {/* Painel de Comunicação & Avisos: Banner Inferior */}
+      {activeAlert && activeAlert.displayMode === "banner_bottom" && (
+        <StageAlertBanner position="bottom" alert={activeAlert} />
+      )}
+
+      {/* Painel de Comunicação & Avisos: Tela Cheia / Overlay */}
+      {activeAlert && activeAlert.displayMode === "overlay" && (
+        <StageAlertOverlay alert={activeAlert} />
       )}
 
       <div className="absolute inset-x-0 top-6 z-50 px-8 pointer-events-none">

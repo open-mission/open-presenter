@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use super::types::{now_millis, LiveSlide, LiveThemes, StageTimer};
+use super::types::{now_millis, CommunicationAlert, LiveSlide, LiveThemes, StageTimer};
 
 fn blank_slide() -> LiveSlide {
     serde_json::from_value(serde_json::json!({
@@ -26,6 +26,7 @@ pub struct PresentationState {
     themes: Arc<RwLock<LiveThemes>>,
     timer: Arc<RwLock<StageTimer>>,
     wallpaper: Arc<RwLock<Option<String>>>,
+    stage_message: Arc<RwLock<Option<CommunicationAlert>>>,
 }
 
 impl Default for PresentationState {
@@ -35,6 +36,7 @@ impl Default for PresentationState {
             themes: Arc::new(RwLock::new(LiveThemes::default())),
             timer: Arc::new(RwLock::new(StageTimer::default())),
             wallpaper: Arc::new(RwLock::new(None)),
+            stage_message: Arc::new(RwLock::new(None)),
         }
     }
 }
@@ -104,6 +106,16 @@ impl PresentationState {
     pub fn set_wallpaper(&self, wallpaper: Option<String>) {
         if let Ok(mut guard) = self.wallpaper.write() {
             *guard = wallpaper;
+        }
+    }
+
+    pub fn stage_message(&self) -> Option<CommunicationAlert> {
+        self.stage_message.read().ok().and_then(|m| m.clone())
+    }
+
+    pub fn set_stage_message(&self, message: Option<CommunicationAlert>) {
+        if let Ok(mut guard) = self.stage_message.write() {
+            *guard = message;
         }
     }
 }

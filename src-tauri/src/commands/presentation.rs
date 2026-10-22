@@ -190,3 +190,45 @@ pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
+#[tauri::command]
+pub async fn send_stage_message(
+    broadcaster: tauri::State<'_, crate::services::broadcaster::Broadcaster>,
+    message: crate::state::types::CommunicationAlert,
+) -> Result<(), AppError> {
+    let auto_dismiss = message.auto_dismiss_seconds;
+    let message_id = message.id.clone();
+    let bc = broadcaster.inner().clone();
+    broadcaster.publish_stage_message(Some(message));
+
+    if let Some(secs) = auto_dismiss {
+        if secs > 0 {
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(secs as u64)).await;
+                if bc
+                    .current_stage_message()
+                    .map(|m| m.id == message_id)
+                    .unwrap_or(false)
+                {
+                    bc.publish_stage_message(None);
+                }
+            });
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn clear_stage_message(
+    broadcaster: tauri::State<'_, crate::services::broadcaster::Broadcaster>,
+) -> Result<(), AppError> {
+    broadcaster.publish_stage_message(None);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_stage_message(
+    broadcaster: tauri::State<'_, crate::services::broadcaster::Broadcaster>,
+) -> Result<Option<crate::state::types::CommunicationAlert>, AppError> {
+    Ok(broadcaster.current_stage_message())
+}
+

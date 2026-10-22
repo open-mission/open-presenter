@@ -46,6 +46,11 @@ import { useRemoteSetlistPublisher } from "@/features/remote/useRemoteSetlistPub
 import { UpdateDialog } from "@/features/updates/UpdateDialog";
 import { WhatsNewDialog } from "@/features/updates/WhatsNewDialog";
 import { useUpdateChecker } from "@/features/updates/useUpdateChecker";
+import {
+  CommunicationDialog,
+  useCommunicationStore,
+  useCommunicationSync,
+} from "@/features/communication";
 
 export default function AdminView() {
   usePresentationSync("admin");
@@ -58,6 +63,29 @@ export default function AdminView() {
   useRemoteSetlistPublisher();
   useBibleLiveSync();
   useUpdateChecker();
+  useCommunicationSync();
+
+  // Global shortcut ⌘M / Ctrl+M: Abre o Painel de Comunicação & Avisos
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+      if (e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        useCommunicationStore.getState().toggleDialog();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
   const loadSetlists = useSetlistStore((s) => s.load);
   const loadSongDefaults = useSongDefaultsStore((s) => s.load);
   const addEmptySlideAtStart = useSongDefaultsStore(
@@ -254,6 +282,9 @@ export default function AdminView() {
       {/* Release notes and in-app update dialogs */}
       <UpdateDialog />
       <WhatsNewDialog />
+
+      {/* Painel de Comunicação & Avisos para o Retorno (Stage) */}
+      <CommunicationDialog />
     </div>
   );
 }
