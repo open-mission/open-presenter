@@ -1,0 +1,14 @@
+{
+  "title": "Engenharia & Agentes de IA",
+  "pages": [
+    "index",
+    "governanca-agents",
+    "stack-e-estrutura",
+    "backend-rust-tauri",
+    "sincronizacao-syncbus",
+    "banco-sqlite-dados",
+    "motor-de-temas",
+    "como-adicionar-features",
+    "testes-e-qualidade"
+  ]
+}

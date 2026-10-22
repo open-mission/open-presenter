@@ -24,7 +24,10 @@
     "test": "node --test",
     "tauri": "tauri",
     "tauri:dev": "npm run build && tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "docs:dev": "npm --prefix docs-site run dev",
+    "docs:build": "npm --prefix docs-site run build",
+    "docs:start": "npm --prefix docs-site run start"
   },
   "dependencies": {
     "@fullcalendar/core": "6.1.22",

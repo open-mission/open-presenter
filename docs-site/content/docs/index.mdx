@@ -1,0 +1,71 @@
+---
+title: Visão Geral do Open Presenter
+description: Software open source, moderno e leve para projeção em igrejas e eventos.
+---
+
+# Bem-vindo ao Open Presenter
+
+O **Open Presenter** é uma plataforma moderna, aberta e de alta performance criada para gerenciar projeção de letras, escrituras bíblicas, mídias e comunicação em igrejas e eventos audiovisuais.
+
+Desenvolvido com uma arquitetura híbrida de alto desempenho em **Tauri v2 (Rust)** no backend e **React 19 + TypeScript + Tailwind CSS** no frontend, o Open Presenter une a velocidade e o baixo consumo de memória nativos do desktop com a flexibilidade da web moderna.
+
+---
+
+## 🎯 Por que o Open Presenter?
+
+A maioria dos softwares de projeção tradicionais (como ProPresenter, EasyWorship ou Holyrics) sofre com problemas comuns:
+1. **Alto consumo de memória e lentidão** em máquinas modestas.
+2. **Dependência de sistemas proprietários** e licenças caras por máquina.
+3. **Dificuldade de controle remoto** ou conexões remotas instáveis.
+4. **Configuração complexa** de saídas de vídeo e retornos de palco.
+
+O Open Presenter foi projetado desde o primeiro dia para resolver isso:
+- **Ultraleve e Seguro:** O backend em Rust gerencia saídas com latência mínima e quase zero overhead de CPU.
+- **Multi-Monitor Unificado:** Controle completo de Telão (Público), Retorno de Palco (Stage Display) e Transmissão ao Vivo (OBS/vMix via Browser Source transparente ou NDI).
+- **Servidor Web Embutido (Porta 5050):** Qualquer saída pode ser aberta em navegadores na rede local, permitindo monitores extras sem placas de vídeo caras.
+- **Controle Remoto sem Instalação:** Os líderes e operadores podem trocar slides ou controlar o cronômetro do culto diretamente pelo celular via QR Code.
+- **Painel de Comunicação Integrado:** Envie mensagens, avisos e letreiros rolantes (marquee) instantaneamente para os músicos, pregadores ou congregação.
+
+---
+
+## 🧭 Como navegar nesta documentação
+
+Esta documentação foi estruturada para atender a dois públicos fundamentais:
+
+<Cards>
+  <Card
+    title="📖 Guia do Operador & Técnico"
+    description="Aprenda a operar cultos, montar setlists, projetar versículos bíblicos, gerenciar monitores e usar atalhos rápidos."
+    href="/docs/operacao"
+  />
+  <Card
+    title="💻 Guia para Desenvolvedores & Agentes de IA"
+    description="Entenda a arquitetura técnica, fluxo de IPC no Rust, sincronização syncBus, stores Zustand e regras do AGENTS.md."
+    href="/docs/desenvolvimento"
+  />
+</Cards>
+
+---
+
+## 🚀 Como Iniciar Localmente
+
+Para rodar o Open Presenter no seu ambiente de desenvolvimento:
+
+```bash
+# 1. Instalar dependências do projeto
+npm install
+
+# 2. Rodar a interface web no navegador (Vite)
+npm run dev
+
+# 3. Rodar o aplicativo desktop completo (Tauri + Rust)
+npm run tauri:dev
+```
+
+Para rodar esta documentação localmente:
+
+```bash
+npm run docs:dev
+```
+
+A documentação ficará acessível em `http://localhost:3000`.

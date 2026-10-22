@@ -1,0 +1,53 @@
+---
+title: Editor de Temas, ISF Shaders e Cores
+description: Como customizar tipografia, layouts, gradientes, fundos animados e páginas por contexto.
+---
+
+# Temas e Identidade Visual
+
+O Open Presenter possui um motor de temas de alta flexibilidade, permitindo que cada momento do culto tenha a identidade visual perfeita.
+
+---
+
+## 🎨 Tipos de Temas
+
+Os temas no Open Presenter são categorizados por saída e uso:
+
+- **Público (Public):** Layout 16:9 de alto contraste para o telão da congregação.
+- **Retorno (Stage):** Tipografia ampliada em fundo escuro com relógio e cronômetro para o altar.
+- **Transmissão (Stream):** Lower thirds transparentes posicionados nos 20% inferiores da tela para transmissão em vídeo.
+
+---
+
+## 📄 Páginas por Contexto (Tema v2)
+
+Um único tema pode conter variações automáticas para cada tipo de conteúdo:
+
+- **Página de Música (`music`):** Texto centralizado ou alinhado à esquerda com 2 a 4 linhas por slide.
+- **Página de Bíblia (`scripture`):** Área de texto para o versículo bíblico e badge destacado com a referência (ex.: `João 3:16 [NVI]`).
+- **Página de Texto Livre (`text`):** Título, subtítulo e corpo para avisos, ministrações ou dízimos e ofertas.
+- **Página de Descanso (`rest`):** Utilizada no retorno quando a projeção está desocupada.
+
+Ao mudar de uma música para a leitura bíblica, o Open Presenter troca a página do tema **automaticamente**, sem que o operador precise trocar de tema manualmente!
+
+---
+
+## 🌊 Planos de Fundo e Efeitos
+
+Você pode configurar diversos tipos de fundo:
+
+1. **Cores Sólidas:** Preto, azul marinho, cinza grafite.
+2. **Gradientes Lineares:** Gradientes modernos em qualquer ângulo ou direção (`to bottom right`).
+3. **Imagens e Vídeos em Loop:** Suporte nativo a arquivos MP4, WebM e fotos de alta resolução.
+4. **Shaders ISF (Interactive Shader Format):** Fundos gerados matematicamente em GPU via WebGL com consumo ínfimo de disco.
+5. **Textura de Ruído Orgânico (SVG Noise):** Adiciona granulado elegante sobre cores ou gradientes, eliminando o efeito de faixas (color banding).
+
+---
+
+## 🖼️ Papel de Parede Permanente (Wallpaper)
+
+O Open Presenter permite definir um **Papel de Parede** global para o telão público:
+- Fica fixo no fundo da tela.
+- Quando nenhuma apresentação está ativa, o papel de parede acolhe a congregação (ex.: logotipo da igreja, versículo do ano ou arte da série de sermões).
+- Ao iniciar uma música, o tema da música sobrepõe suavemente o papel de parede.
+- Ao limpar a tela (`C`), o texto sai e o papel de parede ou fundo suave volta à tona.
