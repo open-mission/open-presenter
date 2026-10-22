@@ -277,6 +277,18 @@ pub fn run() {
             let db = database::Db::new(conn);
             app.manage(db.clone());
 
+            // Carrega e hidrata o evento ativo configurado no SQLite (se houver),
+            // tornando o motor de apresentação e a API imediatamente funcionais
+            // mesmo sem abrir o painel de controle (modo autônomo / headless).
+            let _ = db.with_conn(|conn| {
+                crate::services::setlists::reload_active_event(
+                    conn,
+                    Some(&handle),
+                    &remote_state,
+                    &broadcaster,
+                )
+            });
+
             if let Some(window) = app.get_webview_window("main") {
                 crate::services::window_state::apply_startup_geometry(&window);
             }
@@ -395,6 +407,8 @@ pub fn run() {
             commands::setlists::create_event,
             commands::setlists::save_event,
             commands::setlists::delete_event,
+            commands::setlists::get_active_event_id,
+            commands::setlists::set_active_event_id,
             commands::songs::list_songs,
             commands::songs::get_song,
             commands::songs::save_song,

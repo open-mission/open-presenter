@@ -422,6 +422,14 @@ export async function deleteEvent(id: string): Promise<void> {
   await invokeStrict("delete_event", { id });
 }
 
+export async function getActiveEventId(): Promise<string | null> {
+  return invokeStrict<string | null>("get_active_event_id");
+}
+
+export async function setActiveEventId(id: string | null): Promise<void> {
+  await invokeStrict("set_active_event_id", { id });
+}
+
 export async function listThemes(): Promise<SlideTheme[]> {
   return invokeStrict<SlideTheme[]>("list_themes");
 }

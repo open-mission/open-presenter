@@ -21,6 +21,17 @@ pub enum MediaKind {
     Video,
 }
 
+impl MediaKind {
+    pub fn as_label(&self) -> &'static str {
+        match self {
+            MediaKind::Text => "Texto",
+            MediaKind::Image => "Imagem",
+            MediaKind::Folder => "Pasta de imagens",
+            MediaKind::Video => "Vídeo",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MediaItem {
@@ -432,6 +443,7 @@ pub const EVENT_OUTPUTS: &str = "outputs://changed";
 pub const EVENT_THEMES: &str = "presentation://themes";
 pub const EVENT_THEMES_CHANGED: &str = "themes://changed";
 pub const EVENT_REMOTE_SETLIST: &str = "remote://setlist";
+pub const EVENT_SETLIST_ACTIVE_CHANGED: &str = "setlist://active-changed";
 pub const EVENT_WALLPAPER: &str = "presentation://wallpaper";
 pub const EVENT_CLIENT_HELLO: &str = "client://hello";
 

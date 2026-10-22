@@ -31,17 +31,28 @@ export function useRemoteSetlistPublisher(): void {
 
   useEffect(() => {
     if (!isTauri()) return;
-    let unlisten: (() => void) | null = null;
+    let unlistenImprevisto: (() => void) | null = null;
+    let unlistenActive: (() => void) | null = null;
+
     void listenCommand<string>("remote://imprevisto", (songId) => {
       if (songId) {
         void appendImprevistoSong(songId);
       }
     }).then((fn) => {
-      unlisten = fn;
+      unlistenImprevisto = fn;
+    });
+
+    void listenCommand<string>("setlist://active-changed", (eventId) => {
+      if (eventId && eventId !== useSetlistStore.getState().activeEventId) {
+        void useSetlistStore.getState().selectEvent(eventId);
+      }
+    }).then((fn) => {
+      unlistenActive = fn;
     });
 
     return () => {
-      unlisten?.();
+      unlistenImprevisto?.();
+      unlistenActive?.();
     };
   }, [appendImprevistoSong]);
 

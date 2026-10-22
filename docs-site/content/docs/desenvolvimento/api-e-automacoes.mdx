@@ -61,12 +61,24 @@ Se o token for inválido ou ausente, a API retornará `401 Unauthorized`. Se a A
 | Método | Endpoint | Descrição | Payload (JSON) |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/api/v1/live` | Consulta o slide no ar | — |
+| `POST` | `/api/v1/next` | Avança para o próximo slide do setlist | — |
+| `POST` | `/api/v1/prev` | Volta para o slide anterior do setlist | — |
 | `POST` | `/api/v1/present` | Projeta slide do setlist | `{"itemId": "id", "index": 0}` |
 | `POST` | `/api/v1/clear` | Limpa texto mantendo fundo | — |
 | `POST` | `/api/v1/blackout` | Liga/Desliga tela preta | `{"blackout": true}` |
 | `POST` | `/api/v1/wallpaper` | Liga/Desliga papel de parede | `{"enabled": true}` |
 
-### 2. Cronômetro & Timer
+### 2. Programação e Modo Autônomo (Headless)
+
+O mecanismo do Open Presenter funciona de forma **autônoma e independente da interface gráfica do painel de controle**. O evento ativo é persistido no banco SQLite e hidratado imediatamente na inicialização do servidor, permitindo navegação remota mesmo se a janela de controle desktop estiver fechada:
+
+| Método | Endpoint | Descrição | Payload (JSON) |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/setlist` | Snapshot da programação ativa | — |
+| `GET` | `/api/v1/setlist/active` | ID e dados do evento ativo | — |
+| `POST` | `/api/v1/setlist/active` | Alterna o evento ativo do culto | `{"eventId": "culto-domingo"}` |
+
+### 3. Cronômetro & Timer
 
 | Método | Endpoint | Descrição | Payload (JSON) |
 | :--- | :--- | :--- | :--- |

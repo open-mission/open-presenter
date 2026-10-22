@@ -2,12 +2,14 @@ import { create } from "zustand";
 import {
   createEvent as createEventCommand,
   deleteEvent as deleteEventCommand,
+  getActiveEventId,
   getEvent,
   getBibleChapter,
   getSong,
   getTemporaryEvent,
   listEvents,
   saveEvent,
+  setActiveEventId,
 } from "@/core/ipc/commands";
 import { buildSongSlides } from "@/core/lib/lyrics";
 import { buildMediaSlides } from "@/core/lib/media";
@@ -471,12 +473,23 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       if (!currentActiveId || !events.some((e) => e.id === currentActiveId)) {
         let restoredId: string | null = null;
         try {
-          const stored = localStorage.getItem(LAST_ACTIVE_EVENT_KEY);
-          if (stored && events.some((e) => e.id === stored)) {
-            restoredId = stored;
+          const backendId = await getActiveEventId();
+          if (backendId && events.some((e) => e.id === backendId)) {
+            restoredId = backendId;
           }
         } catch {
-          // localStorage pode estar indisponível
+          // fallback para localStorage se IPC falhar
+        }
+
+        if (!restoredId) {
+          try {
+            const stored = localStorage.getItem(LAST_ACTIVE_EVENT_KEY);
+            if (stored && events.some((e) => e.id === stored)) {
+              restoredId = stored;
+            }
+          } catch {
+            // localStorage pode estar indisponível
+          }
         }
 
         if (restoredId) {
@@ -502,6 +515,11 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     }
     try {
       const event = await getEvent(id);
+      try {
+        await setActiveEventId(id);
+      } catch (err) {
+        console.warn("Falha ao salvar evento ativo no backend:", err);
+      }
       try {
         localStorage.setItem(LAST_ACTIVE_EVENT_KEY, id);
       } catch {

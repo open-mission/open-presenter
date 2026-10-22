@@ -1,7 +1,13 @@
 use std::collections::HashMap;
 
-use crate::state::RemoteSlide;
-use crate::state::types::{SectionType, SlideContent, SlideKind, Song, SongSection};
+use rusqlite::Connection;
+use tauri::AppHandle;
+
+use crate::state::{RemoteItem, RemotePart, RemoteSetlist, RemoteSlide};
+use crate::state::types::{
+    EventItem, MediaItem, MediaKind, ScriptureRef, SectionType, ServiceEvent, SlideContent,
+    SlideKind, Song, SongSection,
+};
 
 /// Computa os rótulos de cada estrofe da música, espelhando fielmente
 /// a função `computeSectionLabels` de `src/core/lib/lyrics.ts`.
@@ -89,6 +95,349 @@ pub fn build_song_slides(song: &Song, add_empty_slide_at_start: bool) -> Vec<Rem
     }
 
     slides
+}
+
+pub fn bible_slide_id(
+    book_id: i32,
+    chapter: i32,
+    verse: i32,
+    part: usize,
+    total_parts: usize,
+) -> String {
+    if total_parts > 1 {
+        format!("bible-{book_id}-{chapter}-{verse}#{}", part + 1)
+    } else {
+        format!("bible-{book_id}-{chapter}-{verse}")
+    }
+}
+
+pub fn bible_part_suffix(part: usize, total_parts: usize) -> String {
+    if total_parts > 1 {
+        format!(" ({}/{})", part + 1, total_parts)
+    } else {
+        String::new()
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_bible_slide(
+    version_id: &str,
+    book_id: i32,
+    book_name: &str,
+    chapter: i32,
+    verse: i32,
+    text: String,
+    part: usize,
+    total_parts: usize,
+) -> SlideContent {
+    let suffix = bible_part_suffix(part, total_parts);
+    SlideContent {
+        id: bible_slide_id(book_id, chapter, verse, part, total_parts),
+        kind: SlideKind::Scripture,
+        title: format!("{book_name} {chapter}:{verse}{suffix} ({version_id})"),
+        lines: vec![text],
+        notes: None,
+        section: Some(format!("{book_name} {chapter}:{verse}{suffix}")),
+        media: None,
+        scripture: Some(ScriptureRef {
+            version_id: version_id.to_string(),
+            book_id,
+            book_name: book_name.to_string(),
+            chapter,
+            verse,
+            part,
+            total_parts,
+        }),
+    }
+}
+
+pub fn build_media_slides(item_id: &str, media: &MediaItem) -> Vec<RemoteSlide> {
+    match media.kind {
+        MediaKind::Text => {
+            let raw_text = media.text.as_deref().unwrap_or("");
+            let blocks: Vec<Vec<String>> = raw_text
+                .replace("\r\n", "\n")
+                .split("\n\n")
+                .map(|block| {
+                    block
+                        .lines()
+                        .map(|l| l.trim_end().to_string())
+                        .filter(|l| !l.trim().is_empty())
+                        .collect::<Vec<_>>()
+                })
+                .filter(|b| !b.is_empty())
+                .collect();
+
+            if blocks.is_empty() && media.theme_id.is_some() {
+                return vec![RemoteSlide {
+                    index: 0,
+                    label: Some("Apresentação".to_string()),
+                    section_type: None,
+                    content: SlideContent {
+                        id: format!("{item_id}#0"),
+                        kind: SlideKind::Custom,
+                        title: media.title.clone(),
+                        lines: Vec::new(),
+                        notes: None,
+                        section: None,
+                        media: Some(media.clone()),
+                        scripture: None,
+                    },
+                }];
+            }
+
+            let total = blocks.len();
+            blocks
+                .into_iter()
+                .enumerate()
+                .map(|(index, lines)| {
+                    let label = if total > 1 {
+                        format!("Texto {}", index + 1)
+                    } else if media.theme_id.is_some() {
+                        "Apresentação".to_string()
+                    } else {
+                        "Texto".to_string()
+                    };
+                    let section = if total > 1 {
+                        Some(format!("{}/{}", index + 1, total))
+                    } else {
+                        None
+                    };
+                    RemoteSlide {
+                        index,
+                        label: Some(label),
+                        section_type: None,
+                        content: SlideContent {
+                            id: format!("{item_id}#{index}"),
+                            kind: SlideKind::Custom,
+                            title: media.title.clone(),
+                            lines,
+                            notes: None,
+                            section,
+                            media: Some(media.clone()),
+                            scripture: None,
+                        },
+                    }
+                })
+                .collect()
+        }
+        MediaKind::Image => {
+            vec![RemoteSlide {
+                index: 0,
+                label: Some("Imagem".to_string()),
+                section_type: None,
+                content: SlideContent {
+                    id: format!("{item_id}#0"),
+                    kind: SlideKind::Media,
+                    title: media.title.clone(),
+                    lines: Vec::new(),
+                    notes: None,
+                    section: None,
+                    media: Some(media.clone()),
+                    scripture: None,
+                },
+            }]
+        }
+        MediaKind::Folder => {
+            if media.files.is_empty() {
+                vec![RemoteSlide {
+                    index: 0,
+                    label: Some("Pasta de imagens".to_string()),
+                    section_type: None,
+                    content: SlideContent {
+                        id: format!("{item_id}#0"),
+                        kind: SlideKind::Media,
+                        title: media.title.clone(),
+                        lines: Vec::new(),
+                        notes: None,
+                        section: None,
+                        media: Some(media.clone()),
+                        scripture: None,
+                    },
+                }]
+            } else {
+                media
+                    .files
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, file)| {
+                        let mut m = media.clone();
+                        m.path = Some(file.clone());
+                        m.index = Some(idx);
+                        RemoteSlide {
+                            index: idx,
+                            label: Some(format!("Imagem {}", idx + 1)),
+                            section_type: None,
+                            content: SlideContent {
+                                id: format!("{item_id}#{idx}"),
+                                kind: SlideKind::Media,
+                                title: media.title.clone(),
+                                lines: Vec::new(),
+                                notes: None,
+                                section: Some(format!("{}/{}", idx + 1, media.files.len())),
+                                media: Some(m),
+                                scripture: None,
+                            },
+                        }
+                    })
+                    .collect()
+            }
+        }
+        MediaKind::Video => {
+            vec![RemoteSlide {
+                index: 0,
+                label: Some("Vídeo".to_string()),
+                section_type: None,
+                content: SlideContent {
+                    id: format!("{item_id}#0"),
+                    kind: SlideKind::Media,
+                    title: media.title.clone(),
+                    lines: Vec::new(),
+                    notes: None,
+                    section: None,
+                    media: Some(media.clone()),
+                    scripture: None,
+                },
+            }]
+        }
+    }
+}
+
+pub fn build_remote_item(
+    conn: &Connection,
+    app: Option<&AppHandle>,
+    item: &EventItem,
+    add_empty_slide_at_start: bool,
+) -> RemoteItem {
+    if let Some(ref scrip) = item.scripture {
+        let text = if let Some(app) = app {
+            crate::services::bible::get_bible_chapter(
+                app,
+                &scrip.version_id,
+                scrip.book_id,
+                scrip.chapter,
+            )
+            .ok()
+            .and_then(|verses| {
+                verses
+                    .into_iter()
+                    .find(|v| v.verse == scrip.verse)
+                    .map(|v| v.text)
+            })
+            .unwrap_or_default()
+        } else {
+            String::new()
+        };
+
+        let label = if scrip.total_parts > 1 {
+            Some(format!("Parte {}/{}", scrip.part + 1, scrip.total_parts))
+        } else {
+            None
+        };
+
+        let content = build_bible_slide(
+            &scrip.version_id,
+            scrip.book_id,
+            &scrip.book_name,
+            scrip.chapter,
+            scrip.verse,
+            text,
+            scrip.part,
+            scrip.total_parts,
+        );
+
+        let slide = RemoteSlide {
+            index: scrip.part,
+            label,
+            section_type: None,
+            content,
+        };
+
+        return RemoteItem {
+            id: item.id.clone(),
+            kind: "scripture".to_string(),
+            title: format!("{} {}:{}", scrip.book_name, scrip.chapter, scrip.verse),
+            subtitle: Some(scrip.version_id.clone()),
+            next_item_id: item.next_item_id.clone(),
+            slides: vec![slide],
+        };
+    }
+
+    if let Some(ref media) = item.media {
+        let slides = build_media_slides(&item.id, media);
+        return RemoteItem {
+            id: item.id.clone(),
+            kind: "media".to_string(),
+            title: media.title.clone(),
+            subtitle: Some(media.kind.as_label().to_string()),
+            next_item_id: item.next_item_id.clone(),
+            slides,
+        };
+    }
+
+    if let Some(ref song_id) = item.song_id {
+        if let Ok(Some(song)) = crate::services::songs::get(conn, song_id) {
+            let slides = build_song_slides(&song, add_empty_slide_at_start);
+            return RemoteItem {
+                id: item.id.clone(),
+                kind: "song".to_string(),
+                title: song.title,
+                subtitle: Some(song.artist),
+                next_item_id: item.next_item_id.clone(),
+                slides,
+            };
+        }
+    }
+
+    RemoteItem {
+        id: item.id.clone(),
+        kind: if item.song_id.is_some() {
+            "song".to_string()
+        } else {
+            "media".to_string()
+        },
+        title: item
+            .song
+            .as_ref()
+            .map(|s| s.title.clone())
+            .unwrap_or_else(|| "Item sem mídia".to_string()),
+        subtitle: None,
+        next_item_id: item.next_item_id.clone(),
+        slides: Vec::new(),
+    }
+}
+
+pub fn build_remote_setlist(
+    conn: &Connection,
+    app: Option<&AppHandle>,
+    event: &ServiceEvent,
+    add_empty_slide_at_start: bool,
+) -> RemoteSetlist {
+    let mut parts = Vec::with_capacity(event.parts.len());
+    for part in &event.parts {
+        let mut items = Vec::with_capacity(part.items.len());
+        for item in &part.items {
+            let remote_item = build_remote_item(conn, app, item, add_empty_slide_at_start);
+            items.push(remote_item);
+        }
+        parts.push(RemotePart {
+            id: part.id.clone(),
+            title: if part.title.is_empty() {
+                "Programação".to_string()
+            } else {
+                part.title.clone()
+            },
+            items,
+        });
+    }
+
+    RemoteSetlist {
+        event_id: event.id.clone(),
+        title: event.title.clone(),
+        event_date: event.event_date.clone(),
+        parts,
+        groups: Vec::new(),
+    }
 }
 
 #[cfg(test)]
@@ -217,5 +566,40 @@ mod tests {
         assert_eq!(slides[2].content.id, "musica-1#2");
         assert_eq!(slides[2].content.section, Some("Refrão".into()));
         assert_eq!(slides[2].content.lines, vec!["Porque Ele vive"]);
+    }
+
+    #[test]
+    fn build_bible_slide_formata_titulo_e_referencia() {
+        let slide = build_bible_slide("NVI", 43, "João", 3, 16, "Porque Deus amou o mundo...".into(), 0, 1);
+        assert_eq!(slide.id, "bible-43-3-16");
+        assert_eq!(slide.title, "João 3:16 (NVI)");
+        assert_eq!(slide.lines, vec!["Porque Deus amou o mundo..."]);
+        assert_eq!(slide.scripture.unwrap().book_name, "João");
+
+        // Com múltiplas partes
+        let slide_part = build_bible_slide("NVI", 43, "João", 3, 16, "Parte dois".into(), 1, 2);
+        assert_eq!(slide_part.id, "bible-43-3-16#2");
+        assert_eq!(slide_part.title, "João 3:16 (2/2) (NVI)");
+    }
+
+    #[test]
+    fn build_media_slides_quebra_blocos_de_texto() {
+        let media = MediaItem {
+            kind: MediaKind::Text,
+            title: "Avisos".into(),
+            text: Some("Primeiro aviso linha 1\nLinha 2\n\nSegundo aviso linha 1".into()),
+            path: None,
+            files: vec![],
+            index: None,
+            fit: None,
+            theme_id: None,
+        };
+
+        let slides = build_media_slides("item-avisos", &media);
+        assert_eq!(slides.len(), 2);
+        assert_eq!(slides[0].label, Some("Texto 1".into()));
+        assert_eq!(slides[0].content.lines, vec!["Primeiro aviso linha 1", "Linha 2"]);
+        assert_eq!(slides[1].label, Some("Texto 2".into()));
+        assert_eq!(slides[1].content.lines, vec!["Segundo aviso linha 1"]);
     }
 }

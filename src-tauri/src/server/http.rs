@@ -100,7 +100,14 @@ pub fn router(state: ServerState) -> Router {
         .route("/api/v1/info", get(crate::server::remote::info))
         .route("/api/v1/live", get(crate::server::remote::live))
         .route("/api/v1/setlist", get(crate::server::remote::setlist))
+        .route(
+            "/api/v1/setlist/active",
+            get(crate::server::remote::get_active_event_endpoint)
+                .post(crate::server::remote::set_active_event_endpoint),
+        )
         .route("/api/v1/present", post(crate::server::remote::present))
+        .route("/api/v1/next", post(crate::server::remote::next))
+        .route("/api/v1/prev", post(crate::server::remote::prev))
         .route("/api/v1/clear", post(crate::server::remote::clear))
         .route("/api/v1/blackout", post(crate::server::remote::blackout))
         .route(

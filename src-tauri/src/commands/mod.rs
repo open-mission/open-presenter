@@ -19,7 +19,8 @@ pub use presentation::{
     open_output_window, set_blackout,
 };
 pub use setlists::{
-    create_event, delete_event, get_event, get_temporary_event, list_events, save_event,
+    create_event, delete_event, get_active_event_id, get_event, get_temporary_event, list_events,
+    save_event, set_active_event_id,
 };
 pub use songs::{
     close_song_editor, delete_song, fetch_online_lyrics, get_song, get_song_defaults,

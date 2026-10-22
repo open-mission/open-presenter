@@ -160,6 +160,26 @@ const OPENAPI_SPEC: &str = r#"{
         }
       }
     },
+    "/api/v1/next": {
+      "post": {
+        "tags": ["Ao Vivo & Slides"],
+        "summary": "Avança para o próximo slide da programação ativa",
+        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "responses": {
+          "200": { "description": "Slide avançado com sucesso" }
+        }
+      }
+    },
+    "/api/v1/prev": {
+      "post": {
+        "tags": ["Ao Vivo & Slides"],
+        "summary": "Retrocede para o slide anterior da programação ativa",
+        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "responses": {
+          "200": { "description": "Slide retrocedido com sucesso" }
+        }
+      }
+    },
     "/api/v1/clear": {
       "post": {
         "tags": ["Ao Vivo & Slides"],
@@ -201,6 +221,37 @@ const OPENAPI_SPEC: &str = r#"{
         "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
         "responses": {
           "200": { "description": "Snapshot do setlist completo" }
+        }
+      }
+    },
+    "/api/v1/setlist/active": {
+      "get": {
+        "tags": ["Setlist"],
+        "summary": "Obtém o ID e os dados do evento/culto ativo no momento",
+        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "responses": {
+          "200": { "description": "Dados do evento ativo e snapshot do setlist" }
+        }
+      },
+      "post": {
+        "tags": ["Setlist"],
+        "summary": "Define ou alterna o evento ativo no sistema (persistido no SQLite)",
+        "security": [{ "bearerAuth": [] }, { "apiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "eventId": { "type": "string", "nullable": true, "example": "culto-domingo-noite" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Evento ativo atualizado e setlist recarregado" }
         }
       }
     },

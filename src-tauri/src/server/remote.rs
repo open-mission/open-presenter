@@ -21,7 +21,7 @@ use crate::services::{
     holyrics_online, lrclib, lyrics_search, media_library, slide_builder, songs, vagalume,
 };
 use crate::state::types::{
-    now_millis, ClientKind, ConnectedClient, MediaItem, MediaKind, ScriptureRef, SlideContent,
+    now_millis, ClientKind, ConnectedClient, MediaItem, MediaKind, SlideContent,
     SlideKind, EVENT_REMOTE_SETLIST, EVENT_SLIDE, EVENT_STAGE_MESSAGE, EVENT_TIMER, EVENT_WALLPAPER,
 };
 use crate::state::{LiveSlide, RemoteItem, RemoteSetlist};
@@ -265,6 +265,159 @@ pub async fn present(
     };
     state.broadcaster.publish_slide(&live);
     Json(live).into_response()
+}
+
+pub async fn advance_setlist_slide(state: &ServerState, delta: isize) -> Response {
+    let snapshot = match state.remote.lock() {
+        Ok(remote) => remote.setlist.clone(),
+        Err(_) => return internal("estado remoto indisponível"),
+    };
+    let Some(setlist) = snapshot else {
+        return (StatusCode::NOT_FOUND, "nenhuma programação ativa").into_response();
+    };
+
+    let mut flat = Vec::new();
+    for part in &setlist.parts {
+        for item in &part.items {
+            for slide in &item.slides {
+                flat.push((item, slide));
+            }
+        }
+    }
+
+    if flat.is_empty() {
+        return (StatusCode::BAD_REQUEST, "nenhum slide na programação").into_response();
+    }
+
+    let current = state.broadcaster.current_slide();
+    let current_pos = flat
+        .iter()
+        .position(|(_, s)| s.content.id == current.content.id);
+
+    let next_idx = match current_pos {
+        Some(pos) => {
+            if delta > 0 {
+                (pos + delta as usize).min(flat.len() - 1)
+            } else {
+                pos.saturating_sub((-delta) as usize)
+            }
+        }
+        None => {
+            if delta > 0 {
+                0
+            } else {
+                flat.len() - 1
+            }
+        }
+    };
+
+    let (_target_item, target_slide) = flat[next_idx];
+    let prev_up = if next_idx > 0 {
+        Some(flat[next_idx - 1].1.content.clone())
+    } else {
+        None
+    };
+    let next_up = if next_idx + 1 < flat.len() {
+        Some(flat[next_idx + 1].1.content.clone())
+    } else {
+        None
+    };
+
+    let live = LiveSlide {
+        content: target_slide.content.clone(),
+        background: current.background,
+        blackout: false,
+        cleared: false,
+        text_hidden: false,
+        updated_at: now_millis().to_string(),
+        next_up,
+        prev_up,
+    };
+    state.broadcaster.publish_slide(&live);
+
+    if let Some(app) = &state.app_handle {
+        use tauri::Emitter;
+        let _ = app.emit("setlist://slide-changed", &live);
+    }
+
+    Json(live).into_response()
+}
+
+pub async fn next(State(state): State<Arc<ServerState>>, headers: HeaderMap) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    advance_setlist_slide(&state, 1).await
+}
+
+pub async fn prev(State(state): State<Arc<ServerState>>, headers: HeaderMap) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    advance_setlist_slide(&state, -1).await
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SetActiveEventRequest {
+    pub event_id: Option<String>,
+}
+
+pub async fn get_active_event_endpoint(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let Some(db) = &state.db else {
+        return internal("banco de dados indisponível");
+    };
+
+    let active_id = match db.with_conn(crate::services::setlists::get_active_event_id) {
+        Ok(id) => id,
+        Err(err) => return internal(&err.to_string()),
+    };
+
+    let current_setlist = state.remote.lock().ok().and_then(|r| r.setlist.clone());
+
+    Json(serde_json::json!({
+        "activeEventId": active_id,
+        "setlist": current_setlist,
+    }))
+    .into_response()
+}
+
+pub async fn set_active_event_endpoint(
+    State(state): State<Arc<ServerState>>,
+    headers: HeaderMap,
+    Json(payload): Json<SetActiveEventRequest>,
+) -> Response {
+    if let Err(response) = guard_headers(&state, &headers) {
+        return response;
+    }
+    let Some(db) = &state.db else {
+        return internal("banco de dados indisponível");
+    };
+
+    let result = db.with_conn(|conn| {
+        crate::services::setlists::set_active_event_id(conn, payload.event_id.as_deref())?;
+        crate::services::setlists::reload_active_event(
+            conn,
+            state.app_handle.as_ref(),
+            &state.remote,
+            &state.broadcaster,
+        )
+    });
+
+    match result {
+        Ok(setlist) => Json(serde_json::json!({
+            "activeEventId": payload.event_id,
+            "setlist": setlist,
+        }))
+        .into_response(),
+        Err(err) => internal(&err.to_string()),
+    }
 }
 
 pub async fn clear(State(state): State<Arc<ServerState>>, headers: HeaderMap) -> Response {
@@ -864,60 +1017,6 @@ pub async fn compare_bible_endpoint(
     }
 }
 
-fn bible_slide_id(
-    book_id: i32,
-    chapter: i32,
-    verse: i32,
-    part: usize,
-    total_parts: usize,
-) -> String {
-    if total_parts > 1 {
-        format!("bible-{book_id}-{chapter}-{verse}#{}", part + 1)
-    } else {
-        format!("bible-{book_id}-{chapter}-{verse}")
-    }
-}
-
-fn bible_part_suffix(part: usize, total_parts: usize) -> String {
-    if total_parts > 1 {
-        format!(" ({}/{})", part + 1, total_parts)
-    } else {
-        String::new()
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_bible_slide(
-    version_id: &str,
-    book_id: i32,
-    book_name: &str,
-    chapter: i32,
-    verse: i32,
-    text: String,
-    part: usize,
-    total_parts: usize,
-) -> SlideContent {
-    let suffix = bible_part_suffix(part, total_parts);
-    SlideContent {
-        id: bible_slide_id(book_id, chapter, verse, part, total_parts),
-        kind: SlideKind::Scripture,
-        title: format!("{book_name} {chapter}:{verse}{suffix} ({version_id})"),
-        lines: vec![text],
-        notes: None,
-        section: Some(format!("{book_name} {chapter}:{verse}{suffix}")),
-        media: None,
-        scripture: Some(ScriptureRef {
-            version_id: version_id.to_string(),
-            book_id,
-            book_name: book_name.to_string(),
-            chapter,
-            verse,
-            part,
-            total_parts,
-        }),
-    }
-}
-
 pub async fn present_bible(
     State(state): State<Arc<ServerState>>,
     headers: HeaderMap,
@@ -951,7 +1050,7 @@ pub async fn present_bible(
 
     let next_up = next_text.map(|t| {
         let next_total = next_total_parts.unwrap_or(1).max(1);
-        build_bible_slide(
+        slide_builder::build_bible_slide(
             &version_id,
             book_id,
             &book_name,
@@ -965,7 +1064,7 @@ pub async fn present_bible(
 
     let prev_up = prev_text.map(|t| {
         let prev_total = prev_total_parts.unwrap_or(1).max(1);
-        build_bible_slide(
+        slide_builder::build_bible_slide(
             &version_id,
             book_id,
             &book_name,
@@ -977,7 +1076,7 @@ pub async fn present_bible(
         )
     });
 
-    let content = build_bible_slide(
+    let content = slide_builder::build_bible_slide(
         &version_id,
         book_id,
         &book_name,
@@ -1119,6 +1218,7 @@ async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>, client
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::slide_builder::{bible_slide_id, build_bible_slide};
     use crate::state::types::{SectionType, SlideKind};
     use crate::state::{RemotePart, RemoteSlide};
 

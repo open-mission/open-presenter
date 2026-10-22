@@ -218,9 +218,83 @@ pub fn delete(conn: &Connection, id: &str) -> Result<(), AppError> {
     if id == TEMPORARY_EVENT_ID {
         return Err(AppError::Storage("não é permitido excluir a lista temporária".into()));
     }
+    if let Ok(Some(active_id)) = get_active_event_id(conn) {
+        if active_id == id {
+            let _ = set_active_event_id(conn, None);
+        }
+    }
     conn.execute("DELETE FROM service_events WHERE id = ?1", params![id])
         .map_err(storage_error)?;
     Ok(())
+}
+
+pub const ACTIVE_EVENT_ID_KEY: &str = "events.active_id";
+
+pub fn get_active_event_id(conn: &Connection) -> Result<Option<String>, AppError> {
+    crate::services::settings::get_setting(conn, ACTIVE_EVENT_ID_KEY)
+}
+
+pub fn set_active_event_id(conn: &Connection, id: Option<&str>) -> Result<(), AppError> {
+    match id {
+        Some(val) if !val.trim().is_empty() => {
+            crate::services::settings::set_setting(conn, ACTIVE_EVENT_ID_KEY, val.trim())
+        }
+        _ => {
+            conn.execute("DELETE FROM settings WHERE key = ?1", params![ACTIVE_EVENT_ID_KEY])
+                .map_err(storage_error)?;
+            Ok(())
+        }
+    }
+}
+
+pub fn reload_active_event(
+    conn: &Connection,
+    app: Option<&tauri::AppHandle>,
+    remote: &crate::state::SharedRemoteState,
+    broadcaster: &crate::services::SharedBroadcaster,
+) -> Result<Option<crate::state::RemoteSetlist>, AppError> {
+    let active_id = get_active_event_id(conn)?;
+    let Some(id) = active_id else {
+        if let Ok(mut guard) = remote.lock() {
+            guard.setlist = None;
+        }
+        broadcaster.publish_value(crate::state::types::EVENT_REMOTE_SETLIST, &None::<crate::state::RemoteSetlist>);
+        return Ok(None);
+    };
+
+    let event = get(conn, &id)?;
+    let Some(event) = event else {
+        if let Ok(mut guard) = remote.lock() {
+            guard.setlist = None;
+        }
+        broadcaster.publish_value(crate::state::types::EVENT_REMOTE_SETLIST, &None::<crate::state::RemoteSetlist>);
+        return Ok(None);
+    };
+
+    let defaults = crate::services::songs::song_defaults(conn).unwrap_or_default();
+    let remote_setlist = crate::services::slide_builder::build_remote_setlist(
+        conn,
+        app,
+        &event,
+        defaults.add_empty_slide_at_start,
+    );
+
+    if let Ok(mut guard) = remote.lock() {
+        guard.setlist = Some(remote_setlist.clone());
+    }
+
+    if let Some(ref wp) = event.wallpaper {
+        broadcaster.publish_wallpaper(Some(wp.clone()));
+    }
+
+    broadcaster.publish_value(crate::state::types::EVENT_REMOTE_SETLIST, &Some(remote_setlist.clone()));
+
+    if let Some(app) = app {
+        use tauri::Emitter;
+        let _ = app.emit(crate::state::types::EVENT_SETLIST_ACTIVE_CHANGED, &id);
+    }
+
+    Ok(Some(remote_setlist))
 }
 
 #[cfg(test)]
@@ -484,5 +558,17 @@ mod tests {
         let res = delete(&conn, TEMPORARY_EVENT_ID);
         assert!(res.is_err());
         assert!(get(&conn, TEMPORARY_EVENT_ID).unwrap().is_some());
+    }
+
+    #[test]
+    fn ativa_e_recupera_evento_ativo() {
+        let conn = open_in_memory();
+        assert_eq!(get_active_event_id(&conn).unwrap(), None);
+
+        set_active_event_id(&conn, Some("e-culto")).unwrap();
+        assert_eq!(get_active_event_id(&conn).unwrap().as_deref(), Some("e-culto"));
+
+        set_active_event_id(&conn, None).unwrap();
+        assert_eq!(get_active_event_id(&conn).unwrap(), None);
     }
 }
