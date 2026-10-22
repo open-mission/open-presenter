@@ -13,10 +13,17 @@ import { ThemeRenderer } from "../slide-themes/ThemeRenderer";
 import { useThemeEditorStore } from "./store";
 import { buildSnapBoxes, type ElementBox } from "./snapBoxes";
 import {
+  FALLBACK_SIZE,
   LOGICAL_H,
   LOGICAL_W,
+  type Rect,
   elementRect,
+  unionRects,
+  visualRect,
 } from "./geometry";
+import { SelectionOverlay } from "./SelectionOverlay";
+import { groupMemberIds } from "./selection";
+import { elementRotation } from "./transform";
 
 export interface CanvasResolution {
   width: number;
@@ -38,8 +45,6 @@ export interface CanvasProps {
   theme: SlideTheme;
   asset: ThemeAsset;
   props: Record<string, string>;
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
   onChange: (el: ThemeElement) => void;
   showGrid: boolean;
   gridSize: number;
@@ -55,15 +60,18 @@ export interface CanvasProps {
 type ResizeDir = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
 interface Gesture {
-  id: string;
+  id?: string;
   mode: "move" | "resize";
   dir?: ResizeDir;
+  baseIds: string[];
+  ids: string[];
   startLX: number;
   startLY: number;
-  orig: { left: number; top: number; width: number; height: number };
-  last: { left: number; top: number; width: number; height: number };
-  groupOrigs?: Record<string, { left: number; top: number; width: number; height: number }>;
-  snapBoxes?: Map<string, ElementBox>;
+  origBox: Rect;
+  last: Rect;
+  memberOrigs: Record<string, Rect>;
+  snapBoxes: Map<string, ElementBox>;
+  orig?: Rect;
 }
 
 type PreviewPatch = Partial<Pick<ThemeElement, "x" | "y">> & {
@@ -81,16 +89,6 @@ export interface SmartGuide {
 const MIN_SIZE = 20;
 
 const EMPTY_SNAP_BOXES: ReadonlyMap<string, ElementBox> = new Map();
-
-const FALLBACK_SIZE: Record<ThemeElement["type"], { w: number; h: number }> = {
-  TEXT: { w: 400, h: 100 },
-  IMAGE: { w: 320, h: 180 },
-  VIDEO: { w: 320, h: 180 },
-  RECTANGLE: { w: 200, h: 120 },
-  CIRCLE: { w: 160, h: 160 },
-  TRIANGLE: { w: 160, h: 160 },
-  STAR: { w: 180, h: 180 },
-};
 
 const HANDLE_CURSORS: Record<ResizeDir, string> = {
   nw: "nwse-resize",
@@ -179,8 +177,6 @@ export function Canvas({
   theme,
   asset,
   props: sampleProps,
-  selectedId,
-  onSelect,
   onChange,
   showGrid,
   gridSize,
@@ -195,6 +191,12 @@ export function Canvas({
   const logicalW = resolution?.width ?? LOGICAL_W;
   const logicalH = resolution?.height ?? LOGICAL_H;
 
+  const selection = useThemeEditorStore((s) => s.selection);
+  const select = useThemeEditorStore((s) => s.select);
+  const toggleSelect = useThemeEditorStore((s) => s.toggleSelect);
+  const enterGroup = useThemeEditorStore((s) => s.enterGroup);
+  const clearSelection = useThemeEditorStore((s) => s.clearSelection);
+
   const wrapRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
@@ -208,6 +210,7 @@ export function Canvas({
 
   const updateGestureRef = useRef<(pos: PointerPos) => void>(() => {});
   const gestureFrameRef = useRef<FrameCoalescer<PointerPos> | null>(null);
+  const gestureListenersRef = useRef<(() => void) | null>(null);
 
   updateGestureRef.current = updateGesture;
 
@@ -218,7 +221,10 @@ export function Canvas({
   }
 
   useEffect(() => {
-    return () => gestureFrameRef.current?.cancel();
+    return () => {
+      gestureFrameRef.current?.cancel();
+      gestureListenersRef.current?.();
+    };
   }, []);
 
   useLayoutEffect(() => {
@@ -328,12 +334,7 @@ export function Canvas({
     };
   }
 
-  function resolveBox(el: ThemeElement): {
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-  } {
+  function resolveBox(el: ThemeElement): Rect {
     const current = withPatch(el);
     const rect = elementRect(current);
     const fallback =
@@ -344,6 +345,28 @@ export function Canvas({
       width: rect.width ?? fallback.w,
       height: rect.height ?? fallback.h,
     };
+  }
+
+  function resolveVisualBox(el: ThemeElement): Rect {
+    return visualRect(resolveBox(el), elementRotation(withPatch(el)));
+  }
+
+  function selectionBoxFor(ids: readonly string[]): Rect | null {
+    const idSet = new Set(ids);
+    return unionRects(
+      theme.elements.filter((el) => idSet.has(el.id)).map(resolveVisualBox),
+    );
+  }
+
+  function handleEmptyPointerDown(
+    e: ReactPointerEvent<HTMLDivElement>,
+  ): void {
+    if (e.target !== e.currentTarget) return;
+    if (editingId) {
+      (document.activeElement as HTMLElement | null)?.blur();
+      return;
+    }
+    clearSelection();
   }
 
   function toLogical(e: { clientX: number; clientY: number }): {
@@ -612,59 +635,55 @@ export function Canvas({
     };
   }
 
-  function commitGesture(g: Gesture): void {
-    const orig = theme.elements.find((el) => el.id === g.id);
-    if (!orig) return;
-    setActiveGuides([]);
+  function clearPreview(ids: readonly string[]): void {
     setPreview((prev) => {
       const next = { ...prev };
-      delete next[g.id];
-      if (g.groupOrigs) {
-        for (const mId of Object.keys(g.groupOrigs)) {
-          delete next[mId];
-        }
-      }
+      for (const id of ids) delete next[id];
       return next;
     });
+  }
 
-    if (g.mode === "move" && g.groupOrigs && Object.keys(g.groupOrigs).length > 1) {
-      const effectiveDx = Math.round(g.last.left) - Math.round(g.orig.left);
-      const effectiveDy = Math.round(g.last.top) - Math.round(g.orig.top);
-      if (effectiveDx === 0 && effectiveDy === 0) return;
+  function commitGesture(g: Gesture): void {
+    setActiveGuides([]);
+    clearPreview(g.mode === "move" ? g.ids : [g.id ?? ""]);
 
+    if (g.mode === "move") {
+      const dx = Math.round(g.last.left - g.origBox.left);
+      const dy = Math.round(g.last.top - g.origBox.top);
+      if (dx === 0 && dy === 0) return;
       const patches: { id: string; patch: Partial<ThemeElement> }[] = [];
-      for (const [mId, mOrig] of Object.entries(g.groupOrigs)) {
-        const memberEl = theme.elements.find((el) => el.id === mId);
-        if (!memberEl) continue;
-        const newLeft = Math.max(0, Math.round(mOrig.left + effectiveDx));
-        const newTop = Math.max(0, Math.round(mOrig.top + effectiveDy));
+      for (const [id, orig] of Object.entries(g.memberOrigs)) {
+        const el = theme.elements.find((item) => item.id === id);
+        if (!el) continue;
+        const left = Math.max(0, Math.round(orig.left + dx));
+        const top = Math.max(0, Math.round(orig.top + dy));
         patches.push({
-          id: mId,
+          id,
           patch: {
-            x: newLeft,
-            y: newTop,
-            css: {
-              ...memberEl.css,
-              left: `${newLeft}px`,
-              top: `${newTop}px`,
-            },
+            x: left,
+            y: top,
+            css: { ...el.css, left: `${left}px`, top: `${top}px` },
           },
         });
       }
-      useThemeEditorStore.getState().updateElements(patches);
+      if (patches.length > 0) {
+        useThemeEditorStore.getState().updateElements(patches);
+      }
       return;
     }
 
+    const orig = theme.elements.find((el) => el.id === g.id);
+    const base = g.orig;
+    if (!orig || !base) return;
     const left = Math.max(0, Math.round(g.last.left));
     const top = Math.max(0, Math.round(g.last.top));
     const width = Math.max(MIN_SIZE, Math.round(g.last.width));
     const height = Math.max(MIN_SIZE, Math.round(g.last.height));
-    const o = g.orig;
     if (
-      left === Math.max(0, Math.round(o.left)) &&
-      top === Math.max(0, Math.round(o.top)) &&
-      width === Math.max(MIN_SIZE, Math.round(o.width)) &&
-      height === Math.max(MIN_SIZE, Math.round(o.height))
+      left === Math.max(0, Math.round(base.left)) &&
+      top === Math.max(0, Math.round(base.top)) &&
+      width === Math.max(MIN_SIZE, Math.round(base.width)) &&
+      height === Math.max(MIN_SIZE, Math.round(base.height))
     ) {
       return;
     }
@@ -691,71 +710,50 @@ export function Canvas({
 
     if (g.mode === "move") {
       const snapped = calculateSnap(
-        g.orig.left,
-        g.orig.top,
+        g.origBox.left,
+        g.origBox.top,
         dx,
         dy,
-        g.orig.width,
-        g.orig.height,
+        g.origBox.width,
+        g.origBox.height,
         g.snapBoxes ?? EMPTY_SNAP_BOXES,
       );
-      g.last = {
-        ...g.last,
-        left: snapped.left,
-        top: snapped.top,
-      };
+      g.last = { ...g.origBox, left: snapped.left, top: snapped.top };
       setActiveGuides(snapped.guides);
 
-      const effectiveDx = snapped.left - g.orig.left;
-      const effectiveDy = snapped.top - g.orig.top;
-
+      const effectiveDx = snapped.left - g.origBox.left;
+      const effectiveDy = snapped.top - g.origBox.top;
       setPreview((prev) => {
         const next = { ...prev };
-        if (g.groupOrigs) {
-          for (const [mId, mOrig] of Object.entries(g.groupOrigs)) {
-            const mLeft = Math.round(mOrig.left + effectiveDx);
-            const mTop = Math.round(mOrig.top + effectiveDy);
-            next[mId] = {
-              x: mLeft,
-              y: mTop,
-              css: {
-                left: `${mLeft}px`,
-                top: `${mTop}px`,
-                width: `${Math.round(mOrig.width)}px`,
-                height: `${Math.round(mOrig.height)}px`,
-              },
-            };
-          }
-        } else {
-          next[g.id] = {
-            x: Math.round(snapped.left),
-            y: Math.round(snapped.top),
-            css: {
-              left: `${Math.round(snapped.left)}px`,
-              top: `${Math.round(snapped.top)}px`,
-              width: `${Math.round(g.last.width)}px`,
-              height: `${Math.round(g.last.height)}px`,
-            },
+        for (const [id, orig] of Object.entries(g.memberOrigs)) {
+          const left = Math.round(orig.left + effectiveDx);
+          const top = Math.round(orig.top + effectiveDy);
+          next[id] = {
+            x: left,
+            y: top,
+            css: { left: `${left}px`, top: `${top}px` },
           };
         }
         return next;
       });
       return;
-    } else {
-      const snapped = calculateResizeSnap(
-        g.orig,
-        g.dir ?? "se",
-        dx,
-        dy,
-      );
-      g.last = snapped;
-      setActiveGuides(snapped.guides);
     }
 
+    const snapped = calculateResizeSnap(
+      g.orig ?? g.origBox,
+      g.dir ?? "se",
+      dx,
+      dy,
+    );
+    g.last = snapped;
+    setActiveGuides(snapped.guides);
+
+    const id = g.id;
+    if (!id) return;
     const { left, top, width, height } = g.last;
     setPreview((prev) => ({
       ...prev,
-      [g.id]: {
+      [id]: {
         x: Math.round(left),
         y: Math.round(top),
         css: {
@@ -771,40 +769,74 @@ export function Canvas({
   function endGesture(): void {
     const g = gestureRef.current;
     gestureRef.current = null;
+    gestureListenersRef.current?.();
+    gestureListenersRef.current = null;
     setActiveGuides([]);
     gestureFrameRef.current?.cancel();
     if (g) commitGesture(g);
   }
 
+  function cancelGesture(): void {
+    const g = gestureRef.current;
+    gestureRef.current = null;
+    gestureListenersRef.current?.();
+    gestureListenersRef.current = null;
+    setActiveGuides([]);
+    gestureFrameRef.current?.cancel();
+    if (g) clearPreview(g.mode === "move" ? g.ids : [g.id ?? ""]);
+  }
+
+  function trackGesture(): void {
+    const move = (event: PointerEvent) => {
+      gestureFrameRef.current?.push({
+        clientX: event.clientX,
+        clientY: event.clientY,
+      });
+    };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", finish);
+      window.removeEventListener("pointercancel", cancel);
+    };
+    const finish = () => {
+      gestureFrameRef.current?.flush();
+      endGesture();
+    };
+    const cancel = () => cancelGesture();
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", finish);
+    window.addEventListener("pointercancel", cancel);
+    gestureListenersRef.current = cleanup;
+  }
+
   function beginMove(
-    e: ReactPointerEvent<HTMLDivElement>,
-    el: ThemeElement,
+    e: ReactPointerEvent<HTMLElement>,
+    ids: readonly string[],
   ): void {
     gestureFrameRef.current?.cancel();
-    const pos = toLogical(e);
-    const box = resolveBox(el);
-    const excludeIds = new Set([el.id]);
-    let groupOrigs: Record<string, { left: number; top: number; width: number; height: number }> | undefined;
-    if (el.groupId) {
-      groupOrigs = {};
-      for (const member of theme.elements) {
-        if (member.groupId === el.groupId && !member.locked) {
-          groupOrigs[member.id] = resolveBox(member);
-          excludeIds.add(member.id);
-        }
+    const idSet = new Set(ids);
+    const memberOrigs: Record<string, Rect> = {};
+    for (const member of theme.elements) {
+      if (idSet.has(member.id) && !member.locked) {
+        memberOrigs[member.id] = resolveBox(member);
       }
     }
+    if (Object.keys(memberOrigs).length === 0) return;
+    const origBox = selectionBoxFor(ids);
+    if (!origBox || origBox.width <= 0 || origBox.height <= 0) return;
+    const pos = toLogical(e);
     gestureRef.current = {
-      id: el.id,
       mode: "move",
+      baseIds: [...ids],
+      ids: Object.keys(memberOrigs),
       startLX: pos.x,
       startLY: pos.y,
-      orig: box,
-      last: { ...box },
-      groupOrigs,
-      snapBoxes: buildSnapBoxes(visibleElements, excludeIds, resolveBox),
+      origBox,
+      last: { ...origBox },
+      memberOrigs,
+      snapBoxes: buildSnapBoxes(visibleElements, idSet, resolveVisualBox),
     };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    trackGesture();
   }
 
   function beginResize(
@@ -819,12 +851,17 @@ export function Canvas({
       id: el.id,
       mode: "resize",
       dir,
+      baseIds: [el.id],
+      ids: [el.id],
       startLX: pos.x,
       startLY: pos.y,
-      orig: box,
+      origBox: box,
       last: { ...box },
+      memberOrigs: { [el.id]: box },
+      snapBoxes: EMPTY_SNAP_BOXES as Map<string, ElementBox>,
+      orig: box,
     };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    trackGesture();
   }
 
   function commitText(el: ThemeElement, text: string): void {
@@ -836,6 +873,8 @@ export function Canvas({
 
   const stageWidth = Math.round(logicalW * scale);
   const stageHeight = Math.round(logicalH * scale);
+  const selectionBox =
+    selection.ids.length >= 2 ? selectionBoxFor(selection.ids) : null;
 
   return (
     <div
@@ -846,9 +885,7 @@ export function Canvas({
           "conic-gradient(#1b1b1f 25%, #131316 0 50%, #1b1b1f 0 75%, #131316 0)",
         backgroundSize: "24px 24px",
       }}
-      onPointerDown={(e) => {
-        if (e.target === e.currentTarget) onSelect(null);
-      }}
+      onPointerDown={handleEmptyPointerDown}
     >
       <div
         className="relative shrink-0 shadow-2xl overflow-hidden border border-white/10 rounded-sm"
@@ -856,9 +893,7 @@ export function Canvas({
           width: stageWidth,
           height: stageHeight,
         }}
-        onPointerDown={(e) => {
-          if (e.target === e.currentTarget) onSelect(null);
-        }}
+        onPointerDown={handleEmptyPointerDown}
       >
         <div
           ref={stageRef}
@@ -992,10 +1027,11 @@ export function Canvas({
                 </span>
               </div>
             ))}
-            <div className="absolute inset-0">
+            <div className="absolute inset-0" onPointerDown={handleEmptyPointerDown}>
               {visibleElements.map((el) => {
                 const box = resolveBox(el);
-                const selected = el.id === selectedId;
+                const selected =
+                  selection.ids.length === 1 && selection.ids[0] === el.id;
                 const interactive = !el.locked;
                 const editing = editingId === el.id;
                 if (editing && el.type === "TEXT") {
@@ -1031,44 +1067,49 @@ export function Canvas({
                     }}
                     onPointerDown={(e) => {
                       e.stopPropagation();
-                      onSelect(el.id);
-                      if (!interactive || editingId) return;
                       if (e.button !== 0) return;
-                      beginMove(e, el);
-                    }}
-                    onPointerMove={(e) => {
-                      if (gestureRef.current?.id === el.id) {
-                        gestureFrameRef.current?.push({ clientX: e.clientX, clientY: e.clientY });
+                      const canGesture = !el.locked && !editingId;
+                      if (e.shiftKey) {
+                        toggleSelect(el.id);
+                        return;
                       }
-                    }}
-                    onPointerUp={(e) => {
-                      if (gestureRef.current?.id === el.id) {
-                        e.stopPropagation();
-                        gestureFrameRef.current?.flush();
-                        endGesture();
+                      const mod = e.metaKey || e.ctrlKey;
+                      if (el.groupId && mod) {
+                        enterGroup(el.groupId, el.id);
+                        if (canGesture) beginMove(e, [el.id]);
+                        return;
                       }
-                    }}
-                    onPointerCancel={() => {
-                      if (gestureRef.current?.id === el.id) {
-                        gestureFrameRef.current?.cancel();
-                        gestureRef.current = null;
-                        setPreview((prev) => {
-                          const next = { ...prev };
-                          delete next[el.id];
-                          return next;
+                      if (el.groupId && selection.enteredGroupId === el.groupId) {
+                        select([el.id], {
+                          anchorId: el.id,
+                          enteredGroupId: el.groupId,
                         });
+                        if (canGesture) beginMove(e, [el.id]);
+                        return;
                       }
+                      if (el.groupId) {
+                        const ids = groupMemberIds(theme.elements, el.groupId);
+                        select(ids, { anchorId: el.id });
+                        if (canGesture) beginMove(e, ids);
+                        return;
+                      }
+                      if (
+                        selection.ids.length > 1 &&
+                        selection.ids.includes(el.id)
+                      ) {
+                        if (canGesture) beginMove(e, selection.ids);
+                        return;
+                      }
+                      select([el.id], { anchorId: el.id });
+                      if (canGesture) beginMove(e, [el.id]);
                     }}
                     onDoubleClick={(e) => {
-                      if (el.type !== "TEXT" || !interactive) return;
                       e.stopPropagation();
+                      if (el.locked) return;
                       gestureRef.current = null;
-                      setPreview((prev) => {
-                        const next = { ...prev };
-                        delete next[el.id];
-                        return next;
-                      });
-                      setEditingId(el.id);
+                      clearPreview([el.id]);
+                      if (el.groupId) enterGroup(el.groupId, el.id);
+                      if (el.type === "TEXT") setEditingId(el.id);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Delete" || e.key === "Backspace") {
@@ -1106,19 +1147,6 @@ export function Canvas({
                                   if (e.button !== 0) return;
                                   beginResize(e, el, dir);
                                 }}
-                                onPointerMove={(e) => {
-                                  if (gestureRef.current?.id === el.id) {
-                                    e.stopPropagation();
-                                    gestureFrameRef.current?.push({ clientX: e.clientX, clientY: e.clientY });
-                                  }
-                                }}
-                                onPointerUp={(e) => {
-                                  if (gestureRef.current?.id === el.id) {
-                                    e.stopPropagation();
-                                    gestureFrameRef.current?.flush();
-                                    endGesture();
-                                  }
-                                }}
                               />
                             );
                           },
@@ -1128,6 +1156,7 @@ export function Canvas({
                   </div>
                 );
               })}
+              {selectionBox && <SelectionOverlay box={selectionBox} />}
             </div>
           </div>
         </div>

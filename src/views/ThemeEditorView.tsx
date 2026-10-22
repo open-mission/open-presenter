@@ -128,7 +128,10 @@ export default function ThemeEditorView() {
   const upgradeToV2 = useThemeEditorStore((s) => s.upgradeToV2);
   const setCategory = useThemeEditorStore((s) => s.setCategory);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selection = useThemeEditorStore((s) => s.selection);
+  const select = useThemeEditorStore((s) => s.select);
+  const clearSelection = useThemeEditorStore((s) => s.clearSelection);
+  const selectedId = selection.ids.length === 1 ? selection.ids[0] : null;
   const [sampleAsset, setSampleAsset] = useState<ThemeAsset>("music");
   const [snap, setSnap] = useState(true);
   const [showLimit, setShowLimit] = useState(true);
@@ -164,7 +167,7 @@ export default function ThemeEditorView() {
     let unlisten: (() => void) | null = null;
     void listenCommand<string | null>("theme-editor://open", (payload) => {
       if (typeof payload === "string" && payload !== "") {
-        setSelectedId(null);
+        clearSelection();
         void load(payload);
       }
     }).then((fn) => {
@@ -173,11 +176,11 @@ export default function ThemeEditorView() {
     return () => {
       unlisten?.();
     };
-  }, [load]);
+  }, [load, clearSelection]);
 
   useEffect(() => {
-    setSelectedId(null);
-  }, [activePageId]);
+    clearSelection();
+  }, [activePageId, clearSelection]);
 
   useEffect(() => {
     if (draft?.category === "stream" || draft?.guid === DEFAULT_STREAM_THEME_GUID) {
@@ -203,7 +206,7 @@ export default function ThemeEditorView() {
           e.stopPropagation();
           if (selectedId) {
             removeElement(selectedId);
-            setSelectedId(null);
+            clearSelection();
           }
           return;
         }
@@ -212,7 +215,7 @@ export default function ThemeEditorView() {
       if (e.key === "Escape" && !isInput) {
         if (selectedId) {
           e.preventDefault();
-          setSelectedId(null);
+          clearSelection();
         }
         return;
       }
@@ -233,7 +236,7 @@ export default function ThemeEditorView() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId, removeElement, undo, redo]);
+  }, [selectedId, removeElement, undo, redo, clearSelection]);
 
   async function handleSave() {
     setSaving(true);
@@ -472,7 +475,7 @@ export default function ThemeEditorView() {
         break;
     }
     addElement(el);
-    setSelectedId(el.id);
+    select(el.id);
   }
 
   function handleAddSymbol(symbol: string) {
@@ -508,7 +511,7 @@ export default function ThemeEditorView() {
       text: symbol,
     };
     addElement(newEl);
-    setSelectedId(newEl.id);
+    select(newEl.id);
   }
 
   function handleAddWidget(
@@ -666,7 +669,7 @@ export default function ThemeEditorView() {
         break;
     }
     addElement(el);
-    setSelectedId(el.id);
+    select(el.id);
   }
 
   function handleInsertLowerThird() {
@@ -720,7 +723,7 @@ export default function ThemeEditorView() {
     };
 
     addElements([boxEl, textEl]);
-    setSelectedId(textId);
+    select(textId);
     setSimulateCamera(true);
     toast.success("Barra Lower Third adicionada!");
   }
@@ -1215,7 +1218,10 @@ export default function ThemeEditorView() {
           style={{ width: `${layersWidth}px`, minWidth: "180px" }}
           className="shrink-0 flex flex-col h-full overflow-y-auto border-r border-border p-3 bg-card/20"
         >
-          <LayersPanel selectedId={selectedId} onSelect={setSelectedId} />
+          <LayersPanel
+            selectedId={selectedId}
+            onSelect={(id) => (id ? select(id) : clearSelection())}
+          />
         </aside>
 
         {/* Resizable Divider Handle for Layers */}
@@ -1320,8 +1326,6 @@ export default function ThemeEditorView() {
               theme={viewTheme}
               asset={activeAsset}
               props={sample.props}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
               onChange={(el) =>
                 useThemeEditorStore.getState().updateElement(el.id, el)
               }
