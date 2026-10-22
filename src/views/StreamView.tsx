@@ -9,6 +9,12 @@ import { useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { DEFAULT_STREAM_THEME } from "@/features/slide-themes/seedThemes";
 import { contextForSlide } from "@/features/slide-themes/themeResolution";
 import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
+import {
+  StageAlertBanner,
+  StageAlertOverlay,
+  useCommunicationStore,
+  useCommunicationSync,
+} from "@/features/communication";
 
 /**
  * Saída transparente para transmissão ao vivo (OBS Studio, vMix, etc.)
@@ -19,8 +25,10 @@ import { getPageForContext, materializePage } from "@/features/slide-themes/page
 export default function StreamView() {
   usePresentationSync("stream");
   useThemesSync();
+  useCommunicationSync();
 
   const live = usePresentationStore((s) => s.live);
+  const activeAlert = useCommunicationStore((s) => s.activeAlert);
   const loadThemes = useSlideThemesStore((s) => s.load);
   const ensureSeeded = useSlideThemesStore((s) => s.ensureSeeded);
   const themes = useSlideThemesStore((s) => s.themes);
@@ -90,6 +98,13 @@ export default function StreamView() {
   const isPresenting = live.content.kind !== "blank";
   const shouldClear = live.cleared || !isPresenting;
 
+  const isTargeted = Boolean(
+    activeAlert &&
+      (activeAlert.targets?.length
+        ? activeAlert.targets.includes("stream")
+        : activeAlert.target === "stream"),
+  );
+
   return (
     <div className="relative h-full w-full overflow-hidden bg-transparent select-none">
       {/* Camada de Conteúdo e Slides Transparente */}
@@ -112,6 +127,21 @@ export default function StreamView() {
           opacity: live.blackout ? 1 : 0,
         }}
       />
+
+      {/* Painel de Comunicação & Avisos: Banner Superior */}
+      {isTargeted && activeAlert && activeAlert.displayMode === "banner_top" && (
+        <StageAlertBanner position="top" alert={activeAlert} />
+      )}
+
+      {/* Painel de Comunicação & Avisos: Banner Inferior */}
+      {isTargeted && activeAlert && activeAlert.displayMode === "banner_bottom" && (
+        <StageAlertBanner position="bottom" alert={activeAlert} />
+      )}
+
+      {/* Painel de Comunicação & Avisos: Tela Cheia / Overlay */}
+      {isTargeted && activeAlert && activeAlert.displayMode === "overlay" && (
+        <StageAlertOverlay alert={activeAlert} />
+      )}
     </div>
   );
 }

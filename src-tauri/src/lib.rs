@@ -355,6 +355,8 @@ pub fn run() {
             commands::presentation::close_preferences_window,
             commands::presentation::open_shortcuts_window,
             commands::presentation::close_shortcuts_window,
+            commands::presentation::open_communication_window,
+            commands::presentation::close_communication_window,
             commands::presentation::open_theme_editor,
             commands::presentation::send_stage_message,
             commands::presentation::clear_stage_message,

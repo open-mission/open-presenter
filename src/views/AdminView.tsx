@@ -47,7 +47,6 @@ import { UpdateDialog } from "@/features/updates/UpdateDialog";
 import { WhatsNewDialog } from "@/features/updates/WhatsNewDialog";
 import { useUpdateChecker } from "@/features/updates/useUpdateChecker";
 import {
-  CommunicationDialog,
   useCommunicationStore,
   useCommunicationSync,
 } from "@/features/communication";
@@ -79,7 +78,7 @@ export default function AdminView() {
       }
       if (e.key.toLowerCase() === "m") {
         e.preventDefault();
-        useCommunicationStore.getState().toggleDialog();
+        void useCommunicationStore.getState().openWindow();
       }
     }
 
@@ -282,9 +281,6 @@ export default function AdminView() {
       {/* Release notes and in-app update dialogs */}
       <UpdateDialog />
       <WhatsNewDialog />
-
-      {/* Painel de Comunicação & Avisos para o Retorno (Stage) */}
-      <CommunicationDialog />
     </div>
   );
 }

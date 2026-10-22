@@ -4,7 +4,7 @@ import { cn } from "@/core/lib/utils";
 import { useCommunicationStore } from "./store";
 
 export function HeaderCommunicationButton() {
-  const openDialog = useCommunicationStore((s) => s.openDialog);
+  const openWindow = useCommunicationStore((s) => s.openWindow);
   const activeAlert = useCommunicationStore((s) => s.activeAlert);
   const clearAlert = useCommunicationStore((s) => s.clearAlert);
 
@@ -14,9 +14,9 @@ export function HeaderCommunicationButton() {
         type="button"
         size="sm"
         variant="outline"
-        onClick={openDialog}
+        onClick={() => void openWindow()}
         className="h-8 gap-1.5 px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer"
-        title="Enviar mensagem ou alerta para o retorno (Stage) · ⌘M"
+        title="Abrir Painel de Comunicação & Avisos · ⌘M"
       >
         <Megaphone className="size-3.5" />
         <span className="hidden xl:inline">Avisos</span>
@@ -57,9 +57,9 @@ export function HeaderCommunicationButton() {
     >
       <button
         type="button"
-        onClick={openDialog}
+        onClick={() => void openWindow()}
         className="flex items-center gap-1.5 text-left cursor-pointer hover:opacity-90 max-w-[160px] md:max-w-[220px]"
-        title={`Alerta ativo no retorno: "${activeAlert.text}" · Clique para gerenciar`}
+        title={`Alerta ativo: "${activeAlert.text}" · Clique para gerenciar`}
       >
         <span className="relative flex size-2 shrink-0">
           <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-current opacity-75" />

@@ -49,6 +49,16 @@ export function StageAlertOverlay({
       ? "ATENÇÃO · COMUNICAÇÃO"
       : "RECADO DO OPERADOR";
 
+  const targetsLabel = useMemo(() => {
+    if (!alert.targets || alert.targets.length === 0) return "Comunicação";
+    const names: Record<string, string> = {
+      stage: "Retorno",
+      public: "Telão Público",
+      stream: "Transmissão",
+    };
+    return alert.targets.map((t) => names[t] || t).join(" · ");
+  }, [alert.targets]);
+
   return (
     <div
       role="alert"
@@ -90,7 +100,7 @@ export function StageAlertOverlay({
         {/* Sender / Target footer info */}
         {!compact && (
           <p className="mt-6 text-xs uppercase tracking-wider text-muted-foreground/80 font-mono">
-            Canal: Retorno (Stage) · {new Date(alert.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+            Canal: {targetsLabel} · {new Date(alert.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
           </p>
         )}
       </div>

@@ -8,6 +8,7 @@ import StageView from "./views/StageView";
 import StreamView from "./views/StreamView";
 import ThemeEditorView from "./views/ThemeEditorView";
 import SongEditorView from "./views/SongEditorView";
+import CommunicationView from "./views/CommunicationView";
 import RemoteView from "./features/remote/RemoteView";
 import { Toaster } from "@/components/ui/sonner";
 import { useMediaPortSync } from "@/core/config/mediaPort";
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/stream" element={<StreamView />} />
         <Route path="/theme-editor" element={<ThemeEditorView />} />
         <Route path="/song-editor" element={<SongEditorView />} />
+        <Route path="/communication" element={<CommunicationView />} />
         <Route path="/remote" element={<RemoteView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

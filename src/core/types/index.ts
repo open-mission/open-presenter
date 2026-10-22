@@ -118,6 +118,8 @@ export type CommunicationDisplayMode =
 
 export type CommunicationLevel = "info" | "warning" | "urgent";
 
+export type CommunicationTarget = "stage" | "public" | "stream";
+
 export interface CommunicationAlert {
   id: string;
   text: string;
@@ -126,6 +128,7 @@ export interface CommunicationAlert {
   level: CommunicationLevel;
   sender?: string;
   target?: string;
+  targets: CommunicationTarget[];
   autoDismissSeconds?: number;
   createdAt: string;
 }

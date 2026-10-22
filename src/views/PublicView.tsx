@@ -15,13 +15,27 @@ import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { contextForSlide } from "@/features/slide-themes/themeResolution";
 import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
+import {
+  StageAlertBanner,
+  StageAlertOverlay,
+  useCommunicationStore,
+  useCommunicationSync,
+} from "@/features/communication";
 
 export default function PublicView() {
   usePresentationSync("public");
   useWallpaperSync();
   useThemesSync();
+  useCommunicationSync();
   const live = usePresentationStore((s) => s.live);
   const wallpaper = useWallpaperStore((s) => s.wallpaper);
+  const activeAlert = useCommunicationStore((s) => s.activeAlert);
+  const isTargeted = Boolean(
+    activeAlert &&
+      (activeAlert.targets?.length
+        ? activeAlert.targets.includes("public")
+        : activeAlert.target === "public"),
+  );
   const loadThemes = useSlideThemesStore((s) => s.load);
   const themes = useSlideThemesStore((s) => s.themes);
   const bindings = useSlideThemesStore((s) => s.bindings);
@@ -161,6 +175,21 @@ export default function PublicView() {
           opacity: live.blackout ? 1 : 0,
         }}
       />
+
+      {/* Painel de Comunicação & Avisos: Banner Superior */}
+      {isTargeted && activeAlert && activeAlert.displayMode === "banner_top" && (
+        <StageAlertBanner position="top" alert={activeAlert} />
+      )}
+
+      {/* Painel de Comunicação & Avisos: Banner Inferior */}
+      {isTargeted && activeAlert && activeAlert.displayMode === "banner_bottom" && (
+        <StageAlertBanner position="bottom" alert={activeAlert} />
+      )}
+
+      {/* Painel de Comunicação & Avisos: Tela Cheia / Overlay */}
+      {isTargeted && activeAlert && activeAlert.displayMode === "overlay" && (
+        <StageAlertOverlay alert={activeAlert} />
+      )}
     </div>
   );
 }

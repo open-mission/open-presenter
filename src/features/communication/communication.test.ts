@@ -47,7 +47,7 @@ test("buildStageProps resolve variáveis de mensagem para vazio quando ausente",
   assert.equal(props.alerta, "");
 });
 
-test("DEFAULT_PRESETS contém atalhos válidos com modos e níveis", () => {
+test("DEFAULT_PRESETS contém atalhos válidos com modos, níveis e saídas de destino", () => {
   assert.ok(DEFAULT_PRESETS.length >= 5);
   for (const preset of DEFAULT_PRESETS) {
     assert.ok(preset.id.length > 0);
@@ -59,10 +59,15 @@ test("DEFAULT_PRESETS contém atalhos válidos com modos e níveis", () => {
         preset.displayMode,
       ),
     );
+    assert.ok(Array.isArray(preset.targets));
+    assert.ok(preset.targets.length > 0);
+    for (const tgt of preset.targets) {
+      assert.ok(["stage", "public", "stream"].includes(tgt));
+    }
   }
 });
 
-test("estrutura de CommunicationAlert é serializável e possui todos os campos", () => {
+test("estrutura de CommunicationAlert é serializável e possui todos os campos incluindo multi-destinos", () => {
   const alert: CommunicationAlert = {
     id: "alert-1",
     text: "Abaixe o volume do retorno",
@@ -71,6 +76,7 @@ test("estrutura de CommunicationAlert é serializável e possui todos os campos"
     level: "warning",
     sender: "Operador",
     target: "stage",
+    targets: ["stage", "public"],
     autoDismissSeconds: 30,
     createdAt: new Date().toISOString(),
   };
@@ -82,6 +88,7 @@ test("estrutura de CommunicationAlert é serializável e possui todos os campos"
   assert.equal(parsed.displayMode, "banner_bottom");
   assert.equal(parsed.scroll, false);
   assert.equal(parsed.level, "warning");
+  assert.deepEqual(parsed.targets, ["stage", "public"]);
   assert.equal(parsed.autoDismissSeconds, 30);
 });
 
