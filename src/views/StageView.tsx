@@ -103,6 +103,14 @@ export default function StageView() {
     return () => clearInterval(interval);
   }, []);
 
+  const isTargeted = Boolean(
+    activeAlert &&
+      (!activeAlert.targets ||
+        activeAlert.targets.length === 0 ||
+        activeAlert.targets.includes("stage") ||
+        activeAlert.target === "stage"),
+  );
+
   const stageProps = buildStageProps({
     content: live.content,
     nextUp,
@@ -115,7 +123,7 @@ export default function StageView() {
     countdownMinutes,
     blackout: live.blackout,
     cleared: live.cleared,
-    activeMessage: activeAlert?.text,
+    activeMessage: isTargeted ? activeAlert?.text : "",
   });
 
   return (
@@ -149,17 +157,17 @@ export default function StageView() {
       )}
 
       {/* Painel de Comunicação & Avisos: Banner Superior */}
-      {activeAlert && activeAlert.displayMode === "banner_top" && (
+      {isTargeted && activeAlert && activeAlert.displayMode === "banner_top" && (
         <StageAlertBanner position="top" alert={activeAlert} />
       )}
 
       {/* Painel de Comunicação & Avisos: Banner Inferior */}
-      {activeAlert && activeAlert.displayMode === "banner_bottom" && (
+      {isTargeted && activeAlert && activeAlert.displayMode === "banner_bottom" && (
         <StageAlertBanner position="bottom" alert={activeAlert} />
       )}
 
       {/* Painel de Comunicação & Avisos: Tela Cheia / Overlay */}
-      {activeAlert && activeAlert.displayMode === "overlay" && (
+      {isTargeted && activeAlert && activeAlert.displayMode === "overlay" && (
         <StageAlertOverlay alert={activeAlert} />
       )}
 

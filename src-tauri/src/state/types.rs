@@ -694,8 +694,12 @@ fn default_comm_target() -> String {
     "stage".to_string()
 }
 
-/// Alerta / Mensagem do painel de comunicação, exibido no retorno (Stage)
-/// e extensível para outros canais (app de retorno, WhatsApp, etc.).
+fn default_comm_targets() -> Vec<String> {
+    vec!["stage".to_string()]
+}
+
+/// Alerta / Mensagem do painel de comunicação, exibido no retorno (Stage),
+/// telão público, transmissão (OBS) e extensível para outros canais.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CommunicationAlert {
@@ -711,6 +715,8 @@ pub struct CommunicationAlert {
     pub sender: Option<String>,
     #[serde(default = "default_comm_target")]
     pub target: String,
+    #[serde(default = "default_comm_targets")]
+    pub targets: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_dismiss_seconds: Option<u32>,
     pub created_at: String,

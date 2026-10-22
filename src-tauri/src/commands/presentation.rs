@@ -178,6 +178,16 @@ pub async fn close_shortcuts_window(app: tauri::AppHandle) -> Result<(), AppErro
 }
 
 #[tauri::command]
+pub async fn open_communication_window(app: tauri::AppHandle) -> Result<(), AppError> {
+    display_manager::open_communication_window(&app)
+}
+
+#[tauri::command]
+pub async fn close_communication_window(app: tauri::AppHandle) -> Result<(), AppError> {
+    display_manager::close_communication_window(&app)
+}
+
+#[tauri::command]
 pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), AppError> {
     use tauri::Manager;
     if let Some(window) = app.get_webview_window("main") {

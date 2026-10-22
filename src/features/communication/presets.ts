@@ -7,6 +7,7 @@ export const DEFAULT_PRESETS: QuickPreset[] = [
     text: "Pastor chamando no púlpito / altar",
     level: "urgent",
     displayMode: "banner_top",
+    targets: ["stage"],
     scroll: true,
   },
   {
@@ -15,6 +16,7 @@ export const DEFAULT_PRESETS: QuickPreset[] = [
     text: "Favor abaixar o volume do retorno",
     level: "warning",
     displayMode: "banner_bottom",
+    targets: ["stage"],
     scroll: false,
   },
   {
@@ -23,6 +25,7 @@ export const DEFAULT_PRESETS: QuickPreset[] = [
     text: "Favor aumentar o volume do retorno",
     level: "info",
     displayMode: "banner_bottom",
+    targets: ["stage"],
     scroll: false,
   },
   {
@@ -31,6 +34,7 @@ export const DEFAULT_PRESETS: QuickPreset[] = [
     text: "Tempo restante: 5 minutos para encerramento",
     level: "warning",
     displayMode: "banner_top",
+    targets: ["stage"],
     scroll: false,
   },
   {
@@ -39,6 +43,7 @@ export const DEFAULT_PRESETS: QuickPreset[] = [
     text: "Tempo esgotado · Favor concluir",
     level: "urgent",
     displayMode: "overlay",
+    targets: ["stage"],
     scroll: false,
   },
   {
@@ -47,15 +52,26 @@ export const DEFAULT_PRESETS: QuickPreset[] = [
     text: "Atenção: instrumento desafinado no palco",
     level: "info",
     displayMode: "banner_bottom",
+    targets: ["stage"],
     scroll: true,
   },
   {
     id: "mic-issue",
-    label: "Microfone mudo/baixo",
+    label: "Microfone com problema",
     text: "Microfone baixo ou desligado · Verifique",
     level: "warning",
     displayMode: "banner_top",
+    targets: ["stage"],
     scroll: false,
+  },
+  {
+    id: "vehicle-lights",
+    label: "Carro c/ farol aceso",
+    text: "Atenção: veículo no estacionamento com luzes acesas",
+    level: "warning",
+    displayMode: "banner_bottom",
+    targets: ["public", "stage"],
+    scroll: true,
   },
   {
     id: "attention-team",
@@ -63,6 +79,7 @@ export const DEFAULT_PRESETS: QuickPreset[] = [
     text: "Atenção equipe de louvor e ministração",
     level: "info",
     displayMode: "banner_bottom",
+    targets: ["stage"],
     scroll: true,
   },
   {
@@ -71,6 +88,7 @@ export const DEFAULT_PRESETS: QuickPreset[] = [
     text: "Músicos podem descer do altar",
     level: "info",
     displayMode: "banner_bottom",
+    targets: ["stage"],
     scroll: false,
   },
 ];

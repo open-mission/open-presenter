@@ -249,6 +249,41 @@ pub fn close_shortcuts_window(app: &AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
+pub fn open_communication_window(app: &AppHandle) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("communication") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        window.set_focus().map_err(AppError::Tauri)?;
+        return Ok(());
+    }
+
+    let builder = WebviewWindowBuilder::new(
+        app,
+        "communication",
+        WebviewUrl::App("index.html#/communication".into()),
+    )
+    .title("Painel de Comunicação & Avisos — Open Presenter")
+    .inner_size(1120.0, 700.0)
+    .min_inner_size(860.0, 520.0)
+    .resizable(true)
+    .center()
+    .focused(true)
+    .background_color(Color(10, 10, 10, 255))
+    .decorations(true);
+
+    let window = builder.build().map_err(AppError::Tauri)?;
+    let _ = window.show();
+    let _ = window.set_focus();
+    Ok(())
+}
+
+pub fn close_communication_window(app: &AppHandle) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("communication") {
+        window.close().map_err(AppError::Tauri)?;
+    }
+    Ok(())
+}
+
 pub fn open_theme_editor_window(app: &AppHandle, guid: Option<String>) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window("theme-editor") {
         let _ = window.unminimize();

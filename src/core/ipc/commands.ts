@@ -88,6 +88,14 @@ export async function closeShortcutsWindow(): Promise<void> {
   await invokeCommand("close_shortcuts_window");
 }
 
+export async function openCommunicationWindow(): Promise<void> {
+  await invokeCommand("open_communication_window");
+}
+
+export async function closeCommunicationWindow(): Promise<void> {
+  await invokeCommand("close_communication_window");
+}
+
 export async function openThemeEditor(guid?: string): Promise<void> {
   await invokeCommand("open_theme_editor", { guid: guid ?? null });
 }
