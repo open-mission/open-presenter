@@ -3,8 +3,6 @@ title: API REST, Swagger & Automações
 description: Guia completo para automatizar o Open Presenter via API HTTP, Swagger UI, Stream Deck, Bitfocus Companion e scripts.
 ---
 
-# API REST, Swagger & Automações
-
 O Open Presenter inclui um servidor HTTP de alta performance (baseado em **Axum**) que roda na porta **`5050`**, expondo endpoints REST e WebSocket para controle remoto e automações audiovisuais.
 
 Com esta API, você pode integrar o Open Presenter com:
@@ -13,9 +11,25 @@ Com esta API, você pode integrar o Open Presenter com:
 - Bots de WhatsApp e automações de recepção/estacionamento (envio de avisos de carros).
 - Sistemas de automação de transmissão e roteadores de vídeo.
 
+```mermaid
+sequenceDiagram
+    participant Client as Stream Deck / Companion
+    participant API as Axum :5050
+    participant Token as Validação de token
+    participant Command as Comando interno
+    participant State as PresentationState
+
+    Client->>API: requisição REST
+    API->>Token: Bearer / PIN
+    Token-->>API: autorizado
+    API->>Command: executa a ação
+    Command->>State: atualiza slide ou aviso
+    State-->>Client: 200 + estado atual
+```
+
 ---
 
-## 📑 Swagger UI Interativo
+## Swagger UI Interativo
 
 O servidor embutido fornece uma interface interativa do **Swagger UI** para inspecionar, testar e executar chamadas em tempo real:
 
@@ -26,7 +40,7 @@ Na interface do Swagger, você pode clicar no botão verde **Authorize**, inseri
 
 ---
 
-## 🔐 Autenticação com Token (API Key)
+## Autenticação com Token (API Key)
 
 Por segurança, os endpoints que alteram a projeção ou leem dados do culto exigem autenticação.
 
@@ -54,7 +68,7 @@ Se o token for inválido ou ausente, a API retornará `401 Unauthorized`. Se a A
 
 ---
 
-## 🎛️ Principais Endpoints de Automação
+## Principais Endpoints de Automação
 
 ### 1. Ao Vivo e Slides
 
@@ -111,7 +125,7 @@ Envie mensagens para o Retorno de Palco, Telão ou Transmissão:
 
 ---
 
-## 🕹️ Integração com Bitfocus Companion (Stream Deck)
+## Integração com Bitfocus Companion (Stream Deck)
 
 Para controlar o Open Presenter a partir do seu Elgato Stream Deck usando o **Bitfocus Companion**:
 
@@ -135,7 +149,7 @@ Para controlar o Open Presenter a partir do seu Elgato Stream Deck usando o **Bi
 
 ---
 
-## 💻 Exemplos em Código
+## Exemplos em Código
 
 ### cURL
 
@@ -209,7 +223,7 @@ async function sendUrgentNotice(message: string) {
 
 ---
 
-## ⚡ Streaming em Tempo Real (WebSocket)
+## Streaming em Tempo Real (WebSocket)
 
 Para aplicações que precisam ser notificadas instantaneamente quando um slide mudar ou quando o cronômetro atualizar, conecte-se ao WebSocket:
 

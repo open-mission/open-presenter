@@ -3,13 +3,11 @@ title: Testes & Garantia de Qualidade
 description: Como rodar testes locais, padrões do Node test runner e boas práticas de código.
 ---
 
-# Testes & Garantia de Qualidade
-
 A integridade do Open Presenter é protegida por uma suíte de testes rápidos e autônomos que rodam em menos de 2 segundos.
 
 ---
 
-## 🧪 O Test Runner Nativo (`node --test`)
+## O Test Runner Nativo (`node --test`)
 
 O projeto não utiliza Jest ou Vitest (que adicionam centenas de megabytes de dependências pesadas). Em vez disso, utiliza o **Node Native Test Runner**:
 
@@ -25,7 +23,7 @@ npm test
 
 ---
 
-## 🔍 TypeScript Strict (`npm run typecheck`)
+## TypeScript Strict (`npm run typecheck`)
 
 O projeto opera sob as regras mais estritas do compilador TypeScript (`tsconfig.json`):
 - `noUnusedLocals`: Variáveis declaradas e não usadas são erros de build.
@@ -34,7 +32,7 @@ O projeto opera sob as regras mais estritas do compilador TypeScript (`tsconfig.
 
 ---
 
-## 🦀 Verificação no Rust (`cargo check`)
+## Verificação no Rust (`cargo check`)
 
 Devido à limitação comum de espaço em disco e consumo de memória em compilações concorrentes:
 - Nunca rode `cargo build --release` para verificações rápidas.

@@ -3,9 +3,17 @@ title: Como Adicionar Novas Features
 description: Guia passo a passo para desenvolvedores e agentes criarem novas funcionalidades no Open Presenter.
 ---
 
-# Guia Passo a Passo: Criando Novas Features
-
 Ao implementar uma nova funcionalidade no Open Presenter, siga estritamente este checklist para manter a coesão arquitetural e conformidade com o `AGENTS.md`.
+
+```mermaid
+flowchart TD
+    A["1. Tipos compartilhados<br/>Rust + TypeScript"] --> B["2. Serviço<br/>src-tauri/src/services"]
+    B --> C["3. Comando IPC<br/>src-tauri/src/commands"]
+    C --> D["4. Registrar no invoke_handler"]
+    D --> E["5. Wrapper tipado<br/>src/core/ipc/commands.ts"]
+    E --> F["6. Feature<br/>store Zustand + componentes"]
+    F --> G["7. Qualidade<br/>typecheck · testes · cargo check"]
+```
 
 ---
 

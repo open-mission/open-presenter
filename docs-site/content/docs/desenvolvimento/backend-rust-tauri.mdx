@@ -3,13 +3,11 @@ title: Backend Rust & Comandos IPC
 description: Como funciona a camada nativa em Rust, gerenciamento de estado e chamadas IPC no Tauri v2.
 ---
 
-# Backend Rust & Comandos IPC
-
 O backend do Open Presenter é implementado em **Rust** e executado pelo runtime do **Tauri v2**. Ele garante máxima segurança de memória, ausência de deadlocks e latência quase nula.
 
 ---
 
-## 🛠️ Gerenciamento de Estado no Tauri
+## Gerenciamento de Estado no Tauri
 
 Toda estrutura de dados compartilhada é gerenciada pelo Tauri via `app.manage(...)` no `src-tauri/src/lib.rs`:
 
@@ -29,7 +27,7 @@ app.manage(broadcaster.clone());
 
 ---
 
-## 🔌 Estrutura de um Comando IPC
+## Estrutura de um Comando IPC
 
 Todos os comandos IPC são declarados em `src-tauri/src/commands/`:
 
@@ -57,7 +55,7 @@ E registrados no `invoke_handler` em `src-tauri/src/lib.rs`:
 
 ---
 
-## 🌐 Mapeamento para o Frontend TypeScript
+## Mapeamento para o Frontend TypeScript
 
 No frontend, em `src/core/ipc/commands.ts`, expõe-se um wrapper tipado usando `invokeCommand`:
 

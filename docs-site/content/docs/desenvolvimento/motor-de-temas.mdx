@@ -3,13 +3,21 @@ title: Motor de Temas v2 e Renderização
 description: Materialização de temas v2, resolução por contexto, shaders WebGL e cálculo de auto-fit.
 ---
 
-# Motor de Temas v2 & Renderização
-
 O motor de temas do Open Presenter é responsável por transformar dados brutos de slides em layouts visualmente impactantes, respeitando resolução, quebra de linha e responsividade.
+
+```mermaid
+flowchart LR
+    Slide["Slide + contexto"] --> Resolve["Resolve o tema<br/>public · stage · stream"]
+    Resolve --> Materialize["materializePage()"]
+    Materialize --> Render["ThemeRenderer"]
+    Render --> Background["Fundo<br/>cor, mídia ou shader"]
+    Render --> Layers["Camadas<br/>texto e widgets"]
+    Render --> Fit["Auto-fit<br/>quebra e escala"]
+```
 
 ---
 
-## 🏗️ Estrutura de um Tema v2
+## Estrutura de um Tema v2
 
 Um tema v2 (`SlideTheme`) contém:
 - `guid`: Identificador único UUID.
@@ -21,7 +29,7 @@ Um tema v2 (`SlideTheme`) contém:
 
 ---
 
-## ⚡ Materialização por Contexto
+## Materialização por Contexto
 
 O processo de materialização é puramente funcional e imutável (`src/features/slide-themes/pages.ts`):
 
@@ -42,7 +50,7 @@ Quando um slide é apresentado, o componente `SlideTransition` recebe o contexto
 
 ---
 
-## 📐 Algoritmo de Auto-Shrink / Auto-Fit
+## Algoritmo de Auto-Shrink / Auto-Fit
 
 Para garantir que textos longos nunca transbordem da tela ou fiquem cortados:
 - O Open Presenter calcula a razão entre o tamanho do contêiner e o volume de texto.
@@ -51,7 +59,7 @@ Para garantir que textos longos nunca transbordem da tela ou fiquem cortados:
 
 ---
 
-## 🌌 Shaders ISF (Interactive Shader Format)
+## Shaders ISF (Interactive Shader Format)
 
 Para fundos dinâmicos em movimento sem arquivos de vídeo pesados:
 - Utiliza **WebGL** através do engine em `src/features/media-shaders/isfEngine.ts`.

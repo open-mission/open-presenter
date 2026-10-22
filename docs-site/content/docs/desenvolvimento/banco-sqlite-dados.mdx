@@ -3,8 +3,6 @@ title: Banco SQLite e Persistência
 description: Estrutura do banco de dados relacional embarcado, migrações e persistência de dados.
 ---
 
-# Banco de Dados SQLite & Persistência
-
 O Open Presenter utiliza **SQLite** integrado através do crate `rusqlite` no backend Rust, garantindo transações ACID, portabilidade e backups fáceis.
 
 O arquivo do banco de dados fica localizado no diretório de dados do usuário:
@@ -14,7 +12,7 @@ O arquivo do banco de dados fica localizado no diretório de dados do usuário:
 
 ---
 
-## 🏛️ Tabelas Principais
+## Tabelas Principais
 
 1. **`songs` & `song_verses`:**
    - Armazena as músicas, títulos, autores, tom musical, tags e todas as estrofes com suas respectivas ordens e tipos (`verse`, `chorus`, `bridge`, etc.).
@@ -27,9 +25,63 @@ O arquivo do banco de dados fica localizado no diretório de dados do usuário:
 5. **`settings`:**
    - Configurações do operador (chave/valor) para portas do servidor, tokens de acesso remoto, monitor padrão, etc.
 
+```mermaid
+erDiagram
+    SONGS ||--o{ SONG_VERSES : "possui"
+    SETLISTS ||--o{ SETLIST_ITEMS : "organiza"
+    SONGS ||--o{ SETLIST_ITEMS : "referenciada"
+    BIBLE_VERSIONS ||--o{ BIBLE_BOOKS : "contém"
+    BIBLE_BOOKS ||--o{ BIBLE_VERSES : "contém"
+    THEMES ||--o{ SETLIST_ITEMS : "estiliza"
+
+    SONGS {
+        string id PK
+        string title
+        string author
+        string key
+    }
+    SONG_VERSES {
+        string id PK
+        string song_id FK
+        string type
+        int position
+        text content
+    }
+    SETLISTS {
+        string id PK
+        string name
+        string event_date
+    }
+    SETLIST_ITEMS {
+        string id PK
+        string setlist_id FK
+        string item_type
+        int position
+    }
+    BIBLE_VERSIONS {
+        string id PK
+        string abbreviation
+        string name
+    }
+    BIBLE_VERSES {
+        string id PK
+        string version_id FK
+        string book_id FK
+        int chapter
+        int verse
+        text content
+    }
+    THEMES {
+        string guid PK
+        string title
+        string category
+        json definition
+    }
+```
+
 ---
 
-## 🔄 Sistema de Migrações Automáticas
+## Sistema de Migrações Automáticas
 
 As migrações do banco residem em `src-tauri/src/services/database.rs`:
 - Toda vez que a aplicação é iniciada, o método `migrate(&conn)` é chamado.

@@ -3,28 +3,33 @@ title: Começando a Operar
 description: Guia inicial para operadores e técnicos de multimídia e projeção.
 ---
 
-# Começando a Operar
-
 Este guia é voltado para os voluntários, técnicos de som, operadores de mídia e líderes de louvor que usam o **Open Presenter** durante os cultos e eventos.
 
 ---
 
-## 🖥️ A Janela Principal (Painel do Operador)
+## A Janela Principal (Painel do Operador)
 
-Ao abrir o Open Presenter, você verá a janela de controle do operador dividida estrategicamente em três áreas principais:
+Ao abrir o Open Presenter, você verá a janela de controle do operador dividida em três áreas principais:
 
+```mermaid
+flowchart LR
+    subgraph Painel["Painel do operador"]
+        A["1. Setlist<br/>ordem do culto"]
+        B["2. Grade de slides<br/>letras e versículos"]
+        C["3. Monitores<br/>prévia, ao vivo e stage"]
+    end
+
+    A --> B --> C
+    C --> D["Telão público"]
+    C --> E["Retorno de palco"]
+    C --> F["Transmissão / OBS"]
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│  [TopBar] Open Presenter | Músicas | Bíblia | Agenda | Studio | Avisos │
-├──────────────┬────────────────────────────┬────────────────────────────┤
-│ 1. Setlist   │ 2. Slides da Apresentação  │ 3. Painel de Prévia        │
-│    do Culto  │    (Grade ou Tabela)       │    - Prévia (Preview)      │
-│              │                            │    - Ao Vivo (Telão)       │
-│  - Músicas   │  - Estrofes / Versículos   │    - Retorno (Stage)       │
-│  - Bíblia    │  - Próximo Slide           │    - Cronômetro / Timer    │
-│  - Avisos    │  - Indicadores de Seção    │    - Controles de Blackout │
-└──────────────┴────────────────────────────┴────────────────────────────┘
-```
+
+<Screenshot
+  src="/screenshots/main.webp"
+  alt="Painel do operador com setlist à esquerda, grade de slides ao centro e monitores à direita"
+  caption="Setlist, slides e monitores: a janela principal do operador."
+/>
 
 1. **Barra Lateral Esquerda (Setlist / Ordem do Culto):**
    - Lista sequencial das músicas, passagens bíblicas e momentos da reunião.
@@ -40,7 +45,7 @@ Ao abrir o Open Presenter, você verá a janela de controle do operador dividida
 
 ---
 
-## ⚡ Regra de Ouro da Apresentação
+## Regra de Ouro da Apresentação
 
 O Open Presenter utiliza o clássico e seguro fluxo **Prévia ➔ Ao Vivo**:
 
@@ -53,7 +58,7 @@ O Open Presenter utiliza o clássico e seguro fluxo **Prévia ➔ Ao Vivo**:
 
 ---
 
-## 🛑 Controles de Emergência (Blackout & Clear)
+## Controles de Emergência (Blackout & Clear)
 
 Em qualquer momento do culto, se algo inesperado acontecer (ex.: o pregador mudar de assunto ou o pastor pedir para tirar a letra), utilize os controles rápidos:
 

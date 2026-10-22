@@ -3,17 +3,28 @@ title: Telão Público, Retorno (Stage) e OBS
 description: Configuração de múltiplos monitores físicos, saídas nativas, servidor web e OBS.
 ---
 
-# Saídas e Gerenciamento de Monitores
-
 O Open Presenter gerencia até 3 destinos principais de exibição simultânea:
 
 1. **Público (Telão / Projetor):** A saída principal voltada para a igreja/congregação.
 2. **Stage (Retorno de Palco):** Monitor voltado para o pastor, pregador e grupo de louvor.
 3. **Stream (Transmissão ao Vivo):** Saída transparente com Lower Thirds para OBS Studio, vMix ou encoders NDI.
 
+```mermaid
+flowchart TD
+    State["PresentationState<br/>slide, tema, avisos e timer"] --> Broadcaster["Broadcaster"]
+
+    Broadcaster --> Native["Janela nativa<br/>público e stage"]
+    Broadcaster --> Web["Servidor web :5050"]
+
+    Web --> Public["/#/public<br/>telão no navegador"]
+    Web --> Stage["/#/stage<br/>retorno de palco"]
+    Web --> Stream["/#/stream<br/>OBS / vMix"]
+    Web --> Remote["/#/remote<br/>controle no celular"]
+```
+
 ---
 
-## 🖥️ Modos de Saída
+## Modos de Saída
 
 Para cada saída, você pode escolher como deseja projetar:
 
@@ -25,7 +36,7 @@ Para cada saída, você pode escolher como deseja projetar:
 
 ---
 
-## ⚙️ Configurando as Saídas no App
+## Configurando as Saídas no App
 
 1. Abra as **Preferências** (`⌘ ,` ou menu `Open Presenter ➔ Preferências`).
 2. Clique na aba **Saídas**:
@@ -36,7 +47,7 @@ Para cada saída, você pode escolher como deseja projetar:
 
 ---
 
-## 🎥 Integração com OBS Studio e vMix (Live Stream)
+## Integração com OBS Studio e vMix (Live Stream)
 
 Para projetar letras e versículos na sua transmissão do YouTube/Facebook:
 

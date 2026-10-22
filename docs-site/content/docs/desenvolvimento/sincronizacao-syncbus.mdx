@@ -3,8 +3,6 @@ title: Barramento syncBus, Eventos Tauri e WebSocket
 description: Como a sincronização em tempo real entre janelas e dispositivos funciona por baixo dos panos.
 ---
 
-# Sincronização em Tempo Real (`syncBus`)
-
 O Open Presenter opera em um modelo multi-tela altamente distribuído:
 - Janela do Operador (`AdminView`).
 - Janela de Comunicação (`CommunicationView`).
@@ -17,7 +15,7 @@ Para manter todas as saídas 100% sincronizadas sem discrepância de frames, o s
 
 ---
 
-## ⚡ Como o `syncBus` Opera
+## Como o `syncBus` Opera
 
 ```mermaid
 sequenceDiagram
@@ -41,7 +39,7 @@ sequenceDiagram
 
 ---
 
-## 📡 Inicialização do `syncBus`
+## Inicialização do `syncBus`
 
 No ambiente desktop (`isTauri()`), o `syncBus` registra listeners nativos do Tauri:
 

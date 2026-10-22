@@ -3,56 +3,58 @@ title: Visão Geral do Open Presenter
 description: Software open source, moderno e leve para projeção em igrejas e eventos.
 ---
 
-# Bem-vindo ao Open Presenter
+O **Open Presenter** é uma plataforma moderna, aberta e de alta performance para projeção de letras, escrituras bíblicas, mídias e comunicação em igrejas e eventos audiovisuais.
 
-O **Open Presenter** é uma plataforma moderna, aberta e de alta performance criada para gerenciar projeção de letras, escrituras bíblicas, mídias e comunicação em igrejas e eventos audiovisuais.
+Arquitetura híbrida de alto desempenho: **Tauri v2 (Rust)** no backend e **React 19 + TypeScript + Tailwind CSS** no frontend. A velocidade e o baixo consumo de memória do desktop, com a flexibilidade da web moderna.
 
-Desenvolvido com uma arquitetura híbrida de alto desempenho em **Tauri v2 (Rust)** no backend e **React 19 + TypeScript + Tailwind CSS** no frontend, o Open Presenter une a velocidade e o baixo consumo de memória nativos do desktop com a flexibilidade da web moderna.
+<Screenshot
+  src="/screenshots/main.webp"
+  alt="Painel do Open Presenter com setlist, letras, prévia, ao vivo e retorno de palco"
+  caption="O painel do operador: programação, letras, prévia e as três saídas no mesmo lugar."
+/>
 
----
+## Por que Open Presenter?
 
-## 🎯 Por que o Open Presenter?
+Softwares tradicionais de projeção costumam cobrar caro por máquina, consumir memória demais e dificultar o controle remoto. O Open Presenter foi projetado para resolver esses problemas desde o primeiro dia:
 
-A maioria dos softwares de projeção tradicionais (como ProPresenter, EasyWorship ou Holyrics) sofre com problemas comuns:
-1. **Alto consumo de memória e lentidão** em máquinas modestas.
-2. **Dependência de sistemas proprietários** e licenças caras por máquina.
-3. **Dificuldade de controle remoto** ou conexões remotas instáveis.
-4. **Configuração complexa** de saídas de vídeo e retornos de palco.
+- **Ultraleve e seguro.** O backend em Rust gerencia as saídas com latência mínima e quase zero overhead de CPU.
+- **Multi-monitor de verdade.** Público, retorno de palco (stage) e transmissão (OBS/vMix) ao mesmo tempo.
+- **Servidor web embutido.** Qualquer saída abre em navegadores da rede local na porta `5050`, sem placa de vídeo extra.
+- **Controle remoto sem instalação.** O celular controla slides, Bíblia e cronômetro direto pelo navegador, via QR Code.
+- **Comunicação integrada.** Avisos, mensagens e letreiros chegam às saídas sem interromper o culto.
+- **Aberto de verdade.** Código-fonte público, licença MIT e releases assinadas.
 
-O Open Presenter foi projetado desde o primeiro dia para resolver isso:
-- **Ultraleve e Seguro:** O backend em Rust gerencia saídas com latência mínima e quase zero overhead de CPU.
-- **Multi-Monitor Unificado:** Controle completo de Telão (Público), Retorno de Palco (Stage Display) e Transmissão ao Vivo (OBS/vMix via Browser Source transparente ou NDI).
-- **Servidor Web Embutido (Porta 5050):** Qualquer saída pode ser aberta em navegadores na rede local, permitindo monitores extras sem placas de vídeo caras.
-- **Controle Remoto sem Instalação:** Os líderes e operadores podem trocar slides ou controlar o cronômetro do culto diretamente pelo celular via QR Code.
-- **Painel de Comunicação Integrado:** Envie mensagens, avisos e letreiros rolantes (marquee) instantaneamente para os músicos, pregadores ou congregação.
-
----
-
-## 🧭 Como navegar nesta documentação
-
-Esta documentação foi estruturada para atender a dois públicos fundamentais:
+## Como navegar
 
 <Cards>
   <Card
-    title="📖 Guia do Operador & Técnico"
-    description="Aprenda a operar cultos, montar setlists, projetar versículos bíblicos, gerenciar monitores e usar atalhos rápidos."
+    title="Guia do operador"
+    description="Aprenda a operar cultos, montar setlists, projetar versículos, gerenciar monitores e usar atalhos."
     href="/docs/operacao"
   />
   <Card
-    title="💻 Guia para Desenvolvedores & Agentes de IA"
-    description="Entenda a arquitetura técnica, fluxo de IPC no Rust, sincronização syncBus, stores Zustand e regras do AGENTS.md."
+    title="Desenvolvimento & IA"
+    description="Arquitetura, IPC no Rust, syncBus, stores Zustand, banco SQLite e as regras do AGENTS.md."
     href="/docs/desenvolvimento"
+  />
+  <Card
+    title="Arquitetura de sincronização"
+    description="Como o PresentationState, o broadcaster e o WebSocket mantêm todas as telas no mesmo frame."
+    href="/docs/desenvolvimento/sincronizacao-syncbus"
+  />
+  <Card
+    title="API e automações"
+    description="REST, Swagger, token de acesso, Stream Deck, Bitfocus Companion e integrações via WebSocket."
+    href="/docs/desenvolvimento/api-e-automacoes"
   />
 </Cards>
 
----
+## Como iniciar localmente
 
-## 🚀 Como Iniciar Localmente
-
-Para rodar o Open Presenter no seu ambiente de desenvolvimento:
+Para rodar o aplicativo:
 
 ```bash
-# 1. Instalar dependências do projeto
+# 1. Instalar dependências
 npm install
 
 # 2. Rodar a interface web no navegador (Vite)
@@ -62,10 +64,23 @@ npm run dev
 npm run tauri:dev
 ```
 
-Para rodar esta documentação localmente:
+Para rodar esta documentação:
 
 ```bash
 npm run docs:dev
 ```
 
-A documentação ficará acessível em `http://localhost:3000`.
+A documentação fica em `http://localhost:3000`. O app compilado é servido pelo
+servidor embutido na porta `5050`.
+
+## O fluxo de uma apresentação
+
+```mermaid
+flowchart LR
+    A["Programação do culto<br/>setlist, Bíblia, avisos"] --> B["Prévia<br/>o operador confere"]
+    B -->|"Enter ou 2 cliques"| C["Ao vivo<br/>telão público"]
+    C --> D["Retorno de palco<br/>letra, próximo slide, cronômetro"]
+    C --> E["Transmissão<br/>lower third no OBS"]
+```
+
+A regra é simples: **nada vai ao ar sem passar pela prévia**. Quando o momento chega, um comando só atualiza todas as saídas.
