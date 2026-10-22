@@ -3,7 +3,7 @@ import { elementRect } from "./geometry.ts";
 
 export type ReorderDirection = "front" | "back" | "forward" | "backward";
 
-interface DuplicateOptions {
+export interface DuplicateOptions {
   offset?: number;
   makeId?: () => string;
   makeGroupId?: () => string;
