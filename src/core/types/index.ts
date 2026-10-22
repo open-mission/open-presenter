@@ -187,6 +187,10 @@ export type WeekStart = "sunday" | "monday";
 export interface SongDefaults {
   linesPerSlide: LinesPerSlide;
   addEmptySlideAtStart: boolean;
+  vagalumeEnabled: boolean;
+  holyricsEnabled: boolean;
+  lrclibEnabled: boolean;
+  vagalumeApiKey: string | null;
 }
 
 export interface EventItem {
@@ -231,6 +235,8 @@ export interface OnlineLyricHit {
   trackName: string;
   artistName: string;
   albumName: string | null;
+  provider?: string | null;
+  providerId?: string | null;
 }
 
 export interface ImportSkip {

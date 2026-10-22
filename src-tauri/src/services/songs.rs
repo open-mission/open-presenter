@@ -236,6 +236,18 @@ pub fn insert_new(
     artist: &str,
     sections: &[SongSection],
 ) -> Result<String, AppError> {
+    insert_new_with_metadata(conn, title, artist, None, None, None, sections)
+}
+
+pub fn insert_new_with_metadata(
+    conn: &Connection,
+    title: &str,
+    artist: &str,
+    composer: Option<String>,
+    song_key: Option<String>,
+    bpm: Option<i32>,
+    sections: &[SongSection],
+) -> Result<String, AppError> {
     let id: String = conn
         .query_row("SELECT lower(hex(randomblob(16)))", [], |row| row.get(0))
         .map_err(storage_error)?;
@@ -244,9 +256,9 @@ pub fn insert_new(
         title: title.to_string(),
         artist: artist.to_string(),
         album: None,
-        composer: None,
-        song_key: None,
-        bpm: None,
+        composer,
+        song_key,
+        bpm,
         sections: sections.to_vec(),
     };
     save(conn, &song)?;
@@ -255,14 +267,29 @@ pub fn insert_new(
 
 pub const LINES_PER_SLIDE_KEY: &str = "songs.lines_per_slide";
 pub const ADD_EMPTY_SLIDE_AT_START_KEY: &str = "songs.add_empty_slide_at_start";
+pub const VAGALUME_ENABLED_KEY: &str = "songs.vagalume_enabled";
+pub const HOLYRICS_ENABLED_KEY: &str = "songs.holyrics_enabled";
+pub const LRCLIB_ENABLED_KEY: &str = "songs.lrclib_enabled";
+pub const VAGALUME_API_KEY: &str = "songs.vagalume_api_key";
 
 pub fn song_defaults(conn: &Connection) -> Result<SongDefaults, AppError> {
     let value = settings::get_setting(conn, LINES_PER_SLIDE_KEY)?;
     let add_empty_slide_at_start =
         settings::get_setting(conn, ADD_EMPTY_SLIDE_AT_START_KEY)?.as_deref() == Some("true");
+    let vagalume_enabled =
+        settings::get_setting(conn, VAGALUME_ENABLED_KEY)?.as_deref() != Some("false");
+    let holyrics_enabled =
+        settings::get_setting(conn, HOLYRICS_ENABLED_KEY)?.as_deref() != Some("false");
+    let lrclib_enabled =
+        settings::get_setting(conn, LRCLIB_ENABLED_KEY)?.as_deref() != Some("false");
+    let vagalume_api_key = settings::get_setting(conn, VAGALUME_API_KEY)?;
     Ok(SongDefaults {
         lines_per_slide: LinesPerSlide::from_setting(value.as_deref()),
         add_empty_slide_at_start,
+        vagalume_enabled,
+        holyrics_enabled,
+        lrclib_enabled,
+        vagalume_api_key,
     })
 }
 
@@ -276,6 +303,38 @@ pub fn save_song_defaults(conn: &Connection, defaults: SongDefaults) -> Result<(
         } else {
             "false"
         },
+    )?;
+    settings::set_setting(
+        conn,
+        VAGALUME_ENABLED_KEY,
+        if defaults.vagalume_enabled {
+            "true"
+        } else {
+            "false"
+        },
+    )?;
+    settings::set_setting(
+        conn,
+        HOLYRICS_ENABLED_KEY,
+        if defaults.holyrics_enabled {
+            "true"
+        } else {
+            "false"
+        },
+    )?;
+    settings::set_setting(
+        conn,
+        LRCLIB_ENABLED_KEY,
+        if defaults.lrclib_enabled {
+            "true"
+        } else {
+            "false"
+        },
+    )?;
+    settings::set_setting(
+        conn,
+        VAGALUME_API_KEY,
+        defaults.vagalume_api_key.as_deref().unwrap_or(""),
     )
 }
 
@@ -445,6 +504,7 @@ mod tests {
             SongDefaults {
                 lines_per_slide: LinesPerSlide::Two,
                 add_empty_slide_at_start: true,
+                ..Default::default()
             },
         )
         .unwrap();
@@ -479,6 +539,7 @@ mod tests {
             SongDefaults {
                 lines_per_slide: LinesPerSlide::Keep,
                 add_empty_slide_at_start: false,
+                ..Default::default()
             },
         )
         .unwrap();
@@ -491,6 +552,7 @@ mod tests {
             SongDefaults {
                 lines_per_slide: LinesPerSlide::One,
                 add_empty_slide_at_start: false,
+                ..Default::default()
             },
         )
         .unwrap();
@@ -511,7 +573,8 @@ mod tests {
                 sections.clone(),
                 SongDefaults {
                     lines_per_slide: LinesPerSlide::Keep,
-                    add_empty_slide_at_start: false
+                    add_empty_slide_at_start: false,
+                    ..Default::default()
                 }
             ),
             sections
@@ -521,7 +584,8 @@ mod tests {
                 sections,
                 SongDefaults {
                     lines_per_slide: LinesPerSlide::Two,
-                    add_empty_slide_at_start: false
+                    add_empty_slide_at_start: false,
+                    ..Default::default()
                 }
             )
             .len(),
@@ -534,19 +598,35 @@ mod tests {
         let json = serde_json::to_value(SongDefaults {
             lines_per_slide: LinesPerSlide::Keep,
             add_empty_slide_at_start: false,
+            ..Default::default()
         })
         .unwrap();
         assert_eq!(
             json,
-            serde_json::json!({ "linesPerSlide": "keep", "addEmptySlideAtStart": false })
+            serde_json::json!({
+                "linesPerSlide": "keep",
+                "addEmptySlideAtStart": false,
+                "vagalumeEnabled": true,
+                "holyricsEnabled": true,
+                "lrclibEnabled": true,
+                "vagalumeApiKey": null,
+            })
         );
         assert_eq!(
             serde_json::to_value(SongDefaults {
                 lines_per_slide: LinesPerSlide::One,
                 add_empty_slide_at_start: true,
+                ..Default::default()
             })
             .unwrap(),
-            serde_json::json!({ "linesPerSlide": "1", "addEmptySlideAtStart": true })
+            serde_json::json!({
+                "linesPerSlide": "1",
+                "addEmptySlideAtStart": true,
+                "vagalumeEnabled": true,
+                "holyricsEnabled": true,
+                "lrclibEnabled": true,
+                "vagalumeApiKey": null,
+            })
         );
         assert_eq!(
             serde_json::from_value::<SongDefaults>(serde_json::json!({ "linesPerSlide": "2" }))
@@ -554,6 +634,7 @@ mod tests {
             SongDefaults {
                 lines_per_slide: LinesPerSlide::Two,
                 add_empty_slide_at_start: false,
+                ..Default::default()
             }
         );
     }

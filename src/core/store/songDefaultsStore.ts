@@ -6,6 +6,10 @@ import type { LinesPerSlide, SongDefaults } from "../types";
 interface SongDefaultsState {
   linesPerSlide: LinesPerSlide;
   addEmptySlideAtStart: boolean;
+  vagalumeEnabled: boolean;
+  holyricsEnabled: boolean;
+  lrclibEnabled: boolean;
+  vagalumeApiKey: string | null;
   loaded: boolean;
   loading: boolean;
   load(): Promise<void>;
@@ -15,6 +19,10 @@ interface SongDefaultsState {
 const DEFAULTS: SongDefaults = {
   linesPerSlide: "2",
   addEmptySlideAtStart: false,
+  vagalumeEnabled: true,
+  holyricsEnabled: true,
+  lrclibEnabled: true,
+  vagalumeApiKey: null,
 };
 
 export const useSongDefaultsStore = create<SongDefaultsState>((set, get) => ({
@@ -43,6 +51,10 @@ export const useSongDefaultsStore = create<SongDefaultsState>((set, get) => ({
     const defaults = await setSongDefaults({
       linesPerSlide: current.linesPerSlide,
       addEmptySlideAtStart: current.addEmptySlideAtStart,
+      vagalumeEnabled: current.vagalumeEnabled,
+      holyricsEnabled: current.holyricsEnabled,
+      lrclibEnabled: current.lrclibEnabled,
+      vagalumeApiKey: current.vagalumeApiKey,
       ...patch,
     });
     set({ ...defaults, loaded: true });

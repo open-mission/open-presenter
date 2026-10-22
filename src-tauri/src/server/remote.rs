@@ -17,7 +17,9 @@ use crate::server::clients::{
     connected_at_now, next_id, register, user_agent, ClientGuard,
 };
 use crate::server::ServerState;
-use crate::services::{lrclib, media_library, slide_builder, songs};
+use crate::services::{
+    holyrics_online, lrclib, lyrics_search, media_library, slide_builder, songs, vagalume,
+};
 use crate::state::types::{
     now_millis, ClientKind, ConnectedClient, MediaItem, MediaKind, ScriptureRef, SlideContent,
     SlideKind, EVENT_REMOTE_SETLIST, EVENT_SLIDE, EVENT_TIMER, EVENT_WALLPAPER,
@@ -44,6 +46,8 @@ pub struct SearchSongsQuery {
 #[derive(Debug, Deserialize)]
 pub struct SearchLyricsQuery {
     pub q: String,
+    #[serde(default)]
+    pub provider: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,6 +55,10 @@ pub struct SearchLyricsQuery {
 pub struct SaveLyricsRequest {
     pub track_name: String,
     pub artist_name: String,
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub provider_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -454,8 +462,15 @@ pub async fn search_lyrics(
     if let Err(response) = guard_headers(&state, &headers) {
         return response;
     }
+    let Some(db) = &state.db else {
+        return internal("banco de dados indisponível");
+    };
+    let defaults = match db.with_conn(songs::song_defaults) {
+        Ok(defaults) => defaults,
+        Err(err) => return internal(&err.to_string()),
+    };
     let client = lrclib::client();
-    match lrclib::search(&client, &query.q).await {
+    match lyrics_search::search_all(&client, &query.q, query.provider.as_deref(), &defaults).await {
         Ok(results) => Json(results).into_response(),
         Err(err) => (StatusCode::BAD_GATEWAY, err.to_string()).into_response(),
     }
@@ -472,17 +487,72 @@ pub async fn save_lyrics(
     let Some(db) = &state.db else {
         return internal("banco de dados indisponível");
     };
+    let defaults = match db.with_conn(songs::song_defaults) {
+        Ok(defaults) => defaults,
+        Err(err) => return internal(&err.to_string()),
+    };
     let client = lrclib::client();
-    let (title, artist, sections) =
+
+    let mut fetched_title = request.track_name.clone();
+    let mut fetched_artist = request.artist_name.clone();
+    let mut fetched_composer = None;
+    let mut fetched_key = None;
+    let mut fetched_bpm = None;
+    let mut fetched_sections = Vec::new();
+
+    match request.provider.as_deref() {
+        Some("holyrics") => {
+            let song_id = request.provider_id.as_deref().unwrap_or("");
+            if !song_id.is_empty() {
+                if let Ok((title, artist, composer, song_key, bpm, sections)) =
+                    holyrics_online::fetch(&client, song_id).await
+                {
+                    fetched_title = title;
+                    fetched_artist = artist;
+                    fetched_composer = composer;
+                    fetched_key = song_key;
+                    fetched_bpm = bpm;
+                    fetched_sections = sections;
+                }
+            }
+        }
+        Some("vagalume") => {
+            let doc_id = request.provider_id.as_deref().unwrap_or("");
+            if !doc_id.is_empty() {
+                if let Ok((title, artist, sections)) =
+                    vagalume::fetch(&client, doc_id, defaults.vagalume_api_key.as_deref()).await
+                {
+                    fetched_title = title;
+                    fetched_artist = artist;
+                    fetched_sections = sections;
+                }
+            }
+        }
+        _ => {}
+    }
+
+    if fetched_sections.is_empty() {
         match lrclib::fetch(&client, &request.track_name, &request.artist_name).await {
-            Ok(data) => data,
+            Ok((title, artist, sections)) => {
+                fetched_title = title;
+                fetched_artist = artist;
+                fetched_sections = sections;
+            }
             Err(err) => return (StatusCode::BAD_GATEWAY, err.to_string()).into_response(),
-        };
+        }
+    }
 
     let song_result = db.with_conn(|conn| {
-        let defaults = songs::song_defaults(conn)?;
-        let sections = songs::apply_layout(sections, defaults);
-        songs::insert_new(conn, &title, &artist, &sections)
+        let sections = songs::apply_layout(fetched_sections, defaults);
+        songs::insert_new_with_metadata(
+            conn,
+            &fetched_title,
+            &fetched_artist,
+            fetched_composer,
+            fetched_key,
+            fetched_bpm,
+            &sections,
+        )
     });
 
     match song_result {
