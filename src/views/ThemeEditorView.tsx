@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft,
   Circle,
   Clock,
   Download,
@@ -24,6 +23,7 @@ import {
   Type,
   Undo,
   Video,
+  X,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { exportThemeAsImage } from "@/features/theme-editor/exportImage";
 import { exportThemeAsJson } from "@/features/slide-themes/themeIo";
+import { closeCurrentWindow } from "@/core/lib/closeWindow";
 import {
   contextToAsset,
   getActivePage,
@@ -299,12 +300,21 @@ export default function ThemeEditorView() {
     }
   }
 
-  function handleBack() {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate("/preferences");
+  function closeEditor() {
+    void closeCurrentWindow(() => navigate("/preferences"));
+  }
+
+  function blockContextMenu(e: React.MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (
+      target.isContentEditable ||
+      target.closest(
+        "input, textarea, select, [contenteditable='true']",
+      )
+    ) {
+      return;
     }
+    e.preventDefault();
   }
 
   function handleLayersDividerMouseDown(e: React.MouseEvent) {
@@ -749,16 +759,19 @@ export default function ThemeEditorView() {
 
   if (!guid || (!draft && error)) {
     return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background text-foreground">
+      <div
+        className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background text-foreground"
+        onContextMenu={blockContextMenu}
+      >
         <h1 className="text-lg font-semibold">Editor de Temas</h1>
         <p className="max-w-md text-center text-sm text-muted-foreground">
           {!guid
             ? "Nenhum tema selecionado. Abra o editor a partir da galeria de temas."
             : (error ?? "Tema não encontrado.")}
         </p>
-        <Button variant="outline" onClick={handleBack}>
-          <ArrowLeft className="size-4" />
-          Voltar
+        <Button variant="outline" onClick={closeEditor}>
+          <X className="size-4" />
+          Fechar
         </Button>
       </div>
     );
@@ -798,12 +811,12 @@ export default function ThemeEditorView() {
   const redoable = canRedo();
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-background text-foreground">
+    <div
+      className="flex h-screen w-screen flex-col bg-background text-foreground"
+      onContextMenu={blockContextMenu}
+    >
       {/* Top Header */}
       <header className="flex items-center gap-2 border-b border-border px-3 py-2 bg-card/40">
-        <Button variant="ghost" size="icon-sm" aria-label="Voltar" onClick={handleBack}>
-          <ArrowLeft />
-        </Button>
 
         {/* Theme Title with Edit Pencil button */}
         <div className="flex items-center gap-1.5 rounded px-2 py-1 hover:bg-accent/50 group transition-colors">
@@ -1008,8 +1021,8 @@ export default function ThemeEditorView() {
             <DropdownMenuItem disabled={!dirty} onSelect={() => revert()}>
               Reverter alterações
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={handleBack}>
-              Fechar editor
+            <DropdownMenuItem onSelect={closeEditor}>
+              Fechar janela
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
