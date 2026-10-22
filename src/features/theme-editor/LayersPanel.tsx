@@ -4,6 +4,7 @@ import {
   ChevronRight,
   ChevronUp,
   Circle,
+  Copy,
   Eye,
   EyeOff,
   Film,
@@ -47,11 +48,6 @@ const TYPE_LABELS: Record<ThemeElementType, string> = {
   STAR: "Estrela",
 };
 
-interface LayersPanelProps {
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
-}
-
 interface GroupItem {
   type: "group";
   groupId: string;
@@ -66,12 +62,21 @@ interface SingleItem {
 
 type LayerItem = GroupItem | SingleItem;
 
-export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
+export function LayersPanel() {
   const draft = useThemeEditorStore((s) => s.draft);
   const activePageId = useThemeEditorStore((s) => s.activePageId);
   const page = getActivePage(draft, activePageId);
   const elements = page?.elements ?? draft?.elements;
   const pageMode = Boolean(draft?.pages?.length);
+
+  const selection = useThemeEditorStore((s) => s.selection);
+  const select = useThemeEditorStore((s) => s.select);
+  const toggleSelect = useThemeEditorStore((s) => s.toggleSelect);
+  const enterGroup = useThemeEditorStore((s) => s.enterGroup);
+  const clearSelection = useThemeEditorStore((s) => s.clearSelection);
+  const duplicateSelection = useThemeEditorStore((s) => s.duplicateSelection);
+  const groupSelection = useThemeEditorStore((s) => s.groupSelection);
+  const ungroupSelection = useThemeEditorStore((s) => s.ungroupSelection);
 
   const removeElement = useThemeEditorStore((s) => s.removeElement);
   const moveElement = useThemeEditorStore((s) => s.moveElement);
@@ -79,15 +84,13 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
   const toggleLocked = useThemeEditorStore((s) => s.toggleLocked);
   const updateElement = useThemeEditorStore((s) => s.updateElement);
 
-  const groupElements = useThemeEditorStore((s) => s.groupElements);
-  const ungroupElements = useThemeEditorStore((s) => s.ungroupElements);
   const renameGroup = useThemeEditorStore((s) => s.renameGroup);
   const toggleGroupVisible = useThemeEditorStore((s) => s.toggleGroupVisible);
   const toggleGroupLocked = useThemeEditorStore((s) => s.toggleGroupLocked);
   const moveGroup = useThemeEditorStore((s) => s.moveGroup);
   const removeGroup = useThemeEditorStore((s) => s.removeGroup);
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const selectedIds = useMemo(() => new Set(selection.ids), [selection.ids]);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -131,45 +134,30 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
     );
   }
 
-  // Verificar se há seleção múltipla para agrupar
-  const canGroup = selectedIds.size >= 2;
-  // Verificar se há seleção de grupo ou item agrupado para desagrupar
-  const selectedElements = elements.filter((e) => selectedIds.has(e.id) || e.id === selectedId);
-  const selectedGroupId = selectedElements.find((e) => e.groupId)?.groupId;
+  const canGroup = selection.ids.length >= 2;
+  const selectedGroupId =
+    selection.enteredGroupId ??
+    elements.find((el) => selectedIds.has(el.id) && el.groupId)?.groupId;
   const canUngroup = Boolean(selectedGroupId);
 
-  function handleSelectElement(elId: string, event: React.MouseEvent) {
-    if (event.metaKey || event.ctrlKey || event.shiftKey) {
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        if (selectedId && !next.has(selectedId)) next.add(selectedId);
-        if (next.has(elId)) {
-          next.delete(elId);
-        } else {
-          next.add(elId);
-        }
-        return next;
-      });
-      onSelect(elId);
+  function toggleGroupSelection(ids: string[]) {
+    const current = new Set(selection.ids);
+    const allSelected = ids.every((id) => current.has(id));
+    if (allSelected) {
+      ids.forEach((id) => current.delete(id));
     } else {
-      setSelectedIds(new Set([elId]));
-      onSelect(elId);
+      ids.forEach((id) => current.add(id));
     }
+    const next = (elements ?? [])
+      .filter((el) => current.has(el.id))
+      .map((el) => el.id);
+    if (next.length === 0) clearSelection();
+    else select(next, { anchorId: ids[0] });
   }
 
-  function handleGroupSelected() {
-    if (selectedIds.size < 2) return;
-    const newGroupId = groupElements(Array.from(selectedIds));
-    if (newGroupId) {
-      const firstId = Array.from(selectedIds)[0];
-      onSelect(firstId);
-    }
-  }
-
-  function handleUngroupSelected() {
-    if (selectedGroupId) {
-      ungroupElements(selectedGroupId);
-    }
+  function duplicateElements(ids: string[], anchorId: string) {
+    select(ids, { anchorId });
+    duplicateSelection();
   }
 
   function toggleGroupCollapse(groupId: string) {
@@ -195,10 +183,10 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
               size="xs"
               className="h-6 gap-1 px-1.5 text-[10px] bg-primary/10 text-primary border-primary/30 hover:bg-primary/20"
               title="Agrupar camadas selecionadas"
-              onClick={handleGroupSelected}
+              onClick={() => groupSelection()}
             >
               <FolderPlus className="size-3" />
-              <span>Agrupar ({selectedIds.size})</span>
+              <span>Agrupar ({selection.ids.length})</span>
             </Button>
           )}
           {canUngroup && (
@@ -207,7 +195,7 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
               size="xs"
               className="h-6 gap-1 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
               title="Desagrupar elementos do grupo"
-              onClick={handleUngroupSelected}
+              onClick={() => ungroupSelection()}
             >
               <FolderMinus className="size-3" />
               <span>Desagrupar</span>
@@ -223,7 +211,7 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
             const isCollapsed = collapsedGroups.has(item.groupId);
             const allVisible = item.elements.every((e) => e.visible);
             const allLocked = item.elements.every((e) => e.locked);
-            const isGroupSelected = item.elements.some((e) => e.id === selectedId || selectedIds.has(e.id));
+            const isGroupSelected = item.elements.every((e) => selectedIds.has(e.id));
 
             const targetGroupId = item.groupId;
             function commitGroupRename() {
@@ -244,10 +232,10 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
                 {/* Group Header Row */}
                 <div
                   className="flex items-center gap-1 px-1.5 py-1 text-xs cursor-pointer hover:bg-accent/40 rounded-t-lg"
-                  onClick={() => {
-                    const ids = item.elements.map((e) => e.id);
-                    setSelectedIds(new Set(ids));
-                    onSelect(ids[0]);
+                  onClick={(e) => {
+                    const ids = item.elements.map((el) => el.id);
+                    if (e.shiftKey) toggleGroupSelection(ids);
+                    else select(ids, { anchorId: ids[0] });
                   }}
                 >
                   <button
@@ -360,11 +348,27 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
                   <Button
                     variant="ghost"
                     size="icon-xs"
+                    aria-label="Duplicar grupo"
+                    title="Duplicar grupo"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const ids = item.elements.map((el) => el.id);
+                      duplicateElements(ids, ids[0]);
+                    }}
+                  >
+                    <Copy className="size-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
                     aria-label="Desagrupar"
                     title="Desagrupar elementos"
                     onClick={(e) => {
                       e.stopPropagation();
-                      ungroupElements(item.groupId);
+                      select(item.elements.map((el) => el.id), {
+                        anchorId: item.elements[0].id,
+                      });
+                      ungroupSelection();
                     }}
                   >
                     <FolderMinus className="size-3 text-muted-foreground" />
@@ -376,7 +380,10 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
                     title="Excluir grupo e elementos"
                     onClick={(e) => {
                       e.stopPropagation();
+                      const ids = item.elements.map((el) => el.id);
+                      const hadSelection = ids.some((id) => selectedIds.has(id));
                       removeGroup(item.groupId);
+                      if (hadSelection) clearSelection();
                     }}
                   >
                     <Trash2 />
@@ -387,7 +394,7 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
                 {!isCollapsed && (
                   <div className="flex flex-col gap-0.5 pl-4 pr-1 pb-1 pt-0.5 border-l-2 border-primary/20 ml-2 mb-1">
                     {item.elements.map((el) => {
-                      const selected = el.id === selectedId || selectedIds.has(el.id);
+                      const selected = selectedIds.has(el.id);
                       const Icon = TYPE_ICONS[el.type];
                       const label = el.name?.trim() || el.id;
 
@@ -402,11 +409,14 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
                           role="button"
                           tabIndex={0}
                           aria-label={`Selecionar camada ${label}`}
-                          onClick={(e) => handleSelectElement(el.id, e)}
+                          onClick={(e) => {
+                            if (e.shiftKey) toggleSelect(el.id);
+                            else enterGroup(item.groupId, el.id);
+                          }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter" || e.key === " ") {
                               e.preventDefault();
-                              onSelect(el.id);
+                              enterGroup(item.groupId, el.id);
                             }
                           }}
                           className={cn(
@@ -477,10 +487,23 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
                           <Button
                             variant="ghost"
                             size="icon-xs"
+                            aria-label={`Duplicar ${label}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              duplicateElements([el.id], el.id);
+                            }}
+                          >
+                            <Copy />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
                             aria-label={`Excluir ${label}`}
                             onClick={(e) => {
                               e.stopPropagation();
+                              const wasSelected = selectedIds.has(el.id);
                               removeElement(el.id);
+                              if (wasSelected) clearSelection();
                             }}
                           >
                             <Trash2 />
@@ -500,7 +523,7 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
           const isLast = !pageMode && elements.length <= 1;
           const isTop = index === elements.length - 1;
           const isBottom = index === 0;
-          const selected = el.id === selectedId || selectedIds.has(el.id);
+          const selected = selectedIds.has(el.id);
           const Icon = TYPE_ICONS[el.type];
           const label = el.name?.trim() || el.id;
 
@@ -515,11 +538,14 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
               role="button"
               tabIndex={0}
               aria-label={`Selecionar camada ${label}`}
-              onClick={(e) => handleSelectElement(el.id, e)}
+              onClick={(e) => {
+                if (e.shiftKey) toggleSelect(el.id);
+                else select([el.id], { anchorId: el.id });
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  onSelect(el.id);
+                  select([el.id], { anchorId: el.id });
                 }
               }}
               className={cn(
@@ -614,12 +640,25 @@ export function LayersPanel({ selectedId, onSelect }: LayersPanelProps) {
               <Button
                 variant="ghost"
                 size="icon-xs"
+                aria-label={`Duplicar ${label}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  duplicateElements([el.id], el.id);
+                }}
+              >
+                <Copy />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 aria-label={`Excluir ${label}`}
                 disabled={isLast}
                 title={isLast ? "O tema precisa de ao menos um elemento" : undefined}
                 onClick={(e) => {
                   e.stopPropagation();
+                  const wasSelected = selectedIds.has(el.id);
                   removeElement(el.id);
+                  if (wasSelected) clearSelection();
                 }}
               >
                 <Trash2 />

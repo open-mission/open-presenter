@@ -125,7 +125,11 @@ export default function ThemeEditorView() {
   const revert = useThemeEditorStore((s) => s.revert);
   const addElement = useThemeEditorStore((s) => s.addElement);
   const addElements = useThemeEditorStore((s) => s.addElements);
-  const removeElement = useThemeEditorStore((s) => s.removeElement);
+  const removeSelection = useThemeEditorStore((s) => s.removeSelection);
+  const duplicateSelection = useThemeEditorStore((s) => s.duplicateSelection);
+  const groupSelection = useThemeEditorStore((s) => s.groupSelection);
+  const ungroupSelection = useThemeEditorStore((s) => s.ungroupSelection);
+  const selectAll = useThemeEditorStore((s) => s.selectAll);
   const upgradeToV2 = useThemeEditorStore((s) => s.upgradeToV2);
   const setCategory = useThemeEditorStore((s) => s.setCategory);
 
@@ -133,7 +137,7 @@ export default function ThemeEditorView() {
   const select = useThemeEditorStore((s) => s.select);
   const clearSelection = useThemeEditorStore((s) => s.clearSelection);
   const clearGuides = useThemeEditorStore((s) => s.clearGuides);
-  const selectedId = selection.ids.length === 1 ? selection.ids[0] : null;
+  const selectedId = selection.anchorId;
   const [sampleAsset, setSampleAsset] = useState<ThemeAsset>("music");
   const [snap, setSnap] = useState(true);
   const [showLimit, setShowLimit] = useState(true);
@@ -206,24 +210,19 @@ export default function ThemeEditorView() {
         if (!isInput) {
           e.preventDefault();
           e.stopPropagation();
-          if (selectedId) {
-            removeElement(selectedId);
-            clearSelection();
-          }
+          removeSelection();
           return;
         }
       }
 
       if (e.key === "Escape" && !isInput) {
-        if (selectedId) {
-          e.preventDefault();
-          clearSelection();
-        }
+        e.preventDefault();
+        clearSelection();
         return;
       }
 
       const mod = e.ctrlKey || e.metaKey;
-      if (!mod) return;
+      if (!mod || e.repeat) return;
       const key = e.key.toLowerCase();
       if (key === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -234,11 +233,30 @@ export default function ThemeEditorView() {
       } else if (key === "s") {
         e.preventDefault();
         void handleSave();
+      } else if (key === "d") {
+        e.preventDefault();
+        duplicateSelection();
+      } else if (key === "g") {
+        e.preventDefault();
+        if (e.shiftKey) ungroupSelection();
+        else groupSelection();
+      } else if (key === "a") {
+        e.preventDefault();
+        selectAll();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId, removeElement, undo, redo, clearSelection]);
+  }, [
+    removeSelection,
+    undo,
+    redo,
+    clearSelection,
+    duplicateSelection,
+    groupSelection,
+    ungroupSelection,
+    selectAll,
+  ]);
 
   async function handleSave() {
     setSaving(true);
@@ -1231,10 +1249,7 @@ export default function ThemeEditorView() {
           style={{ width: `${layersWidth}px`, minWidth: "180px" }}
           className="shrink-0 flex flex-col h-full overflow-y-auto border-r border-border p-3 bg-card/20"
         >
-          <LayersPanel
-            selectedId={selectedId}
-            onSelect={(id) => (id ? select(id) : clearSelection())}
-          />
+          <LayersPanel />
         </aside>
 
         {/* Resizable Divider Handle for Layers */}
