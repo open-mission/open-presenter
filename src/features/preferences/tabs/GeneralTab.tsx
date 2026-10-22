@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { CalendarDays, Database, Globe, Keyboard, Monitor, ShieldCheck } from "lucide-react";
+import {
+  CalendarDays,
+  Database,
+  Globe,
+  Keyboard,
+  Maximize2,
+  Monitor,
+  ShieldCheck,
+} from "lucide-react";
 import { toast } from "sonner";
 import { BrandMark } from "@/components/BrandMark";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +16,8 @@ import { APP_VERSION } from "@/core/config/version";
 import {
   getCloseToTray,
   setCloseToTray as persistCloseToTray,
+  getStartMaximized,
+  setStartMaximized as persistStartMaximized,
 } from "@/core/ipc/commands";
 import { isTauri } from "@/core/ipc/tauri";
 import type { WeekStart } from "@/core/types";
@@ -42,12 +52,16 @@ export function GeneralTab() {
   const weekStart = usePreferencesStore((s) => s.weekStart);
   const setWeekStart = usePreferencesStore((s) => s.setWeekStart);
   const [closeToTray, setCloseToTray] = useState(false);
+  const [startMaximized, setStartMaximizedState] = useState(true);
 
   useEffect(() => {
     if (!isTauri()) return;
     let active = true;
     void getCloseToTray().then((value) => {
       if (active) setCloseToTray(value);
+    });
+    void getStartMaximized().then((value) => {
+      if (active) setStartMaximizedState(value);
     });
     return () => {
       active = false;
@@ -59,6 +73,14 @@ export function GeneralTab() {
     void persistCloseToTray(enabled).catch(() => {
       setCloseToTray(!enabled);
       toast.error("Não foi possível salvar a configuração da bandeja.");
+    });
+  }
+
+  function handleStartMaximized(enabled: boolean): void {
+    setStartMaximizedState(enabled);
+    void persistStartMaximized(enabled).catch(() => {
+      setStartMaximizedState(!enabled);
+      toast.error("Não foi possível salvar a configuração da janela.");
     });
   }
 
@@ -111,32 +133,60 @@ export function GeneralTab() {
       </div>
 
       {isTauri() && (
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <Monitor className="size-4 text-muted-foreground" />
-            <h4 className="font-semibold text-xs text-foreground">
-              Bandeja do sistema
-            </h4>
+        <>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Monitor className="size-4 text-muted-foreground" />
+              <h4 className="font-semibold text-xs text-foreground">
+                Bandeja do sistema
+              </h4>
+            </div>
+
+            <div className="flex items-center justify-between gap-6 rounded-xl border border-border/80 bg-card/60 p-4 shadow-2xs">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">
+                  Manter na bandeja ao fechar
+                </p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Ao fechar a janela principal, o Open Presenter continua em
+                  segundo plano. Use o ícone da bandeja para reabrir, acessar os
+                  links do servidor ou sair do aplicativo.
+                </p>
+              </div>
+              <Switch
+                checked={closeToTray}
+                onCheckedChange={handleCloseToTray}
+                aria-label="Manter na bandeja ao fechar"
+              />
+            </div>
           </div>
 
-          <div className="flex items-center justify-between gap-6 rounded-xl border border-border/80 bg-card/60 p-4 shadow-2xs">
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-foreground">
-                Manter na bandeja ao fechar
-              </p>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Ao fechar a janela principal, o Open Presenter continua em
-                segundo plano. Use o ícone da bandeja para reabrir, acessar os
-                links do servidor ou sair do aplicativo.
-              </p>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Maximize2 className="size-4 text-muted-foreground" />
+              <h4 className="font-semibold text-xs text-foreground">
+                Janela
+              </h4>
             </div>
-            <Switch
-              checked={closeToTray}
-              onCheckedChange={handleCloseToTray}
-              aria-label="Manter na bandeja ao fechar"
-            />
+
+            <div className="flex items-center justify-between gap-6 rounded-xl border border-border/80 bg-card/60 p-4 shadow-2xs">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">
+                  Iniciar com a janela maximizada
+                </p>
+                <p className="text-xs leading-relaxed text-muted-foreground">
+                  Abre o aplicativo maximizado na inicialização. Ao desativar, o
+                  tamanho e a posição da última janela são restaurados.
+                </p>
+              </div>
+              <Switch
+                checked={startMaximized}
+                onCheckedChange={handleStartMaximized}
+                aria-label="Iniciar com a janela maximizada"
+              />
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Agenda & Calendário */}

@@ -16,5 +16,6 @@ pub mod theme_template;
 pub mod theme_media;
 pub mod themes;
 pub mod tray;
+pub mod window_state;
 
 pub use broadcaster::{Broadcaster, SharedBroadcaster};

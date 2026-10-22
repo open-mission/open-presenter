@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlignLeft,
   ArrowLeft,
   ArrowRight,
   BookOpen,
@@ -20,11 +21,18 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PreviewZoomControls } from "@/components/PreviewZoomControls";
 import { SlideThumbnail } from "@/components/SlideThumbnail";
 import { ViewModeToggle } from "@/components/ViewModeToggle";
 import { buildScriptureSlide } from "@/core/lib/biblePresentation";
 import { cn } from "@/core/lib/utils";
 import { usePersistentViewMode } from "@/core/lib/usePersistentViewMode";
+import { usePersistentNumber } from "@/core/lib/usePersistentNumber";
+import {
+  BIBLE_PREVIEW_GRID,
+  previewGridStyle,
+} from "@/core/lib/previewGrid";
+import { BOOKS_VIEW_DEFAULT, BOOKS_VIEW_MODES } from "@/core/lib/viewMode";
 import { usePublicThemeResolver } from "@/features/slide-themes/usePublicThemeResolver";
 import {
   Select,
@@ -94,12 +102,18 @@ export function BiblePage() {
   const [versesView, setVersesView] = usePersistentViewMode(
     "open_presenter_bible_verses_view",
     "list",
-    ["list", "slides"] as const,
+    ["list", "slides", "text"] as const,
+  );
+  const [verseZoom, setVerseZoom] = usePersistentNumber(
+    "open_presenter_bible_verses_zoom",
+    BIBLE_PREVIEW_GRID.defaultLevel,
+    BIBLE_PREVIEW_GRID.minLevel,
+    BIBLE_PREVIEW_GRID.maxLevel,
   );
   const [booksView, setBooksView] = usePersistentViewMode(
     "open_presenter_bible_books_view",
-    "list",
-    ["list", "cards"] as const,
+    BOOKS_VIEW_DEFAULT,
+    BOOKS_VIEW_MODES,
   );
   const resolveTheme = usePublicThemeResolver();
 
@@ -139,7 +153,7 @@ export function BiblePage() {
   );
 
   const verseCards = useMemo(() => {
-    if (versesView !== "slides" || !activeBook || !activeVersionId) return [];
+    if (versesView === "list" || !activeBook || !activeVersionId) return [];
     return verses.flatMap((verse) => {
       const parts = getVerseParts(verse.text);
       return parts.map((partText, partIndex) => {
@@ -555,10 +569,7 @@ export function BiblePage() {
         <main className="flex flex-1 overflow-hidden">
           {/* Coluna 1: Livros da Bíblia */}
           <section
-            className={cn(
-              "flex shrink-0 flex-col border-r border-border bg-card/25",
-              booksView === "cards" ? "w-80 xl:w-96" : "w-64",
-            )}
+            className="flex w-64 shrink-0 flex-col border-r border-border bg-card/25"
           >
             <div className="flex h-9 items-center justify-between border-b border-border/60 px-3">
               <span className="text-xs font-bold text-foreground">Livros</span>
@@ -567,7 +578,7 @@ export function BiblePage() {
                 onChange={setBooksView}
                 options={[
                   { value: "list", label: "Lista", icon: List },
-                  { value: "cards", label: "Cards", icon: LayoutGrid },
+                  { value: "table", label: "Tabela", icon: LayoutGrid },
                 ]}
               />
             </div>
@@ -618,9 +629,14 @@ export function BiblePage() {
             </div>
 
             {/* Lista de Livros */}
-            {booksView === "cards" ? (
-              <div className="flex-1 overflow-y-auto p-2">
-                <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
+            {booksView === "table" ? (
+              <div className="flex-1 overflow-y-auto p-1.5">
+                <div
+                  className="grid gap-1"
+                  style={{
+                    gridTemplateColumns: "repeat(auto-fill, minmax(2.25rem, 1fr))",
+                  }}
+                >
                   {filteredBooks.map((book) => {
                     const isActive = book.id === activeBookId;
                     const isOld = book.testamentReferenceId === 1;
@@ -628,41 +644,18 @@ export function BiblePage() {
                       <button
                         key={book.id}
                         type="button"
+                        title={book.name}
                         onClick={() => void selectBook(book.id)}
                         className={cn(
-                          "flex min-h-20 flex-col justify-between rounded-lg border p-2.5 text-left transition-all",
+                          "flex min-h-7 items-center justify-center rounded border px-1 font-mono text-[10px] font-semibold transition-colors cursor-pointer",
                           isActive
                             ? "border-primary bg-primary text-primary-foreground shadow-xs"
                             : isOld
-                            ? "border-amber-500/30 bg-amber-500/5 hover:border-amber-500/60"
-                            : "border-emerald-500/30 bg-emerald-500/5 hover:border-emerald-500/60",
+                            ? "border-amber-500/30 bg-amber-500/5 text-amber-700 hover:border-amber-500/60 dark:text-amber-300"
+                            : "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 hover:border-emerald-500/60 dark:text-emerald-300",
                         )}
                       >
-                        <div className="flex items-start justify-between gap-1">
-                          <span className="text-xs font-bold leading-tight">
-                            {book.name}
-                          </span>
-                          <span
-                            className={cn(
-                              "font-mono text-[10px]",
-                              isActive
-                                ? "text-primary-foreground/80"
-                                : "text-muted-foreground",
-                            )}
-                          >
-                            {book.abbrev}
-                          </span>
-                        </div>
-                        <span
-                          className={cn(
-                            "text-[10px]",
-                            isActive
-                              ? "text-primary-foreground/80"
-                              : "text-muted-foreground",
-                          )}
-                        >
-                          {book.chapterCount} capítulos
-                        </span>
+                        {book.abbrev}
                       </button>
                     );
                   })}
@@ -771,8 +764,16 @@ export function BiblePage() {
                   options={[
                     { value: "list", label: "Lista", icon: List },
                     { value: "slides", label: "Slides", icon: LayoutGrid },
+                    { value: "text", label: "Texto", icon: AlignLeft },
                   ]}
                 />
+                {versesView !== "list" && (
+                  <PreviewZoomControls
+                    config={BIBLE_PREVIEW_GRID}
+                    level={verseZoom}
+                    onChange={setVerseZoom}
+                  />
+                )}
                 <Button
                   type="button"
                   size="sm"
@@ -813,8 +814,11 @@ export function BiblePage() {
                     ? "Importe uma Bíblia usando o botão acima para começar a exibir versículos."
                     : "Nenhum versículo encontrado neste capítulo."}
                 </div>
-              ) : versesView === "slides" ? (
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+              ) : versesView !== "list" ? (
+                <div
+                  className="grid gap-2"
+                  style={previewGridStyle(BIBLE_PREVIEW_GRID, verseZoom)}
+                >
                   {verseCards.map(
                     ({ verse, partIndex, totalParts, slide, theme }) => {
                       const isLive =
@@ -844,11 +848,17 @@ export function BiblePage() {
                               : "border-border/80 bg-card/70 hover:border-primary/50",
                           )}
                         >
-                          <SlideThumbnail
-                            content={slide}
-                            theme={theme}
-                            className="pointer-events-none"
-                          />
+                          {versesView === "slides" ? (
+                            <SlideThumbnail
+                              content={slide}
+                              theme={theme}
+                              className="pointer-events-none"
+                            />
+                          ) : (
+                            <p className="min-h-16 whitespace-pre-line text-[11px] leading-snug text-foreground/90">
+                              {slide.lines.join("\n")}
+                            </p>
+                          )}
                           <div className="flex items-center justify-between gap-1 px-0.5">
                             <span className="truncate text-[10px] font-semibold text-primary">
                               {slide.section}
