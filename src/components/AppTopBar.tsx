@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { cn } from "@/core/lib/utils";
 import {
   DropdownMenu,
@@ -310,13 +311,13 @@ export function AppTopBar() {
 
         {/* Monitores: Button Group com toggle do painel + dropdown de opções dos previews */}
         {activeTab === "presentation" && (
-          <div className="inline-flex items-center -space-x-px rounded-md shadow-2xs">
+          <ButtonGroup>
             <Button
               type="button"
               size="sm"
               variant={monitorsVisible ? "secondary" : "outline"}
               className={cn(
-                "h-8 gap-1.5 px-2.5 text-xs font-medium transition-all rounded-r-none focus:z-10 cursor-pointer",
+                "h-8 gap-1.5 px-2.5 text-xs font-medium transition-all cursor-pointer",
                 monitorsVisible
                   ? "bg-primary/15 text-primary border-primary/30 font-semibold"
                   : "text-muted-foreground hover:text-foreground",
@@ -343,7 +344,7 @@ export function AppTopBar() {
                   size="sm"
                   variant={monitorsVisible ? "secondary" : "outline"}
                   className={cn(
-                    "h-8 px-1.5 text-xs font-medium transition-all rounded-l-none border-l-0 focus:z-10 cursor-pointer",
+                    "h-8 px-1.5 text-xs font-medium transition-all cursor-pointer",
                     monitorsVisible
                       ? "bg-primary/15 text-primary border-primary/30 font-semibold"
                       : "text-muted-foreground hover:text-foreground",
@@ -432,68 +433,74 @@ export function AppTopBar() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          </div>
+          </ButtonGroup>
         )}
 
-        {/* Mostrar Plano de Fundo */}
-        <Button
-          type="button"
-          size="sm"
-          variant={live.cleared && !live.blackout ? "secondary" : "outline"}
-          className={`h-8 gap-1.5 px-2.5 text-xs font-medium transition-all ${
-            live.cleared && !live.blackout
-              ? "bg-primary/15 text-primary border-primary/30 font-semibold"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => void usePresentationStore.getState().showBackground()}
-          title="Mostrar somente plano de fundo (F)"
-        >
-          <Image className="size-3.5" />
-          <span className="hidden md:inline">Plano de Fundo</span>
-          <kbd className="hidden lg:inline rounded bg-muted/80 px-1 py-0.2 font-mono text-[9px]">
-            F
-          </kbd>
-        </Button>
+        {/* Controles de Projeção: Plano de Fundo, Sem Texto e Tela Preta agrupados */}
+        <ButtonGroup aria-label="Controles de projeção">
+          {/* Mostrar Plano de Fundo */}
+          <Button
+            type="button"
+            size="sm"
+            variant={live.cleared && !live.blackout ? "secondary" : "outline"}
+            className={cn(
+              "h-8 gap-1.5 px-2.5 text-xs font-medium transition-all cursor-pointer",
+              live.cleared && !live.blackout
+                ? "bg-primary/15 text-primary border-primary/30 font-semibold"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            onClick={() => void usePresentationStore.getState().showBackground()}
+            title="Mostrar somente plano de fundo (F)"
+          >
+            <Image className="size-3.5" />
+            <span className="hidden md:inline">Plano de Fundo</span>
+            <kbd className="hidden lg:inline rounded bg-muted/80 px-1 py-0.2 font-mono text-[9px]">
+              F
+            </kbd>
+          </Button>
 
-        {/* Sem Texto */}
-        <Button
-          type="button"
-          size="sm"
-          variant={live.textHidden ? "secondary" : "outline"}
-          className={`h-8 gap-1.5 px-2.5 text-xs font-medium transition-all ${
-            live.textHidden
-              ? "bg-primary/15 text-primary border-primary/30 font-semibold"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => void usePresentationStore.getState().toggleClear()}
-          title="Ocultar ou restaurar texto (C)"
-        >
-          <EyeOff className="size-3.5" />
-          <span className="hidden sm:inline">Sem Texto</span>
-          <kbd className="hidden lg:inline rounded bg-muted/80 px-1 py-0.2 font-mono text-[9px]">
-            C
-          </kbd>
-        </Button>
+          {/* Sem Texto */}
+          <Button
+            type="button"
+            size="sm"
+            variant={live.textHidden ? "secondary" : "outline"}
+            className={cn(
+              "h-8 gap-1.5 px-2.5 text-xs font-medium transition-all cursor-pointer",
+              live.textHidden
+                ? "bg-primary/15 text-primary border-primary/30 font-semibold"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            onClick={() => void usePresentationStore.getState().toggleClear()}
+            title="Ocultar ou restaurar texto (C)"
+          >
+            <EyeOff className="size-3.5" />
+            <span className="hidden sm:inline">Sem Texto</span>
+            <kbd className="hidden lg:inline rounded bg-muted/80 px-1 py-0.2 font-mono text-[9px]">
+              C
+            </kbd>
+          </Button>
 
-        {/* Tela Preta (Blackout) */}
-        <Button
-          type="button"
-          size="sm"
-          variant={live.blackout ? "default" : "outline"}
-          className={`h-8 gap-1.5 px-2.5 text-xs font-semibold transition-all ${
-            live.blackout
-              ? "bg-red-600 hover:bg-red-700 text-white border-red-700 animate-pulse"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-          onClick={() => void usePresentationStore.getState().toggleBlackout()}
-          title="Alternar Tela Preta / Blackout (B)"
-        >
-          <Moon className="size-3.5" />
-          <span className="hidden sm:inline">Tela Preta</span>
-          <kbd className="hidden lg:inline rounded bg-muted/80 px-1 py-0.2 font-mono text-[9px]">
-            B
-          </kbd>
-        </Button>
+          {/* Tela Preta (Blackout) */}
+          <Button
+            type="button"
+            size="sm"
+            variant={live.blackout ? "default" : "outline"}
+            className={cn(
+              "h-8 gap-1.5 px-2.5 text-xs font-semibold transition-all cursor-pointer",
+              live.blackout
+                ? "bg-red-600 hover:bg-red-700 text-white border-red-700 animate-pulse"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+            onClick={() => void usePresentationStore.getState().toggleBlackout()}
+            title="Alternar Tela Preta / Blackout (B)"
+          >
+            <Moon className="size-3.5" />
+            <span className="hidden sm:inline">Tela Preta</span>
+            <kbd className="hidden lg:inline rounded bg-muted/80 px-1 py-0.2 font-mono text-[9px]">
+              B
+            </kbd>
+          </Button>
+        </ButtonGroup>
       </div>
     </header>
   );
