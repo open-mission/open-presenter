@@ -1,6 +1,6 @@
 [package]
 name = "open-presenter"
-version = "0.3.9"
+version = "0.4.0"
 description = "Software desktop open source e leve para apresentação em igrejas e eventos"
 edition = "2021"
 rust-version = "1.90.0"
@@ -36,6 +36,9 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 local-ip-address = "0.6.13"
 reqwest = { version = "0.13.5", features = ["json", "query"] }
 percent-encoding = "2.3.2"
+ndi-sdk = "0.2.0"
+libloading = "0.8.9"
+jpeg-encoder = "0.7.1"
 
 [features]
 default = ["custom-protocol"]

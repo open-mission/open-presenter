@@ -8,12 +8,15 @@ import {
 } from "@/features/slide-themes/seedThemes";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { resolveStageRenderTheme } from "@/features/slide-themes/themeResolution";
+import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
 import {
   materializeThemeForContent,
   resolveContentTheme,
 } from "@/features/slide-themes/outputPlan";
-import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
+import { filterThemeForLook, overlayThemeForLayer } from "@/features/slide-themes/layers";
 import { useOutputPlan } from "@/features/slide-themes/useOutputPlan";
+import { MaskOverlay } from "@/components/MaskOverlay";
+import { VideoInputLayer } from "@/components/VideoInputLayer";
 import { SlideCanvas } from "@/features/presentation/SlideCanvas";
 import { useStageConfigStore } from "./configStore";
 import { useStageTimerStore } from "./timerStore";
@@ -36,7 +39,7 @@ export function StageMiniPreview({ outputId }: StageMiniPreviewProps = {}) {
   const timer = useStageTimerStore((s) => s.timer);
 
   const themes = useSlideThemesStore((s) => s.themes);
-  const { plan } = useOutputPlan("stage", outputId ?? null);
+  const { output: activeOutput, plan } = useOutputPlan("stage", outputId ?? null);
   const mediaThemeId = live.content.media?.themeId ?? null;
 
   const contentTheme = useMemo(() => {
@@ -104,34 +107,102 @@ export function StageMiniPreview({ outputId }: StageMiniPreviewProps = {}) {
     activeMessage: isTargeted ? activeAlert?.text : "",
   });
 
+  const overlayBase = isIdle
+    ? restRender.theme
+    : isPresentation && contentTheme
+      ? contentTheme
+      : liveTheme.theme;
+  const overlayAsset = isIdle ? restRender.asset : isPresentation ? "text" : liveTheme.asset;
+  const overlayProps = isPresentation
+    ? buildProps(live.content.kind, live.content, nextUp)
+    : stageProps;
+  const announcementsTheme = overlayThemeForLayer(overlayBase, plan.look, "announcements");
+  const propsTheme = overlayThemeForLayer(overlayBase, plan.look, "props");
+
+  const restSlideTheme = filterThemeForLook(restRender.theme, plan.look);
+  const contentSlideTheme = contentTheme
+    ? filterThemeForLook(contentTheme, plan.look)
+    : null;
+  const liveSlideTheme = filterThemeForLook(liveTheme.theme, plan.look);
+
   return (
     <div className="relative h-full w-full select-none overflow-hidden bg-black">
       {live.blackout ? (
         <div className="absolute inset-0 bg-black" />
-      ) : isIdle ? (
-        <ScaledStage
-          theme={restRender.theme}
-          asset={restRender.asset}
-          props={stageProps}
-          className="absolute inset-0"
-        />
-      ) : isPresentation && contentTheme ? (
-        <ScaledStage
-          theme={contentTheme}
-          asset="text"
-          props={buildProps(live.content.kind, live.content, nextUp)}
-          showBackground={true}
-          className="absolute inset-0"
-        />
-      ) : isMedia ? (
-        <SlideCanvas slide={live} showBackground={true} />
       ) : (
-        <ScaledStage
-          theme={liveTheme.theme}
-          asset={liveTheme.asset}
-          props={stageProps}
-          className="absolute inset-0"
-        />
+        <>
+          {plan.look.videoInput && (
+            <div className="absolute inset-0 z-[15] pointer-events-none">
+              <VideoInputLayer />
+            </div>
+          )}
+
+          {isIdle ? (
+            plan.look.slide && (
+              <ScaledStage
+                theme={restSlideTheme}
+                asset={restRender.asset}
+                props={stageProps}
+                showBackground={!plan.look.videoInput}
+                className="absolute inset-0 z-20"
+              />
+            )
+          ) : isPresentation && contentSlideTheme ? (
+            plan.look.slide && (
+              <ScaledStage
+                theme={contentSlideTheme}
+                asset="text"
+                props={buildProps(live.content.kind, live.content, nextUp)}
+                showBackground={true}
+                className="absolute inset-0 z-20"
+              />
+            )
+          ) : isMedia ? (
+            plan.look.slide ? (
+              <div className="absolute inset-0 z-20">
+                <SlideCanvas slide={live} showBackground={true} />
+              </div>
+            ) : null
+          ) : (
+            plan.look.slide && (
+              <ScaledStage
+                theme={liveSlideTheme}
+                asset={liveTheme.asset}
+                props={stageProps}
+                showBackground={!plan.look.videoInput}
+                className="absolute inset-0 z-20"
+              />
+            )
+          )}
+
+          {announcementsTheme && (
+            <div className="absolute inset-0 z-[21] pointer-events-none">
+              <ScaledStage
+                theme={announcementsTheme}
+                asset={overlayAsset}
+                props={overlayProps}
+                showBackground={false}
+              />
+            </div>
+          )}
+
+          {propsTheme && (
+            <div className="absolute inset-0 z-[22] pointer-events-none">
+              <ScaledStage
+                theme={propsTheme}
+                asset={overlayAsset}
+                props={overlayProps}
+                showBackground={false}
+              />
+            </div>
+          )}
+
+          {plan.look.mask && activeOutput?.mask && (
+            <div className="absolute inset-0 z-[26] pointer-events-none">
+              <MaskOverlay mask={activeOutput.mask} />
+            </div>
+          )}
+        </>
       )}
 
       {/* Mini Preview do Banner Superior */}

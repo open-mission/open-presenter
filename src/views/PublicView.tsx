@@ -6,9 +6,13 @@ import { usePresentationStore } from "@/features/presentation/store";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
 import { PersistentBackground } from "@/features/media-shaders/PersistentBackground";
 import { SlideTransition } from "@/features/presentation/SlideTransition";
+import { ScaledStage } from "@/features/slide-themes/ScaledStage";
+import { buildProps } from "@/features/slide-themes/themeTemplate";
+import { MaskOverlay } from "@/components/MaskOverlay";
+import { VideoInputLayer } from "@/components/VideoInputLayer";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useOutputPlan } from "@/features/slide-themes/useOutputPlan";
-import { filterThemeForLook } from "@/features/slide-themes/layers";
+import { filterThemeForLook, overlayThemeForLayer } from "@/features/slide-themes/layers";
 import {
   materializeThemeForContent,
   resolveOutputBackground,
@@ -78,6 +82,17 @@ export default function PublicView({ backgroundColor, outputId }: PublicViewProp
     return source ? filterThemeForLook(source, look) : null;
   }, [contentTheme, outputTheme, look]);
 
+  const overlaySource = contentTheme ?? outputTheme;
+  const announcementsTheme = useMemo(
+    () => (overlaySource ? overlayThemeForLayer(overlaySource, look, "announcements") : null),
+    [overlaySource, look],
+  );
+  const propsTheme = useMemo(
+    () => (overlaySource ? overlayThemeForLayer(overlaySource, look, "props") : null),
+    [overlaySource, look],
+  );
+  const overlayVisible = live.content.kind !== "blank" && !live.cleared;
+
   const asset = kindToAsset(live.content.kind);
   const isPresenting = live.content.kind !== "blank" && look.slide;
 
@@ -131,6 +146,13 @@ export default function PublicView({ backgroundColor, outputId }: PublicViewProp
         </div>
       )}
 
+      {/* Camada: Entrada de Vídeo (NDI) */}
+      {look.videoInput && (
+        <div className="absolute inset-0 z-[15] pointer-events-none">
+          <VideoInputLayer />
+        </div>
+      )}
+
       {/* Camada 2: Transição dos Slides (por padrão é sobre o texto mantendo o fundo) */}
       {isPresenting && (
         <div className="absolute inset-0 z-20">
@@ -143,6 +165,41 @@ export default function PublicView({ backgroundColor, outputId }: PublicViewProp
             durationMs={300}
             transitionBackground={false}
           />
+        </div>
+      )}
+
+      {/* Camada: Anúncios (conteúdo secundário) */}
+      {overlayVisible && announcementsTheme && (
+        <div className="absolute inset-0 z-[21] pointer-events-none">
+          <ScaledStage
+            theme={announcementsTheme}
+            asset={asset ?? "text"}
+            props={buildProps(live.content.kind, live.content, live.nextUp, {
+              hideText: live.textHidden,
+            })}
+            showBackground={false}
+          />
+        </div>
+      )}
+
+      {/* Camada: Props (bug/logo/overlay) */}
+      {overlayVisible && propsTheme && (
+        <div className="absolute inset-0 z-[22] pointer-events-none">
+          <ScaledStage
+            theme={propsTheme}
+            asset={asset ?? "text"}
+            props={buildProps(live.content.kind, live.content, live.nextUp, {
+              hideText: live.textHidden,
+            })}
+            showBackground={false}
+          />
+        </div>
+      )}
+
+      {/* Camada: Máscara (topo) */}
+      {look.mask && activeOutput?.mask && (
+        <div className="absolute inset-0 z-[26] pointer-events-none">
+          <MaskOverlay mask={activeOutput.mask} />
         </div>
       )}
 

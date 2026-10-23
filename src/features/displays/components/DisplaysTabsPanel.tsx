@@ -1,5 +1,13 @@
-import { useMemo, useState } from "react";
-import type { BackgroundLayer, DisplayOutput, MasterLayerId, MonitorInfo } from "@/core/types";
+import { useEffect, useMemo, useState } from "react";
+import type {
+  BackgroundLayer,
+  DisplayOutput,
+  MaskConfig,
+  MaskShape,
+  MasterLayerId,
+  MonitorInfo,
+  NdiInputStatus,
+} from "@/core/types";
 import { kindToAsset } from "@/core/types";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -25,6 +33,7 @@ import {
   Layers as LayersIcon,
   Plus,
   Radio,
+  ScanLine,
   Sparkles,
   Trash2,
   Upload,
@@ -57,6 +66,12 @@ import { SlideTransition } from "@/features/presentation/SlideTransition";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
 import { PersistentBackground } from "@/features/media-shaders/PersistentBackground";
 import { openThemeEditor, saveThemeMedia } from "@/core/ipc/commands";
+import {
+  getNdiInputStatus,
+  listNdiSources,
+  startNdiInput,
+  stopNdiInput,
+} from "@/core/ipc/commands";
 import { BrandMark } from "@/components/BrandMark";
 import { OutputPlaceholder } from "./OutputPlaceholder";
 import { isTauri } from "@/core/ipc/tauri";
@@ -68,6 +83,21 @@ interface DisplaysTabsPanelProps {
   monitors: MonitorInfo[];
   onUpdate: (patch: Partial<DisplayOutput>) => Promise<void>;
 }
+
+const DEFAULT_MASK: MaskConfig = {
+  shape: "rounded",
+  inset: 0,
+  radius: 80,
+  color: "#000000",
+};
+
+const MASK_SHAPES: { id: MaskShape; label: string }[] = [
+  { id: "none", label: "Nenhuma" },
+  { id: "rounded", label: "Cantos" },
+  { id: "ellipse", label: "Elipse" },
+  { id: "bars", label: "Faixas" },
+  { id: "pillarbox", label: "Laterais" },
+];
 
 export function DisplaysTabsPanel({
   output,
@@ -92,6 +122,48 @@ export function DisplaysTabsPanel({
   } = useStageConfigStore();
 
   const [uploadingPlaceholder, setUploadingPlaceholder] = useState(false);
+  const [ndiSources, setNdiSources] = useState<string[]>([]);
+  const [ndiStatus, setNdiStatus] = useState<NdiInputStatus | null>(null);
+  const [ndiBusy, setNdiBusy] = useState(false);
+
+  useEffect(() => {
+    if (!isTauri()) return;
+    void getNdiInputStatus()
+      .then(setNdiStatus)
+      .catch(() => {});
+  }, []);
+
+  async function refreshNdiSources() {
+    setNdiBusy(true);
+    try {
+      setNdiSources(await listNdiSources());
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao buscar fontes NDI.");
+    } finally {
+      setNdiBusy(false);
+    }
+  }
+
+  async function handleNdiSource(source: string) {
+    if (!source || source === "__none__") return;
+    setNdiBusy(true);
+    try {
+      setNdiStatus(await startNdiInput(source));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao abrir a fonte NDI.");
+    } finally {
+      setNdiBusy(false);
+    }
+  }
+
+  async function handleNdiStop() {
+    setNdiBusy(true);
+    try {
+      setNdiStatus(await stopNdiInput());
+    } finally {
+      setNdiBusy(false);
+    }
+  }
 
   async function handlePlaceholderUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -245,7 +317,17 @@ export function DisplaysTabsPanel({
   const look = resolveOutputLook(output);
 
   function setLayer(layer: MasterLayerId, value: boolean) {
-    void onUpdate({ look: { ...look, [layer]: value } });
+    const patch: Partial<DisplayOutput> = { look: { ...look, [layer]: value } };
+    if (layer === "mask" && value && !output.mask) {
+      patch.mask = DEFAULT_MASK;
+    }
+    void onUpdate(patch);
+  }
+
+  const mask = output.mask ?? DEFAULT_MASK;
+
+  function updateMask(patch: Partial<MaskConfig>) {
+    void onUpdate({ mask: { ...mask, ...patch } });
   }
 
   function applyColorOverride(value: string) {
@@ -897,15 +979,9 @@ export function DisplaysTabsPanel({
                 {MASTER_LAYER_ORDER.map((layer) => {
                   const isScreenColor = layer === "screenColor";
                   const checked = isScreenColor ? output.backgroundColorEnabled : look[layer];
-                  const noRenderer =
-                    layer !== "slide" && layer !== "messages" && !isScreenColor;
-                  const stageDisables = output.category === "stage" && layer !== "messages";
-                  const disabled = isScreenColor ? false : noRenderer || stageDisables;
-                  const hint = stageDisables
-                    ? "Não se aplica ao Stage nesta fase"
-                    : noRenderer
-                      ? "Sem renderer nesta fase"
-                      : undefined;
+                  const noRenderer = layer === "media";
+                  const disabled = noRenderer;
+                  const hint = noRenderer ? "Sem renderer nesta fase" : undefined;
                   return (
                     <label
                       key={layer}
@@ -986,6 +1062,154 @@ export function DisplaysTabsPanel({
                     : "Sem override — usando o fundo do tema."}
                   {output.category === "lower" && " Lower Third aceita apenas cor/transparente."}
                 </div>
+              </div>
+
+              <div
+                className={cn(
+                  "rounded-lg border border-zinc-800 bg-zinc-950/60 p-3.5 space-y-3",
+                  !look.mask && "opacity-70",
+                )}
+              >
+                <span className="text-xs font-semibold text-zinc-200 flex items-center gap-1.5">
+                  <ScanLine className="size-3.5 text-sky-400" />
+                  Máscara
+                </span>
+                <div className="text-[11px] text-zinc-400 leading-relaxed">
+                  Recorta a saída na camada superior. Ative a camada{" "}
+                  <span className="text-zinc-200">Máscara</span> na lista ao lado para aplicar.
+                </div>
+                <div className="grid grid-cols-5 gap-1">
+                  {MASK_SHAPES.map((shape) => (
+                    <button
+                      key={shape.id}
+                      type="button"
+                      onClick={() => {
+                        const nextMask = { ...mask, shape: shape.id };
+                        void onUpdate({
+                          mask: nextMask,
+                          look: shape.id === "none" ? look : { ...look, mask: true },
+                        });
+                      }}
+                      className={cn(
+                        "rounded border px-1 py-1 text-[10px] transition-colors cursor-pointer",
+                        mask.shape === shape.id
+                          ? "border-sky-500 bg-sky-500/15 text-sky-300"
+                          : "border-zinc-800 bg-zinc-900/60 text-zinc-400 hover:text-zinc-200",
+                      )}
+                    >
+                      {shape.label}
+                    </button>
+                  ))}
+                </div>
+                {mask.shape !== "none" && (
+                  <>
+                    <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                      <span>Margem (%)</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={40}
+                        value={mask.inset}
+                        onChange={(e) =>
+                          updateMask({
+                            inset: Math.min(40, Math.max(0, Number(e.target.value) || 0)),
+                          })
+                        }
+                        className="h-7 w-16 bg-zinc-950 border-zinc-800 text-xs text-right font-mono"
+                      />
+                    </div>
+                    {mask.shape === "rounded" && (
+                      <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                        <span>Raio (px)</span>
+                        <Input
+                          type="number"
+                          min={0}
+                          max={400}
+                          value={mask.radius}
+                          onChange={(e) =>
+                            updateMask({ radius: Math.max(0, Number(e.target.value) || 0) })
+                          }
+                          className="h-7 w-16 bg-zinc-950 border-zinc-800 text-xs text-right font-mono"
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                      <span>Cor</span>
+                      <input
+                        type="color"
+                        value={mask.color.startsWith("#") ? mask.color : "#000000"}
+                        onChange={(e) => updateMask({ color: e.target.value })}
+                        className="size-6 rounded border border-zinc-700 bg-transparent cursor-pointer"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3.5 space-y-3">
+                <span className="text-xs font-semibold text-zinc-200 flex items-center gap-1.5">
+                  <Radio className="size-3.5 text-rose-400" />
+                  Entrada de Vídeo (NDI)
+                </span>
+                <div className="text-[11px] text-zinc-400 leading-relaxed">
+                  Fonte global exibida nas saídas com a camada{" "}
+                  <span className="text-zinc-200">Entrada de Vídeo</span> ligada.
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void refreshNdiSources()}
+                    disabled={ndiBusy || !isTauri()}
+                    className="h-7 text-xs border-zinc-700 hover:bg-zinc-800"
+                  >
+                    {ndiBusy ? "Buscando…" : "Buscar fontes"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void handleNdiStop()}
+                    disabled={ndiBusy || !ndiStatus?.running}
+                    className="h-7 text-xs"
+                  >
+                    Parar
+                  </Button>
+                </div>
+                <Select
+                  value={ndiStatus?.source ?? "__none__"}
+                  onValueChange={(value) => void handleNdiSource(value)}
+                >
+                  <SelectTrigger className="h-8 bg-zinc-950 border-zinc-800 text-xs">
+                    <SelectValue placeholder="Nenhuma fonte" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-zinc-900 border-zinc-800 text-xs text-zinc-200 max-h-60">
+                    <SelectItem value="__none__" disabled>
+                      Nenhuma fonte
+                    </SelectItem>
+                    {ndiSources.map((source) => (
+                      <SelectItem key={source} value={source}>
+                        {source}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="text-[10px] text-zinc-500">
+                  {ndiStatus?.running
+                    ? `Ativo: ${ndiStatus.source ?? "—"}${
+                        ndiStatus.width
+                          ? ` · ${ndiStatus.width}x${ndiStatus.height}`
+                          : ""
+                      }`
+                    : "Inativo"}
+                  {ndiStatus?.error ? (
+                    <span className="text-red-400"> · {ndiStatus.error}</span>
+                  ) : null}
+                </div>
+                {!isTauri() && (
+                  <div className="text-[10px] text-amber-400">
+                    Disponível no aplicativo desktop.
+                  </div>
+                )}
               </div>
 
               <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3.5 text-[11px] text-zinc-400 leading-relaxed">

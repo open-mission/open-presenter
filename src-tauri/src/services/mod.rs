@@ -11,6 +11,7 @@ pub mod lyrics;
 pub mod lyrics_search;
 pub mod media_library;
 pub mod ndi;
+pub mod ndi_input;
 pub mod setlists;
 pub mod settings;
 pub mod slide_builder;

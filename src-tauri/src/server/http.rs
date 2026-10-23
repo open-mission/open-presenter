@@ -10,7 +10,7 @@ use axum::{
         ConnectInfo, Path, State,
     },
     http::{header, HeaderMap, StatusCode},
-    response::{Html, IntoResponse},
+    response::{Html, IntoResponse, Response},
     routing::{get, post},
     Router,
 };
@@ -96,6 +96,8 @@ pub fn router(state: ServerState) -> Router {
     Router::new()
         .route(WS_PATH, get(ws_handler))
         .route("/health", get(health_handler))
+        .route("/ndi/frame.jpg", get(ndi_frame_handler))
+        .route("/ndi/stream", get(ndi_stream_handler))
         .route("/api/live", get(live_handler))
         .route("/api/v1/info", get(crate::server::remote::info))
         .route("/api/v1/live", get(crate::server::remote::live))
@@ -412,6 +414,63 @@ async fn delete_stage_message_handler(
 
     state.broadcaster.publish_stage_message(None);
     axum::http::StatusCode::OK.into_response()
+}
+
+async fn ndi_frame_handler(State(state): State<Arc<ServerState>>) -> Response {
+    use tauri::Manager;
+
+    let Some(app) = state.app_handle.as_ref() else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let input = app.state::<crate::services::ndi_input::NdiInputState>();
+    match input.latest() {
+        Some(frame) => (
+            [(header::CONTENT_TYPE, "image/jpeg")],
+            Bytes::from(frame.to_vec()),
+        )
+            .into_response(),
+        None => StatusCode::NO_CONTENT.into_response(),
+    }
+}
+
+async fn ndi_stream_handler(State(state): State<Arc<ServerState>>) -> Response {
+    use tauri::Manager;
+
+    let Some(app) = state.app_handle.as_ref() else {
+        return StatusCode::SERVICE_UNAVAILABLE.into_response();
+    };
+    let input = app.state::<crate::services::ndi_input::NdiInputState>();
+    let receiver = input.subscribe();
+
+    let stream = futures_util::stream::unfold(receiver, |mut receiver| async move {
+        loop {
+            match receiver.recv().await {
+                Ok(frame) => {
+                    let mut chunk = Vec::with_capacity(frame.len() + 64);
+                    chunk.extend_from_slice(
+                        b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ",
+                    );
+                    chunk.extend_from_slice(frame.len().to_string().as_bytes());
+                    chunk.extend_from_slice(b"\r\n\r\n");
+                    chunk.extend_from_slice(&frame);
+                    chunk.extend_from_slice(b"\r\n");
+                    return Some((Ok::<Bytes, std::io::Error>(Bytes::from(chunk)), receiver));
+                }
+                Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(broadcast::error::RecvError::Closed) => return None,
+            }
+        }
+    });
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(
+            header::CONTENT_TYPE,
+            "multipart/x-mixed-replace; boundary=frame",
+        )
+        .header(header::CACHE_CONTROL, "no-store")
+        .body(Body::from_stream(stream))
+        .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
 }
 
 fn current_display_outputs(state: &ServerState) -> Vec<crate::state::types::DisplayOutput> {
