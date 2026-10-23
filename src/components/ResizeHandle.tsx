@@ -40,8 +40,10 @@ export function ResizeHandle({
 
   function handlePointerMove(e: ReactPointerEvent<HTMLDivElement>) {
     if (!dragging) return;
-    const delta =
-      (isColumnResize ? e.clientX : e.clientY) - start.current.pointer;
+    // Painel inferior: arrastar para cima aumenta a altura.
+    const delta = isColumnResize
+      ? e.clientX - start.current.pointer
+      : start.current.pointer - e.clientY;
     onChange(clampPanelWidth(start.current.value + delta, min, max));
   }
 
@@ -61,10 +63,10 @@ export function ResizeHandle({
       onChange(clampPanelWidth(value + 16, min, max));
     } else if (!isColumnResize && e.key === "ArrowUp") {
       e.preventDefault();
-      onChange(clampPanelWidth(value - 16, min, max));
+      onChange(clampPanelWidth(value + 16, min, max));
     } else if (!isColumnResize && e.key === "ArrowDown") {
       e.preventDefault();
-      onChange(clampPanelWidth(value + 16, min, max));
+      onChange(clampPanelWidth(value - 16, min, max));
     } else if (e.key === "Home") {
       e.preventDefault();
       onChange(min);

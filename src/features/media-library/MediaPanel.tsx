@@ -191,14 +191,6 @@ export function MediaPanel() {
       <div className="flex w-32 shrink-0 flex-col border-r border-border bg-muted/20">
         <div className="flex h-9 items-center justify-between border-b border-border px-2">
           <span className="text-xs font-semibold text-foreground">Mídia</span>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label="Recolher painel de mídia"
-            className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-          >
-            <ChevronDown className="size-3.5" />
-          </button>
         </div>
         <div className="flex flex-1 flex-col gap-0.5 p-1">
           {TAB_INFO.map(({ id, label, icon: Icon }) => (
@@ -228,17 +220,28 @@ export function MediaPanel() {
               ? `Alvo: ${selectedOutput.name}`
               : "Alvo: primeira saída compatível"}
           </span>
-          {selectedOutput && (
+          <div className="flex items-center gap-1">
+            {selectedOutput && (
+              <button
+                type="button"
+                onClick={() => clearOverrideForOutput(selectedOutput.id)}
+                className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+                title="Limpar ação ao vivo desta saída"
+              >
+                <X className="size-2.5" />
+                limpar
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => clearOverrideForOutput(selectedOutput.id)}
-              className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-              title="Limpar ação ao vivo desta saída"
+              onClick={() => setOpen(false)}
+              aria-label="Recolher painel de mídia"
+              title="Recolher painel"
+              className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
             >
-              <X className="size-2.5" />
-              limpar
+              <ChevronDown className="size-3.5" />
             </button>
-          )}
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2">
