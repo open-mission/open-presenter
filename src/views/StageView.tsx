@@ -18,16 +18,13 @@ import {
   DEFAULT_STAGE_REST_THEME,
   DEFAULT_STAGE_THEME,
 } from "@/features/slide-themes/seedThemes";
-import { useLiveThemesStore } from "@/features/slide-themes/liveThemesStore";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
-import {
-  resolveStageRenderTheme,
-  resolveStageRestRenderTheme,
-} from "@/features/slide-themes/themeResolution";
+import { resolveStageRenderTheme } from "@/features/slide-themes/themeResolution";
+import { materializeThemeForContent, resolveContentTheme } from "@/features/slide-themes/outputPlan";
+import { useOutputPlan } from "@/features/slide-themes/useOutputPlan";
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
-import { materializePage } from "@/features/slide-themes/pages";
+import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
 import { SlideCanvas } from "@/features/presentation/SlideCanvas";
-import { useDisplaysStore } from "@/features/displays/store";
 import { useDisplaysSync } from "@/features/displays/useDisplaysSync";
 
 interface StageViewProps {
@@ -35,6 +32,11 @@ interface StageViewProps {
   outputId?: string;
 }
 
+/**
+ * Retorno de palco: layout próprio (relógio, próximo slide, painéis). Nesta fase
+ * não filtra elementos por camada; só o toggle de Mensagens tem efeito. Ocioso
+ * usa o tema de descanso do plano (idle > página rest > padrão).
+ */
 export default function StageView({ backgroundColor, outputId }: StageViewProps = {}) {
   usePresentationSync("stage");
   useStageTimerSync();
@@ -44,20 +46,8 @@ export default function StageView({ backgroundColor, outputId }: StageViewProps 
 
   const [searchParams] = useSearchParams();
   const effectiveOutputId = outputId ?? searchParams.get("id");
-  const outputs = useDisplaysStore((s) => s.outputs);
-
-  const activeOutput = useMemo(() => {
-    if (effectiveOutputId) return outputs.find((o) => o.id === effectiveOutputId);
-    return (
-      outputs.find((o) => o.category === "stage" && o.enabled) ??
-      outputs.find((o) => o.category === "stage") ??
-      null
-    );
-  }, [outputs, effectiveOutputId]);
-
-  const screenBg =
-    backgroundColor ??
-    (activeOutput?.backgroundColorEnabled ? activeOutput.backgroundColor : "#000000");
+  const { plan } = useOutputPlan("stage", effectiveOutputId);
+  const look = plan.look;
 
   const live = usePresentationStore((s) => s.live);
   const nextUp = usePresentationStore((s) => s.live.nextUp);
@@ -69,22 +59,38 @@ export default function StageView({ backgroundColor, outputId }: StageViewProps 
 
   const loadThemes = useSlideThemesStore((s) => s.load);
   const themes = useSlideThemesStore((s) => s.themes);
-  const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
-  const stageRestThemeGuid = useSlideThemesStore((s) => s.stageRestThemeGuid);
-  const resolveStageTheme = useSlideThemesStore((s) => s.resolveStageTheme);
-  const resolveStageRestTheme = useSlideThemesStore((s) => s.resolveStageRestTheme);
-  const broadcastStageTheme = useLiveThemesStore((s) => s.themes.stage);
-  const broadcastPublicTheme = useLiveThemesStore((s) => s.themes.public);
-  const localStageTheme = useMemo(
-    () => resolveStageTheme(),
-    [resolveStageTheme, themes, stageThemeGuid],
-  );
-  const localStageRestTheme = useMemo(
-    () => resolveStageRestTheme(),
-    [resolveStageRestTheme, themes, stageThemeGuid, stageRestThemeGuid],
-  );
+  const mediaThemeId = live.content.media?.themeId ?? null;
 
-  const isPresentation = Boolean(live.content.media?.themeId);
+  useEffect(() => {
+    void loadThemes();
+  }, [loadThemes]);
+
+  const contentTheme = useMemo(() => {
+    const doc = resolveContentTheme(mediaThemeId, themes, "stage");
+    return materializeThemeForContent(doc, live.content);
+  }, [mediaThemeId, themes, live.content]);
+
+  const stageTheme = plan.theme ?? DEFAULT_STAGE_THEME;
+  const liveTheme =
+    resolveStageRenderTheme(
+      stageTheme,
+      live.content.kind,
+      live.content.media?.kind,
+      DEFAULT_STAGE_THEME,
+    ) ?? { theme: DEFAULT_STAGE_THEME, asset: "music" as const };
+
+  const restRender = useMemo(() => {
+    const candidate = plan.restTheme ?? DEFAULT_STAGE_REST_THEME;
+    if (candidate.pages?.length) {
+      const page = getPageForContext(candidate, "rest") ?? candidate.pages[0];
+      if (page) {
+        return { theme: materializePage(candidate, page), asset: "rest" as const };
+      }
+    }
+    return { theme: candidate, asset: "rest" as const };
+  }, [plan.restTheme]);
+
+  const isPresentation = Boolean(mediaThemeId);
   const isMedia = live.content.kind === "media" && Boolean(live.content.media);
 
   const isIdle =
@@ -95,49 +101,11 @@ export default function StageView({ backgroundColor, outputId }: StageViewProps 
       live.content.lines.length === 0 &&
       !live.content.title);
 
-  const stageTheme = broadcastStageTheme ?? localStageTheme ?? DEFAULT_STAGE_THEME;
-  const restTheme = resolveStageRestRenderTheme(
-    stageTheme,
-    localStageRestTheme ?? DEFAULT_STAGE_REST_THEME,
-  );
-  const liveTheme =
-    resolveStageRenderTheme(
-      stageTheme,
-      live.content.kind,
-      live.content.media?.kind,
-      DEFAULT_STAGE_THEME,
-    ) ?? { theme: DEFAULT_STAGE_THEME, asset: "music" as const };
-
-  const rawPresentationTheme = isPresentation
-    ? (themes.find((t) => t.guid === live.content.media?.themeId) ??
-       (broadcastPublicTheme?.guid === live.content.media?.themeId
-         ? broadcastPublicTheme
-         : null) ??
-       (broadcastStageTheme?.guid === live.content.media?.themeId
-         ? broadcastStageTheme
-         : null) ??
-       liveTheme.theme)
-    : null;
-
-  const presentationTheme = useMemo(() => {
-    if (!rawPresentationTheme) return null;
-    if (
-      rawPresentationTheme.category === "presentation" &&
-      rawPresentationTheme.pages?.length
-    ) {
-      const slideIndex = live.content.media?.index ?? 0;
-      const page =
-        rawPresentationTheme.pages[slideIndex] ?? rawPresentationTheme.pages[0];
-      return page ? materializePage(rawPresentationTheme, page) : rawPresentationTheme;
-    }
-    return rawPresentationTheme;
-  }, [rawPresentationTheme, live.content.media?.index]);
+  const screenBg =
+    backgroundColor ??
+    (plan.screenColor.enabled ? plan.screenColor.value : "#000000");
 
   const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    void loadThemes();
-  }, [loadThemes]);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -145,7 +113,8 @@ export default function StageView({ backgroundColor, outputId }: StageViewProps 
   }, []);
 
   const isTargeted = Boolean(
-    activeAlert &&
+    look.messages &&
+      activeAlert &&
       (!activeAlert.targets ||
         activeAlert.targets.length === 0 ||
         activeAlert.targets.includes("stage") ||
@@ -176,14 +145,14 @@ export default function StageView({ backgroundColor, outputId }: StageViewProps 
         <div className="absolute inset-0 bg-black" />
       ) : isIdle ? (
         <ScaledStage
-          theme={restTheme.theme}
-          asset={restTheme.asset}
+          theme={restRender.theme}
+          asset={restRender.asset}
           props={stageProps}
           className="absolute inset-0"
         />
-      ) : isPresentation && presentationTheme ? (
+      ) : isPresentation && contentTheme ? (
         <ScaledStage
-          theme={presentationTheme}
+          theme={contentTheme}
           asset="text"
           props={buildProps(live.content.kind, live.content, nextUp)}
           showBackground={true}

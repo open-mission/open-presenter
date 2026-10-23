@@ -54,11 +54,11 @@ async function syncNativeWindow(output: DisplayOutput) {
       const slug = output.slug || slugify(output.name);
       let route = `/output/${slug}?category=${output.category}&id=${output.id}`;
       if (output.category === "public" && (!output.slug || output.slug === "public" || output.slug === "telao")) {
-        route = "/public";
+        route = `/public?id=${output.id}`;
       } else if (output.category === "stage" && (!output.slug || output.slug === "stage" || output.slug === "palco" || output.slug === "retorno")) {
-        route = "/stage";
+        route = `/stage?id=${output.id}`;
       } else if (output.category === "lower" && (!output.slug || output.slug === "lower" || output.slug === "stream" || output.slug === "transmissao")) {
-        route = "/stream";
+        route = `/stream?id=${output.id}`;
       }
       try {
         await openNativeOutput(output.id, output.monitorId ?? null, route, output.name);
