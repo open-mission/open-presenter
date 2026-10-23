@@ -449,7 +449,6 @@ pub const EVENT_CLIENT_HELLO: &str = "client://hello";
 pub const EVENT_DISPLAYS: &str = "displays://changed";
 pub const EVENT_DISPLAYS_IDENTIFY: &str = "displays://identify";
 pub const EVENT_OUTPUT_PLANS: &str = "presentation://output-plans";
-pub const EVENT_OUTPUT_OVERRIDES: &str = "presentation://output-overrides";
 
 pub const OUTPUT_HTTP_PORT: u16 = 5050;
 pub const WS_PATH: &str = "/ws";
@@ -774,17 +773,6 @@ pub struct LiveThemes {
     pub stream: Option<SlideTheme>,
 }
 
-/// Override ao vivo de uma saída (efêmero; não persistido no SQLite).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OutputOverride {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub theme_guid: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub background: Option<BackgroundLayer>,
-    pub updated_at: String,
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum PlanThemeSource {
@@ -820,8 +808,6 @@ pub struct LiveOutputPlans {
     #[serde(default)]
     pub plans: HashMap<String, OutputPlan>,
 }
-
-pub type OutputOverrides = HashMap<String, OutputOverride>;
 
 /// Cronômetro do palco. Fonte da verdade no Rust: todas as saídas e o painel
 /// de controle espelham este estado via `stage://timer`. Os instantes são

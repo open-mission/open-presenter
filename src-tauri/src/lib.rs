@@ -407,8 +407,6 @@ pub fn run() {
             commands::presentation::get_live_themes,
             commands::presentation::set_live_output_plans,
             commands::presentation::get_live_output_plans,
-            commands::presentation::set_output_override,
-            commands::presentation::clear_output_override,
             commands::presentation::timer_start,
             commands::presentation::timer_pause,
             commands::presentation::timer_reset,

@@ -1,9 +1,7 @@
-use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use super::types::{
-    now_millis, CommunicationAlert, LiveOutputPlans, LiveSlide, LiveThemes, OutputOverride,
-    StageTimer,
+    now_millis, CommunicationAlert, LiveOutputPlans, LiveSlide, LiveThemes, StageTimer,
 };
 
 fn blank_slide() -> LiveSlide {
@@ -32,7 +30,6 @@ pub struct PresentationState {
     wallpaper: Arc<RwLock<Option<String>>>,
     stage_message: Arc<RwLock<Option<CommunicationAlert>>>,
     output_plans: Arc<RwLock<LiveOutputPlans>>,
-    output_overrides: Arc<RwLock<HashMap<String, OutputOverride>>>,
 }
 
 impl Default for PresentationState {
@@ -44,7 +41,6 @@ impl Default for PresentationState {
             wallpaper: Arc::new(RwLock::new(None)),
             stage_message: Arc::new(RwLock::new(None)),
             output_plans: Arc::new(RwLock::new(LiveOutputPlans::default())),
-            output_overrides: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -137,26 +133,6 @@ impl PresentationState {
     pub fn set_output_plans(&self, plans: LiveOutputPlans) {
         if let Ok(mut guard) = self.output_plans.write() {
             *guard = plans;
-        }
-    }
-
-    pub fn output_overrides(&self) -> HashMap<String, OutputOverride> {
-        self.output_overrides
-            .read()
-            .map(|o| o.clone())
-            .unwrap_or_default()
-    }
-
-    pub fn set_output_override(&self, output_id: String, value: Option<OutputOverride>) {
-        if let Ok(mut guard) = self.output_overrides.write() {
-            match value {
-                Some(override_value) => {
-                    guard.insert(output_id, override_value);
-                }
-                None => {
-                    guard.remove(&output_id);
-                }
-            }
         }
     }
 }
@@ -277,33 +253,9 @@ mod tests {
     }
 
     #[test]
-    fn planos_e_overrides_comecam_vazios() {
+    fn planos_comecam_vazios() {
         let state = PresentationState::default();
         assert!(state.output_plans().plans.is_empty());
-        assert!(state.output_overrides().is_empty());
-    }
-
-    #[test]
-    fn guarda_e_le_override_por_saida() {
-        use crate::state::types::OutputOverride;
-
-        let state = PresentationState::default();
-        state.set_output_override(
-            "out-1".to_string(),
-            Some(OutputOverride {
-                theme_guid: Some("theme-a".to_string()),
-                background: None,
-                updated_at: "2026-01-01T00:00:00.000Z".to_string(),
-            }),
-        );
-        let overrides = state.output_overrides();
-        assert_eq!(
-            overrides.get("out-1").and_then(|o| o.theme_guid.clone()),
-            Some("theme-a".to_string())
-        );
-
-        state.set_output_override("out-1".to_string(), None);
-        assert!(state.output_overrides().is_empty());
     }
 
     #[test]

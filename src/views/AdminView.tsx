@@ -22,6 +22,7 @@ import { SongSlidesColumn } from "@/features/events-setlists/SongSlidesColumn";
 import { LivePreview } from "@/features/presentation/LivePreview";
 import { ThemeRail } from "@/features/slide-themes/ThemeRail";
 import { useLiveThemesPublisher, useThemesSync } from "@/features/slide-themes/useThemeSync";
+import { useOutputPlansPublisher } from "@/features/slide-themes/useOutputPlansPublisher";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useOutputsSync } from "@/features/output-manager/useOutputsSync";
 import { useOutputManagerStore } from "@/features/output-manager/store";
@@ -61,6 +62,7 @@ export default function AdminView() {
   useNativeMenu();
   useThemesSync();
   useLiveThemesPublisher();
+  useOutputPlansPublisher();
   useRemoteSetlistPublisher();
   useBibleLiveSync();
   useUpdateChecker();

@@ -13,7 +13,6 @@ import type {
   ImportedFolder,
   ImportedMedia,
   ImportReport,
-  LiveOutputOverride,
   LiveOutputPlans,
   LiveSlide,
   LiveThemes,
@@ -139,17 +138,6 @@ export async function setLiveOutputPlans(plans: LiveOutputPlans): Promise<void> 
 
 export async function fetchLiveOutputPlans(): Promise<LiveOutputPlans | null> {
   return invokeCommand<LiveOutputPlans>("get_live_output_plans");
-}
-
-export async function setOutputOverride(
-  outputId: string,
-  value: LiveOutputOverride | null,
-): Promise<void> {
-  await invokeCommand("set_output_override", { outputId, value });
-}
-
-export async function clearOutputOverride(outputId: string): Promise<void> {
-  await invokeCommand("clear_output_override", { outputId });
 }
 
 export async function fetchServerHost(): Promise<string> {

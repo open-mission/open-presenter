@@ -5,8 +5,7 @@ use tokio::sync::broadcast;
 
 use crate::state::{
     types::{EVENT_SLIDE, EVENT_STAGE_MESSAGE},
-    CommunicationAlert, LiveOutputPlans, LiveSlide, LiveThemes, OutputOverride, PresentationState,
-    StageTimer,
+    CommunicationAlert, LiveOutputPlans, LiveSlide, LiveThemes, PresentationState, StageTimer,
 };
 
 #[derive(Debug, Clone)]
@@ -111,36 +110,6 @@ impl Broadcaster {
             app.state::<PresentationState>().output_plans()
         } else {
             self.fallback.output_plans()
-        }
-    }
-
-    pub fn publish_output_override(
-        &self,
-        output_id: &str,
-        value: Option<OutputOverride>,
-    ) {
-        if let Some(app) = &self.app {
-            app.state::<PresentationState>()
-                .set_output_override(output_id.to_string(), value.clone());
-            let _ = app.emit(crate::state::types::EVENT_OUTPUT_OVERRIDES, (&output_id, &value));
-        } else {
-            self.fallback
-                .set_output_override(output_id.to_string(), value.clone());
-        }
-
-        let envelope = serde_json::json!({
-            "channel": crate::state::types::EVENT_OUTPUT_OVERRIDES,
-            "payload": { "outputId": output_id, "override": value },
-            "version": 1,
-        });
-        let _ = self.ws_tx.send(envelope.to_string());
-    }
-
-    pub fn current_output_overrides(&self) -> std::collections::HashMap<String, OutputOverride> {
-        if let Some(app) = &self.app {
-            app.state::<PresentationState>().output_overrides()
-        } else {
-            self.fallback.output_overrides()
         }
     }
 

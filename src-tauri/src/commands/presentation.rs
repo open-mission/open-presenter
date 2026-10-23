@@ -3,7 +3,7 @@ use tauri::State;
 use crate::error::AppError;
 use crate::services::display_manager;
 use crate::services::SharedBroadcaster;
-use crate::state::{LiveOutputPlans, LiveSlide, LiveThemes, MonitorInfo, OutputOverride, OutputTarget, StageTimer};
+use crate::state::{LiveOutputPlans, LiveSlide, LiveThemes, MonitorInfo, OutputTarget, StageTimer};
 
 #[tauri::command]
 pub async fn list_monitors(app: tauri::AppHandle) -> Result<Vec<MonitorInfo>, AppError> {
@@ -271,24 +271,5 @@ pub async fn get_live_output_plans(
     broadcaster: State<'_, SharedBroadcaster>,
 ) -> Result<LiveOutputPlans, AppError> {
     Ok(broadcaster.current_output_plans())
-}
-
-#[tauri::command]
-pub async fn set_output_override(
-    broadcaster: State<'_, SharedBroadcaster>,
-    output_id: String,
-    value: Option<OutputOverride>,
-) -> Result<(), AppError> {
-    broadcaster.publish_output_override(&output_id, value);
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn clear_output_override(
-    broadcaster: State<'_, SharedBroadcaster>,
-    output_id: String,
-) -> Result<(), AppError> {
-    broadcaster.publish_output_override(&output_id, None);
-    Ok(())
 }
 
