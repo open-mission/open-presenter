@@ -37,6 +37,74 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: "0.3.9",
+    date: "2026-10-23",
+    title: "Camadas, Looks por Saída e Painel de Mídia",
+    summary:
+      "O editor de temas agora organiza os elementos nas camadas mestras (Máscara, Mensagens, Props, Anúncios, Slide, Mídia, Vídeo e Cor da Tela). Cada saída ganha um Look próprio, decide o que aparece e recebe temas/fundos arrastados do novo painel inferior. O ThemeRail sai de cena.",
+    highlights: [
+      {
+        icon: "layers",
+        title: "Camadas Mestras no Editor",
+        description:
+          "A árvore do editor agrupa os elementos nas 8 camadas de saída. Todo texto nasce em Slide; imagens, formas e props podem ser movidos de camada com um clique.",
+      },
+      {
+        icon: "monitor",
+        title: "Look por Saída",
+        description:
+          "Cada tela liga e desliga camadas de verdade: desligar Mensagens esconde os avisos só naquela saída; desligar Slide esconde o texto e mantém a cor da tela.",
+      },
+      {
+        icon: "palette",
+        title: "Painel de Mídia com Arraste",
+        description:
+          "Painel inferior com abas Temas, Fundos, Lower e Shaders. Arraste um tema ou fundo para o preview de uma saída e ele muda só ali, mantendo o texto e as demais telas.",
+      },
+      {
+        icon: "refresh",
+        title: "Tela Cheia Confiável",
+        description:
+          "Novo atalho Janela → Tela Cheia (Ctrl+Cmd+F no Mac, F11 nos demais) e janelas de saída que voltam ao fullscreen depois de sair.",
+      },
+    ],
+    sections: [
+      {
+        title: "Editor de Temas",
+        items: [
+          "As 8 camadas mestras com contador, olho de edição e cadeado.",
+          "Ação Mover para camada em elementos e grupos.",
+          "Temas antigos continuam abrindo; elementos sem camada viram Slide.",
+        ],
+      },
+      {
+        title: "Saídas & Sincronização",
+        items: [
+          "Plano de render por saída (tema, Look, fundo e cor da tela).",
+          "Precedência única: ao vivo > evento > padrão da saída.",
+          "Cor da tela e Look chegam às saídas web/OBS pelo snapshot inicial.",
+          "Seletor de tema mostra todos os temas e explica os incompatíveis.",
+        ],
+      },
+      {
+        title: "Painel de Mídia",
+        items: [
+          "Abas verticais, altura redimensionável e estado persistido.",
+          "Arraste de temas e fundos para os previews de saída.",
+          "Lower Third só aceita cor/transparente ou tema de transmissão.",
+          "Ações aplicar, editar tema e limpar ação ao vivo.",
+        ],
+      },
+    ],
+    fixes: [
+      "O tema padrão configurado na tela não é mais sobreposto por vínculos globais.",
+      "Mensagens desligadas em uma saída deixam de renderizar alertas nela.",
+      "Arrastar fundo para a letra/prévia agora aplica o override na saída.",
+      "O divisor do painel de mídia não inverte mais a direção ao arrastar.",
+    ],
+    changelogUrl: `${CHANGELOG_URL}#039---2026-10-23`,
+  },
+  {
     version: "0.3.8",
     date: "2026-10-20",
     title: "Auto-scale Preciso e Atalhos de Seção Sincronizados",

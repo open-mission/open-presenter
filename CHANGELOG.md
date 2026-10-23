@@ -5,6 +5,80 @@ Todas as mudanças relevantes do Open Presenter são documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.3.9] - 2026-10-23
+
+Release com camadas mestras e Looks por saída, plano de render por saída, painel de
+mídia inferior com arraste de temas/fundos e correções nas janelas nativas.
+
+### Adicionado
+
+#### Camadas mestras e Looks por saída
+
+- 8 camadas mestras fixas no tema: Máscara, Mensagens, Props, Anúncios, Slide,
+  Mídia, Entrada de Vídeo e Cor da Tela.
+- Campo `layer` em `ThemeElement`; temas antigos sem o campo são tratados como
+  `slide`.
+- Editor de Temas com árvore por camada, visibilidade/bloqueio por camada e ação
+  **Mover para camada**.
+- `OutputLook` por saída, com toggles de camada, defaults por categoria e a Cor da
+  Tela como fachada de `backgroundColorEnabled`.
+- `OutputPlan`/`LiveOutputPlans` por saída: o admin resolve tema, look, fundo e
+  cor da tela; o Rust guarda e publica via evento e `/ws`.
+- Precedência única de tema: conteúdo > override ao vivo > evento > padrão da
+  saída > fallback do sistema.
+- Precedência de fundo: conteúdo > override ao vivo > fundo do slide ao vivo >
+  fundo do tema > Cor da Tela.
+- Rotas nativas passam a carregar `?id=<outputId>`; rotas antigas sem `id` caem na
+  primeira saída habilitada da categoria.
+- Snapshot inicial do `/ws` inclui os planos por saída e a configuração das saídas.
+
+#### Painel de mídia (Fase 2)
+
+- Painel inferior estilo media bin, com abas em sidebar vertical
+  (Temas/Fundos/Lower/Shaders), altura redimensionável e estado persistido.
+- Arraste de temas e fundos para os previews de saída, gravando override ao vivo
+  apenas naquela saída.
+- Compatibilidade por categoria de ativo: Lower Third aceita só cor/transparente
+  ou tema `stream`.
+- Ações de aplicar, editar tema e limpar override no painel.
+- Presets de shader e imagens da biblioteca entram como ativos de fundo.
+
+#### Janelas nativas
+
+- Alternância confiável de tela cheia: item **Janela → Tela Cheia**
+  (`Ctrl+Cmd+F` no macOS, `F11` nos demais) e comando `toggle_fullscreen`.
+- Janelas de saída redimensionáveis, permitindo reentrar em tela cheia no macOS.
+
+### Alterado
+
+- ThemeRail e bindings globais removidos. A escolha de tema passa a ter três
+  donos explícitos: saída (padrão/Look), evento e ação ao vivo.
+- Seletor de tema da saída lista todos os temas, com incompatíveis desabilitados
+  e explicados.
+- Previews de saída (`LivePreview` e `Displays`) refletem o Look e o override de
+  fundo.
+- Preferências → Temas vira galeria; a aplicação de tema acontece na saída/evento
+  e no painel de mídia.
+- `LiveThemes`/`set_live_themes` removidos; `LiveOutputPlans` é o novo contrato de
+  sincronização.
+
+### Corrigido
+
+- O tema padrão configurado na tela deixava de valer por causa dos bindings
+  globais do ThemeRail.
+- Alertas continuavam sendo renderizados em saídas com Mensagens desligada.
+- Arrastar um fundo para a letra/prévia não aplicava o override na saída.
+- Não era possível voltar à tela cheia depois de sair dela nas janelas nativas do
+  macOS.
+- O divisor do painel de mídia invertia a direção ao redimensionar.
+
+### Migração
+
+- Bindings antigos do ThemeRail são migrados na leitura para
+  `defaultThemeGuid`/`idleThemeGuid` das saídas.
+- Temas v1/v2 continuam abrindo; elementos sem `layer` viram `slide`.
+- `screenColor` continua vindo de `backgroundColorEnabled` (sem estado duplicado).
+
 ## [0.3.8] - 2026-10-20
 
 ### Corrigido
