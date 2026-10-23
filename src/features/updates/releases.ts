@@ -37,6 +37,73 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: "0.4.0",
+    date: "2026-10-23",
+    title: "Camadas, Looks e Entrada de Vídeo NDI",
+    summary:
+      "As camadas mestras agora renderizam de verdade: Props e Anúncios em overlays, Máscara em todas as saídas e Stage respeitando o Look. Chega também a Entrada de Vídeo NDI, com descoberta de fontes e feed ao vivo nas saídas.",
+    highlights: [
+      {
+        icon: "layers",
+        title: "Props e Anúncios Renderizados",
+        description:
+          "Mova um elemento para Props ou Anúncios no editor e ele aparece acima do Slide, abaixo dos alertas. Desligar a camada no Look esconde o overlay só naquela saída.",
+      },
+      {
+        icon: "monitor",
+        title: "Máscara e Stage em Camadas",
+        description:
+          "Escolha cantos arredondados, elipse, faixas ou laterais para recortar a saída. O Stage passa a respeitar Slide, Props, Anúncios e Máscara.",
+      },
+      {
+        icon: "refresh",
+        title: "Entrada de Vídeo NDI",
+        description:
+          "Descubra fontes NDI na aba Camadas e ligue a camada Entrada de Vídeo. O feed aparece abaixo do Slide no público, no Lower Third e no Stage.",
+      },
+      {
+        icon: "palette",
+        title: "Painel de Mídia",
+        description:
+          "Painel inferior com Temas, Fundos, Lower e Shaders, altura redimensionável e arraste para os previews de saída.",
+      },
+    ],
+    sections: [
+      {
+        title: "Camadas & Looks",
+        items: [
+          "8 camadas mestras com visibilidade/bloqueio e Mover para camada.",
+          "Look por saída com toggles de camada e tema padrão.",
+          "Plano de render por saída com precedência ao vivo > evento > padrão.",
+          "Máscara configurável (forma, margem, raio e cor).",
+        ],
+      },
+      {
+        title: "Entrada de Vídeo",
+        items: [
+          "Descoberta de fontes NDI e seleção no Look.",
+          "Feed MJPEG servido pelo servidor embutido.",
+          "Camada videoInput abaixo do Slide no público, Lower e Stage.",
+          "Status com fonte ativa, resolução e erro.",
+        ],
+      },
+      {
+        title: "Painel de Mídia",
+        items: [
+          "Abas verticais e altura redimensionável persistida.",
+          "Arraste de temas e fundos para cada saída.",
+          "Aplicar, editar tema e limpar ação ao vivo.",
+        ],
+      },
+    ],
+    fixes: [
+      "Tela cheia volta a funcionar nas janelas nativas do macOS.",
+      "Messages desligada esconde os alertas só naquela saída.",
+      "Arrastar fundo para a letra/prévia aplica o override na saída.",
+    ],
+    changelogUrl: `${CHANGELOG_URL}#040---2026-10-23`,
+  },
+  {
     version: "0.3.9",
     date: "2026-10-23",
     title: "Camadas, Looks por Saída e Painel de Mídia",

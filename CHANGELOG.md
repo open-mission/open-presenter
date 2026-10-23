@@ -5,6 +5,80 @@ Todas as mudanças relevantes do Open Presenter são documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.4.0] - 2026-10-23
+
+Release que consolida camadas mestras, Looks por saída e o painel de mídia (0.3.9)
+e fecha a Fase 3: Props/Anúncios, Máscara, Stage em camadas e Entrada de Vídeo NDI.
+
+### Adicionado
+
+#### Props e Anúncios
+
+- Elementos movidos para as camadas **Props** e **Anúncios** no editor de temas
+  passam a renderizar em overlays próprios acima do Slide (`z-21` e `z-22`).
+- Funciona no público, no Lower Third e no Stage; desligar a camada no Look
+  esconde o overlay só naquela saída.
+
+#### Máscara
+
+- `MaskConfig` por saída com formas **cantos arredondados**, **elipse**, **faixas**
+  e **laterais**, margem percentual, raio e cor.
+- Máscara aplicada na camada superior, acima de Slide/Props/Anúncios e abaixo do
+  blackout/alertas.
+- Configuração na aba **Camadas**; escolher uma forma já liga a camada Máscara.
+- Previews (`LivePreview` e `Displays`) refletem a máscara.
+
+#### Stage em camadas
+
+- `StageView` e `StageMiniPreview` filtram o tema pelo Look (Slide, Props,
+  Anúncios, Máscara e Mensagens).
+- **Slide** desligado esconde o painel do slide (tema, apresentação e mídia).
+- Overlays de Anúncios/Props, máscara e cor da tela também valem no Stage.
+- O Look libera todos os toggles no Stage, exceto Mídia (sem renderer).
+
+#### Entrada de Vídeo (NDI)
+
+- Descoberta de fontes NDI e seleção no Painel da saída (aba Camadas).
+- Receptor NDI com carregamento dinâmico do runtime, conversão RGBX → JPEG a
+  ~15 fps e publicação do último frame.
+- Endpoints `/ndi/frame.jpg` e `/ndi/stream` (MJPEG) no servidor embutido.
+- Camada **Entrada de Vídeo** no público, Lower Third e Stage, abaixo do Slide.
+- No Stage, o fundo do tema é omitido com a entrada ligada para o vídeo aparecer
+  atrás do relógio/próximo slide.
+- Comandos `list_ndi_sources`, `get_ndi_input_status`, `start_ndi_input` e
+  `stop_ndi_input`.
+
+#### Consolidação da 0.3.9
+
+- Camadas mestras, Looks por saída, plano de render por saída, remoção do
+  ThemeRail/bindings e painel de mídia inferior com arraste de temas/fundos.
+- Detalhes na entrada [0.3.9].
+
+### Alterado
+
+- `ThemeElement` ganhou `layer`; temas antigos continuam abrindo (sem camada =
+  Slide).
+- `DisplayOutput` ganhou `look`, `mask` e `idleThemeGuid`.
+- A escolha de tema passa a ter donos explícitos: saída (padrão/Look), evento e
+  ação ao vivo.
+
+### Corrigido
+
+- Tema padrão da tela não é mais sobreposto por vínculos globais.
+- Messages desligada esconde os alertas só naquela saída.
+- Arrastar fundo para a letra/prévia aplica o override na saída.
+- Alternância de tela cheia funciona nas janelas nativas do macOS.
+- O divisor do painel de mídia não inverte mais a direção.
+
+### Notas técnicas
+
+- Entrada NDI usa `ndi-sdk` (headers vendorizados + `dlopen`) em vez de
+  `grafton-ndi`, que exigiria o NDI SDK instalado em toda máquina de build/CI.
+  O **runtime NDI** continua sendo requisito em tempo de execução.
+- Fonte NDI é **global e por sessão** nesta versão; a seleção não é persistida.
+- O feed é entregue em MJPEG a ~15 fps; sem áudio e sem fonte por saída.
+- CI instala libclang no Linux/Windows para o bindgen.
+
 ## [0.3.9] - 2026-10-23
 
 Release com camadas mestras e Looks por saída, plano de render por saída, painel de

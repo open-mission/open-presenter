@@ -3043,7 +3043,7 @@ dependencies = [
 
 [[package]]
 name = "open-presenter"
-version = "0.3.9"
+version = "0.4.0"
 dependencies = [
  "axum",
  "flate2",
