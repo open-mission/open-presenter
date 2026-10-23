@@ -5,6 +5,39 @@ Todas as mudanças relevantes do Open Presenter são documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.4.1] - 2026-10-23
+
+Correções de mídia e de monitores reportadas no Windows.
+
+### Corrigido
+
+#### Mídia (fundo/tema)
+
+- A porta de mídia é revalidada quando o estado das saídas muda, em vez de
+  ficar fixada na porta lida no boot (servidor pode subir, parar ou trocar de
+  porta depois).
+- No desktop sem servidor HTTP, a mídia resolve para o protocolo `media://` em
+  vez de apontar para uma porta morta.
+- O caminho é codificado por segmento (sem escapar `/`), alinhado ao resolvedor
+  da biblioteca de imagens.
+- `BackgroundRenderer` tenta `media://` quando o HTTP falha, evitando imagem
+  quebrada.
+- A janela do evento mostra "Arquivo não encontrado" com a URL resolvida quando
+  o plano de fundo falha.
+
+#### Monitores (Windows)
+
+- Identidade de monitor estável (nome + resolução) no lugar do índice, que varia
+  entre chamadas no Windows e fazia a atribuição se perder.
+- `monitorId`/`monitorName` salvos são reconciliados com os monitores atuais ao
+  carregar.
+- O fallback escolhe um monitor não-primário, em vez do índice 1.
+- Auto-activate só no processo principal e uma vez por sessão: abrir a janela de
+  Configuração de tela não reabre nem foca mais as saídas.
+- Janela nativa existente não recebe foco; é reposicionada apenas se o monitor
+  mudou.
+- Nova saída prefere um monitor livre que não seja o principal.
+
 ## [0.4.0] - 2026-10-23
 
 Release que consolida camadas mestras, Looks por saída e o painel de mídia (0.3.9)

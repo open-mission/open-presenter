@@ -37,6 +37,51 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: "0.4.1",
+    date: "2026-10-23",
+    title: "Correções de mídia e monitores",
+    summary:
+      "Ajustes reportados no Windows: o plano de fundo não aparecia mais como \"arquivo não encontrado\" e as telas não se perdem nem se duplicam ao abrir a Configuração de tela.",
+    highlights: [
+      {
+        icon: "monitor",
+        title: "Monitores estáveis",
+        description:
+          "As telas são identificadas pelo nome/resolução em vez do índice, então a atribuição não se perde. Abrir a Configuração de tela não relança nem rouba o foco das saídas.",
+      },
+      {
+        icon: "refresh",
+        title: "Fundo voltando a aparecer",
+        description:
+          "A mídia revalida a porta do servidor e cai para o protocolo interno quando o HTTP não responde, evitando o falso \"arquivo não encontrado\".",
+      },
+    ],
+    sections: [
+      {
+        title: "Mídia",
+        items: [
+          "Porta de mídia revalidada quando o servidor sobe, para ou troca de porta.",
+          "Fallback para media:// no desktop sem servidor HTTP.",
+          "A janela do evento mostra a URL quando o plano de fundo falha.",
+        ],
+      },
+      {
+        title: "Monitores",
+        items: [
+          "Identidade de monitor estável por nome + resolução.",
+          "Reconciliação das atribuições salvas ao carregar.",
+          "Fallback e novas saídas preferem monitor não-principal.",
+        ],
+      },
+    ],
+    fixes: [
+      "Abrir a Configuração de tela não reabre nem foca as saídas.",
+      "Janela nativa existente só é reposicionada se o monitor mudou.",
+      "Plano de fundo do evento e do telão voltam a carregar no Windows.",
+    ],
+    changelogUrl: `${CHANGELOG_URL}#041---2026-10-23`,
+  },
+  {
     version: "0.4.0",
     date: "2026-10-23",
     title: "Camadas, Looks e Entrada de Vídeo NDI",
