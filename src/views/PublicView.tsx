@@ -8,6 +8,7 @@ import { PersistentBackground } from "@/features/media-shaders/PersistentBackgro
 import { SlideTransition } from "@/features/presentation/SlideTransition";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
+import { MaskOverlay } from "@/components/MaskOverlay";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useOutputPlan } from "@/features/slide-themes/useOutputPlan";
 import { filterThemeForLook, overlayThemeForLayer } from "@/features/slide-themes/layers";
@@ -184,6 +185,13 @@ export default function PublicView({ backgroundColor, outputId }: PublicViewProp
             })}
             showBackground={false}
           />
+        </div>
+      )}
+
+      {/* Camada: Máscara (topo) */}
+      {look.mask && activeOutput?.mask && (
+        <div className="absolute inset-0 z-[26] pointer-events-none">
+          <MaskOverlay mask={activeOutput.mask} />
         </div>
       )}
 

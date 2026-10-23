@@ -62,6 +62,7 @@ import type { BackgroundLayer, LiveSlide } from "@/core/types";
 import { filterThemeForLook, resolveOutputLook } from "@/features/slide-themes/layers";
 import { useOutputOverridesStore } from "@/features/slide-themes/outputOverridesStore";
 import { handleAssetDragOver, handleAssetDrop } from "@/features/media-library/dnd";
+import { MaskOverlay } from "@/components/MaskOverlay";
 
 export function LivePreview() {
   const live = usePresentationStore((s) => s.live);
@@ -379,6 +380,13 @@ export function LivePreview() {
                 transitionBackground={false}
               />
             </div>
+          </div>
+        )}
+
+        {/* Máscara da saída principal */}
+        {previewOutput && resolveOutputLook(previewOutput).mask && previewOutput.mask && (
+          <div className="absolute inset-0 z-[25] pointer-events-none">
+            <MaskOverlay mask={previewOutput.mask} />
           </div>
         )}
 

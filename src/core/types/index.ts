@@ -116,6 +116,20 @@ export interface OutputLook {
   screenColor: boolean;
 }
 
+export type MaskShape = "none" | "rounded" | "ellipse" | "bars" | "pillarbox";
+
+/**
+ * Máscara da saída (camada superior). `rounded`/`ellipse` recortam a tela;
+ * `bars`/`pillarbox` desenham faixas. `inset` é percentual (0–40) e `radius`
+ * é em pixels do palco lógico.
+ */
+export interface MaskConfig {
+  shape: MaskShape;
+  inset: number;
+  radius: number;
+  color: string;
+}
+
 export interface OutputResolution {
   width: number;
   height: number;
@@ -142,6 +156,7 @@ export interface DisplayOutput {
   defaultThemeGuid?: string | null;
   idleThemeGuid?: string | null;
   look?: OutputLook;
+  mask?: MaskConfig | null;
   monitorId?: string | null;
   monitorName?: string | null;
   url?: string | null;

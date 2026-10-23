@@ -28,6 +28,7 @@ import {
 } from "@/features/slide-themes/layers";
 import { useOutputOverridesStore } from "@/features/slide-themes/outputOverridesStore";
 import { handleAssetDragOver, handleAssetDrop } from "@/features/media-library/dnd";
+import { MaskOverlay } from "@/components/MaskOverlay";
 import { OutputPlaceholder } from "./OutputPlaceholder";
 
 interface DisplaysCanvasPreviewProps {
@@ -223,6 +224,13 @@ export function DisplaysCanvasPreview({ output }: DisplaysCanvasPreviewProps) {
                 <span>•</span>
                 <span className="uppercase">{output.aspectRatio}</span>
               </div>
+            </div>
+          )}
+
+          {/* Máscara da saída */}
+          {look.mask && output.mask && (
+            <div className="absolute inset-0 z-[18] pointer-events-none">
+              <MaskOverlay mask={output.mask} />
             </div>
           )}
 

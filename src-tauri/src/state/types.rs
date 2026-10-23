@@ -563,6 +563,20 @@ pub struct ScreenColorConfig {
     pub value: String,
 }
 
+/// Máscara da saída (camada superior). `shape` é "none" | "rounded" |
+/// "ellipse" | "bars" | "pillarbox"; `inset` é percentual e `radius` em px.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MaskConfig {
+    pub shape: String,
+    #[serde(default)]
+    pub inset: f64,
+    #[serde(default)]
+    pub radius: f64,
+    #[serde(default)]
+    pub color: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DisplayOutput {
@@ -584,6 +598,8 @@ pub struct DisplayOutput {
     pub idle_theme_guid: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub look: Option<OutputLook>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mask: Option<MaskConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub monitor_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
