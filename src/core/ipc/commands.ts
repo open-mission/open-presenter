@@ -6,11 +6,15 @@ import type {
   BibleVersion,
   CommunicationAlert,
   ConnectedClient,
+  DisplayOutput,
+  DisplaysSettings,
   EventSummary,
   ImageTreeNode,
   ImportedFolder,
   ImportedMedia,
   ImportReport,
+  LiveOutputOverride,
+  LiveOutputPlans,
   LiveSlide,
   LiveThemes,
   MonitorInfo,
@@ -97,7 +101,16 @@ export async function closeCommunicationWindow(): Promise<void> {
 }
 
 export async function openThemeEditor(guid?: string): Promise<void> {
-  await invokeCommand("open_theme_editor", { guid: guid ?? null });
+  if (isTauri()) {
+    await invokeCommand("open_theme_editor", { guid: guid ?? null });
+  } else {
+    const query = guid ? `?guid=${encodeURIComponent(guid)}` : "";
+    window.open(`/#/theme-editor${query}`, "_blank");
+  }
+}
+
+export async function closeThemeEditor(): Promise<void> {
+  await invokeCommand("close_theme_editor");
 }
 
 export async function publishSlide(slide: LiveSlide): Promise<void> {
@@ -118,6 +131,25 @@ export async function setLiveThemes(themes: LiveThemes): Promise<void> {
 
 export async function fetchLiveThemes(): Promise<LiveThemes | null> {
   return invokeCommand<LiveThemes>("get_live_themes");
+}
+
+export async function setLiveOutputPlans(plans: LiveOutputPlans): Promise<void> {
+  await invokeCommand("set_live_output_plans", { plans });
+}
+
+export async function fetchLiveOutputPlans(): Promise<LiveOutputPlans | null> {
+  return invokeCommand<LiveOutputPlans>("get_live_output_plans");
+}
+
+export async function setOutputOverride(
+  outputId: string,
+  value: LiveOutputOverride | null,
+): Promise<void> {
+  await invokeCommand("set_output_override", { outputId, value });
+}
+
+export async function clearOutputOverride(outputId: string): Promise<void> {
+  await invokeCommand("clear_output_override", { outputId });
 }
 
 export async function fetchServerHost(): Promise<string> {
@@ -571,6 +603,52 @@ export async function getNdiStatus(): Promise<NdiStatus | null> {
 
 export async function setNdiActive(active: boolean): Promise<NdiStatus | null> {
   return invokeCommand<NdiStatus>("set_ndi_active", { active });
+}
+
+export async function openDisplaysWindow(): Promise<void> {
+  await invokeCommand("open_displays_window");
+}
+
+export async function closeDisplaysWindow(): Promise<void> {
+  await invokeCommand("close_displays_window");
+}
+
+export async function getDisplayOutputs(): Promise<DisplayOutput[]> {
+  return (await invokeCommand<DisplayOutput[]>("get_display_outputs")) ?? [];
+}
+
+export async function saveDisplayOutputs(outputs: DisplayOutput[]): Promise<void> {
+  await invokeStrict("save_display_outputs", { outputs });
+}
+
+export async function getDisplaysSettings(): Promise<DisplaysSettings | null> {
+  return invokeCommand<DisplaysSettings>("get_displays_settings");
+}
+
+export async function saveDisplaysSettings(settings: DisplaysSettings): Promise<void> {
+  await invokeStrict("save_displays_settings", { settings });
+}
+
+export async function identifyDisplays(active: boolean): Promise<void> {
+  await invokeCommand("identify_displays", { active });
+}
+
+export async function openNativeOutput(
+  outputId: string,
+  monitorId: string | null,
+  route: string,
+  title: string,
+): Promise<void> {
+  await invokeCommand("open_native_output", {
+    outputId,
+    monitorId,
+    route,
+    title,
+  });
+}
+
+export async function closeNativeOutput(outputId: string): Promise<void> {
+  await invokeCommand("close_native_output", { outputId });
 }
 
 

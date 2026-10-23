@@ -446,6 +446,10 @@ pub const EVENT_REMOTE_SETLIST: &str = "remote://setlist";
 pub const EVENT_SETLIST_ACTIVE_CHANGED: &str = "setlist://active-changed";
 pub const EVENT_WALLPAPER: &str = "presentation://wallpaper";
 pub const EVENT_CLIENT_HELLO: &str = "client://hello";
+pub const EVENT_DISPLAYS: &str = "displays://changed";
+pub const EVENT_DISPLAYS_IDENTIFY: &str = "displays://identify";
+pub const EVENT_OUTPUT_PLANS: &str = "presentation://output-plans";
+pub const EVENT_OUTPUT_OVERRIDES: &str = "presentation://output-overrides";
 
 pub const OUTPUT_HTTP_PORT: u16 = 5050;
 pub const WS_PATH: &str = "/ws";
@@ -503,6 +507,143 @@ pub struct OutputRuntime {
     pub open: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub monitor_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum OutputType {
+    Monitor,
+    Html,
+    Ndi,
+    Virtual,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum OutputCategory {
+    Public,
+    Stage,
+    Lower,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputResolution {
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CornerPinning {
+    pub top_left: (f64, f64),
+    pub top_right: (f64, f64),
+    pub bottom_left: (f64, f64),
+    pub bottom_right: (f64, f64),
+}
+
+/// Configuração de camadas de uma saída ("Look"). Não guarda elementos: apenas
+/// liga/desliga as camadas mestras no render. `screen_color` é fachada para
+/// `background_color_enabled` (fonte única na saída).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputLook {
+    pub mask: bool,
+    pub messages: bool,
+    pub props: bool,
+    pub announcements: bool,
+    pub slide: bool,
+    pub media: bool,
+    pub video_input: bool,
+    pub screen_color: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenColorConfig {
+    pub enabled: bool,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplayOutput {
+    pub id: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
+    pub category: OutputCategory,
+    #[serde(rename = "type")]
+    pub output_type: OutputType,
+    pub enabled: bool,
+    pub resolution: OutputResolution,
+    pub aspect_ratio: String,
+    pub background_color: String,
+    pub background_color_enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_theme_guid: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idle_theme_guid: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<OutputLook>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub monitor_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub monitor_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ndi_stream_name: Option<String>,
+    #[serde(default)]
+    pub frame_rate: u32,
+    #[serde(default)]
+    pub video_delay_frames: u32,
+    #[serde(default)]
+    pub alpha_key: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout_mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_destination: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub corner_pinning: Option<CornerPinning>,
+    #[serde(default)]
+    pub placeholder_enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placeholder_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placeholder_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placeholder_fit: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplaysSettings {
+    pub auto_activate_on_launch: bool,
+    pub show_performance_stats: bool,
+    pub ignore_background_colors: bool,
+    pub show_keynote_screens: bool,
+    pub timer_font_mode: String,
+    pub bit_depth: String,
+    pub public_enabled: bool,
+    pub stage_enabled: bool,
+    pub lower_enabled: bool,
+}
+
+impl Default for DisplaysSettings {
+    fn default() -> Self {
+        Self {
+            auto_activate_on_launch: true,
+            show_performance_stats: false,
+            ignore_background_colors: false,
+            show_keynote_screens: false,
+            timer_font_mode: "auto".to_string(),
+            bit_depth: "8bit".to_string(),
+            public_enabled: true,
+            stage_enabled: true,
+            lower_enabled: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -570,6 +711,9 @@ pub struct ThemeElement {
     pub group_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "groupName")]
     pub group_name: Option<String>,
+    /// Camada mestra de saída. Ausente = "slide" (temas v1/v2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layer: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -629,6 +773,55 @@ pub struct LiveThemes {
     #[serde(default)]
     pub stream: Option<SlideTheme>,
 }
+
+/// Override ao vivo de uma saída (efêmero; não persistido no SQLite).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputOverride {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme_guid: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background: Option<BackgroundLayer>,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum PlanThemeSource {
+    Override,
+    Event,
+    Default,
+    Fallback,
+}
+
+/// Plano resolvido de uma saída. O admin é o único resolvedor; o Rust apenas
+/// guarda e publica. `content_theme` é aplicado no renderer, por cima.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputPlan {
+    pub output_id: String,
+    pub category: OutputCategory,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<SlideTheme>,
+    pub theme_source: PlanThemeSource,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_theme: Option<SlideTheme>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_theme: Option<SlideTheme>,
+    pub look: OutputLook,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_override: Option<BackgroundLayer>,
+    pub screen_color: ScreenColorConfig,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LiveOutputPlans {
+    #[serde(default)]
+    pub plans: HashMap<String, OutputPlan>,
+}
+
+pub type OutputOverrides = HashMap<String, OutputOverride>;
 
 /// Cronômetro do palco. Fonte da verdade no Rust: todas as saídas e o painel
 /// de controle espelham este estado via `stage://timer`. Os instantes são

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { usePresentationStore } from "@/features/presentation/store";
 import { StageAlerts } from "@/features/stage-display/StageAlerts";
@@ -26,12 +27,37 @@ import {
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { materializePage } from "@/features/slide-themes/pages";
 import { SlideCanvas } from "@/features/presentation/SlideCanvas";
+import { useDisplaysStore } from "@/features/displays/store";
+import { useDisplaysSync } from "@/features/displays/useDisplaysSync";
 
-export default function StageView() {
+interface StageViewProps {
+  backgroundColor?: string;
+  outputId?: string;
+}
+
+export default function StageView({ backgroundColor, outputId }: StageViewProps = {}) {
   usePresentationSync("stage");
   useStageTimerSync();
   useThemesSync();
   useCommunicationSync();
+  useDisplaysSync();
+
+  const [searchParams] = useSearchParams();
+  const effectiveOutputId = outputId ?? searchParams.get("id");
+  const outputs = useDisplaysStore((s) => s.outputs);
+
+  const activeOutput = useMemo(() => {
+    if (effectiveOutputId) return outputs.find((o) => o.id === effectiveOutputId);
+    return (
+      outputs.find((o) => o.category === "stage" && o.enabled) ??
+      outputs.find((o) => o.category === "stage") ??
+      null
+    );
+  }, [outputs, effectiveOutputId]);
+
+  const screenBg =
+    backgroundColor ??
+    (activeOutput?.backgroundColorEnabled ? activeOutput.backgroundColor : "#000000");
 
   const live = usePresentationStore((s) => s.live);
   const nextUp = usePresentationStore((s) => s.live.nextUp);
@@ -142,7 +168,10 @@ export default function StageView() {
   });
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-black select-none">
+    <div
+      className="relative h-screen w-screen overflow-hidden select-none"
+      style={{ backgroundColor: screenBg }}
+    >
       {live.blackout ? (
         <div className="absolute inset-0 bg-black" />
       ) : isIdle ? (

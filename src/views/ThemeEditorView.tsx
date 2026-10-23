@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
+  AlertCircle,
   Circle,
   Clock,
   Download,
@@ -13,6 +14,7 @@ import {
   Pencil,
   Redo,
   Ruler,
+  Save,
   Shapes,
   Sparkles,
   Square,
@@ -33,7 +35,8 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { exportThemeAsImage } from "@/features/theme-editor/exportImage";
 import { exportThemeAsJson } from "@/features/slide-themes/themeIo";
-import { closeCurrentWindow } from "@/core/lib/closeWindow";
+import { forceCloseCurrentWindow } from "@/core/lib/closeWindow";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   contextToAsset,
   getActivePage,
@@ -53,6 +56,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -65,7 +69,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SAMPLES } from "@/features/slide-themes/samples";
-import { listenCommand } from "@/core/ipc/tauri";
+import { isTauri, listenCommand } from "@/core/ipc/tauri";
 import {
   Canvas,
   RESOLUTION_PRESETS,
@@ -165,6 +169,63 @@ export default function ThemeEditorView() {
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [upgradeContext, setUpgradeContext] = useState<ThemeContext>("music");
 
+  // Unsaved changes & close interception state
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingGuid, setPendingGuid] = useState<string | null>(null);
+  const [isClosingOrSaving, setIsClosingOrSaving] = useState(false);
+  const allowCloseRef = useRef(false);
+
+  // Sync document.title and Tauri native window title with current theme/presentation
+  useEffect(() => {
+    if (!draft) return;
+    const isPresentation = draft.category === "presentation";
+    const sectionName = isPresentation ? "Studio de Criação" : "Editor de Temas";
+    const fullTitle = `${draft.title?.trim() || "Sem título"} — ${sectionName} — Open Presenter`;
+    document.title = fullTitle;
+    if (isTauri()) {
+      getCurrentWindow().setTitle(fullTitle).catch(() => {});
+    }
+  }, [draft?.title, draft?.category]);
+
+  // Intercept Tauri window close button (X) when there are unsaved changes
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten: (() => void) | null = null;
+    getCurrentWindow()
+      .onCloseRequested((event) => {
+        if (allowCloseRef.current) {
+          return;
+        }
+        if (useThemeEditorStore.getState().isDirty()) {
+          event.preventDefault();
+          setPendingGuid(null);
+          setShowUnsavedDialog(true);
+        }
+      })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch((err) => {
+        console.error("Falha ao registrar listener de fechamento:", err);
+      });
+
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
+  // Intercept web browser tab / window closing when dirty
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (useThemeEditorStore.getState().isDirty() && !allowCloseRef.current) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
   useEffect(() => {
     if (guid) void load(guid);
   }, [guid, load]);
@@ -173,6 +234,11 @@ export default function ThemeEditorView() {
     let unlisten: (() => void) | null = null;
     void listenCommand<string | null>("theme-editor://open", (payload) => {
       if (typeof payload === "string" && payload !== "") {
+        if (useThemeEditorStore.getState().isDirty()) {
+          setPendingGuid(payload);
+          setShowUnsavedDialog(true);
+          return;
+        }
         clearSelection();
         void load(payload);
       }
@@ -258,11 +324,80 @@ export default function ThemeEditorView() {
     selectAll,
   ]);
 
+  async function forceClose() {
+    allowCloseRef.current = true;
+    await forceCloseCurrentWindow(() => {
+      if (window.history.length > 1) {
+        navigate(-1);
+      } else {
+        navigate("/preferences");
+      }
+    });
+  }
+
+  function closeEditor() {
+    if (useThemeEditorStore.getState().isDirty()) {
+      setPendingGuid(null);
+      setShowUnsavedDialog(true);
+    } else {
+      void forceClose();
+    }
+  }
+
+  async function handleConfirmSave() {
+    setIsClosingOrSaving(true);
+    try {
+      await save();
+      const isPresentation = draft?.category === "presentation";
+      toast.success(
+        isPresentation
+          ? "Apresentação salva com sucesso!"
+          : "Tema salvo com sucesso!"
+      );
+      setShowUnsavedDialog(false);
+      if (pendingGuid) {
+        const nextGuid = pendingGuid;
+        setPendingGuid(null);
+        clearSelection();
+        void load(nextGuid);
+      } else {
+        await forceClose();
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao salvar tema.");
+    } finally {
+      setIsClosingOrSaving(false);
+    }
+  }
+
+  async function handleConfirmDiscard() {
+    revert();
+    setShowUnsavedDialog(false);
+    if (pendingGuid) {
+      const nextGuid = pendingGuid;
+      setPendingGuid(null);
+      clearSelection();
+      void load(nextGuid);
+    } else {
+      await forceClose();
+    }
+  }
+
+  function handleCancelClose() {
+    setShowUnsavedDialog(false);
+    setPendingGuid(null);
+  }
+
   async function handleSave() {
     setSaving(true);
     try {
       await save();
-      toast.success("Tema salvo com sucesso!");
+      const isPresentation = draft?.category === "presentation";
+      toast.success(
+        isPresentation
+          ? "Apresentação salva com sucesso!"
+          : "Tema salvo com sucesso!"
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao salvar tema.");
     } finally {
@@ -298,10 +433,6 @@ export default function ThemeEditorView() {
     } finally {
       setExporting(false);
     }
-  }
-
-  function closeEditor() {
-    void closeCurrentWindow(() => navigate("/preferences"));
   }
 
   function blockContextMenu(e: React.MouseEvent) {
@@ -1026,6 +1157,17 @@ export default function ThemeEditorView() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Fechar janela"
+          onClick={closeEditor}
+          title="Fechar janela"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <X className="size-4" />
+        </Button>
       </header>
 
       {/* Sub-header Toolbar */}
@@ -1494,6 +1636,65 @@ export default function ThemeEditorView() {
               }}
             >
               Salvar Nome
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unsaved Changes Confirmation Dialog */}
+      <Dialog
+        open={showUnsavedDialog}
+        onOpenChange={(open) => {
+          if (!open) handleCancelClose();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-500">
+                <AlertCircle className="size-5" />
+              </div>
+              <DialogTitle className="text-base font-semibold">
+                {draft?.category === "presentation"
+                  ? "Salvar alterações na apresentação?"
+                  : "Salvar alterações no tema?"}
+              </DialogTitle>
+            </div>
+            <DialogDescription className="pt-2 text-sm leading-relaxed text-muted-foreground">
+              {draft?.category === "presentation"
+                ? `A apresentação "${draft?.title || "Sem título"}" possui alterações não salvas.`
+                : `O tema "${draft?.title || "Sem título"}" possui alterações não salvas.`}{" "}
+              Deseja salvar antes de fechar? Se você fechar sem salvar, suas alterações serão perdidas.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={handleCancelClose}
+              disabled={isClosingOrSaving}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleConfirmDiscard()}
+              disabled={isClosingOrSaving}
+            >
+              Descartar alterações
+            </Button>
+            <Button
+              onClick={() => void handleConfirmSave()}
+              disabled={isClosingOrSaving}
+              className="gap-1.5"
+            >
+              {isClosingOrSaving ? (
+                "Salvando…"
+              ) : (
+                <>
+                  <Save className="size-4" />
+                  Salvar e Fechar
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

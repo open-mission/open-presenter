@@ -793,8 +793,9 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
         }
         await saveTheme(toSave);
         set({ savedJson: JSON.stringify(toSave), draft: toSave, error: null });
-      } catch {
+      } catch (err) {
         set({ error: "Falha ao salvar tema" });
+        throw err;
       }
     },
 

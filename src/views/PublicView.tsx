@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { kindToAsset, type BackgroundLayer } from "@/core/types";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { usePresentationStore } from "@/features/presentation/store";
@@ -11,6 +12,9 @@ import { useWallpaperSync } from "@/features/presentation/useWallpaperSync";
 import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
 import { wallpaperToBackground } from "@/features/presentation/wallpaper";
 import { isIsfBackground } from "@/features/media-shaders/isfEngine";
+import { useDisplaysStore } from "@/features/displays/store";
+import { useDisplaysSync } from "@/features/displays/useDisplaysSync";
+import { OutputPlaceholder } from "@/features/displays/components/OutputPlaceholder";
 
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { contextForSlide } from "@/features/slide-themes/themeResolution";
@@ -22,11 +26,35 @@ import {
   useCommunicationSync,
 } from "@/features/communication";
 
-export default function PublicView() {
+interface PublicViewProps {
+  backgroundColor?: string;
+  outputId?: string;
+}
+
+export default function PublicView({ backgroundColor, outputId }: PublicViewProps = {}) {
   usePresentationSync("public");
   useWallpaperSync();
   useThemesSync();
   useCommunicationSync();
+  useDisplaysSync();
+
+  const [searchParams] = useSearchParams();
+  const effectiveOutputId = outputId ?? searchParams.get("id");
+  const outputs = useDisplaysStore((s) => s.outputs);
+
+  const activeOutput = useMemo(() => {
+    if (effectiveOutputId) return outputs.find((o) => o.id === effectiveOutputId);
+    return (
+      outputs.find((o) => o.category === "public" && o.enabled) ??
+      outputs.find((o) => o.category === "public") ??
+      null
+    );
+  }, [outputs, effectiveOutputId]);
+
+  const screenBg =
+    backgroundColor ??
+    (activeOutput?.backgroundColorEnabled ? activeOutput.backgroundColor : "#000000");
+
   const live = usePresentationStore((s) => s.live);
   const wallpaper = useWallpaperStore((s) => s.wallpaper);
   const activeAlert = useCommunicationStore((s) => s.activeAlert);
@@ -43,6 +71,12 @@ export default function PublicView() {
   const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
   const broadcastTheme = useLiveThemesStore((s) => s.themes.public);
   const mediaThemeId = live.content.media?.themeId;
+
+  const defaultTheme = useMemo(() => {
+    if (!activeOutput?.defaultThemeGuid) return null;
+    return themes.find((t) => t.guid === activeOutput.defaultThemeGuid) ?? null;
+  }, [themes, activeOutput?.defaultThemeGuid]);
+
   const localTheme = useMemo(
     () =>
       resolveTheme(
@@ -65,7 +99,7 @@ export default function PublicView() {
     ? (themes.find((t) => t.guid === mediaThemeId) ??
        (broadcastTheme?.guid === mediaThemeId ? broadcastTheme : null))
     : null;
-  const rawTheme = customTheme ?? broadcastTheme ?? localTheme;
+  const rawTheme = customTheme ?? broadcastTheme ?? defaultTheme ?? localTheme;
   const context =
     contextForSlide(live.content.kind, live.content.media?.kind) ?? "music";
   const theme = useMemo(() => {
@@ -138,13 +172,20 @@ export default function PublicView() {
   }, [live.background, theme, live.content.media?.themeId]);
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-black select-none">
-      {/* Camada 0: Papel de Parede (Base) */}
-      {wallpaperBg && (
+    <div
+      className="relative h-full w-full overflow-hidden select-none"
+      style={{ backgroundColor: screenBg }}
+    >
+      {/* Camada 0: Papel de Parede / Placeholder (Base) */}
+      {activeOutput?.placeholderEnabled && activeOutput.placeholderType !== "none" ? (
+        <div className="absolute inset-0 z-0">
+          <OutputPlaceholder output={activeOutput} />
+        </div>
+      ) : wallpaperBg ? (
         <div className="absolute inset-0 z-0">
           <BackgroundRenderer background={wallpaperBg} />
         </div>
-      )}
+      ) : null}
 
       {/* Camada 1: Plano de Fundo Persistente (mantido estável durante a transição dos slides) */}
       {isPresenting && (

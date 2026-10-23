@@ -50,10 +50,12 @@ import {
   useCommunicationStore,
   useCommunicationSync,
 } from "@/features/communication";
+import { useDisplaysSync } from "@/features/displays/useDisplaysSync";
 
 export default function AdminView() {
   usePresentationSync("admin");
   useOutputsSync();
+  useDisplaysSync();
   useWallpaperPublisher();
   useStageTimerSync();
   useNativeMenu();

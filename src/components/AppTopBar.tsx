@@ -12,8 +12,10 @@ import {
   Plus,
   RotateCcw,
   Settings,
+  Sliders,
   Smartphone,
   Tv,
+  Video,
 } from "lucide-react";
 import { BrandMark } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { outputHttpUrl } from "@/core/config/app";
 import { isTauri } from "@/core/ipc/tauri";
+import { openDisplaysWindow } from "@/core/ipc/commands";
 
 import type { OutputMode } from "@/core/types";
 import { isOutputActive } from "@/features/output-manager/outputActive";
@@ -40,6 +43,7 @@ import { useRemoteStore } from "@/features/remote/store";
 import { useNavigationStore } from "@/features/navigation/store";
 import { usePanelLayoutStore } from "@/features/presentation/panelLayoutStore";
 import { usePreviewLayoutStore } from "@/features/presentation/previewLayoutStore";
+import { useDisplaysStore } from "@/features/displays/store";
 import { SetlistSelector } from "@/features/events-setlists/SetlistSelector";
 import { HeaderTimerControls } from "@/features/stage-display/HeaderTimerControls";
 import { HeaderCommunicationButton } from "@/features/communication";
@@ -90,6 +94,10 @@ export function AppTopBar() {
   const zoomOut = usePreviewLayoutStore((s) => s.zoomOut);
   const resetZoom = usePreviewLayoutStore((s) => s.resetZoom);
   const showAll = usePreviewLayoutStore((s) => s.showAll);
+  const hiddenOutputIds = usePreviewLayoutStore((s) => s.hiddenOutputIds);
+  const toggleOutputVisibility = usePreviewLayoutStore((s) => s.toggleOutputVisibility);
+  const isOutputVisible = (id: string) => !hiddenOutputIds.includes(id);
+  const configuredOutputs = useDisplaysStore((s) => s.outputs);
 
   useEffect(() => {
     if (isTauri()) void ensureRemoteToken();
@@ -221,7 +229,10 @@ export function AppTopBar() {
           {/* Public output status */}
           <div
             className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors"
-            onClick={() => openPreferences("outputs")}
+            onClick={() => {
+              if (isTauri()) void openDisplaysWindow();
+              else window.open("#/displays", "_blank");
+            }}
             title={publicTitle}
           >
             <span
@@ -237,7 +248,10 @@ export function AppTopBar() {
           {/* Stage output status */}
           <div
             className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors"
-            onClick={() => openPreferences("outputs", "stage")}
+            onClick={() => {
+              if (isTauri()) void openDisplaysWindow();
+              else window.open("#/displays", "_blank");
+            }}
             title={stageTitle}
           >
             <span
@@ -253,7 +267,10 @@ export function AppTopBar() {
           {/* Stream / OBS output status */}
           <div
             className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors"
-            onClick={() => openPreferences("outputs", "stream")}
+            onClick={() => {
+              if (isTauri()) void openDisplaysWindow();
+              else window.open("#/displays", "_blank");
+            }}
             title={streamTitle}
           >
             <span
@@ -263,44 +280,96 @@ export function AppTopBar() {
             />
             <span className="font-medium text-muted-foreground">OBS</span>
           </div>
+
+          <span className="text-border">|</span>
+
+          {/* Quick Displays window launcher */}
+          <button
+            type="button"
+            className="flex items-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer p-0.5 rounded hover:bg-muted/50"
+            onClick={() => {
+              if (isTauri()) void openDisplaysWindow();
+              else window.open("#/displays", "_blank");
+            }}
+            title="Configuração de telas e saídas"
+          >
+            <Sliders className="size-3" />
+          </button>
         </div>
 
-        {/* Preview: Dropdown de visualização e controle dos monitores de prévia */}
+        {/* Preview: Botão Toggle Ativar/Desativar + Dropdown de Opções */}
         {activeTab === "presentation" && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 px-2.5 text-xs font-medium cursor-pointer"
-                title="Configurações e visibilidade dos previews"
-              >
-                <Eye className="size-3.5" />
-                <span className="hidden lg:inline">Preview</span>
-                <ChevronDown className="size-3 text-muted-foreground opacity-70" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
-                Painel Lateral
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                onClick={toggleMonitors}
-                className="text-xs cursor-pointer"
-              >
-                {monitorsVisible ? (
-                  <>
-                    <PanelRightClose className="size-3.5 mr-2 text-muted-foreground" />
-                    <span>Ocultar painel de preview</span>
-                  </>
-                ) : (
-                  <>
-                    <PanelRightOpen className="size-3.5 mr-2 text-primary" />
-                    <span>Exibir painel de preview</span>
-                  </>
-                )}
-              </DropdownMenuItem>
+          <div className="flex items-center rounded-md border border-border bg-card/60 shadow-2xs">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (!monitorsVisible) {
+                  toggleMonitors();
+                  showAll();
+                } else {
+                  toggleMonitors();
+                }
+              }}
+              className={cn(
+                "h-8 gap-1.5 px-2.5 text-xs font-medium rounded-r-none border-r border-border/80 cursor-pointer transition-colors",
+                monitorsVisible
+                  ? "bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              title={
+                monitorsVisible
+                  ? "Ocultar painel de preview dos monitores"
+                  : "Exibir e ativar painel de preview dos monitores"
+              }
+            >
+              <Eye className={cn("size-3.5", monitorsVisible ? "text-primary" : "text-muted-foreground")} />
+              <span className="hidden lg:inline">Preview</span>
+              {monitorsVisible && (
+                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              )}
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-6 p-0 rounded-l-none text-muted-foreground hover:text-foreground cursor-pointer"
+                  title="Opções de visibilidade dos monitores e zoom"
+                >
+                  <ChevronDown className="size-3 opacity-70" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
+                  Painel Lateral
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (!monitorsVisible) {
+                      toggleMonitors();
+                      showAll();
+                    } else {
+                      toggleMonitors();
+                    }
+                  }}
+                  className="text-xs cursor-pointer"
+                >
+                  {monitorsVisible ? (
+                    <>
+                      <PanelRightClose className="size-3.5 mr-2 text-muted-foreground" />
+                      <span>Ocultar painel de preview</span>
+                    </>
+                  ) : (
+                    <>
+                      <PanelRightOpen className="size-3.5 mr-2 text-primary" />
+                      <span>Exibir painel de preview</span>
+                    </>
+                  )}
+                </DropdownMenuItem>
 
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
@@ -310,42 +379,73 @@ export function AppTopBar() {
               <DropdownMenuCheckboxItem
                 checked={showPreview}
                 onCheckedChange={togglePreview}
+                onSelect={(e) => e.preventDefault()}
                 className="text-xs cursor-pointer"
               >
                 <Eye className="size-3.5 mr-2 text-primary" />
                 <span>Prévia (Slides)</span>
               </DropdownMenuCheckboxItem>
 
-              <DropdownMenuCheckboxItem
-                checked={showLive}
-                onCheckedChange={toggleLive}
-                className="text-xs cursor-pointer"
-              >
-                <Tv className="size-3.5 mr-2 text-emerald-500" />
-                <span>Ao Vivo (Telão)</span>
-              </DropdownMenuCheckboxItem>
-
-              <DropdownMenuCheckboxItem
-                checked={showStage}
-                onCheckedChange={toggleStage}
-                className="text-xs cursor-pointer"
-              >
-                <Monitor className="size-3.5 mr-2 text-sky-500" />
-                <span>Retorno (Palco)</span>
-              </DropdownMenuCheckboxItem>
-
-              {(!showPreview || !showLive || !showStage) && (
+              {configuredOutputs.length > 0 ? (
+                configuredOutputs.map((out) => {
+                  const isVisible = isOutputVisible(out.id);
+                  const Icon =
+                    out.category === "stage"
+                      ? Monitor
+                      : out.category === "lower"
+                        ? Video
+                        : Tv;
+                  const color =
+                    out.category === "stage"
+                      ? "text-sky-400"
+                      : out.category === "lower"
+                        ? "text-purple-400"
+                        : "text-emerald-400";
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={out.id}
+                      checked={isVisible}
+                      onCheckedChange={() => toggleOutputVisibility(out.id)}
+                      onSelect={(e) => e.preventDefault()}
+                      className="text-xs cursor-pointer"
+                    >
+                      <Icon className={cn("size-3.5 mr-2", color)} />
+                      <span className="truncate">{out.name}</span>
+                    </DropdownMenuCheckboxItem>
+                  );
+                })
+              ) : (
                 <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={showAll}
+                  <DropdownMenuCheckboxItem
+                    checked={showLive}
+                    onCheckedChange={toggleLive}
+                    onSelect={(e) => e.preventDefault()}
                     className="text-xs cursor-pointer"
                   >
-                    <Eye className="size-3.5 mr-2" />
-                    <span>Reexibir todos</span>
-                  </DropdownMenuItem>
+                    <Tv className="size-3.5 mr-2 text-emerald-500" />
+                    <span>Ao Vivo (Telão)</span>
+                  </DropdownMenuCheckboxItem>
+
+                  <DropdownMenuCheckboxItem
+                    checked={showStage}
+                    onCheckedChange={toggleStage}
+                    onSelect={(e) => e.preventDefault()}
+                    className="text-xs cursor-pointer"
+                  >
+                    <Monitor className="size-3.5 mr-2 text-sky-500" />
+                    <span>Retorno (Palco)</span>
+                  </DropdownMenuCheckboxItem>
                 </>
               )}
+
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={showAll}
+                className="text-xs cursor-pointer"
+              >
+                <Eye className="size-3.5 mr-2" />
+                <span>Reexibir todos</span>
+              </DropdownMenuItem>
 
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
@@ -381,7 +481,13 @@ export function AppTopBar() {
 
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => openPreferences("outputs")}
+                onClick={() => {
+                  if (isTauri()) {
+                    void openDisplaysWindow();
+                  } else {
+                    window.open("#/displays", "_blank");
+                  }
+                }}
                 className="text-xs cursor-pointer"
               >
                 <Settings className="size-3.5 mr-2 text-muted-foreground" />
@@ -389,7 +495,8 @@ export function AppTopBar() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        )}
+        </div>
+      )}
 
         {/* Controles de Projeção: Plano de Fundo, Sem Texto e Tela Preta agrupados */}
         <ButtonGroup aria-label="Controles de projeção">

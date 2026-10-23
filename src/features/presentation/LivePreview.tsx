@@ -12,7 +12,10 @@ import {
   Settings,
   SlidersHorizontal,
   Tv,
+  Video,
 } from "lucide-react";
+import { useDisplaysStore } from "@/features/displays/store";
+import { OutputPlaceholder } from "@/features/displays/components/OutputPlaceholder";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +33,8 @@ import {
 import { kindToAsset } from "@/core/types";
 import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
-import { usePreferencesStore } from "@/features/preferences/store";
+import { openDisplaysWindow } from "@/core/ipc/commands";
+import { isTauri } from "@/core/ipc/tauri";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
@@ -43,6 +47,9 @@ import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 import { SlideTransition } from "./SlideTransition";
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import { StageTimerControls } from "@/features/stage-display/StageTimerControls";
+import { DEFAULT_STREAM_THEME } from "@/features/slide-themes/seedThemes";
+import { contextForSlide } from "@/features/slide-themes/themeResolution";
+import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
 import {
   StageAlertBanner,
   StageAlertOverlay,
@@ -61,8 +68,8 @@ export function LivePreview() {
   const stageConfig = useOutputManagerStore((s) => s.configs.stage);
   const stageRuntime = useOutputManagerStore((s) => s.runtime.stage);
   const serverRunning = useOutputManagerStore((s) => s.server.running);
-  const openPreferences = usePreferencesStore((s) => s.openPreferences);
   const loadThemes = useSlideThemesStore((s) => s.load);
+  const allThemes = useSlideThemesStore((s) => s.themes);
   const resolvePublicTheme = usePublicThemeResolver();
 
   // Layout & Visibility store (persistente)
@@ -78,6 +85,10 @@ export function LivePreview() {
   const zoomOut = usePreviewLayoutStore((s) => s.zoomOut);
   const resetZoom = usePreviewLayoutStore((s) => s.resetZoom);
   const showAll = usePreviewLayoutStore((s) => s.showAll);
+  const hiddenOutputIds = usePreviewLayoutStore((s) => s.hiddenOutputIds);
+  const toggleOutputVisibility = usePreviewLayoutStore((s) => s.toggleOutputVisibility);
+  const isOutputVisible = (id: string) => !hiddenOutputIds.includes(id);
+  const configuredOutputs = useDisplaysStore((s) => s.outputs);
 
   const previewTheme = useMemo(
     () => resolvePublicTheme(preview),
@@ -164,7 +175,10 @@ export function LivePreview() {
 
   // Determine if nothing is showing on the Live Public display
   const isLiveEmpty = live.cleared || live.content.kind === "blank";
-  const allHidden = !showPreview && !showLive && !showStage;
+  const allHidden =
+    configuredOutputs.length > 0
+      ? !showPreview && configuredOutputs.every((o) => !isOutputVisible(o.id))
+      : !showPreview && !showLive && !showStage;
 
   const previewCard = (
     <div key="preview" className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs">
@@ -406,7 +420,10 @@ export function LivePreview() {
         <Badge
           variant="secondary"
           className="h-4 px-1.5 text-[9px] font-semibold bg-sky-500/15 text-sky-500 border-sky-500/30 cursor-pointer"
-          onClick={() => openPreferences("outputs", "stage")}
+          onClick={() => {
+            if (isTauri()) void openDisplaysWindow();
+            else window.open("#/displays", "_blank");
+          }}
           title="Clique para configurar a Tela de Retorno"
         >
           {stageActive
@@ -432,7 +449,10 @@ export function LivePreview() {
         <span className="truncate">Retorno dos músicos no palco</span>
         <button
           type="button"
-          onClick={() => openPreferences("outputs", "stage")}
+          onClick={() => {
+            if (isTauri()) void openDisplaysWindow();
+            else window.open("#/displays", "_blank");
+          }}
           className="text-[9px] text-sky-500 hover:underline cursor-pointer"
         >
           Configurar
@@ -443,8 +463,137 @@ export function LivePreview() {
 
   const visibleCards: ReactNode[] = [];
   if (showPreview) visibleCards.push(previewCard);
-  if (showLive) visibleCards.push(liveCard);
-  if (showStage) visibleCards.push(stageCard);
+
+  if (configuredOutputs.length > 0) {
+    for (const out of configuredOutputs) {
+      if (!isOutputVisible(out.id)) continue;
+
+      if (out.category === "stage") {
+        visibleCards.push(
+          <div key={out.id} className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Monitor className="size-3.5 text-sky-400 shrink-0" />
+                <span className="font-semibold text-xs text-foreground truncate">{out.name}</span>
+                <span className="text-[10px] text-muted-foreground font-mono">({out.resolution.width}x{out.resolution.height})</span>
+              </div>
+              <Badge variant="outline" className="text-[9px] h-4 px-1 text-sky-400 border-sky-400/30">
+                {out.type.toUpperCase()}
+              </Badge>
+            </div>
+            <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-black shadow-inner">
+              <StageMiniPreview />
+            </div>
+            <StageTimerControls />
+          </div>
+        );
+      } else if (out.category === "lower") {
+        const lowerRawTheme =
+          (out.defaultThemeGuid ? allThemes.find((t) => t.guid === out.defaultThemeGuid) : null) ??
+          allThemes.find((t) => t.category === "stream") ??
+          DEFAULT_STREAM_THEME;
+        const lowerContext = contextForSlide(live.content.kind, live.content.media?.kind) ?? "music";
+        const lowerTheme = lowerRawTheme.pages?.length
+          ? (getPageForContext(lowerRawTheme, lowerContext)
+              ? materializePage(lowerRawTheme, getPageForContext(lowerRawTheme, lowerContext)!)
+              : lowerRawTheme)
+          : lowerRawTheme;
+
+        const isCustomBg =
+          out.backgroundColorEnabled &&
+          out.backgroundColor &&
+          out.backgroundColor !== "transparent";
+
+        visibleCards.push(
+          <div key={out.id} className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Video className="size-3.5 text-purple-400 shrink-0" />
+                <span className="font-semibold text-xs text-foreground truncate">{out.name}</span>
+                <span className="text-[10px] text-muted-foreground font-mono">({out.resolution.width}x{out.resolution.height})</span>
+              </div>
+              <Badge variant="outline" className="text-[9px] h-4 px-1 text-purple-400 border-purple-400/30">
+                LOWER THIRD
+              </Badge>
+            </div>
+            <div
+              className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner"
+              style={{
+                backgroundColor: isCustomBg ? out.backgroundColor : undefined,
+                backgroundImage: !isCustomBg
+                  ? "repeating-conic-gradient(#1f2937 0% 25%, #111827 0% 50%) 50% / 16px 16px"
+                  : undefined,
+              }}
+            >
+              <div className="absolute inset-0">
+                <SlideTransition
+                  slide={live}
+                  theme={lowerTheme}
+                  asset={kindToAsset(live.content.kind)}
+                  cleared={live.cleared}
+                  textHidden={live.textHidden}
+                  durationMs={300}
+                  transitionBackground={false}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      } else {
+        visibleCards.push(
+          <div key={out.id} className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Tv className="size-3.5 text-emerald-400 shrink-0" />
+                <span className="font-semibold text-xs text-foreground truncate">{out.name}</span>
+                <span className="text-[10px] text-muted-foreground font-mono">({out.resolution.width}x{out.resolution.height})</span>
+              </div>
+              <Badge variant="outline" className="text-[9px] h-4 px-1 text-emerald-400 border-emerald-400/30">
+                {out.type.toUpperCase()}
+              </Badge>
+            </div>
+            <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
+              {isLiveEmpty && !live.blackout ? (
+                (out.placeholderEnabled ?? true) && out.placeholderType !== "none" ? (
+                  <div className="relative h-full w-full">
+                    <OutputPlaceholder output={out} />
+                  </div>
+                ) : wallpaper ? (
+                  <div className="relative h-full w-full bg-black">
+                    <BackgroundRenderer background={wallpaperToBackground(wallpaper)} />
+                  </div>
+                ) : (
+                  <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center select-none bg-zinc-950">
+                    <Projector className="size-5 text-zinc-500 mb-1" />
+                    <p className="text-xs font-semibold text-zinc-300">Telão Livre</p>
+                  </div>
+                )
+              ) : (
+                <div className="relative h-full w-full">
+                  <PersistentBackground background={effectiveBackground} />
+                  <div className="absolute inset-0">
+                    <SlideTransition
+                      slide={live}
+                      theme={liveTheme}
+                      asset={kindToAsset(live.content.kind)}
+                      cleared={live.cleared}
+                      textHidden={live.textHidden}
+                      durationMs={300}
+                      transitionBackground={false}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+    }
+  } else {
+    if (showLive) visibleCards.push(liveCard);
+    if (showStage) visibleCards.push(stageCard);
+  }
+
   const visibleCount = visibleCards.length;
 
   return (
@@ -481,26 +630,15 @@ export function LivePreview() {
                   maxWidth: `${Math.round((visibleCount >= 2 ? 1160 : 680) * (zoom / 100))}px`,
                 }}
               >
-                {visibleCount === 3 && (
-                  <div className="grid grid-cols-1 @[640px]:grid-cols-2 gap-3.5 items-start">
-                    <div className="sticky top-0">{previewCard}</div>
-                    <div className="flex flex-col gap-3.5">
-                      {liveCard}
-                      {stageCard}
-                    </div>
-                  </div>
-                )}
-
-                {visibleCount === 2 && (
-                  <div className="grid grid-cols-1 @[540px]:grid-cols-2 gap-3.5 items-start">
-                    <div>{visibleCards[0]}</div>
-                    <div>{visibleCards[1]}</div>
-                  </div>
-                )}
-
-                {visibleCount === 1 && (
+                {visibleCount === 1 ? (
                   <div className="w-full">
                     {visibleCards[0]}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 @[540px]:grid-cols-2 gap-3.5 items-start">
+                    {visibleCards.map((card, idx) => (
+                      <div key={idx}>{card}</div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -518,6 +656,7 @@ export function LivePreview() {
           <ContextMenuCheckboxItem
             checked={showPreview}
             onCheckedChange={togglePreview}
+            onSelect={(e) => e.preventDefault()}
             className="text-xs cursor-pointer"
           >
             <div className="flex items-center gap-2">
@@ -526,27 +665,63 @@ export function LivePreview() {
             </div>
           </ContextMenuCheckboxItem>
 
-          <ContextMenuCheckboxItem
-            checked={showLive}
-            onCheckedChange={toggleLive}
-            className="text-xs cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <Tv className="size-3.5 text-emerald-500" />
-              <span>Ao Vivo (Telão)</span>
-            </div>
-          </ContextMenuCheckboxItem>
+          {configuredOutputs.length > 0 ? (
+            configuredOutputs.map((out) => {
+              const isVisible = isOutputVisible(out.id);
+              const Icon =
+                out.category === "stage"
+                  ? Monitor
+                  : out.category === "lower"
+                    ? Video
+                    : Tv;
+              const color =
+                out.category === "stage"
+                  ? "text-sky-400"
+                  : out.category === "lower"
+                    ? "text-purple-400"
+                    : "text-emerald-400";
+              return (
+                <ContextMenuCheckboxItem
+                  key={out.id}
+                  checked={isVisible}
+                  onCheckedChange={() => toggleOutputVisibility(out.id)}
+                  onSelect={(e) => e.preventDefault()}
+                  className="text-xs cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Icon className={`size-3.5 ${color}`} />
+                    <span className="truncate">{out.name}</span>
+                  </div>
+                </ContextMenuCheckboxItem>
+              );
+            })
+          ) : (
+            <>
+              <ContextMenuCheckboxItem
+                checked={showLive}
+                onCheckedChange={toggleLive}
+                onSelect={(e) => e.preventDefault()}
+                className="text-xs cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Tv className="size-3.5 text-emerald-500" />
+                  <span>Ao Vivo (Telão)</span>
+                </div>
+              </ContextMenuCheckboxItem>
 
-          <ContextMenuCheckboxItem
-            checked={showStage}
-            onCheckedChange={toggleStage}
-            className="text-xs cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <Monitor className="size-3.5 text-sky-500" />
-              <span>Retorno (Palco)</span>
-            </div>
-          </ContextMenuCheckboxItem>
+              <ContextMenuCheckboxItem
+                checked={showStage}
+                onCheckedChange={toggleStage}
+                onSelect={(e) => e.preventDefault()}
+                className="text-xs cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Monitor className="size-3.5 text-sky-500" />
+                  <span>Retorno (Palco)</span>
+                </div>
+              </ContextMenuCheckboxItem>
+            </>
+          )}
 
           <ContextMenuSeparator />
           <ContextMenuLabel className="text-xs font-semibold text-muted-foreground">
@@ -622,7 +797,10 @@ export function LivePreview() {
 
           <ContextMenuSeparator />
           <ContextMenuItem
-            onClick={() => openPreferences("outputs")}
+            onClick={() => {
+              if (isTauri()) void openDisplaysWindow();
+              else window.open("#/displays", "_blank");
+            }}
             className="text-xs cursor-pointer"
           >
             <Settings className="size-3.5 mr-2" />

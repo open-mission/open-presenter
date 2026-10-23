@@ -4,10 +4,13 @@ interface PreviewLayoutState {
   showPreview: boolean;
   showLive: boolean;
   showStage: boolean;
+  hiddenOutputIds: string[];
   zoom: number; // 50 to 150 percent
   togglePreview: () => void;
   toggleLive: () => void;
   toggleStage: () => void;
+  toggleOutputVisibility: (id: string) => void;
+  isOutputVisible: (id: string) => boolean;
   setShowPreview: (val: boolean) => void;
   setShowLive: (val: boolean) => void;
   setShowStage: (val: boolean) => void;
@@ -24,6 +27,7 @@ interface StoredLayout {
   showPreview?: boolean;
   showLive?: boolean;
   showStage?: boolean;
+  hiddenOutputIds?: string[];
   zoom?: number;
 }
 
@@ -41,6 +45,7 @@ function persist(state: {
   showPreview: boolean;
   showLive: boolean;
   showStage: boolean;
+  hiddenOutputIds: string[];
   zoom: number;
 }) {
   try {
@@ -50,6 +55,7 @@ function persist(state: {
         showPreview: state.showPreview,
         showLive: state.showLive,
         showStage: state.showStage,
+        hiddenOutputIds: state.hiddenOutputIds,
         zoom: state.zoom,
       }),
     );
@@ -62,6 +68,7 @@ export const usePreviewLayoutStore = create<PreviewLayoutState>((set, get) => ({
   showPreview: initial.showPreview ?? true,
   showLive: initial.showLive ?? true,
   showStage: initial.showStage ?? true,
+  hiddenOutputIds: initial.hiddenOutputIds ?? [],
   zoom: typeof initial.zoom === "number" ? Math.min(Math.max(initial.zoom, 50), 150) : 100,
 
   togglePreview: () => {
@@ -80,6 +87,17 @@ export const usePreviewLayoutStore = create<PreviewLayoutState>((set, get) => ({
     const next = !get().showStage;
     set({ showStage: next });
     persist({ ...get(), showStage: next });
+  },
+
+  toggleOutputVisibility: (id: string) => {
+    const list = get().hiddenOutputIds;
+    const next = list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
+    set({ hiddenOutputIds: next });
+    persist({ ...get(), hiddenOutputIds: next });
+  },
+
+  isOutputVisible: (id: string) => {
+    return !get().hiddenOutputIds.includes(id);
   },
 
   setShowPreview: (val) => {
@@ -121,7 +139,7 @@ export const usePreviewLayoutStore = create<PreviewLayoutState>((set, get) => ({
   },
 
   showAll: () => {
-    set({ showPreview: true, showLive: true, showStage: true });
-    persist({ ...get(), showPreview: true, showLive: true, showStage: true });
+    set({ showPreview: true, showLive: true, showStage: true, hiddenOutputIds: [] });
+    persist({ ...get(), showPreview: true, showLive: true, showStage: true, hiddenOutputIds: [] });
   },
 }));

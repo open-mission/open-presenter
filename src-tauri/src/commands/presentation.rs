@@ -3,7 +3,7 @@ use tauri::State;
 use crate::error::AppError;
 use crate::services::display_manager;
 use crate::services::SharedBroadcaster;
-use crate::state::{LiveSlide, LiveThemes, MonitorInfo, OutputTarget, StageTimer};
+use crate::state::{LiveOutputPlans, LiveSlide, LiveThemes, MonitorInfo, OutputOverride, OutputTarget, StageTimer};
 
 #[tauri::command]
 pub async fn list_monitors(app: tauri::AppHandle) -> Result<Vec<MonitorInfo>, AppError> {
@@ -168,6 +168,11 @@ pub async fn open_theme_editor(
 }
 
 #[tauri::command]
+pub async fn close_theme_editor(app: tauri::AppHandle) -> Result<(), AppError> {
+    display_manager::close_theme_editor_window(&app)
+}
+
+#[tauri::command]
 pub async fn open_shortcuts_window(app: tauri::AppHandle) -> Result<(), AppError> {
     display_manager::open_shortcuts_window(&app)
 }
@@ -185,6 +190,16 @@ pub async fn open_communication_window(app: tauri::AppHandle) -> Result<(), AppE
 #[tauri::command]
 pub async fn close_communication_window(app: tauri::AppHandle) -> Result<(), AppError> {
     display_manager::close_communication_window(&app)
+}
+
+#[tauri::command]
+pub async fn open_displays_window(app: tauri::AppHandle) -> Result<(), AppError> {
+    display_manager::open_displays_window(&app)
+}
+
+#[tauri::command]
+pub async fn close_displays_window(app: tauri::AppHandle) -> Result<(), AppError> {
+    display_manager::close_displays_window(&app)
 }
 
 #[tauri::command]
@@ -240,5 +255,40 @@ pub async fn get_stage_message(
     broadcaster: State<'_, SharedBroadcaster>,
 ) -> Result<Option<crate::state::types::CommunicationAlert>, AppError> {
     Ok(broadcaster.current_stage_message())
+}
+
+#[tauri::command]
+pub async fn set_live_output_plans(
+    broadcaster: State<'_, SharedBroadcaster>,
+    plans: LiveOutputPlans,
+) -> Result<(), AppError> {
+    broadcaster.publish_output_plans(&plans);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_live_output_plans(
+    broadcaster: State<'_, SharedBroadcaster>,
+) -> Result<LiveOutputPlans, AppError> {
+    Ok(broadcaster.current_output_plans())
+}
+
+#[tauri::command]
+pub async fn set_output_override(
+    broadcaster: State<'_, SharedBroadcaster>,
+    output_id: String,
+    value: Option<OutputOverride>,
+) -> Result<(), AppError> {
+    broadcaster.publish_output_override(&output_id, value);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn clear_output_override(
+    broadcaster: State<'_, SharedBroadcaster>,
+    output_id: String,
+) -> Result<(), AppError> {
+    broadcaster.publish_output_override(&output_id, None);
+    Ok(())
 }
 

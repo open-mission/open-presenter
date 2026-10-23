@@ -109,6 +109,7 @@ mod tests {
             url: None,
             group_id: None,
             group_name: None,
+            layer: None,
         }
     }
 
@@ -122,6 +123,7 @@ mod tests {
             category: None,
             created_at: None,
             updated_at: None,
+            guides: None,
         }
     }
 
@@ -132,6 +134,7 @@ mod tests {
             name: None,
             css: HashMap::new(),
             elements: vec![elemento("e1")],
+            guides: None,
         }
     }
 
@@ -219,6 +222,7 @@ mod tests {
             category: None,
             created_at: None,
             updated_at: None,
+            guides: None,
         };
         assert!(save_theme(&conn, &vazio).is_err());
     }
@@ -261,6 +265,7 @@ mod tests {
             name: Some("Slide 1".into()),
             css: HashMap::new(),
             elements: vec![],
+            guides: None,
         };
         let page2 = crate::state::types::ThemePage {
             id: "p2".into(),
@@ -268,6 +273,7 @@ mod tests {
             name: Some("Slide 2".into()),
             css: HashMap::new(),
             elements: vec![],
+            guides: None,
         };
         let mut pres = tema("pres-1", "Apresentação de Slides");
         pres.category = Some("presentation".into());

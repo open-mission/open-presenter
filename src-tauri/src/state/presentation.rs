@@ -1,6 +1,10 @@
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use super::types::{now_millis, CommunicationAlert, LiveSlide, LiveThemes, StageTimer};
+use super::types::{
+    now_millis, CommunicationAlert, LiveOutputPlans, LiveSlide, LiveThemes, OutputOverride,
+    StageTimer,
+};
 
 fn blank_slide() -> LiveSlide {
     serde_json::from_value(serde_json::json!({
@@ -27,6 +31,8 @@ pub struct PresentationState {
     timer: Arc<RwLock<StageTimer>>,
     wallpaper: Arc<RwLock<Option<String>>>,
     stage_message: Arc<RwLock<Option<CommunicationAlert>>>,
+    output_plans: Arc<RwLock<LiveOutputPlans>>,
+    output_overrides: Arc<RwLock<HashMap<String, OutputOverride>>>,
 }
 
 impl Default for PresentationState {
@@ -37,6 +43,8 @@ impl Default for PresentationState {
             timer: Arc::new(RwLock::new(StageTimer::default())),
             wallpaper: Arc::new(RwLock::new(None)),
             stage_message: Arc::new(RwLock::new(None)),
+            output_plans: Arc::new(RwLock::new(LiveOutputPlans::default())),
+            output_overrides: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -116,6 +124,39 @@ impl PresentationState {
     pub fn set_stage_message(&self, message: Option<CommunicationAlert>) {
         if let Ok(mut guard) = self.stage_message.write() {
             *guard = message;
+        }
+    }
+
+    pub fn output_plans(&self) -> LiveOutputPlans {
+        self.output_plans
+            .read()
+            .map(|p| p.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn set_output_plans(&self, plans: LiveOutputPlans) {
+        if let Ok(mut guard) = self.output_plans.write() {
+            *guard = plans;
+        }
+    }
+
+    pub fn output_overrides(&self) -> HashMap<String, OutputOverride> {
+        self.output_overrides
+            .read()
+            .map(|o| o.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn set_output_override(&self, output_id: String, value: Option<OutputOverride>) {
+        if let Ok(mut guard) = self.output_overrides.write() {
+            match value {
+                Some(override_value) => {
+                    guard.insert(output_id, override_value);
+                }
+                None => {
+                    guard.remove(&output_id);
+                }
+            }
         }
     }
 }
@@ -233,5 +274,111 @@ mod tests {
         let timer = state.timer();
         assert!(!timer.running);
         assert_eq!(timer.elapsed_secs, 0);
+    }
+
+    #[test]
+    fn planos_e_overrides_comecam_vazios() {
+        let state = PresentationState::default();
+        assert!(state.output_plans().plans.is_empty());
+        assert!(state.output_overrides().is_empty());
+    }
+
+    #[test]
+    fn guarda_e_le_override_por_saida() {
+        use crate::state::types::OutputOverride;
+
+        let state = PresentationState::default();
+        state.set_output_override(
+            "out-1".to_string(),
+            Some(OutputOverride {
+                theme_guid: Some("theme-a".to_string()),
+                background: None,
+                updated_at: "2026-01-01T00:00:00.000Z".to_string(),
+            }),
+        );
+        let overrides = state.output_overrides();
+        assert_eq!(
+            overrides.get("out-1").and_then(|o| o.theme_guid.clone()),
+            Some("theme-a".to_string())
+        );
+
+        state.set_output_override("out-1".to_string(), None);
+        assert!(state.output_overrides().is_empty());
+    }
+
+    #[test]
+    fn output_plan_round_trip_serde() {
+        use crate::state::types::{
+            LiveOutputPlans, OutputLook, OutputPlan, PlanThemeSource, ScreenColorConfig,
+        };
+
+        let plan = OutputPlan {
+            output_id: "out-1".to_string(),
+            category: crate::state::types::OutputCategory::Public,
+            theme: None,
+            theme_source: PlanThemeSource::Default,
+            content_theme: None,
+            rest_theme: None,
+            look: OutputLook {
+                mask: false,
+                messages: true,
+                props: true,
+                announcements: true,
+                slide: true,
+                media: true,
+                video_input: true,
+                screen_color: true,
+            },
+            background_override: None,
+            screen_color: ScreenColorConfig {
+                enabled: true,
+                value: "#000000".to_string(),
+            },
+            updated_at: "2026-01-01T00:00:00.000Z".to_string(),
+        };
+
+        let mut plans = LiveOutputPlans::default();
+        plans.plans.insert("out-1".to_string(), plan.clone());
+        let json = serde_json::to_string(&plans).unwrap();
+        assert!(json.contains("\"videoInput\":true"));
+        assert!(json.contains("\"themeSource\":\"default\""));
+        let back: LiveOutputPlans = serde_json::from_str(&json).unwrap();
+        let back_plan = back.plans.get("out-1").expect("plano presente");
+        assert_eq!(
+            serde_json::to_value(back_plan).unwrap(),
+            serde_json::to_value(&plan).unwrap()
+        );
+    }
+
+    #[test]
+    fn tema_antigo_sem_layer_e_output_sem_look_abrem() {
+        use crate::state::types::{DisplayOutput, SlideTheme};
+
+        let theme: SlideTheme = serde_json::from_value(serde_json::json!({
+            "guid": "t",
+            "title": "T",
+            "css": {},
+            "elements": [{ "id": "e", "type": "TEXT", "x": 0, "y": 0, "visible": true, "locked": false, "css": {} }],
+        }))
+        .unwrap();
+        assert_eq!(theme.elements[0].layer, None);
+
+        let output: DisplayOutput = serde_json::from_value(serde_json::json!({
+            "id": "o",
+            "name": "O",
+            "category": "public",
+            "type": "monitor",
+            "enabled": true,
+            "resolution": { "width": 1920, "height": 1080 },
+            "aspectRatio": "16:9",
+            "backgroundColor": "#000",
+            "backgroundColorEnabled": true,
+            "frameRate": 60,
+            "videoDelayFrames": 0,
+            "alphaKey": false
+        }))
+        .unwrap();
+        assert!(output.look.is_none());
+        assert!(output.idle_theme_guid.is_none());
     }
 }

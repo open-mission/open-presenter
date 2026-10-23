@@ -284,6 +284,41 @@ pub fn close_communication_window(app: &AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
+pub fn open_displays_window(app: &AppHandle) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("displays") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        window.set_focus().map_err(AppError::Tauri)?;
+        return Ok(());
+    }
+
+    let builder = WebviewWindowBuilder::new(
+        app,
+        "displays",
+        WebviewUrl::App("index.html#/displays".into()),
+    )
+    .title("Configuração de tela — Open Presenter")
+    .inner_size(1040.0, 720.0)
+    .min_inner_size(880.0, 580.0)
+    .resizable(true)
+    .center()
+    .focused(true)
+    .background_color(Color(15, 15, 17, 255))
+    .decorations(true);
+
+    let window = builder.build().map_err(AppError::Tauri)?;
+    let _ = window.show();
+    let _ = window.set_focus();
+    Ok(())
+}
+
+pub fn close_displays_window(app: &AppHandle) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("displays") {
+        window.close().map_err(AppError::Tauri)?;
+    }
+    Ok(())
+}
+
 pub fn open_theme_editor_window(app: &AppHandle, guid: Option<String>) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window("theme-editor") {
         let _ = window.unminimize();
@@ -310,6 +345,13 @@ pub fn open_theme_editor_window(app: &AppHandle, guid: Option<String>) -> Result
     let window = builder.build().map_err(AppError::Tauri)?;
     let _ = window.show();
     let _ = window.set_focus();
+    Ok(())
+}
+
+pub fn close_theme_editor_window(app: &AppHandle) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("theme-editor") {
+        window.close().map_err(AppError::Tauri)?;
+    }
     Ok(())
 }
 
@@ -353,5 +395,156 @@ pub fn close_song_editor_window(app: &AppHandle) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window("song-editor") {
         window.close().map_err(AppError::Tauri)?;
     }
+    Ok(())
+}
+
+pub fn set_identify_displays(app: &AppHandle, active: bool) -> Result<(), AppError> {
+    let monitors = app.available_monitors().map_err(AppError::Tauri)?;
+    for (index, monitor) in monitors.iter().enumerate() {
+        let label = format!("identify-monitor-{}", index);
+        if active {
+            if let Some(existing) = app.get_webview_window(&label) {
+                let _ = existing.show();
+                continue;
+            }
+            let size = monitor.size();
+            let mon_name = monitor
+                .name()
+                .map(String::as_str)
+                .unwrap_or("Monitor")
+                .to_string();
+            let safe_name = mon_name.replace(' ', "+");
+            let route = format!(
+                "index.html#/identify?index={}&name={}&w={}&h={}",
+                index + 1,
+                safe_name,
+                size.width,
+                size.height
+            );
+            let pos = monitor.position();
+            let builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(route.into()))
+                .title("Identificar Tela")
+                .decorations(false)
+                .transparent(true)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .resizable(false)
+                .position(pos.x as f64, pos.y as f64)
+                .fullscreen(true);
+            match builder.build() {
+                Ok(w) => {
+                    let _ = w.show();
+                }
+                Err(e) => {
+                    eprintln!("Falha ao criar janela de identificação {}: {}", label, e);
+                }
+            }
+        } else if let Some(w) = app.get_webview_window(&label) {
+            let _ = w.close();
+        }
+    }
+    let _ = app.emit("displays://identify", active);
+    Ok(())
+}
+
+pub async fn open_native_output(
+    app: AppHandle,
+    output_id: String,
+    monitor_id: Option<String>,
+    route: String,
+    title: String,
+) -> Result<(), AppError> {
+    let window_label = format!("output-{}", output_id);
+    if let Some(window) = app.get_webview_window(&window_label) {
+        window.set_focus().map_err(AppError::Tauri)?;
+        return Ok(());
+    }
+    let legacy_label = format!("display-{}", output_id);
+    if let Some(window) = app.get_webview_window(&legacy_label) {
+        window.set_focus().map_err(AppError::Tauri)?;
+        return Ok(());
+    }
+
+    let monitors = app.available_monitors().map_err(AppError::Tauri)?;
+    let chosen = pick_monitor(&monitors, monitor_id.as_deref(), None);
+    let chosen_monitor = chosen.as_ref().map(|(_, monitor)| monitor.clone());
+
+    // Limpa a rota para garantir exatamente "index.html#/<path>", sem hashes duplicados ("##")
+    let normalized = route
+        .trim_start_matches('/')
+        .trim_start_matches("index.html")
+        .trim_start_matches('/')
+        .trim_start_matches('#')
+        .trim_start_matches('/');
+
+    let clean_route = format!("index.html#/{}", normalized);
+
+    let is_transparent = route.contains("stream") || route.contains("lower");
+
+    let mut builder = WebviewWindowBuilder::new(&app, &window_label, WebviewUrl::App(clean_route.into()))
+        .title(&title)
+        .decorations(false)
+        .resizable(false)
+        .skip_taskbar(true)
+        .focused(false)
+        .visible(true)
+        .transparent(is_transparent)
+        .background_color(if is_transparent { Color(0, 0, 0, 0) } else { Color(0, 0, 0, 255) });
+
+    if let Some(monitor) = chosen_monitor {
+        let position = monitor.position();
+        let size = monitor.size();
+        builder = builder
+            .position(position.x.into(), position.y.into())
+            .inner_size(size.width.into(), size.height.into())
+            .fullscreen(true);
+    } else {
+        builder = builder.fullscreen(true);
+    }
+
+    let window = builder.build().map_err(AppError::Tauri)?;
+    let _ = window.show();
+
+    let target = if route.contains("public") {
+        Some(OutputTarget::Public)
+    } else if route.contains("stage") {
+        Some(OutputTarget::Stage)
+    } else if route.contains("stream") || route.contains("lower") {
+        Some(OutputTarget::Stream)
+    } else {
+        None
+    };
+
+    if let Some(target) = target {
+        let state = app.state::<OutputsState>();
+        let mon_str = chosen.as_ref().map(|(idx, _)| format!("monitor-{idx}")).or(monitor_id.clone());
+        if state.set_open(target, true, mon_str) {
+            let _ = app.emit(EVENT_OUTPUTS, state.snapshot());
+        }
+
+        let watcher_app = app.clone();
+        window.on_window_event(move |event| {
+            if let WindowEvent::CloseRequested { .. } | WindowEvent::Destroyed = event {
+                let state = watcher_app.state::<OutputsState>();
+                if state.set_open(target, false, None) {
+                    let _ = watcher_app.emit(EVENT_OUTPUTS, state.snapshot());
+                }
+            }
+        });
+    }
+
+    Ok(())
+}
+
+pub fn close_native_output(app: &AppHandle, output_id: &str) -> Result<(), AppError> {
+    let window_label = format!("output-{}", output_id);
+    if let Some(window) = app.get_webview_window(&window_label) {
+        window.close().map_err(AppError::Tauri)?;
+    }
+    let legacy_label = format!("display-{}", output_id);
+    if let Some(window) = app.get_webview_window(&legacy_label) {
+        window.close().map_err(AppError::Tauri)?;
+    }
+    reconcile_open_state(app);
     Ok(())
 }

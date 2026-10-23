@@ -87,6 +87,89 @@ export interface OutputRuntime {
   monitorId: string | null;
 }
 
+export type OutputType = "monitor" | "html" | "ndi" | "virtual";
+export type OutputCategory = "public" | "stage" | "lower";
+
+export type MasterLayerId =
+  | "mask"
+  | "messages"
+  | "props"
+  | "announcements"
+  | "slide"
+  | "media"
+  | "videoInput"
+  | "screenColor";
+
+/**
+ * Configuração de camadas de uma saída ("Look"). Não guarda elementos: apenas
+ * liga/desliga as camadas mestras do tema no render. `screenColor` é fachada
+ * para `DisplayOutput.backgroundColorEnabled` (fonte única).
+ */
+export interface OutputLook {
+  mask: boolean;
+  messages: boolean;
+  props: boolean;
+  announcements: boolean;
+  slide: boolean;
+  media: boolean;
+  videoInput: boolean;
+  screenColor: boolean;
+}
+
+export interface OutputResolution {
+  width: number;
+  height: number;
+}
+
+export interface CornerPinning {
+  topLeft: [number, number];
+  topRight: [number, number];
+  bottomLeft: [number, number];
+  bottomRight: [number, number];
+}
+
+export interface DisplayOutput {
+  id: string;
+  name: string;
+  slug?: string | null;
+  category: OutputCategory;
+  type: OutputType;
+  enabled: boolean;
+  resolution: OutputResolution;
+  aspectRatio: string;
+  backgroundColor: string;
+  backgroundColorEnabled: boolean;
+  defaultThemeGuid?: string | null;
+  idleThemeGuid?: string | null;
+  look?: OutputLook;
+  monitorId?: string | null;
+  monitorName?: string | null;
+  url?: string | null;
+  ndiStreamName?: string | null;
+  frameRate: number;
+  videoDelayFrames: number;
+  alphaKey: boolean;
+  layoutMode?: string | null;
+  outputDestination?: string | null;
+  cornerPinning?: CornerPinning | null;
+  placeholderEnabled?: boolean;
+  placeholderType?: "logo" | "image" | "none" | null;
+  placeholderUrl?: string | null;
+  placeholderFit?: "contain" | "cover" | "center" | null;
+}
+
+export interface DisplaysSettings {
+  autoActivateOnLaunch: boolean;
+  showPerformanceStats: boolean;
+  ignoreBackgroundColors: boolean;
+  showKeynoteScreens: boolean;
+  timerFontMode: string;
+  bitDepth: string;
+  publicEnabled: boolean;
+  stageEnabled: boolean;
+  lowerEnabled: boolean;
+}
+
 export interface NdiStatus {
   available: boolean;
   active: boolean;
@@ -360,6 +443,8 @@ export interface ThemeElement {
   url?: string;
   groupId?: string;
   groupName?: string;
+  /** Camada mestra de saída à qual o elemento pertence. Ausente = "slide". */
+  layer?: MasterLayerId;
 }
 
 export interface ThemeGuide {
@@ -404,6 +489,36 @@ export interface LiveThemes {
   public: SlideTheme | null;
   stage: SlideTheme | null;
   stream: SlideTheme | null;
+}
+
+/** Override ao vivo de uma saída (efêmero, não persistido no SQLite). */
+export interface LiveOutputOverride {
+  themeGuid?: string | null;
+  background?: BackgroundLayer | null;
+  updatedAt: string;
+}
+
+export type PlanThemeSource = "override" | "event" | "default" | "fallback";
+
+/**
+ * Plano resolvido de uma saída. O admin é o único resolvedor; o Rust apenas
+ * guarda e publica. `contentTheme` é aplicado no renderer, por cima do plano.
+ */
+export interface OutputPlan {
+  outputId: string;
+  category: OutputCategory;
+  theme: SlideTheme | null;
+  themeSource: PlanThemeSource;
+  contentTheme: SlideTheme | null;
+  restTheme: SlideTheme | null;
+  look: OutputLook;
+  backgroundOverride: BackgroundLayer | null;
+  screenColor: { enabled: boolean; value: string };
+  updatedAt: string;
+}
+
+export interface LiveOutputPlans {
+  plans: Record<string, OutputPlan>;
 }
 
 export function kindToAsset(kind: SlideKind): ThemeAsset | null {

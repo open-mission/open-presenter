@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { kindToAsset } from "@/core/types";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { usePresentationStore } from "@/features/presentation/store";
@@ -9,6 +10,8 @@ import { useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { DEFAULT_STREAM_THEME } from "@/features/slide-themes/seedThemes";
 import { contextForSlide } from "@/features/slide-themes/themeResolution";
 import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
+import { useDisplaysStore } from "@/features/displays/store";
+import { useDisplaysSync } from "@/features/displays/useDisplaysSync";
 import {
   StageAlertBanner,
   StageAlertOverlay,
@@ -19,13 +22,35 @@ import {
 /**
  * Saída transparente para transmissão ao vivo (OBS Studio, vMix, etc.)
  * Renderiza o slide atual (letras, escrituras bíblicas, textos, comunicados)
- * com fundo 100% transparente sobre o canvas 16:9, consumível tanto
- * via Browser Source do OBS (`/#/stream` ou `/output/stream`) quanto por NDI.
+ * sobre o canvas 16:9, consumível via Browser Source do OBS (`/#/stream` ou `/output/stream`).
  */
-export default function StreamView() {
+interface StreamViewProps {
+  backgroundColor?: string;
+  outputId?: string;
+}
+
+export default function StreamView({ backgroundColor, outputId }: StreamViewProps = {}) {
   usePresentationSync("stream");
   useThemesSync();
   useCommunicationSync();
+  useDisplaysSync();
+
+  const [searchParams] = useSearchParams();
+  const effectiveOutputId = outputId ?? searchParams.get("id");
+  const outputs = useDisplaysStore((s) => s.outputs);
+
+  const activeOutput = useMemo(() => {
+    if (effectiveOutputId) return outputs.find((o) => o.id === effectiveOutputId);
+    return (
+      outputs.find((o) => o.category === "lower" && o.enabled) ??
+      outputs.find((o) => o.category === "lower") ??
+      null
+    );
+  }, [outputs, effectiveOutputId]);
+
+  const screenBg =
+    backgroundColor ??
+    (activeOutput?.backgroundColorEnabled ? activeOutput.backgroundColor : "transparent");
 
   const live = usePresentationStore((s) => s.live);
   const activeAlert = useCommunicationStore((s) => s.activeAlert);
@@ -39,21 +64,28 @@ export default function StreamView() {
 
   const mediaThemeId = live.content.media?.themeId;
 
-  // Garante que o fundo do documento fique completamente transparente para o OBS
+  // Garante que o fundo do documento fique completamente transparente para o OBS (salvo se cor de tela customizada)
   useEffect(() => {
     const prevBodyBg = document.body.style.backgroundColor;
     const prevHtmlBg = document.documentElement.style.backgroundColor;
-    document.body.style.backgroundColor = "transparent";
-    document.documentElement.style.backgroundColor = "transparent";
+    if (!activeOutput?.backgroundColorEnabled) {
+      document.body.style.backgroundColor = "transparent";
+      document.documentElement.style.backgroundColor = "transparent";
+    }
     return () => {
       document.body.style.backgroundColor = prevBodyBg;
       document.documentElement.style.backgroundColor = prevHtmlBg;
     };
-  }, []);
+  }, [activeOutput?.backgroundColorEnabled]);
 
   useEffect(() => {
     void ensureSeeded().then(() => void loadThemes());
   }, [ensureSeeded, loadThemes]);
+
+  const defaultTheme = useMemo(() => {
+    if (!activeOutput?.defaultThemeGuid) return null;
+    return themes.find((t) => t.guid === activeOutput.defaultThemeGuid) ?? null;
+  }, [themes, activeOutput?.defaultThemeGuid]);
 
   const localTheme = useMemo(
     () =>
@@ -81,7 +113,7 @@ export default function StreamView() {
     return candidate?.category === "stream" ? candidate : null;
   }, [mediaThemeId, themes]);
 
-  const rawTheme = broadcastTheme ?? streamCustomTheme ?? localTheme ?? DEFAULT_STREAM_THEME;
+  const rawTheme = streamCustomTheme ?? defaultTheme ?? broadcastTheme ?? localTheme ?? DEFAULT_STREAM_THEME;
   const context = contextForSlide(live.content.kind, live.content.media?.kind) ?? "music";
 
   // Garante que o tema tenha os elementos de lower third materializados para o contexto atual
@@ -106,7 +138,10 @@ export default function StreamView() {
   );
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-transparent select-none">
+    <div
+      className="relative h-full w-full overflow-hidden select-none"
+      style={{ backgroundColor: screenBg }}
+    >
       {/* Camada de Conteúdo e Slides Transparente */}
       <div className="absolute inset-0 z-20">
         <SlideTransition

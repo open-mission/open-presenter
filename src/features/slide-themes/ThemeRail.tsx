@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Check,
   ChevronLeft,
@@ -18,6 +17,7 @@ import { ScaledStage } from "./ScaledStage";
 import { cloneTheme, isPublicTheme, isStageCandidate, isStreamCandidate, previewTheme } from "./pages";
 import { DEFAULT_PUBLIC_THEME, DEFAULT_STAGE_THEME, DEFAULT_STREAM_THEME, DEFAULT_STREAM_THEME_GUID } from "./seedThemes";
 import { SAMPLES } from "./samples";
+import { openThemeEditor } from "@/core/ipc/commands";
 
 const RAIL_KEY = "open_presenter_theme_rail_open";
 
@@ -36,7 +36,6 @@ function readOpen(): boolean {
 }
 
 export function ThemeRail() {
-  const navigate = useNavigate();
   const themes = useSlideThemesStore((s) => s.themes);
   const bindings = useSlideThemesStore((s) => s.bindings);
   const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
@@ -128,7 +127,7 @@ export function ThemeRail() {
   }
 
   function edit(guid: string) {
-    navigate(`/theme-editor?guid=${guid}`);
+    void openThemeEditor(guid);
   }
 
   async function handleRemove(guid: string) {
@@ -162,7 +161,7 @@ export function ThemeRail() {
         theme.category = "stage";
         await save(theme);
         setStageTheme(theme.guid);
-        navigate(`/theme-editor?guid=${theme.guid}`);
+        void openThemeEditor(theme.guid);
       } else if (railTab === "stream") {
         const theme = cloneTheme(
           DEFAULT_STREAM_THEME,
@@ -173,7 +172,7 @@ export function ThemeRail() {
         setBinding("stream", "lyric", theme.guid);
         setBinding("stream", "scripture", theme.guid);
         setBinding("stream", "custom", theme.guid);
-        navigate(`/theme-editor?guid=${theme.guid}`);
+        void openThemeEditor(theme.guid);
       } else {
         const theme = cloneTheme(
           DEFAULT_PUBLIC_THEME,
@@ -181,7 +180,7 @@ export function ThemeRail() {
         );
         theme.category = "theme";
         await save(theme);
-        navigate(`/theme-editor?guid=${theme.guid}`);
+        void openThemeEditor(theme.guid);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Falha ao criar tema");

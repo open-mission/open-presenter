@@ -12,3 +12,21 @@ export async function closeCurrentWindow(fallback: () => void): Promise<void> {
   window.close();
   fallback();
 }
+
+export async function forceCloseCurrentWindow(fallback: () => void): Promise<void> {
+  if (isTauri()) {
+    try {
+      await getCurrentWindow().destroy();
+      return;
+    } catch {
+      try {
+        await getCurrentWindow().close();
+        return;
+      } catch {
+        // Fallback below
+      }
+    }
+  }
+  window.close();
+  fallback();
+}

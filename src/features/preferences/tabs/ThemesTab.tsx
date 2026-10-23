@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import {
   BookOpen,
   ChevronDown,
@@ -12,6 +11,7 @@ import {
   Pencil,
   PenLine,
   Plus,
+  Sparkles,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -34,7 +34,9 @@ import {
 import {
   DEFAULT_PUBLIC_THEME,
   DEFAULT_STAGE_THEME,
+  DEFAULT_STREAM_THEME,
 } from "@/features/slide-themes/seedThemes";
+import { openThemeEditor } from "@/core/ipc/commands";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -160,7 +162,6 @@ function loadStoredStageRes(): { width: number; height: number } {
 }
 
 export function ThemesTab() {
-  const navigate = useNavigate();
   const themes = useSlideThemesStore((s) => s.themes);
   const bindings = useSlideThemesStore((s) => s.bindings);
   const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
@@ -193,7 +194,7 @@ export function ThemesTab() {
 
   // Target for theme picker modal
   const [pickerTarget, setPickerTarget] = useState<{
-    type: "binding" | "stage";
+    type: "binding" | "stage" | "stream";
     kind?: SlideKind;
     title: string;
   } | null>(null);
@@ -206,6 +207,10 @@ export function ThemesTab() {
 
   const publicThemes = useMemo(() => themes.filter(isPublicTheme), [themes]);
   const stageThemes = useMemo(() => themes.filter(isStageCandidate), [themes]);
+  const streamThemes = useMemo(
+    () => themes.filter((t) => t.category === "stream"),
+    [themes],
+  );
   const galleryThemes = useMemo(
     () => themes.filter((theme) => theme.category !== "presentation"),
     [themes],
@@ -220,7 +225,7 @@ export function ThemesTab() {
         context,
       );
       await save(theme);
-      navigate(`/theme-editor?guid=${theme.guid}`);
+      void openThemeEditor(theme.guid);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Falha ao criar tema");
     }
@@ -232,9 +237,27 @@ export function ThemesTab() {
       const theme = newStageTheme(`Novo Tema de Retorno ${themes.length + 1}`);
       await save(theme);
       setStageTheme(theme.guid);
-      navigate(`/theme-editor?guid=${theme.guid}`);
+      void openThemeEditor(theme.guid);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Falha ao criar tema");
+    }
+  }
+
+  async function handleCreateStream() {
+    setError(null);
+    try {
+      const theme = cloneTheme(
+        DEFAULT_STREAM_THEME,
+        `Novo Tema de Transmissão ${themes.length + 1}`,
+      );
+      theme.category = "stream";
+      await save(theme);
+      setBinding("stream", "lyric", theme.guid);
+      setBinding("stream", "scripture", theme.guid);
+      setBinding("stream", "custom", theme.guid);
+      void openThemeEditor(theme.guid);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Falha ao criar tema de transmissão");
     }
   }
 
@@ -259,7 +282,7 @@ export function ThemesTab() {
   }
 
   function handleEdit(theme: SlideTheme) {
-    navigate(`/theme-editor?guid=${theme.guid}`);
+    void openThemeEditor(theme.guid);
   }
 
   async function handleDelete() {
@@ -287,7 +310,11 @@ export function ThemesTab() {
   }
 
   const pickerThemes =
-    pickerTarget?.type === "stage" ? stageThemes : publicThemes;
+    pickerTarget?.type === "stage"
+      ? stageThemes
+      : pickerTarget?.type === "stream"
+        ? streamThemes
+        : publicThemes;
 
   return (
     <div className="flex flex-col gap-7 select-none">
@@ -405,6 +432,104 @@ export function ThemesTab() {
                         type: "binding",
                         kind: col.kind,
                         title: col.label,
+                      })
+                    }
+                    className="flex aspect-video w-full items-center justify-center rounded-lg border border-border/80 bg-card/60 text-xs font-medium text-muted-foreground transition-all hover:border-primary/50 hover:bg-muted/50 hover:text-foreground cursor-pointer shadow-2xs"
+                  >
+                    <span>Nenhum</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Table Row: Transmissão (Lower Third / OBS) */}
+            <div className="grid grid-cols-[100px_repeat(6,1fr)] items-center gap-3 pt-3 border-t border-border/40 mt-3">
+              <div className="text-xs font-semibold text-foreground">
+                Transmissão
+              </div>
+
+              {GRID_COLUMNS.map((col) => {
+                const boundGuid = col.kind
+                  ? bindings.find(
+                      (b) => b.target === "stream" && b.asset === col.kind,
+                    )?.themeGuid
+                  : undefined;
+                const boundTheme = boundGuid
+                  ? themes.find((t) => t.guid === boundGuid)
+                  : undefined;
+
+                if (boundTheme) {
+                  const preview = previewTheme(boundTheme, col.sampleAsset);
+                  return (
+                    <div
+                      key={col.id}
+                      className="group relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-black shadow-2xs transition-all hover:border-primary/50"
+                    >
+                      <div className="size-full pointer-events-none scale-100">
+                        <ScaledStage
+                          theme={preview.theme}
+                          asset={preview.asset}
+                          props={{
+                            ...SAMPLES[preview.asset].props,
+                            ...(col.sampleProps || {}),
+                          }}
+                        />
+                      </div>
+
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity p-1.5">
+                        <span className="text-[10px] font-semibold text-white truncate max-w-full text-center">
+                          {boundTheme.title}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            className="h-6 px-1.5 text-[10px] cursor-pointer"
+                            onClick={() =>
+                              setPickerTarget({
+                                type: "stream",
+                                kind: col.kind,
+                                title: `Transmissão · ${col.label}`,
+                              })
+                            }
+                          >
+                            Alterar
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-6 px-1.5 text-[10px] cursor-pointer"
+                            onClick={() => handleEdit(boundTheme)}
+                          >
+                            Editar
+                          </Button>
+                        </div>
+                        {col.kind && (
+                          <button
+                            type="button"
+                            onClick={() => clearBinding("stream", col.kind!)}
+                            className="text-[9px] text-muted-foreground hover:text-destructive underline cursor-pointer"
+                          >
+                            Desvincular
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <button
+                    key={col.id}
+                    type="button"
+                    onClick={() =>
+                      setPickerTarget({
+                        type: "stream",
+                        kind: col.kind,
+                        title: `Transmissão · ${col.label}`,
                       })
                     }
                     className="flex aspect-video w-full items-center justify-center rounded-lg border border-border/80 bg-card/60 text-xs font-medium text-muted-foreground transition-all hover:border-primary/50 hover:bg-muted/50 hover:text-foreground cursor-pointer shadow-2xs"
@@ -610,6 +735,13 @@ export function ThemesTab() {
                   <Monitor className="size-3.5 text-primary" />
                   <span>Modelo de palco — 4 momentos</span>
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => void handleCreateStream()}
+                  className="cursor-pointer gap-2"
+                >
+                  <Sparkles className="size-3.5 text-primary" />
+                  <span>Modelo de transmissão — Lower Third (OBS)</span>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -650,6 +782,11 @@ export function ThemesTab() {
                     {(isStage || theme.category === "stage") && (
                       <Badge variant="outline" className="text-[9px]">
                         Retorno
+                      </Badge>
+                    )}
+                    {theme.category === "stream" && (
+                      <Badge variant="outline" className="border-indigo-500/40 text-[9px] text-indigo-400">
+                        Transmissão
                       </Badge>
                     )}
                     {isDefaultPublic && (
@@ -748,6 +885,8 @@ export function ThemesTab() {
               onClick={() => {
                 if (pickerTarget?.type === "stage") {
                   setStageTheme(null);
+                } else if (pickerTarget?.type === "stream" && pickerTarget.kind) {
+                  clearBinding("stream", pickerTarget.kind);
                 } else if (pickerTarget?.kind) {
                   clearBinding("public", pickerTarget.kind);
                 }
@@ -772,6 +911,8 @@ export function ThemesTab() {
                   onClick={() => {
                     if (pickerTarget?.type === "stage") {
                       setStageTheme(t.guid);
+                    } else if (pickerTarget?.type === "stream" && pickerTarget.kind) {
+                      setBinding("stream", pickerTarget.kind, t.guid);
                     } else if (pickerTarget?.kind) {
                       setBinding("public", pickerTarget.kind, t.guid);
                     }
