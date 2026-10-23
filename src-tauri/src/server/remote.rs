@@ -21,8 +21,9 @@ use crate::services::{
     holyrics_online, lrclib, lyrics_search, media_library, slide_builder, songs, vagalume,
 };
 use crate::state::types::{
-    now_millis, ClientKind, ConnectedClient, MediaItem, MediaKind, SlideContent,
-    SlideKind, EVENT_REMOTE_SETLIST, EVENT_SLIDE, EVENT_STAGE_MESSAGE, EVENT_TIMER, EVENT_WALLPAPER,
+    now_millis, ClientKind, ConnectedClient, DisplayOutput, MediaItem, MediaKind, SlideContent,
+    SlideKind, EVENT_DISPLAYS, EVENT_OUTPUT_PLANS, EVENT_REMOTE_SETLIST, EVENT_SLIDE,
+    EVENT_STAGE_MESSAGE, EVENT_TIMER, EVENT_WALLPAPER,
 };
 use crate::state::{LiveSlide, RemoteItem, RemoteSetlist};
 
@@ -1128,6 +1129,19 @@ pub async fn ws(
     ws.on_upgrade(move |socket| handle_remote_socket(socket, state, client_id))
 }
 
+fn current_display_outputs(state: &ServerState) -> Vec<DisplayOutput> {
+    state
+        .db
+        .as_ref()
+        .and_then(|db| {
+            db.with_conn(|conn| crate::services::settings::get_setting(conn, "displays.outputs"))
+                .ok()
+                .flatten()
+        })
+        .and_then(|json| serde_json::from_str::<Vec<DisplayOutput>>(&json).ok())
+        .unwrap_or_default()
+}
+
 async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>, client_id: String) {
     let _guard = ClientGuard::new(&state.clients, client_id);
     let (mut sender, mut receiver) = socket.split();
@@ -1161,6 +1175,16 @@ async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>, client
         "payload": state.broadcaster.current_stage_message(),
         "version": 1,
     });
+    let output_plans = serde_json::json!({
+        "channel": EVENT_OUTPUT_PLANS,
+        "payload": state.broadcaster.current_output_plans(),
+        "version": 1,
+    });
+    let displays = serde_json::json!({
+        "channel": EVENT_DISPLAYS,
+        "payload": current_display_outputs(state.as_ref()),
+        "version": 1,
+    });
 
     if sender
         .send(Message::Text(slide.to_string().into()))
@@ -1192,6 +1216,20 @@ async fn handle_remote_socket(socket: WebSocket, state: Arc<ServerState>, client
     }
     if sender
         .send(Message::Text(stage_message.to_string().into()))
+        .await
+        .is_err()
+    {
+        return;
+    }
+    if sender
+        .send(Message::Text(output_plans.to_string().into()))
+        .await
+        .is_err()
+    {
+        return;
+    }
+    if sender
+        .send(Message::Text(displays.to_string().into()))
         .await
         .is_err()
     {
