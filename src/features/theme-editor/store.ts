@@ -1,7 +1,8 @@
 import { create } from "zustand";
-import type { SlideTheme, ThemeContext, ThemeElement, ThemePage } from "../../core/types/index.ts";
+import type { MasterLayerId, SlideTheme, ThemeContext, ThemeElement, ThemePage } from "../../core/types/index.ts";
 import { getTheme, saveTheme } from "../../core/ipc/commands.ts";
 import { cloneTheme, createPage, getActivePage } from "../slide-themes/pages.ts";
+import { defaultLayerForElement } from "../slide-themes/layers.ts";
 import {
   groupElementsInList,
   ungroupElementsInList,
@@ -105,6 +106,7 @@ interface ThemeEditorState {
   addElements(els: ThemeElement[]): void;
   removeElement(id: string): void;
   moveElement(id: string, dir: 1 | -1): void;
+  moveElementsToLayer(ids: string[], layer: MasterLayerId): void;
   toggleVisible(id: string): void;
   toggleLocked(id: string): void;
   setTitle(title: string): void;
@@ -548,8 +550,12 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       if (!draft) return;
       const next = clone(draft);
       const page = getActivePage(next, activePageId);
-      if (page) page.elements = [...page.elements, structuredClone(el)];
-      else next.elements = [...next.elements, structuredClone(el)];
+      const withLayer = {
+        ...structuredClone(el),
+        layer: el.layer ?? defaultLayerForElement(el.type),
+      };
+      if (page) page.elements = [...page.elements, withLayer];
+      else next.elements = [...next.elements, withLayer];
       mutate(next);
     },
 
@@ -558,9 +564,25 @@ export const useThemeEditorStore = create<ThemeEditorState>((set, get) => {
       if (!draft || els.length === 0) return;
       const next = clone(draft);
       const page = getActivePage(next, activePageId);
-      const clones = els.map((el) => structuredClone(el));
+      const clones = els.map((el) => ({
+        ...structuredClone(el),
+        layer: el.layer ?? defaultLayerForElement(el.type),
+      }));
       if (page) page.elements = [...page.elements, ...clones];
       else next.elements = [...next.elements, ...clones];
+      mutate(next);
+    },
+
+    moveElementsToLayer: (ids, layer) => {
+      const { draft, activePageId } = get();
+      if (!draft || ids.length === 0) return;
+      const next = clone(draft);
+      const page = getActivePage(next, activePageId);
+      const idSet = new Set(ids);
+      const apply = (list: ThemeElement[]) =>
+        list.map((el) => (idSet.has(el.id) ? { ...el, layer } : el));
+      if (page) page.elements = apply(page.elements);
+      else next.elements = apply(next.elements);
       mutate(next);
     },
 
