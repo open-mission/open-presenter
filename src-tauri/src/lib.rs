@@ -149,6 +149,15 @@ pub fn run() {
                 .accelerator("CmdOrCtrl+Shift+L")
                 .build(app)?;
 
+            #[cfg(target_os = "macos")]
+            let fullscreen_accelerator = "Ctrl+Cmd+F";
+            #[cfg(not(target_os = "macos"))]
+            let fullscreen_accelerator = "F11";
+
+            let fullscreen_item = MenuItemBuilder::with_id("toggle-fullscreen", "Tela Cheia")
+                .accelerator(fullscreen_accelerator)
+                .build(app)?;
+
             let presentation_menu = SubmenuBuilder::new(app, "Apresentação")
                 .item(&next_slide_item)
                 .item(&prev_slide_item)
@@ -157,8 +166,12 @@ pub fn run() {
                 .item(&clear_item)
                 .build()?;
 
+            let window_menu = SubmenuBuilder::new(app, "Janela")
+                .item(&fullscreen_item)
+                .build()?;
+
             let menu = MenuBuilder::new(app)
-                .items(&[&app_menu, &file_menu, &edit_menu, &presentation_menu, &help_menu])
+                .items(&[&app_menu, &file_menu, &edit_menu, &presentation_menu, &window_menu, &help_menu])
                 .build()?;
 
             app.set_menu(menu)?;
@@ -199,6 +212,12 @@ pub fn run() {
                     }
                     "presentation-clear" => {
                         let _ = app_handle.emit("presentation-clear", ());
+                    }
+                    "toggle-fullscreen" => {
+                        let handle = app_handle.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = crate::commands::presentation::toggle_fullscreen(handle).await;
+                        });
                     }
                     "quit-app" => {
                         let app = app_handle.clone();
@@ -360,6 +379,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::presentation::show_main_window,
+            commands::presentation::toggle_fullscreen,
             commands::presentation::list_monitors,
             commands::presentation::open_output_window,
             commands::presentation::close_output_window,

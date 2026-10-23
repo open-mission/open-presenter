@@ -187,6 +187,29 @@ pub async fn close_displays_window(app: tauri::AppHandle) -> Result<(), AppError
 }
 
 #[tauri::command]
+pub async fn toggle_fullscreen(app: tauri::AppHandle) -> Result<bool, AppError> {
+    use tauri::Manager;
+
+    let window = app
+        .webview_windows()
+        .into_values()
+        .find(|window| window.is_focused().unwrap_or(false))
+        .or_else(|| app.get_webview_window("main"))
+        .ok_or_else(|| AppError::Storage("janela não encontrada".into()))?;
+
+    let next = !window.is_fullscreen().unwrap_or(false);
+    if next {
+        // No macOS uma janela não redimensionável pode recusar entrar em tela cheia.
+        let _ = window.set_resizable(true);
+    }
+    window.set_fullscreen(next).map_err(AppError::Tauri)?;
+    if next {
+        let _ = window.set_focus();
+    }
+    Ok(next)
+}
+
+#[tauri::command]
 pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), AppError> {
     use tauri::Manager;
     if let Some(window) = app.get_webview_window("main") {
