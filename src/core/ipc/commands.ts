@@ -632,12 +632,14 @@ export async function identifyDisplays(active: boolean): Promise<void> {
 export async function openNativeOutput(
   outputId: string,
   monitorId: string | null,
+  monitorLabel: string | null,
   route: string,
   title: string,
 ): Promise<void> {
   await invokeCommand("open_native_output", {
     outputId,
     monitorId,
+    monitorLabel,
     route,
     title,
   });

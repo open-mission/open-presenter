@@ -16,11 +16,13 @@ import {
   saveDisplayOutputs,
   saveDisplaysSettings,
 } from "@/core/ipc/commands";
-import { isTauri } from "@/core/ipc/tauri";
+import { isMainWindow, isTauri } from "@/core/ipc/tauri";
 import { migrateLegacyThemeBindings } from "./migrateLegacyThemes";
 
 const STORAGE_KEY_OUTPUTS = "open_presenter_display_outputs";
 const STORAGE_KEY_SETTINGS = "open_presenter_displays_settings";
+
+let autoActivated = false;
 
 const DEFAULT_SETTINGS: DisplaysSettings = {
   autoActivateOnLaunch: true,
@@ -62,7 +64,7 @@ async function syncNativeWindow(output: DisplayOutput) {
         route = `/stream?id=${output.id}`;
       }
       try {
-        await openNativeOutput(output.id, output.monitorId ?? null, route, output.name);
+        await openNativeOutput(output.id, output.monitorId ?? null, output.monitorName ?? null, route, output.name);
       } catch (err) {
         console.error(`Falha ao abrir monitor nativo ${output.name}:`, err);
       }
@@ -74,6 +76,31 @@ async function syncNativeWindow(output: DisplayOutput) {
       }
     }
   }
+}
+
+function reconcileMonitors(
+  outputs: DisplayOutput[],
+  monitors: MonitorInfo[],
+): { outputs: DisplayOutput[]; changed: boolean } {
+  if (monitors.length === 0) return { outputs, changed: false };
+  let changed = false;
+  const next = outputs.map((out) => {
+    if (out.type !== "monitor") return out;
+    if (out.monitorId && monitors.some((m) => m.id === out.monitorId)) return out;
+
+    const legacyIndex = out.monitorId?.match(/^monitor-(\d+)$/);
+    const target =
+      (out.monitorName ? monitors.find((m) => m.name === out.monitorName) : undefined) ??
+      (legacyIndex ? monitors[Number(legacyIndex[1])] : undefined) ??
+      monitors.find(
+        (m) =>
+          m.width === out.resolution.width && m.height === out.resolution.height,
+      );
+    if (!target) return out;
+    changed = true;
+    return { ...out, monitorId: target.id, monitorName: target.name };
+  });
+  return { outputs: next, changed };
 }
 
 function loadLocalStorageOutputs(): DisplayOutput[] {
@@ -141,14 +168,15 @@ export const useDisplaysStore = create<DisplaysState>((set, get) => ({
           getDisplaysSettings(),
         ]);
         const migration = migrateLegacyThemeBindings(backendOutputs ?? []);
-        const outputs = migration.outputs;
+        const reconciled = reconcileMonitors(migration.outputs, monitors);
+        const outputs = reconciled.outputs;
         const settings = backendSettings ?? DEFAULT_SETTINGS;
 
         // Persist local mirror
         localStorage.setItem(STORAGE_KEY_OUTPUTS, JSON.stringify(outputs));
         localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
 
-        if (migration.changed) {
+        if (migration.changed || reconciled.changed) {
           void saveDisplayOutputs(outputs);
         }
 
@@ -162,7 +190,14 @@ export const useDisplaysStore = create<DisplaysState>((set, get) => ({
             : (outputs[0]?.id ?? null),
         }));
 
-        if (settings.autoActivateOnLaunch !== false) {
+        // Só o processo principal reabre as saídas, e apenas uma vez por sessão:
+        // abrir a janela de Configuração de tela não deve relançar/focar telas.
+        if (
+          settings.autoActivateOnLaunch !== false &&
+          !autoActivated &&
+          isMainWindow()
+        ) {
+          autoActivated = true;
           for (const out of outputs) {
             if (out.enabled && out.type === "monitor") {
               void syncNativeWindow(out);
@@ -224,11 +259,16 @@ export const useDisplaysStore = create<DisplaysState>((set, get) => ({
     let monitorName: string | null = null;
 
     if (type === "monitor") {
-      // Pick first monitor not used yet, or primary
+      // Prefere um monitor que ainda não foi usado e que não seja o principal.
       const assignedIds = new Set(
         outputs.filter((o) => o.type === "monitor" && o.monitorId).map((o) => o.monitorId),
       );
-      const availableMonitor = monitors.find((m) => !assignedIds.has(m.id)) ?? monitors[0];
+      const unassigned = monitors.filter((m) => !assignedIds.has(m.id));
+      const availableMonitor =
+        unassigned.find((m) => !m.isPrimary) ??
+        unassigned[0] ??
+        monitors.find((m) => !m.isPrimary) ??
+        monitors[0];
       if (availableMonitor) {
         width = availableMonitor.width;
         height = availableMonitor.height;

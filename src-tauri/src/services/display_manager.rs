@@ -6,11 +6,50 @@ use crate::state::outputs::OutputsState;
 use crate::state::types::{OutputTarget, EVENT_OUTPUTS};
 use crate::state::MonitorInfo;
 
-fn to_info(monitor: &Monitor, index: usize, is_primary: bool) -> MonitorInfo {
+/// Identidade estável de um monitor. O índice retornado por
+/// `available_monitors()` varia entre chamadas (principalmente no Windows),
+/// então usamos nome + resolução e só caímos para geometria quando o nome não
+/// existe.
+fn monitor_key(monitor: &Monitor) -> String {
+    let size = monitor.size();
+    match monitor.name() {
+        Some(name) if !name.trim().is_empty() => {
+            format!("monitor:{}:{}x{}", name, size.width, size.height)
+        }
+        _ => {
+            let position = monitor.position();
+            format!(
+                "monitor:{}x{}@{},{}",
+                size.width, size.height, position.x, position.y
+            )
+        }
+    }
+}
+
+fn is_primary_monitor(primary: Option<&Monitor>, monitor: &Monitor) -> bool {
+    let Some(primary) = primary else {
+        return false;
+    };
+    if let (Some(a), Some(b)) = (primary.name(), monitor.name()) {
+        if !a.trim().is_empty() && !b.trim().is_empty() {
+            return a == b;
+        }
+    }
+    let primary_position = primary.position();
+    let primary_size = primary.size();
+    let position = monitor.position();
+    let size = monitor.size();
+    primary_position.x == position.x
+        && primary_position.y == position.y
+        && primary_size.width == size.width
+        && primary_size.height == size.height
+}
+
+fn to_info(monitor: &Monitor, primary: Option<&Monitor>) -> MonitorInfo {
     let position = monitor.position();
     let size = monitor.size();
     MonitorInfo {
-        id: format!("monitor-{index}"),
+        id: monitor_key(monitor),
         name: monitor
             .name()
             .map(String::as_str)
@@ -20,7 +59,7 @@ fn to_info(monitor: &Monitor, index: usize, is_primary: bool) -> MonitorInfo {
         y: position.y,
         width: size.width,
         height: size.height,
-        is_primary,
+        is_primary: is_primary_monitor(primary, monitor),
         scale_factor: monitor.scale_factor(),
     }
 }
@@ -28,20 +67,10 @@ fn to_info(monitor: &Monitor, index: usize, is_primary: bool) -> MonitorInfo {
 pub fn list_monitors(app: &AppHandle) -> Result<Vec<MonitorInfo>, AppError> {
     let primary = app.primary_monitor().map_err(AppError::Tauri)?;
     let monitors = app.available_monitors().map_err(AppError::Tauri)?;
-    let primary_name: Option<String> =
-        primary.as_ref().and_then(|m| m.name().cloned());
 
     Ok(monitors
         .iter()
-        .enumerate()
-        .map(|(index, monitor)| {
-            let is_primary = primary_name
-                .as_deref()
-                .zip(monitor.name().map(String::as_str))
-                .map(|(a, b)| a == b)
-                .unwrap_or(index == 0);
-            to_info(monitor, index, is_primary)
-        })
+        .map(|monitor| to_info(monitor, primary.as_ref()))
         .collect())
 }
 
@@ -66,10 +95,16 @@ pub async fn open_output_window(
     }
 
     let monitors = app.available_monitors().map_err(AppError::Tauri)?;
-    let chosen = pick_monitor(&monitors, monitor_id.as_deref(), monitor_label.as_deref());
+    let primary = app.primary_monitor().ok().flatten();
+    let chosen = pick_monitor(
+        &monitors,
+        primary.as_ref(),
+        monitor_id.as_deref(),
+        monitor_label.as_deref(),
+    );
     let resolved_id: Option<String> = chosen
         .as_ref()
-        .map(|(index, _)| format!("monitor-{index}"))
+        .map(|(_, monitor)| monitor_key(monitor))
         .or(monitor_id.clone());
     let chosen_monitor = chosen.map(|(_, monitor)| monitor);
 
@@ -116,38 +151,44 @@ pub async fn open_output_window(
 
 fn pick_monitor(
     monitors: &[Monitor],
+    primary: Option<&Monitor>,
     monitor_id: Option<&str>,
     monitor_label: Option<&str>,
 ) -> Option<(usize, Monitor)> {
     if let Some(wanted) = monitor_id {
-        let by_id = monitors
-            .iter()
-            .enumerate()
-            .find(|(index, _)| format!("monitor-{index}") == wanted)
-            .map(|(index, monitor)| (index, monitor.clone()));
-        if by_id.is_some() {
-            return by_id;
+        if let Some(index) = monitors.iter().position(|m| monitor_key(m) == wanted) {
+            return Some((index, monitors[index].clone()));
+        }
+        // Compatibilidade: configurações antigas gravavam `monitor-{índice}`.
+        if let Some(index) = wanted
+            .strip_prefix("monitor-")
+            .and_then(|rest| rest.parse::<usize>().ok())
+        {
+            if let Some(monitor) = monitors.get(index) {
+                return Some((index, monitor.clone()));
+            }
         }
     }
     if let Some(label) = monitor_label {
-        let by_label = monitors
+        if let Some(index) = monitors
             .iter()
-            .enumerate()
-            .find(|(_, monitor)| monitor.name().is_some_and(|name| name == label))
-            .map(|(index, monitor)| (index, monitor.clone()));
-        if by_label.is_some() {
-            return by_label;
+            .position(|m| m.name().is_some_and(|name| name == label))
+        {
+            return Some((index, monitors[index].clone()));
         }
     }
-    first_non_primary(monitors).or_else(|| monitors.first().cloned().map(|m| (0, m)))
+    first_non_primary(monitors, primary).or_else(|| monitors.first().cloned().map(|m| (0, m)))
 }
 
-fn first_non_primary(monitors: &[Monitor]) -> Option<(usize, Monitor)> {
-    if monitors.len() > 1 {
-        monitors.get(1).cloned().map(|m| (1, m))
-    } else {
-        None
-    }
+fn first_non_primary(
+    monitors: &[Monitor],
+    primary: Option<&Monitor>,
+) -> Option<(usize, Monitor)> {
+    monitors
+        .iter()
+        .enumerate()
+        .find(|(_, monitor)| !is_primary_monitor(primary, monitor))
+        .map(|(index, monitor)| (index, monitor.clone()))
 }
 
 pub fn close_output_window(app: &AppHandle, target: OutputTarget) -> Result<(), AppError> {
@@ -451,23 +492,42 @@ pub async fn open_native_output(
     app: AppHandle,
     output_id: String,
     monitor_id: Option<String>,
+    monitor_label: Option<String>,
     route: String,
     title: String,
 ) -> Result<(), AppError> {
     let window_label = format!("output-{}", output_id);
-    if let Some(window) = app.get_webview_window(&window_label) {
-        window.set_focus().map_err(AppError::Tauri)?;
-        return Ok(());
-    }
     let legacy_label = format!("display-{}", output_id);
-    if let Some(window) = app.get_webview_window(&legacy_label) {
-        window.set_focus().map_err(AppError::Tauri)?;
-        return Ok(());
-    }
+    let existing = app
+        .get_webview_window(&window_label)
+        .or_else(|| app.get_webview_window(&legacy_label));
 
     let monitors = app.available_monitors().map_err(AppError::Tauri)?;
-    let chosen = pick_monitor(&monitors, monitor_id.as_deref(), None);
+    let primary = app.primary_monitor().ok().flatten();
+    let chosen = pick_monitor(
+        &monitors,
+        primary.as_ref(),
+        monitor_id.as_deref(),
+        monitor_label.as_deref(),
+    );
     let chosen_monitor = chosen.as_ref().map(|(_, monitor)| monitor.clone());
+
+    if let Some(window) = existing {
+        if let Some(monitor) = chosen_monitor {
+            let position = monitor.position();
+            let size = monitor.size();
+            let already_there = window
+                .outer_position()
+                .map(|current| current.x == position.x && current.y == position.y)
+                .unwrap_or(false);
+            if !already_there {
+                let _ = window.set_position(tauri::PhysicalPosition::new(position.x, position.y));
+                let _ = window.set_size(tauri::PhysicalSize::new(size.width, size.height));
+                let _ = window.set_fullscreen(true);
+            }
+        }
+        return Ok(());
+    }
 
     // Limpa a rota para garantir exatamente "index.html#/<path>", sem hashes duplicados ("##")
     let normalized = route
@@ -517,7 +577,10 @@ pub async fn open_native_output(
 
     if let Some(target) = target {
         let state = app.state::<OutputsState>();
-        let mon_str = chosen.as_ref().map(|(idx, _)| format!("monitor-{idx}")).or(monitor_id.clone());
+        let mon_str = chosen
+            .as_ref()
+            .map(|(_, monitor)| monitor_key(monitor))
+            .or(monitor_id.clone());
         if state.set_open(target, true, mon_str) {
             let _ = app.emit(EVENT_OUTPUTS, state.snapshot());
         }
