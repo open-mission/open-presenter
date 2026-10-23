@@ -185,6 +185,7 @@ export default function StageView({ backgroundColor, outputId }: StageViewProps 
                 theme={restSlideTheme}
                 asset={restRender.asset}
                 props={stageProps}
+                showBackground={!look.videoInput}
                 className="absolute inset-0 z-20"
               />
             )
@@ -210,6 +211,7 @@ export default function StageView({ backgroundColor, outputId }: StageViewProps 
                 theme={liveSlideTheme}
                 asset={liveTheme.asset}
                 props={stageProps}
+                showBackground={!look.videoInput}
                 className="absolute inset-0 z-20"
               />
             )

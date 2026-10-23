@@ -143,6 +143,7 @@ export function StageMiniPreview({ outputId }: StageMiniPreviewProps = {}) {
                 theme={restSlideTheme}
                 asset={restRender.asset}
                 props={stageProps}
+                showBackground={!plan.look.videoInput}
                 className="absolute inset-0 z-20"
               />
             )
@@ -168,6 +169,7 @@ export function StageMiniPreview({ outputId }: StageMiniPreviewProps = {}) {
                 theme={liveSlideTheme}
                 asset={liveTheme.asset}
                 props={stageProps}
+                showBackground={!plan.look.videoInput}
                 className="absolute inset-0 z-20"
               />
             )
