@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { OUTPUT_HTTP_PORT, outputHttpUrl } from "@/core/config/app";
-import { setMediaPort } from "@/core/config/mediaPort";
+import { setMediaServer } from "@/core/config/mediaPort";
 import {
   closeOutputWindow,
   fetchServerHost,
@@ -129,7 +129,7 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
       (typeof window !== "undefined" && window.location.port
         ? Number(window.location.port) || OUTPUT_HTTP_PORT
         : OUTPUT_HTTP_PORT);
-    setMediaPort(server?.port ?? null);
+    setMediaServer(server?.port ?? null, server?.running ?? null);
     set((s) => {
       const runtime = { ...s.runtime };
       for (const item of state) {
@@ -173,7 +173,7 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
       getOutputConfig("stream"),
       getServerStatus(),
     ]);
-    setMediaPort(server?.port ?? null);
+    setMediaServer(server?.port ?? null, server?.running ?? null);
     set((s) => {
       const configs = {
         public: normalizeConfig(publicConfig) ?? s.configs.public,
@@ -259,23 +259,25 @@ export const useOutputManagerStore = create<OutputManagerState>((set, get) => ({
     try {
       const server = await setServerPort(port);
       set({ server });
-      setMediaPort(server.port);
+      setMediaServer(server.port, server.running);
     } catch (e) {
       const s = await getServerStatus();
       if (s) {
         set({ server: s });
-        setMediaPort(s.port);
+        setMediaServer(s.port, s.running);
       }
       throw e;
     }
   },
   stopLocalServer: async () => {
-    set({ server: await stopServer() });
+    const server = await stopServer();
+    set({ server });
+    setMediaServer(server.port, server.running);
   },
   startLocalServer: async () => {
     const server = await startServer();
     set({ server });
-    setMediaPort(server.port);
+    setMediaServer(server.port, server.running);
   },
   restartLocalServer: async () => {
     await get().stopLocalServer();

@@ -1,9 +1,10 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { getServerStatus } from "@/core/ipc/commands";
-import { isTauri } from "@/core/ipc/tauri";
-import { OUTPUT_HTTP_PORT } from "./app";
+import { isTauri, listenCommand } from "@/core/ipc/tauri";
+import { OUTPUT_HTTP_PORT, TAURI_EVENTS } from "./app";
 
 let mediaPort: number | null = null;
+let mediaServerRunning: boolean | null = null;
 const listeners = new Set<() => void>();
 
 function notify(): void {
@@ -17,8 +18,24 @@ export function setMediaPort(port: number | null): void {
   notify();
 }
 
+/**
+ * Registra o estado do servidor de mídia. Quando `running` é `false`, os
+ * resolvedores usam o protocolo customizado `media://` em vez de apontar
+ * para um servidor HTTP que não está escutando.
+ */
+export function setMediaServer(port: number | null, running: boolean | null): void {
+  setMediaPort(port);
+  if (mediaServerRunning === running) return;
+  mediaServerRunning = running;
+  notify();
+}
+
 export function getMediaPort(): number | null {
   return mediaPort;
+}
+
+export function isMediaServerRunning(): boolean | null {
+  return mediaServerRunning;
 }
 
 export function resolveMediaPort(explicit?: number): number {
@@ -49,23 +66,36 @@ export function useMediaPort(): number | null {
 /**
  * Mantém a porta usada para resolver mídias (`media://`) alinhada ao servidor
  * embutido. Em janelas Tauri a URL não carrega a porta do servidor, então ela
- * é buscada via IPC; no navegador a própria URL já informa a porta.
+ * é buscada via IPC e revalidada sempre que o estado das saídas muda (o
+ * servidor pode subir, parar ou trocar de porta depois do boot).
  */
 export function useMediaPortSync(): void {
   useEffect(() => {
     let disposed = false;
+    let unlisten: (() => void) | null = null;
+
+    async function refresh(): Promise<void> {
+      const status = await getServerStatus();
+      if (disposed) return;
+      setMediaServer(status?.port ?? null, status?.running ?? null);
+    }
 
     if (isTauri()) {
-      void getServerStatus().then((status) => {
-        if (!disposed && status?.port) setMediaPort(status.port);
+      void refresh();
+      void listenCommand(TAURI_EVENTS.outputs, () => {
+        void refresh();
+      }).then((fn) => {
+        if (disposed) fn?.();
+        else unlisten = fn;
       });
     } else if (typeof window !== "undefined" && window.location.port) {
       const port = Number(window.location.port);
-      if (port > 0) setMediaPort(port);
+      if (port > 0) setMediaServer(port, true);
     }
 
     return () => {
       disposed = true;
+      unlisten?.();
     };
   }, []);
 }
