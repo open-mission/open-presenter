@@ -61,6 +61,7 @@ import { wallpaperToBackground } from "./wallpaper";
 import type { BackgroundLayer, LiveSlide } from "@/core/types";
 import { filterThemeForLook, resolveOutputLook } from "@/features/slide-themes/layers";
 import { useOutputOverridesStore } from "@/features/slide-themes/outputOverridesStore";
+import { handleAssetDragOver, handleAssetDrop } from "@/features/media-library/dnd";
 
 export function LivePreview() {
   const live = usePresentationStore((s) => s.live);
@@ -475,7 +476,12 @@ export function LivePreview() {
 
       if (out.category === "stage") {
         visibleCards.push(
-          <div key={out.id} className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs">
+          <div
+            key={out.id}
+            className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs"
+            onDragOver={handleAssetDragOver}
+            onDrop={(event) => handleAssetDrop(event, out)}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 min-w-0">
                 <Monitor className="size-3.5 text-sky-400 shrink-0" />
@@ -510,7 +516,12 @@ export function LivePreview() {
           out.backgroundColor !== "transparent";
 
         visibleCards.push(
-          <div key={out.id} className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs">
+          <div
+            key={out.id}
+            className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs"
+            onDragOver={handleAssetDragOver}
+            onDrop={(event) => handleAssetDrop(event, out)}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 min-w-0">
                 <Video className="size-3.5 text-purple-400 shrink-0" />
@@ -546,7 +557,12 @@ export function LivePreview() {
         );
       } else {
         visibleCards.push(
-          <div key={out.id} className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs">
+          <div
+            key={out.id}
+            className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs"
+            onDragOver={handleAssetDragOver}
+            onDrop={(event) => handleAssetDrop(event, out)}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 min-w-0">
                 <Tv className="size-3.5 text-emerald-400 shrink-0" />

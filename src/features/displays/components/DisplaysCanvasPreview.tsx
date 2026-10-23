@@ -27,6 +27,7 @@ import {
   resolveOutputLook,
 } from "@/features/slide-themes/layers";
 import { useOutputOverridesStore } from "@/features/slide-themes/outputOverridesStore";
+import { handleAssetDragOver, handleAssetDrop } from "@/features/media-library/dnd";
 import { OutputPlaceholder } from "./OutputPlaceholder";
 
 interface DisplaysCanvasPreviewProps {
@@ -117,6 +118,8 @@ export function DisplaysCanvasPreview({ output }: DisplaysCanvasPreviewProps) {
               ? "repeating-conic-gradient(#1f2937 0% 25%, #111827 0% 50%) 50% / 16px 16px"
               : undefined,
           }}
+          onDragOver={handleAssetDragOver}
+          onDrop={(event) => handleAssetDrop(event, output)}
         >
           {/* Subtle grid lines inside canvas */}
           <div
