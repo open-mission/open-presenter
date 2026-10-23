@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_PANEL_LAYOUT,
+  MEDIA_HEIGHT_MAX,
+  MEDIA_HEIGHT_MIN,
   parsePanelLayout,
   clampPanelWidth,
   fitPanelLayout,
@@ -33,8 +35,15 @@ test("parse limita larguras e preserva visibilidade", () => {
       setlistWidth: SETLIST_WIDTH_MAX,
       slidesWidth: SLIDES_WIDTH_MIN,
       monitorsVisible: false,
+      mediaHeight: DEFAULT_PANEL_LAYOUT.mediaHeight,
+      mediaOpen: true,
     },
   );
+});
+
+test("parse limita a altura do painel de mídia", () => {
+  assert.equal(parsePanelLayout({ mediaHeight: 9999 }).mediaHeight, MEDIA_HEIGHT_MAX);
+  assert.equal(parsePanelLayout({ mediaHeight: 10 }).mediaHeight, MEDIA_HEIGHT_MIN);
 });
 
 test("parse ignora tipos inválidos", () => {

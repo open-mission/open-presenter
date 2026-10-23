@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import {
   clampPanelWidth,
+  MEDIA_HEIGHT_DEFAULT,
+  MEDIA_HEIGHT_MAX,
+  MEDIA_HEIGHT_MIN,
   parsePanelLayout,
   SETLIST_WIDTH_DEFAULT,
   SETLIST_WIDTH_MAX,
@@ -33,6 +36,9 @@ function persist(layout: PanelLayout): void {
 interface PanelLayoutState extends PanelLayout {
   setSetlistWidth(width: number): void;
   setSlidesWidth(width: number): void;
+  setMediaHeight(height: number): void;
+  setMediaOpen(open: boolean): void;
+  toggleMedia(): void;
   reset(): void;
   setMonitorsVisible(visible: boolean): void;
   toggleMonitors(): void;
@@ -54,6 +60,12 @@ export const usePanelLayoutStore = create<PanelLayoutState>((set, get) => {
         SLIDES_WIDTH_MAX,
       ),
       monitorsVisible: next.monitorsVisible,
+      mediaHeight: clampPanelWidth(
+        next.mediaHeight,
+        MEDIA_HEIGHT_MIN,
+        MEDIA_HEIGHT_MAX,
+      ),
+      mediaOpen: next.mediaOpen,
     };
     persist(layout);
     set(layout);
@@ -63,11 +75,16 @@ export const usePanelLayoutStore = create<PanelLayoutState>((set, get) => {
     ...initial,
     setSetlistWidth: (width) => update({ setlistWidth: width }),
     setSlidesWidth: (width) => update({ slidesWidth: width }),
+    setMediaHeight: (height) => update({ mediaHeight: height }),
+    setMediaOpen: (mediaOpen) => update({ mediaOpen }),
+    toggleMedia: () => update({ mediaOpen: !get().mediaOpen }),
     reset: () =>
       update({
         setlistWidth: SETLIST_WIDTH_DEFAULT,
         slidesWidth: SLIDES_WIDTH_DEFAULT,
         monitorsVisible: true,
+        mediaHeight: MEDIA_HEIGHT_DEFAULT,
+        mediaOpen: true,
       }),
     setMonitorsVisible: (monitorsVisible) => update({ monitorsVisible }),
     toggleMonitors: () =>

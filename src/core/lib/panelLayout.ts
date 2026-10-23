@@ -6,17 +6,24 @@ export const SETLIST_WIDTH_DEFAULT = 320;
 export const SLIDES_WIDTH_DEFAULT = 384;
 export const MONITORS_MIN_WIDTH = 240;
 export const RESIZE_HANDLES_WIDTH = 12;
+export const MEDIA_HEIGHT_MIN = 140;
+export const MEDIA_HEIGHT_MAX = 560;
+export const MEDIA_HEIGHT_DEFAULT = 260;
 
 export interface PanelLayout {
   setlistWidth: number;
   slidesWidth: number;
   monitorsVisible: boolean;
+  mediaHeight: number;
+  mediaOpen: boolean;
 }
 
 export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
   setlistWidth: SETLIST_WIDTH_DEFAULT,
   slidesWidth: SLIDES_WIDTH_DEFAULT,
   monitorsVisible: true,
+  mediaHeight: MEDIA_HEIGHT_DEFAULT,
+  mediaOpen: true,
 };
 
 export function clampPanelWidth(value: number, min: number, max: number): number {
@@ -80,5 +87,11 @@ export function parsePanelLayout(input: unknown): PanelLayout {
       typeof record.monitorsVisible === "boolean"
         ? record.monitorsVisible
         : true,
+    mediaHeight:
+      typeof record.mediaHeight === "number"
+        ? clampPanelWidth(record.mediaHeight, MEDIA_HEIGHT_MIN, MEDIA_HEIGHT_MAX)
+        : MEDIA_HEIGHT_DEFAULT,
+    mediaOpen:
+      typeof record.mediaOpen === "boolean" ? record.mediaOpen : true,
   };
 }

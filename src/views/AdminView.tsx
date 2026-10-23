@@ -7,6 +7,9 @@ import { AppDock } from "@/components/AppDock";
 import { ResizeHandle } from "@/components/ResizeHandle";
 import {
   fitPanelLayout,
+  MEDIA_HEIGHT_DEFAULT,
+  MEDIA_HEIGHT_MAX,
+  MEDIA_HEIGHT_MIN,
   SETLIST_WIDTH_DEFAULT,
   SETLIST_WIDTH_MAX,
   SETLIST_WIDTH_MIN,
@@ -103,8 +106,11 @@ export default function AdminView() {
   const setlistWidth = usePanelLayoutStore((s) => s.setlistWidth);
   const slidesWidth = usePanelLayoutStore((s) => s.slidesWidth);
   const monitorsVisible = usePanelLayoutStore((s) => s.monitorsVisible);
+  const mediaOpen = usePanelLayoutStore((s) => s.mediaOpen);
+  const mediaHeight = usePanelLayoutStore((s) => s.mediaHeight);
   const setSetlistWidth = usePanelLayoutStore((s) => s.setSetlistWidth);
   const setSlidesWidth = usePanelLayoutStore((s) => s.setSlidesWidth);
+  const setMediaHeight = usePanelLayoutStore((s) => s.setMediaHeight);
   const mainRef = useRef<HTMLElement>(null);
   const [mainWidth, setMainWidth] = useState(0);
 
@@ -175,7 +181,8 @@ export default function AdminView() {
 
         {/* View 1: Apresentação & Culto ao Vivo */}
         {activeTab === "presentation" && (
-          <main ref={mainRef} className="flex flex-1 overflow-hidden">
+          <main ref={mainRef} className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex flex-1 min-h-0 overflow-hidden">
             <SetlistSidebar
               collapsed={!sidebarOpen}
               width={fitted.setlistWidth}
@@ -222,8 +229,25 @@ export default function AdminView() {
             >
               <LivePreview />
             </section>
+            </div>
 
-            <MediaPanel />
+            {mediaOpen && (
+              <ResizeHandle
+                direction="vertical"
+                label="Redimensionar painel de mídia"
+                value={mediaHeight}
+                min={MEDIA_HEIGHT_MIN}
+                max={MEDIA_HEIGHT_MAX}
+                defaultValue={MEDIA_HEIGHT_DEFAULT}
+                onChange={setMediaHeight}
+              />
+            )}
+            <div
+              className="shrink-0 overflow-hidden"
+              style={mediaOpen ? { height: mediaHeight } : undefined}
+            >
+              <MediaPanel />
+            </div>
           </main>
         )}
 

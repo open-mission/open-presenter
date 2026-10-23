@@ -1,18 +1,21 @@
 import { useMemo, useState } from "react";
 import {
   Check,
-  ChevronLeft,
-  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Image as ImageIcon,
+  Layers,
   Pencil,
+  ScanLine,
   Sparkles,
   X,
 } from "lucide-react";
 import type { SlideTheme } from "@/core/types";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/core/lib/utils";
 import { openThemeEditor } from "@/core/ipc/commands";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useDisplaysStore } from "@/features/displays/store";
+import { usePanelLayoutStore } from "@/features/presentation/panelLayoutStore";
 import { previewTheme } from "@/features/slide-themes/pages";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { SAMPLES } from "@/features/slide-themes/samples";
@@ -29,12 +32,12 @@ import type { BackgroundAsset } from "./types";
 
 type PanelTab = "themes" | "backgrounds" | "lower" | "shaders";
 
-const TAB_LABELS: Record<PanelTab, string> = {
-  themes: "Temas",
-  backgrounds: "Fundos",
-  lower: "Lower",
-  shaders: "Shaders",
-};
+const TAB_INFO: { id: PanelTab; label: string; icon: typeof Layers }[] = [
+  { id: "themes", label: "Temas", icon: Layers },
+  { id: "backgrounds", label: "Fundos", icon: ImageIcon },
+  { id: "lower", label: "Lower", icon: ScanLine },
+  { id: "shaders", label: "Shaders", icon: Sparkles },
+];
 
 function AssetThumb({ asset }: { asset: BackgroundAsset }) {
   if (asset.kind === "image") {
@@ -140,12 +143,13 @@ function AssetCard({
 }
 
 /**
- * Painel de mídia: temas e fundos, arrastáveis para os previews de saída.
- * Substitui o ThemeRail como terceira fonte de tema/fundo.
+ * Painel inferior de mídia (estilo media bin do ProPresenter): abas em sidebar
+ * vertical e conteúdo redimensionável. Arraste temas/fundos para os previews.
  */
 export function MediaPanel() {
   const [tab, setTab] = useState<PanelTab>("themes");
-  const [open, setOpen] = useState(true);
+  const open = usePanelLayoutStore((s) => s.mediaOpen);
+  const setOpen = usePanelLayoutStore((s) => s.setMediaOpen);
 
   const themes = useSlideThemesStore((s) => s.themes);
   const outputs = useDisplaysStore((s) => s.outputs);
@@ -161,138 +165,134 @@ export function MediaPanel() {
 
   if (!open) {
     return (
-      <aside className="flex w-10 shrink-0 flex-col border-l border-border bg-card/40">
-        <div className="flex h-14 items-center justify-center border-b border-border bg-muted/20">
-          <button
-            type="button"
-            aria-label="Expandir painel de mídia"
-            title="Mídia"
-            onClick={() => setOpen(true)}
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-        </div>
-      </aside>
+      <div className="flex h-9 shrink-0 items-center justify-between border-t border-border bg-card/40 px-3">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-1.5 rounded px-1.5 py-1 text-xs font-semibold text-foreground hover:bg-accent cursor-pointer"
+          title="Expandir painel de mídia"
+        >
+          <ChevronUp className="size-3.5" />
+          Mídia
+        </button>
+        <span className="truncate text-[10px] text-muted-foreground">
+          {selectedOutput ? `Alvo: ${selectedOutput.name}` : "Arraste temas/fundos para os previews"}
+        </span>
+      </div>
     );
   }
 
   return (
-    <aside
+    <section
       aria-label="Painel de mídia"
-      className="flex w-64 shrink-0 flex-col border-l border-border bg-card/40"
+      className="flex h-full w-full min-h-0 border-t border-border bg-card/40"
     >
-      <div className="flex h-14 items-center justify-between border-b border-border bg-muted/20 px-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className="size-3.5 text-muted-foreground" />
+      {/* Sidebar vertical de abas */}
+      <div className="flex w-32 shrink-0 flex-col border-r border-border bg-muted/20">
+        <div className="flex h-9 items-center justify-between border-b border-border px-2">
           <span className="text-xs font-semibold text-foreground">Mídia</span>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Recolher painel de mídia"
+            className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+          >
+            <ChevronDown className="size-3.5" />
+          </button>
+        </div>
+        <div className="flex flex-1 flex-col gap-0.5 p-1">
+          {TAB_INFO.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTab(id)}
+              className={cn(
+                "flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors cursor-pointer",
+                tab === id
+                  ? "bg-background text-foreground shadow-2xs"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground",
+              )}
+            >
+              <Icon className="size-3.5 shrink-0" />
+              <span className="truncate">{label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Conteúdo */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex h-9 items-center justify-between border-b border-border px-3 text-[11px]">
+          <span className="truncate text-muted-foreground">
+            {selectedOutput
+              ? `Alvo: ${selectedOutput.name}`
+              : "Alvo: primeira saída compatível"}
+          </span>
           {selectedOutput && (
-            <Badge variant="outline" className="max-w-24 truncate text-[9px]">
-              {selectedOutput.name}
-            </Badge>
+            <button
+              type="button"
+              onClick={() => clearOverrideForOutput(selectedOutput.id)}
+              className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+              title="Limpar ação ao vivo desta saída"
+            >
+              <X className="size-2.5" />
+              limpar
+            </button>
           )}
         </div>
-        <button
-          type="button"
-          aria-label="Recolher painel de mídia"
-          onClick={() => setOpen(false)}
-          className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground cursor-pointer"
-        >
-          <ChevronRight className="size-4" />
-        </button>
-      </div>
 
-      <div className="grid grid-cols-4 gap-0.5 border-b border-border bg-muted/30 p-1.5 text-[10px] font-medium">
-        {(Object.keys(TAB_LABELS) as PanelTab[]).map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => setTab(value)}
-            className={cn(
-              "truncate rounded px-1 py-1 text-center transition-colors cursor-pointer",
-              tab === value
-                ? "bg-background font-semibold text-foreground shadow-2xs"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {TAB_LABELS[value]}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex items-center justify-between px-3 py-2 text-[10px] text-muted-foreground">
-        <span className="truncate">
-          {selectedOutput ? `Alvo: ${selectedOutput.name}` : "Alvo: primeira saída compatível"}
-        </span>
-        {selectedOutput && (
-          <button
-            type="button"
-            onClick={() => clearOverrideForOutput(selectedOutput.id)}
-            className="flex items-center gap-0.5 rounded px-1 py-0.5 hover:bg-accent hover:text-foreground cursor-pointer"
-            title="Limpar ação ao vivo desta saída"
-          >
-            <X className="size-2.5" />
-            limpar
-          </button>
-        )}
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-2">
-        {tab === "themes" || tab === "lower" ? (
-          themeList.length === 0 ? (
-            <p className="p-2 text-[11px] text-muted-foreground">
-              Nenhum tema disponível para esta aba.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 gap-2">
-              {themeList.map((theme) => (
-                <ThemeCard
-                  key={theme.guid}
-                  theme={theme}
-                  onApply={() => {
-                    const target =
-                      selectedOutput ?? resolveApplyTarget(preferredCategoryForTheme(theme));
-                    if (target) applyThemeToOutput(target, theme.guid);
-                  }}
-                  onEdit={() => void openThemeEditor(theme.guid)}
-                />
-              ))}
-            </div>
-          )
-        ) : (
-          (() => {
-            const list = tab === "backgrounds" ? images : shaders;
-            if (list.length === 0) {
-              return (
-                <p className="p-2 text-[11px] text-muted-foreground">
-                  {tab === "backgrounds"
-                    ? "Nenhuma imagem na biblioteca. Importe imagens em Imagens."
-                    : "Nenhum shader disponível."}
-                </p>
-              );
-            }
-            return (
-              <div className="grid grid-cols-2 gap-2">
-                {list.map((asset) => (
-                  <AssetCard
-                    key={asset.id}
-                    asset={asset}
+        <div className="flex-1 overflow-y-auto p-2">
+          {tab === "themes" || tab === "lower" ? (
+            themeList.length === 0 ? (
+              <p className="p-2 text-[11px] text-muted-foreground">
+                Nenhum tema disponível para esta aba.
+              </p>
+            ) : (
+              <div className="grid [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))] gap-2">
+                {themeList.map((theme) => (
+                  <ThemeCard
+                    key={theme.guid}
+                    theme={theme}
                     onApply={() => {
-                      const target = selectedOutput ?? resolveApplyTarget("public");
-                      if (target) applyBackgroundToOutput(target, asset);
+                      const target =
+                        selectedOutput ?? resolveApplyTarget(preferredCategoryForTheme(theme));
+                      if (target) applyThemeToOutput(target, theme.guid);
                     }}
+                    onEdit={() => void openThemeEditor(theme.guid)}
                   />
                 ))}
               </div>
-            );
-          })()
-        )}
+            )
+          ) : (
+            (() => {
+              const list = tab === "backgrounds" ? images : shaders;
+              if (list.length === 0) {
+                return (
+                  <p className="p-2 text-[11px] text-muted-foreground">
+                    {tab === "backgrounds"
+                      ? "Nenhuma imagem na biblioteca. Importe imagens em Imagens."
+                      : "Nenhum shader disponível."}
+                  </p>
+                );
+              }
+              return (
+                <div className="grid [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))] gap-2">
+                  {list.map((asset) => (
+                    <AssetCard
+                      key={asset.id}
+                      asset={asset}
+                      onApply={() => {
+                        const target = selectedOutput ?? resolveApplyTarget("public");
+                        if (target) applyBackgroundToOutput(target, asset);
+                      }}
+                    />
+                  ))}
+                </div>
+              );
+            })()
+          )}
+        </div>
       </div>
-
-      <div className="border-t border-border px-3 py-2 text-[10px] leading-relaxed text-muted-foreground">
-        Arraste um tema ou fundo para o preview de uma saída. A ação vale só para
-        aquela saída (ao vivo &gt; evento &gt; padrão).
-      </div>
-    </aside>
+    </section>
   );
 }
