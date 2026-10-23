@@ -13,6 +13,7 @@ import {
   Plus,
   Repeat,
   Trash2,
+  TriangleAlert,
   Tv,
   Upload,
   X,
@@ -103,7 +104,12 @@ export function EventDetailsDialog({
   const [deleteLinkedTheme, setDeleteLinkedTheme] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "4:3">("16:9");
   const [uploadingWp, setUploadingWp] = useState(false);
+  const [wallpaperLoadError, setWallpaperLoadError] = useState(false);
   const mediaPort = useMediaPort();
+
+  useEffect(() => {
+    setWallpaperLoadError(false);
+  }, [fullEvent?.wallpaper, eventSummary?.wallpaper]);
 
   // Setlist manipulation state
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -736,6 +742,19 @@ export function EventDetailsDialog({
                           url.endsWith(".mp4") ||
                           url.endsWith(".webm") ||
                           url.startsWith("data:video");
+                        if (wallpaperLoadError) {
+                          return (
+                            <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground select-none">
+                              <TriangleAlert className="size-8 text-amber-500/80" />
+                              <span className="text-xs font-medium text-foreground/80">
+                                Arquivo não encontrado
+                              </span>
+                              <span className="text-[9px] text-muted-foreground/70 break-all max-w-[300px]">
+                                {resolved}
+                              </span>
+                            </div>
+                          );
+                        }
                         if (isVideo) {
                           return (
                             <video
@@ -745,6 +764,7 @@ export function EventDetailsDialog({
                               loop
                               muted
                               playsInline
+                              onError={() => setWallpaperLoadError(true)}
                             />
                           );
                         }
@@ -753,6 +773,7 @@ export function EventDetailsDialog({
                             src={resolved}
                             alt="Papel de Parede"
                             className="h-full w-full object-contain"
+                            onError={() => setWallpaperLoadError(true)}
                           />
                         );
                       })()
