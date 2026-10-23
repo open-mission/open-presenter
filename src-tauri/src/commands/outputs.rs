@@ -132,10 +132,19 @@ pub async fn open_native_output(
     app: AppHandle,
     output_id: String,
     monitor_id: Option<String>,
+    monitor_label: Option<String>,
     route: String,
     title: String,
 ) -> Result<(), AppError> {
-    crate::services::display_manager::open_native_output(app, output_id, monitor_id, route, title).await
+    crate::services::display_manager::open_native_output(
+        app,
+        output_id,
+        monitor_id,
+        monitor_label,
+        route,
+        title,
+    )
+    .await
 }
 
 #[tauri::command]

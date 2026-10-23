@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import type { BackgroundLayer } from "@/core/types";
 import { cn } from "@/core/lib/utils";
 import { isCssGradient } from "@/core/lib/cssValue";
 import { useMediaPort } from "@/core/config/mediaPort";
+import { isTauri } from "@/core/ipc/tauri";
 import {
   resolveThemeMediaUrl,
   resolveCssMediaUrls,
@@ -9,6 +11,59 @@ import {
   FIT_CLASSES,
 } from "@/features/theme-editor/media";
 import { ShaderCanvas } from "./ShaderCanvas";
+
+/**
+ * URL alternativa pelo protocolo customizado `media://`. Usada quando o HTTP
+ * local falha (servidor fora do ar, porta bloqueada etc.) em janelas nativas.
+ */
+function mediaProtocolFallback(value: string): string | null {
+  return isTauri() && value.trim().startsWith("media://") ? value.trim() : null;
+}
+
+function MediaSource({
+  kind,
+  src,
+  fallbackSrc,
+  className,
+}: {
+  kind: "image" | "video";
+  src: string;
+  fallbackSrc: string | null;
+  className: string;
+}) {
+  const [current, setCurrent] = useState(src);
+
+  useEffect(() => {
+    setCurrent(src);
+  }, [src]);
+
+  const handleError = () => {
+    if (fallbackSrc && current !== fallbackSrc) {
+      console.warn(
+        `[media] falha ao carregar "${current}"; tentando "${fallbackSrc}"`,
+      );
+      setCurrent(fallbackSrc);
+    }
+  };
+
+  if (kind === "video") {
+    return (
+      <video
+        src={current}
+        autoPlay
+        muted
+        loop
+        playsInline
+        className={className}
+        onError={handleError}
+      />
+    );
+  }
+
+  return (
+    <img src={current} alt="" className={className} onError={handleError} />
+  );
+}
 
 export function BackgroundRenderer({
   background,
@@ -35,9 +90,10 @@ export function BackgroundRenderer({
     const resolved = resolveThemeMediaUrl(url, host, port) ?? url;
     if (!resolved) return null;
     return (
-      <img
+      <MediaSource
+        kind="image"
         src={resolved}
-        alt=""
+        fallbackSrc={mediaProtocolFallback(background.value)}
         className={cn("absolute inset-0 h-full w-full", FIT_CLASSES[fit], className)}
       />
     );
@@ -48,12 +104,10 @@ export function BackgroundRenderer({
     const resolved = resolveThemeMediaUrl(url, host, port) ?? url;
     if (!resolved) return null;
     return (
-      <video
+      <MediaSource
+        kind="video"
         src={resolved}
-        autoPlay
-        muted
-        loop
-        playsInline
+        fallbackSrc={mediaProtocolFallback(background.value)}
         className={cn("absolute inset-0 h-full w-full", FIT_CLASSES[fit], className)}
       />
     );

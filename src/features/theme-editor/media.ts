@@ -1,4 +1,4 @@
-import { resolveMediaPort } from "@/core/config/mediaPort";
+import { isMediaServerRunning, resolveMediaPort } from "@/core/config/mediaPort";
 import { isTauri } from "@/core/ipc/tauri";
 
 export type MediaFit = "cover" | "contain" | "scale-down" | "fill";
@@ -48,6 +48,12 @@ export function resolveThemeMediaUrl(
   const category = match[1];
   const filename = match[2];
 
+  // Sem servidor HTTP no desktop, servimos pelo protocolo customizado media://
+  // (o handler Rust lê do mesmo diretório). Evita apontar para uma porta morta.
+  if (isTauri() && isMediaServerRunning() === false) {
+    return hasExplicitFit ? `${trimmed}#fit=${fit}` : trimmed;
+  }
+
   // O servidor HTTP embutido (porta 5050) fornece rota /theme-media com CORS e Range headers.
   // Usar HTTP em vez de protocolo customizado (media://) evita que o WebKit (macOS) e Chromium
   // bloqueiem imagens em CSS background: url(...) ou causem erro de segurança de recurso local.
@@ -66,7 +72,8 @@ export function resolveThemeMediaUrl(
   }
 
   const actualPort = resolveMediaPort(port);
-  const resolved = `http://${actualHost}:${actualPort}/theme-media/${category}/${encodeURIComponent(filename)}`;
+  const encodedPath = filename.split("/").map(encodeURIComponent).join("/");
+  const resolved = `http://${actualHost}:${actualPort}/theme-media/${category}/${encodedPath}`;
 
   return hasExplicitFit ? `${resolved}#fit=${fit}` : resolved;
 }
