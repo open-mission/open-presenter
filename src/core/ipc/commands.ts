@@ -17,6 +17,7 @@ import type {
   LiveSlide,
   MonitorInfo,
   NdiStatus,
+  NdiInputStatus,
   OnlineLyricHit,
   OutputConfig,
   OutputRuntime,
@@ -582,6 +583,22 @@ export async function getNdiStatus(): Promise<NdiStatus | null> {
 
 export async function setNdiActive(active: boolean): Promise<NdiStatus | null> {
   return invokeCommand<NdiStatus>("set_ndi_active", { active });
+}
+
+export async function listNdiSources(): Promise<string[]> {
+  return (await invokeStrict<string[]>("list_ndi_sources")) ?? [];
+}
+
+export async function getNdiInputStatus(): Promise<NdiInputStatus | null> {
+  return invokeCommand<NdiInputStatus>("get_ndi_input_status");
+}
+
+export async function startNdiInput(source: string): Promise<NdiInputStatus | null> {
+  return invokeCommand<NdiInputStatus>("start_ndi_input", { source });
+}
+
+export async function stopNdiInput(): Promise<NdiInputStatus | null> {
+  return invokeCommand<NdiInputStatus>("stop_ndi_input");
 }
 
 export async function openDisplaysWindow(): Promise<void> {

@@ -192,6 +192,15 @@ export interface NdiStatus {
   runtimePath: string | null;
 }
 
+export interface NdiInputStatus {
+  available: boolean;
+  running: boolean;
+  source: string | null;
+  width: number;
+  height: number;
+  error: string | null;
+}
+
 export interface ServerStatus {
   running: boolean;
   port: number;

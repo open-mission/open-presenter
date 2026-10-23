@@ -16,6 +16,7 @@ import {
 import { filterThemeForLook, overlayThemeForLayer } from "@/features/slide-themes/layers";
 import { useOutputPlan } from "@/features/slide-themes/useOutputPlan";
 import { MaskOverlay } from "@/components/MaskOverlay";
+import { VideoInputLayer } from "@/components/VideoInputLayer";
 import { SlideCanvas } from "@/features/presentation/SlideCanvas";
 import { useStageConfigStore } from "./configStore";
 import { useStageTimerStore } from "./timerStore";
@@ -130,13 +131,19 @@ export function StageMiniPreview({ outputId }: StageMiniPreviewProps = {}) {
         <div className="absolute inset-0 bg-black" />
       ) : (
         <>
+          {plan.look.videoInput && (
+            <div className="absolute inset-0 z-[15] pointer-events-none">
+              <VideoInputLayer />
+            </div>
+          )}
+
           {isIdle ? (
             plan.look.slide && (
               <ScaledStage
                 theme={restSlideTheme}
                 asset={restRender.asset}
                 props={stageProps}
-                className="absolute inset-0"
+                className="absolute inset-0 z-20"
               />
             )
           ) : isPresentation && contentSlideTheme ? (
@@ -146,12 +153,14 @@ export function StageMiniPreview({ outputId }: StageMiniPreviewProps = {}) {
                 asset="text"
                 props={buildProps(live.content.kind, live.content, nextUp)}
                 showBackground={true}
-                className="absolute inset-0"
+                className="absolute inset-0 z-20"
               />
             )
           ) : isMedia ? (
             plan.look.slide ? (
-              <SlideCanvas slide={live} showBackground={true} />
+              <div className="absolute inset-0 z-20">
+                <SlideCanvas slide={live} showBackground={true} />
+              </div>
             ) : null
           ) : (
             plan.look.slide && (
@@ -159,7 +168,7 @@ export function StageMiniPreview({ outputId }: StageMiniPreviewProps = {}) {
                 theme={liveSlideTheme}
                 asset={liveTheme.asset}
                 props={stageProps}
-                className="absolute inset-0"
+                className="absolute inset-0 z-20"
               />
             )
           )}

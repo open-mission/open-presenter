@@ -24,6 +24,7 @@ import { materializeThemeForContent, resolveContentTheme } from "@/features/slid
 import { filterThemeForLook, overlayThemeForLayer } from "@/features/slide-themes/layers";
 import { useOutputPlan } from "@/features/slide-themes/useOutputPlan";
 import { MaskOverlay } from "@/components/MaskOverlay";
+import { VideoInputLayer } from "@/components/VideoInputLayer";
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
 import { SlideCanvas } from "@/features/presentation/SlideCanvas";
@@ -172,13 +173,19 @@ export default function StageView({ backgroundColor, outputId }: StageViewProps 
         <div className="absolute inset-0 bg-black" />
       ) : (
         <>
+          {look.videoInput && (
+            <div className="absolute inset-0 z-[15] pointer-events-none">
+              <VideoInputLayer />
+            </div>
+          )}
+
           {isIdle ? (
             look.slide && (
               <ScaledStage
                 theme={restSlideTheme}
                 asset={restRender.asset}
                 props={stageProps}
-                className="absolute inset-0"
+                className="absolute inset-0 z-20"
               />
             )
           ) : isPresentation && contentSlideTheme ? (
@@ -188,12 +195,14 @@ export default function StageView({ backgroundColor, outputId }: StageViewProps 
                 asset="text"
                 props={buildProps(live.content.kind, live.content, nextUp)}
                 showBackground={true}
-                className="absolute inset-0"
+                className="absolute inset-0 z-20"
               />
             )
           ) : isMedia ? (
             look.slide ? (
-              <SlideCanvas slide={live} showBackground={true} />
+              <div className="absolute inset-0 z-20">
+                <SlideCanvas slide={live} showBackground={true} />
+              </div>
             ) : null
           ) : (
             look.slide && (
@@ -201,7 +210,7 @@ export default function StageView({ backgroundColor, outputId }: StageViewProps 
                 theme={liveSlideTheme}
                 asset={liveTheme.asset}
                 props={stageProps}
-                className="absolute inset-0"
+                className="absolute inset-0 z-20"
               />
             )
           )}

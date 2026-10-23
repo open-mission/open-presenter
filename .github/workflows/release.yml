@@ -44,7 +44,17 @@ jobs:
             librsvg2-dev \
             patchelf \
             xdg-utils \
-            libfuse2
+            libfuse2 \
+            clang \
+            libclang-dev \
+            llvm
+
+      - name: Install LLVM (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          choco install llvm --no-progress -y
+          Add-Content -Path $env:GITHUB_ENV -Value "LIBCLANG_PATH=C:\Program Files\LLVM\bin"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

@@ -9,6 +9,7 @@ import { SlideTransition } from "@/features/presentation/SlideTransition";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { MaskOverlay } from "@/components/MaskOverlay";
+import { VideoInputLayer } from "@/components/VideoInputLayer";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useOutputPlan } from "@/features/slide-themes/useOutputPlan";
 import { filterThemeForLook, overlayThemeForLayer } from "@/features/slide-themes/layers";
@@ -142,6 +143,13 @@ export default function PublicView({ backgroundColor, outputId }: PublicViewProp
           }}
         >
           <PersistentBackground background={effectiveBackground} />
+        </div>
+      )}
+
+      {/* Camada: Entrada de Vídeo (NDI) */}
+      {look.videoInput && (
+        <div className="absolute inset-0 z-[15] pointer-events-none">
+          <VideoInputLayer />
         </div>
       )}
 
