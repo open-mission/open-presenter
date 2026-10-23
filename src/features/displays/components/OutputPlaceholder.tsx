@@ -1,6 +1,7 @@
 import type { DisplayOutput } from "@/core/types";
 import { BrandMark } from "@/components/BrandMark";
 import { cn } from "@/core/lib/utils";
+import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
 
 interface OutputPlaceholderProps {
   output?: Partial<DisplayOutput> | null;
@@ -15,7 +16,8 @@ export function OutputPlaceholder({
 }: OutputPlaceholderProps) {
   const isEnabled = output?.placeholderEnabled ?? true;
   const type = output?.placeholderType ?? "logo";
-  const url = output?.placeholderUrl;
+  const rawUrl = output?.placeholderUrl;
+  const url = rawUrl ? (resolveThemeMediaUrl(rawUrl) ?? rawUrl) : rawUrl;
   const fit = output?.placeholderFit ?? "contain";
 
   if (!isEnabled || type === "none") {

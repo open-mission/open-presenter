@@ -37,6 +37,56 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: "0.4.2",
+    date: "2026-10-23",
+    title: "Telão com papel de parede de volta",
+    summary:
+      "A camada Entrada de Vídeo escurecia a saída inteira quando não havia sinal NDI — o telão ficava preto e o papel de parede parecia não existir. Agora ele volta a aparecer com a tela livre, com prioridade sobre o placeholder da saída.",
+    highlights: [
+      {
+        icon: "monitor",
+        title: "Telão livre mostra o papel de parede",
+        description:
+          "Com nada no ar, o papel de parede do culto aparece no telão, na web e nos previews. O placeholder da saída só entra quando não há wallpaper definido.",
+      },
+      {
+        icon: "refresh",
+        title: "Entrada de vídeo sem escurecer",
+        description:
+          "A camada NDI só cobre a tela quando há frames. Sem sinal, o fundo do tema ou o papel de parede permanece visível — inclusive no Lower Third, que mantém a transparência.",
+      },
+      {
+        icon: "palette",
+        title: "Imagem do placeholder no navegador",
+        description:
+          "O placeholder resolve o caminho pelo servidor embutido, então a imagem volta a carregar em saída html aberta no navegador, sem o erro \"URL incompatível\".",
+      },
+    ],
+    sections: [
+      {
+        title: "Entrada de Vídeo",
+        items: [
+          "Fundo preto removido: a camada não cobre mais o telão sem sinal.",
+          "Vale para público, stage e transmissão (que preserva o alpha).",
+        ],
+      },
+      {
+        title: "Papel de Parede e Placeholder",
+        items: [
+          "Papel de parede tem prioridade sobre o placeholder com a tela livre.",
+          "Placeholder resolve media:// para a URL do servidor.",
+          "Mídia não aponta mais para a porta padrão antes da porta real chegar.",
+        ],
+      },
+    ],
+    fixes: [
+      "O telão não fica mais preto com a entrada de vídeo ligada e sem sinal.",
+      "O papel de parede do culto volta a aparecer no telão, na web e nos previews.",
+      "O placeholder da saída html volta a carregar a imagem no navegador.",
+    ],
+    changelogUrl: `${CHANGELOG_URL}#042---2026-10-23`,
+  },
+  {
     version: "0.4.1",
     date: "2026-10-23",
     title: "Correções de mídia e monitores",

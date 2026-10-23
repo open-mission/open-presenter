@@ -601,13 +601,13 @@ export function LivePreview() {
             </div>
             <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
               {isLiveEmpty && !live.blackout ? (
-                (out.placeholderEnabled ?? true) && out.placeholderType !== "none" ? (
-                  <div className="relative h-full w-full">
-                    <OutputPlaceholder output={out} />
-                  </div>
-                ) : wallpaper ? (
+                wallpaper ? (
                   <div className="relative h-full w-full bg-black">
                     <BackgroundRenderer background={wallpaperToBackground(wallpaper)} />
+                  </div>
+                ) : (out.placeholderEnabled ?? true) && out.placeholderType !== "none" ? (
+                  <div className="relative h-full w-full">
+                    <OutputPlaceholder output={out} />
                   </div>
                 ) : (
                   <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center select-none bg-zinc-950">

@@ -5,6 +5,38 @@ Todas as mudanças relevantes do Open Presenter são documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.4.2] - 2026-10-23
+
+O telão volta a exibir o papel de parede quando está livre: a camada de entrada de
+vídeo não escurece mais a saída, o papel de parede tem prioridade sobre o
+placeholder e as imagens deixam de apontar para uma porta morta.
+
+### Corrigido
+
+#### Entrada de vídeo (NDI)
+
+- A camada Entrada de Vídeo tinha fundo preto em tela cheia (`z-15`), acima do
+  papel de parede (`z-0`) e do fundo do tema (`z-10`). Sem frames, o feed MJPEG
+  não desenha nada e o preto cobria a saída inteira — no telão nativo e na web.
+  A camada agora é transparente e o vídeo aparece quando há sinal.
+- No Lower Third o preto também quebrava a transparência da saída.
+
+#### Papel de parede e placeholder
+
+- Com o telão livre, o papel de parede passa a ter prioridade sobre o placeholder
+  da saída, que vira fallback de quem não tem wallpaper.
+- Antes o placeholder (inclusive o logo do Open Presenter, quando o tipo era
+  imagem sem arquivo) escondia o papel de parede do culto no telão.
+- O placeholder de saída resolve `media://` para a URL do servidor, então a
+  imagem volta a carregar em saídas html abertas no navegador, sem o erro
+  "URL incompatível".
+
+#### Mídia
+
+- Enquanto a porta real do servidor não chega via IPC, a mídia não aponta mais
+  para a porta padrão do código (5050), que fica morta quando o operador
+  configura outra porta.
+
 ## [0.4.1] - 2026-10-23
 
 Correções de mídia e de monitores reportadas no Windows.

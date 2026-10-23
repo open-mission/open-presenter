@@ -180,10 +180,6 @@ export function DisplaysCanvasPreview({ output }: DisplaysCanvasPreviewProps) {
                         />
                       </div>
                     </>
-                  ) : (output.placeholderEnabled ?? true) && output.placeholderType !== "none" ? (
-                    <div className="relative w-full h-full">
-                      <OutputPlaceholder output={output} />
-                    </div>
                   ) : wallpaper ? (
                     <div className="relative w-full h-full">
                       <BackgroundRenderer background={wallpaperToBackground(wallpaper)} />
@@ -195,6 +191,10 @@ export function DisplaysCanvasPreview({ output }: DisplaysCanvasPreviewProps) {
                           showBackground={false}
                         />
                       </div>
+                    </div>
+                  ) : (output.placeholderEnabled ?? true) && output.placeholderType !== "none" ? (
+                    <div className="relative w-full h-full">
+                      <OutputPlaceholder output={output} />
                     </div>
                   ) : (
                     <div className="relative w-full h-full">

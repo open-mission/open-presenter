@@ -31,7 +31,7 @@ export function VideoInputLayer() {
   const src = useNdiStreamUrl();
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-black">
+    <div className="absolute inset-0 overflow-hidden">
       {/* eslint-disable-next-line jsx-a11y/alt-text */}
       <img
         src={src}
