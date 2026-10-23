@@ -1,5 +1,5 @@
-import { SECTION_LABEL } from "@/core/config/lyrics";
-import type { SectionType } from "@/core/types";
+import { SECTION_LABEL } from "../../core/config/lyrics.ts";
+import type { SectionType } from "../../core/types";
 
 export const MUSICAL_KEYS = [
   "C",
@@ -81,6 +81,118 @@ export function tokenizeLyricsLine(line: string): SyntaxToken[] {
   return tokens.length > 0 ? tokens : [{ type: "text", value: line }];
 }
 
+interface RawSongSection {
+  lines: string[];
+  hasContent: boolean;
+  headerLineIdx: number;
+  isEmpty: boolean;
+}
+
+function flushRawSection(
+  sections: RawSongSection[],
+  lines: string[],
+): void {
+  if (lines.length === 0) return;
+  sections.push({
+    lines,
+    hasContent: lines.some(
+      (line) =>
+        line.trim() !== "" &&
+        !line.trim().startsWith("//") &&
+        !line.trim().startsWith("##"),
+    ),
+    headerLineIdx: lines.findIndex((line) => line.trim().startsWith("##")),
+    isEmpty: false,
+  });
+}
+
+function parseRawSongSections(rawText: string): RawSongSection[] {
+  const normalized = rawText.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const input = normalized.split("\n");
+  const sections: RawSongSection[] = [];
+  let lines: string[] = [];
+  let blankRun = 0;
+  let canBlank = false;
+
+  for (const rawLine of input) {
+    const trimmed = rawLine.trim();
+
+    if (trimmed === "") {
+      if (lines.length === 0) {
+        if (canBlank) blankRun++;
+        continue;
+      }
+      if (lines.every((line) => line.trim().startsWith("//"))) {
+        blankRun = 0;
+        canBlank = false;
+        continue;
+      }
+      flushRawSection(sections, lines);
+      lines = [];
+      blankRun = 1;
+      canBlank = true;
+      continue;
+    }
+
+    if (trimmed.startsWith("##")) {
+      lines = lines.filter((line) => !line.trim().startsWith("//"));
+      flushRawSection(sections, lines);
+      if (blankRun >= 2 && canBlank) {
+        sections.push({
+          lines: [],
+          hasContent: false,
+          headerLineIdx: -1,
+          isEmpty: true,
+        });
+      }
+      lines = [rawLine];
+      blankRun = 0;
+      canBlank = false;
+      continue;
+    }
+
+    if (!trimmed.startsWith("//") && blankRun >= 2 && canBlank) {
+      sections.push({
+        lines: [],
+        hasContent: false,
+        headerLineIdx: -1,
+        isEmpty: true,
+      });
+    }
+
+    lines.push(rawLine);
+    blankRun = 0;
+    canBlank = false;
+  }
+
+  flushRawSection(sections, lines);
+  return sections;
+}
+
+function serializeRawSongSections(sections: RawSongSection[]): string {
+  const blocks: string[] = [];
+  let pendingEmpty = false;
+  let wroteBlock = false;
+
+  for (const section of sections) {
+    if (section.isEmpty) {
+      if (wroteBlock) pendingEmpty = true;
+      continue;
+    }
+    const lines = section.lines.filter((line) => line.trim() !== "");
+    if (lines.length === 0) continue;
+
+    if (wroteBlock) {
+      blocks.push(pendingEmpty ? "\n\n\n" : "\n\n");
+    }
+    blocks.push(lines.join("\n"));
+    wroteBlock = true;
+    pendingEmpty = false;
+  }
+
+  return blocks.join("");
+}
+
 /**
  * Atribui ou atualiza o rótulo de uma seção no texto da música pelo índice do slide gerado.
  */
@@ -89,80 +201,17 @@ export function assignSectionLabel(
   targetSlideIndex: number,
   newType: SectionType | null,
 ): string {
-  const lines = rawText.split("\n");
-
-  const sections: {
-    lines: string[];
-    hasContent: boolean;
-    headerLineIdx: number;
-  }[] = [];
-
-  let currentSectionLines: string[] = [];
-  let currentHeaderIdx = -1;
-  let currentHasContent = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    const rawLine = lines[i];
-    const trimmed = rawLine.trim();
-
-    if (trimmed.startsWith("##")) {
-      if (
-        currentSectionLines.length > 0 &&
-        (currentHasContent || currentHeaderIdx !== -1)
-      ) {
-        sections.push({
-          lines: currentSectionLines,
-          hasContent: currentHasContent,
-          headerLineIdx: currentHeaderIdx,
-        });
-        currentSectionLines = [];
-        currentHeaderIdx = -1;
-        currentHasContent = false;
-      }
-      currentHeaderIdx = currentSectionLines.length;
-      currentSectionLines.push(rawLine);
-      continue;
-    }
-
-    if (trimmed === "") {
-      if (currentHasContent) {
-        sections.push({
-          lines: currentSectionLines,
-          hasContent: currentHasContent,
-          headerLineIdx: currentHeaderIdx,
-        });
-        currentSectionLines = [];
-        currentHeaderIdx = -1;
-        currentHasContent = false;
-      } else {
-        currentSectionLines.push(rawLine);
-      }
-      continue;
-    }
-
-    if (trimmed.startsWith("//")) {
-      currentSectionLines.push(rawLine);
-      continue;
-    }
-
-    currentHasContent = true;
-    currentSectionLines.push(rawLine);
-  }
-
-  if (currentSectionLines.length > 0) {
-    sections.push({
-      lines: currentSectionLines,
-      hasContent: currentHasContent,
-      headerLineIdx: currentHeaderIdx,
-    });
-  }
-
-  const slideSections = sections.filter((s) => s.hasContent);
+  const sections = parseRawSongSections(rawText);
+  const slideSections = sections.filter(
+    (section) => section.hasContent || section.isEmpty,
+  );
   if (targetSlideIndex < 0 || targetSlideIndex >= slideSections.length) {
     return rawText;
   }
 
   const targetSec = slideSections[targetSlideIndex];
+  if (targetSec.isEmpty) return rawText;
+
   const newHeader = newType ? `## ${SECTION_LABEL[newType]}` : null;
 
   if (targetSec.headerLineIdx !== -1) {
@@ -170,20 +219,12 @@ export function assignSectionLabel(
       targetSec.lines[targetSec.headerLineIdx] = newHeader;
     } else {
       targetSec.lines.splice(targetSec.headerLineIdx, 1);
+      targetSec.headerLineIdx = -1;
     }
   } else if (newHeader) {
-    let insertAt = 0;
-    while (
-      insertAt < targetSec.lines.length &&
-      targetSec.lines[insertAt].trim() === ""
-    ) {
-      insertAt++;
-    }
-    targetSec.lines.splice(insertAt, 0, newHeader);
+    targetSec.lines.unshift(newHeader);
+    targetSec.headerLineIdx = 0;
   }
 
-  return sections
-    .map((s) => s.lines.join("\n").trim())
-    .filter((s) => s.length > 0)
-    .join("\n\n");
+  return serializeRawSongSections(sections);
 }

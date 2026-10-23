@@ -74,7 +74,7 @@ export function getActivePage(
 }
 
 export function materializePage(theme: SlideTheme, page: ThemePage): SlideTheme {
-  return { ...theme, css: page.css, elements: page.elements };
+  return { ...theme, css: page.css, elements: page.elements, guides: page.guides };
 }
 
 export function previewTheme(
@@ -170,6 +170,7 @@ export function createPage(
       ...structuredClone(element),
       id: crypto.randomUUID(),
     })),
+    guides: sourcePage?.guides ? structuredClone(sourcePage.guides) : undefined,
   };
 }
 

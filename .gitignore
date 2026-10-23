@@ -49,9 +49,17 @@ pnpm-debug.log*
 # Local tooling state (not part of the project)
 .commandcode/
 .superpowers/
+.freebuff/
 command-code-session-*.html
 
 # Misc
 coverage/
 .nyc_output/
 .superpowers/
+
+# Documentation site
+.next/
+docs-site/.next/
+docs-site/out/
+docs-site/.source/
+docs-site/next-env.d.ts

@@ -54,6 +54,10 @@ import type {
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { isPublicTheme, previewTheme } from "@/features/slide-themes/pages";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import {
+  setCategoryDefaultTheme,
+  useOutputThemeDocument,
+} from "@/features/slide-themes/useOutputPlan";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { SECTION_OPTIONS } from "./songEditorUtils";
 
@@ -61,7 +65,7 @@ interface SongSlidesPreviewProps {
   slides: RunnerSlide[];
   songTitle: string;
   songArtist: string;
-  onSetLabel?: (slideIndex: number, type: SectionType | null) => void;
+  onSetLabel?: (sectionIndex: number, type: SectionType | null) => void;
   kind?: SlideKind;
   asset?: ThemeAsset;
   showLabels?: boolean;
@@ -109,15 +113,10 @@ export function SongSlidesPreview({
     () => themes.filter(isPublicTheme),
     [themes],
   );
-  const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
-  const setBinding = useSlideThemesStore((s) => s.setBinding);
   const loadThemes = useSlideThemesStore((s) => s.load);
   const ensureSeeded = useSlideThemesStore((s) => s.ensureSeeded);
 
-  const defaultTheme = useMemo(
-    () => resolveTheme("public", effectiveKind),
-    [resolveTheme, themes, effectiveKind],
-  );
+  const defaultTheme = useOutputThemeDocument("public");
 
   const [selectedThemeGuid, setSelectedThemeGuid] = useState<string | null>(
     () => themeGuid ?? defaultTheme?.guid ?? (templateThemes[0]?.guid || null),
@@ -156,7 +155,7 @@ export function SongSlidesPreview({
 
   const handleSetDefaultTheme = () => {
     if (!activeTheme) return;
-    setBinding("public", effectiveKind, activeTheme.guid);
+    setCategoryDefaultTheme("public", activeTheme.guid);
     toast.success(
       `Tema "${activeTheme.title}" definido como padrão para ${bindingLabel}!`,
     );
@@ -344,10 +343,30 @@ export function SongSlidesPreview({
                   }
                 : {};
 
+              const editSectionIndex = item.isBlank ? null : item.sectionIndex;
+              const canEditThisLabel =
+                canEditLabels && editSectionIndex !== null;
+              const handleSetLabel = (
+                type: SectionType | null,
+                label?: string,
+              ) => {
+                if (editSectionIndex === null || onSetLabel === undefined) {
+                  return;
+                }
+                onSetLabel(editSectionIndex, type);
+                if (type === null) {
+                  toast.info(`Rótulo do slide #${item.index + 1} removido`);
+                } else {
+                  toast.success(
+                    `Slide #${item.index + 1} marcado como "${label}"`,
+                  );
+                }
+              };
+
               const card = (
                 <div
                   className={`group relative flex flex-col justify-between overflow-hidden rounded-lg border border-border/70 bg-card/80 p-2.5 shadow-sm transition-all hover:border-primary/50 hover:shadow-md ${
-                    canEditLabels ? "cursor-context-menu" : ""
+                    canEditThisLabel ? "cursor-context-menu" : ""
                   } ${viewMode === "list" ? "min-h-[72px]" : "min-h-[140px]"}`}
                 >
                   {/* Cabeçalho do Card */}
@@ -357,7 +376,7 @@ export function SongSlidesPreview({
                         {item.index + 1}
                       </span>
 
-                      {canEditLabels ? (
+                      {canEditThisLabel ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <button
@@ -404,10 +423,7 @@ export function SongSlidesPreview({
                                   key={sec.type}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onSetLabel(item.index, sec.type);
-                                    toast.success(
-                                      `Slide #${item.index + 1} marcado como "${sec.label}"`,
-                                    );
+                                    handleSetLabel(sec.type, sec.label);
                                   }}
                                   className="text-xs flex items-center justify-between cursor-pointer"
                                 >
@@ -430,10 +446,7 @@ export function SongSlidesPreview({
                                 <DropdownMenuItem
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onSetLabel(item.index, null);
-                                    toast.info(
-                                      `Rótulo do slide #${item.index + 1} removido`,
-                                    );
+                                    handleSetLabel(null);
                                   }}
                                   className="text-xs text-muted-foreground cursor-pointer"
                                 >
@@ -466,7 +479,7 @@ export function SongSlidesPreview({
                       )}
                     </div>
 
-                    {canEditLabels && (
+                    {canEditThisLabel && (
                       <span
                         className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-muted-foreground flex items-center gap-0.5"
                         title="Clique no rótulo ou use o botão direito para alterar"
@@ -531,7 +544,7 @@ export function SongSlidesPreview({
                 </div>
               );
 
-              if (!canEditLabels || onSetLabel === undefined) {
+              if (!canEditThisLabel) {
                 return <div key={item.index}>{card}</div>;
               }
 
@@ -555,10 +568,7 @@ export function SongSlidesPreview({
                         <ContextMenuItem
                           key={sec.type}
                           onClick={() => {
-                            onSetLabel(item.index, sec.type);
-                            toast.success(
-                              `Slide #${item.index + 1} marcado como "${sec.label}"`,
-                            );
+                            handleSetLabel(sec.type, sec.label);
                           }}
                           className="text-xs flex items-center justify-between cursor-pointer"
                         >
@@ -576,8 +586,7 @@ export function SongSlidesPreview({
                     <ContextMenuSeparator />
                     <ContextMenuItem
                       onClick={() => {
-                        onSetLabel(item.index, null);
-                        toast.info(`Rótulo do slide #${item.index + 1} removido`);
+                        handleSetLabel(null);
                       }}
                       className="text-xs text-muted-foreground cursor-pointer"
                     >

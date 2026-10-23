@@ -51,6 +51,7 @@ import { getSong } from "@/core/ipc/commands";
 import { SECTION_LABEL } from "@/core/config/lyrics";
 import { computeSlideGroups, type SlideGroup } from "@/core/lib/lyrics";
 import { songGroupColor } from "@/core/lib/songGroups";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import {
   buildSongSlides,
   cleanCommentText,
@@ -61,6 +62,7 @@ import type { SlideTheme, Song, SongSummary } from "@/core/types";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { isPublicTheme, previewTheme } from "@/features/slide-themes/pages";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { useOutputThemeDocument } from "@/features/slide-themes/useOutputPlan";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { useSongsStore } from "./store";
 import { useSongGroupsStore } from "./songGroupsStore";
@@ -108,14 +110,10 @@ export function SongsPage() {
     () => themes.filter(isPublicTheme),
     [themes],
   );
-  const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
   const loadThemes = useSlideThemesStore((s) => s.load);
   const ensureSeeded = useSlideThemesStore((s) => s.ensureSeeded);
 
-  const defaultTheme = useMemo(
-    () => resolveTheme("public", "lyric"),
-    [resolveTheme, themes],
-  );
+  const defaultTheme = useOutputThemeDocument("public");
 
   const [selectedThemeGuid, setSelectedThemeGuid] = useState<string | null>(
     () => defaultTheme?.guid ?? (templateThemes[0]?.guid || null),
@@ -184,11 +182,15 @@ export function SongsPage() {
     }
   }, [songs, selectedSongId]);
 
+  const addEmptySlideAtStart = useSongDefaultsStore(
+    (s) => s.addEmptySlideAtStart,
+  );
+
   // Computed slides for selected song
   const slides = useMemo(() => {
     if (!selectedSong) return [];
-    return buildSongSlides(selectedSong);
-  }, [selectedSong]);
+    return buildSongSlides(selectedSong, { addEmptySlideAtStart });
+  }, [selectedSong, addEmptySlideAtStart]);
 
   const songGroups = useSongGroupsStore((s) => s.groups);
 

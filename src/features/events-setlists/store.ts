@@ -2,15 +2,18 @@ import { create } from "zustand";
 import {
   createEvent as createEventCommand,
   deleteEvent as deleteEventCommand,
+  getActiveEventId,
   getEvent,
   getBibleChapter,
   getSong,
   getTemporaryEvent,
   listEvents,
   saveEvent,
+  setActiveEventId,
 } from "@/core/ipc/commands";
 import { buildSongSlides } from "@/core/lib/lyrics";
 import { buildMediaSlides } from "@/core/lib/media";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import {
   bibleSplitThreshold,
   buildScriptureSlides,
@@ -33,6 +36,8 @@ import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { appendItemToEvent, transferItemBetweenEvents } from "./temporaryUtils";
+
+const LAST_ACTIVE_EVENT_KEY = "open_presenter_last_event_id";
 
 export type RecurrenceFrequency = "none" | "weekly" | "biweekly" | "monthly";
 
@@ -119,6 +124,7 @@ interface SetlistState {
   projectSection(itemId: string, index: number): Promise<void>;
   projectNext(): Promise<void>;
   projectPrev(): Promise<void>;
+  shiftRunnerIndex(delta: -1 | 1, addEmptySlideAtStart: boolean): void;
   listMode: SetlistListMode;
   lastSelectedEventId: string | null;
   temporaryEvent: ServiceEvent | null;
@@ -131,6 +137,13 @@ interface SetlistState {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function buildSongRunnerSlides(song: Song) {
+  return buildSongSlides(song, {
+    addEmptySlideAtStart:
+      useSongDefaultsStore.getState().addEmptySlideAtStart,
+  });
 }
 
 function clearPointers(
@@ -384,6 +397,11 @@ export function generateRecurrenceDates(params: CreateRecurringEventParams): str
   return dates;
 }
 
+function resolvePresentationTheme(themeId?: string) {
+  if (!themeId) return null;
+  return useSlideThemesStore.getState().themes.find((t) => t.guid === themeId) ?? null;
+}
+
 export const useSetlistStore = create<SetlistState>((set, get) => ({
   events: [],
   activeEventId: null,
@@ -456,13 +474,38 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       set({ events, error: null });
 
       const currentActiveId = get().activeEventId;
-      // Seleciona o próximo evento baseado em data/horário caso não haja nenhum selecionado ou não exista mais
+      // Restaura o último evento trabalhado ou o próximo evento agendado
       if (!currentActiveId || !events.some((e) => e.id === currentActiveId)) {
-        const nextEvent = pickNextUpcomingEvent(events);
-        if (nextEvent) {
-          await get().selectEvent(nextEvent.id);
-        } else if (events.length > 0) {
-          await get().selectEvent(events[0].id);
+        let restoredId: string | null = null;
+        try {
+          const backendId = await getActiveEventId();
+          if (backendId && events.some((e) => e.id === backendId)) {
+            restoredId = backendId;
+          }
+        } catch {
+          // fallback para localStorage se IPC falhar
+        }
+
+        if (!restoredId) {
+          try {
+            const stored = localStorage.getItem(LAST_ACTIVE_EVENT_KEY);
+            if (stored && events.some((e) => e.id === stored)) {
+              restoredId = stored;
+            }
+          } catch {
+            // localStorage pode estar indisponível
+          }
+        }
+
+        if (restoredId) {
+          await get().selectEvent(restoredId);
+        } else {
+          const nextEvent = pickNextUpcomingEvent(events);
+          if (nextEvent) {
+            await get().selectEvent(nextEvent.id);
+          } else if (events.length > 0) {
+            await get().selectEvent(events[0].id);
+          }
         }
       }
     } catch (err) {
@@ -477,6 +520,16 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     }
     try {
       const event = await getEvent(id);
+      try {
+        await setActiveEventId(id);
+      } catch (err) {
+        console.warn("Falha ao salvar evento ativo no backend:", err);
+      }
+      try {
+        localStorage.setItem(LAST_ACTIVE_EVENT_KEY, id);
+      } catch {
+        // localStorage pode estar indisponível
+      }
       set({
         listMode: "event",
         lastSelectedEventId: id,
@@ -1135,7 +1188,11 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       return;
     }
     if (item?.media) {
-      const slides = buildMediaSlides(item.id, item.media);
+      const slides = buildMediaSlides(
+        item.id,
+        item.media,
+        resolvePresentationTheme(item.media.themeId),
+      );
       usePresentationStore.getState().setPreview(slides[0]?.slide ?? null);
       return;
     }
@@ -1190,11 +1247,15 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     if (item.scripture) {
       slides = await buildScriptureItemSlides(item);
     } else if (item.media != null) {
-      slides = buildMediaSlides(item.id, item.media).map((entry) => entry.slide);
+      slides = buildMediaSlides(
+        item.id,
+        item.media,
+        resolvePresentationTheme(item.media.themeId),
+      ).map((entry) => entry.slide);
     } else {
       const song = await get().loadItemSong(itemId);
       if (song === null) return;
-      slides = buildSongSlides(song).map((entry) => entry.slide);
+      slides = buildSongRunnerSlides(song).map((entry) => entry.slide);
     }
     if (index < 0 || index >= slides.length) return;
 
@@ -1207,11 +1268,16 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
         if (nextItem.scripture) {
           nextUp = (await buildScriptureItemSlides(nextItem))[0] ?? null;
         } else if (nextItem.media != null) {
-          nextUp = buildMediaSlides(nextItem.id, nextItem.media)[0]?.slide ?? null;
+          nextUp =
+            buildMediaSlides(
+              nextItem.id,
+              nextItem.media,
+              resolvePresentationTheme(nextItem.media.themeId),
+            )[0]?.slide ?? null;
         } else if (nextItem.song != null) {
           const nextSong = await get().loadItemSong(nextItem.id);
           if (nextSong !== null) {
-            nextUp = buildSongSlides(nextSong)[0]?.slide ?? null;
+            nextUp = buildSongRunnerSlides(nextSong)[0]?.slide ?? null;
           }
         }
       }
@@ -1235,11 +1301,15 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
     if (item.scripture) {
       count = (await buildScriptureItemSlides(item)).length;
     } else if (item.media != null) {
-      count = buildMediaSlides(item.id, item.media).length;
+      count = buildMediaSlides(
+        item.id,
+        item.media,
+        resolvePresentationTheme(item.media.themeId),
+      ).length;
     } else {
       const song = await get().loadItemSong(selectedItemId);
       if (song === null) return;
-      count = buildSongSlides(song).length;
+      count = buildSongRunnerSlides(song).length;
     }
     if (runnerIndex + 1 >= count) return;
     await get().projectSection(selectedItemId, runnerIndex + 1);
@@ -1251,6 +1321,16 @@ export const useSetlistStore = create<SetlistState>((set, get) => ({
       return;
     }
     await get().projectSection(selectedItemId, runnerIndex - 1);
+  },
+
+  shiftRunnerIndex: (delta, addEmptySlideAtStart) => {
+    const current = get().runnerIndex;
+    if (current === null) return;
+    if (!addEmptySlideAtStart && current === 0) {
+      set({ runnerIndex: 0 });
+      return;
+    }
+    set({ runnerIndex: Math.max(0, current + delta) });
   },
 
   appendImprevistoSong: async (songId) => {

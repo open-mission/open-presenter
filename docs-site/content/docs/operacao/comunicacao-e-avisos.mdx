@@ -1,0 +1,75 @@
+---
+title: Painel de Comunicação & Avisos
+description: Envio de avisos rápidos, letreiros rolantes e mensagens de emergência para as saídas.
+---
+
+O **Painel de Comunicação** é uma ferramenta indispensável para a equipe de multimídia se comunicar com quem está no altar ou avisar a congregação sem interromper o andamento do culto.
+
+Exemplos típicos de uso:
+- Avisar o motorista sobre um carro com farol aceso ou bloqueando a saída no estacionamento.
+- Avisar o pastor: *"Pastor chamando no púlpito"*.
+- Orientar o ministro de louvor: *"Favor abaixar o retorno da guitarra"*.
+- Avisar sobre o tempo da reunião: *"Faltam 5 minutos para o encerramento"*.
+
+---
+
+## Abrindo o Painel de Comunicação
+
+- **Atalho Global:** **`⌘ M`** (ou `Ctrl + M` no Windows).
+- **Barra Superior:** Clique no botão **Avisos** no topo da tela.
+- **Janela Separada:** O painel abre em uma **janela independente (1120x700)**, que você pode deixar aberta em um segundo monitor sem cobrir a tela principal de controle.
+
+---
+
+## Layout da Janela de Avisos
+
+A janela é dividida lado a lado:
+
+```
+┌───────────────────────────────────────────────┬─────────────────────────────┐
+│ 1. Composição do Aviso (Esquerda)             │ 2. Atalhos Rápidos (4x2)    │
+│                                               │                             │
+│ - Texto da Mensagem                           │ [Pastor chamando] [Farol]   │
+│ - Saídas: [Palco] [Telão] [OBS]               │ [Abaixe o som]    [5 min]   │
+│ - Modo: [Barra Topo] [Rodapé] [Tela Cheia]    │ [Tempo esgotado]  [Liberar] │
+│ - Nível: Normal (Info) | Atenção | Urgente    │ [Afinar instr.]   [Equipe]  │
+│ - Animação: Letreiro Rolante (D ➔ E) ou Fixo  │                             │
+│ - Duração: Manual ou temporizada (10s a 5m)   │ [+ Novo Atalho]  [Restaurar]│
+│ [Limpar do Ar]       [Enviar para Saídas ⌘⏎]  │                             │
+└───────────────────────────────────────────────┴─────────────────────────────┘
+```
+
+---
+
+## Seleção de Saídas de Destino (Multi-Target)
+
+Você pode marcar exatamente para onde o aviso será enviado:
+
+- **Retorno (Palco):** Visível apenas nos monitores do altar. A congregação não vê nada.
+- **Telão (Público):** Projetado no telão principal da congregação.
+- **OBS (Live):** Projetado na transmissão ao vivo do culto.
+- **Selecionar Todas:** Envia o comunicado simultaneamente para todas as telas ativas.
+
+---
+
+## Formas de Exibição
+
+1. **Barra Superior (`banner_top`):**
+   - Faixa discreta no topo da tela com efeito de vidro fosco (backdrop blur).
+2. **Barra Inferior (`banner_bottom`):**
+   - Faixa no rodapé da tela, ideal para placas de carros e avisos rápidos de congregação.
+3. **Letreiro Rolante (Marquee da Direita para a Esquerda):**
+   - Para mensagens mais longas, ative o **Letreiro Rolante**. O texto percorre a largura da tela de forma suave e contínua.
+4. **Tela Cheia (`overlay`):**
+   - Mensagem centralizada de alto impacto visual e fundo escurecido. Reservada para avisos urgentes ou momentos em que a atenção total é requerida.
+5. **Apenas Variável no Tema:**
+   - O texto não cria barras, mas preenche o campo `{stage_message}` posicionado pelo designer no tema de retorno.
+
+---
+
+## Atalhos Rápidos (Presets)
+
+O painel direito contém uma grade de mensagens pré-configuradas:
+- **1 clique no card:** Preenche o texto, formato, saídas e urgência instantaneamente.
+- **Cadastro e Edição:** Você pode cadastrar novas mensagens frequentes da sua igreja através do botão **Novo** ou editar os botões existentes.
+- **Restauração:** O botão de restauração devolve a lista original de fábrica a qualquer momento.

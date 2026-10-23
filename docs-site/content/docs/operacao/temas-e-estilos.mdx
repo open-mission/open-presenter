@@ -1,0 +1,107 @@
+---
+title: Editor de Temas, ISF Shaders e Cores
+description: Como customizar tipografia, layouts, gradientes, fundos animados e páginas por contexto.
+---
+
+O Open Presenter possui um motor de temas de alta flexibilidade, permitindo que cada momento do culto tenha a identidade visual perfeita.
+
+<Screenshot
+  src="/screenshots/appearance.webp"
+  alt="Preferências de aparência com modos claro, escuro e sistema, e presets de paleta"
+  caption="A aparência do operador é independente dos temas usados no telão e no palco."
+  width={1680}
+  height={1285}
+/>
+
+<Screenshot
+  src="/screenshots/appearance-editor.webp"
+  alt="Editor de tokens com cores, arredondamento, prévia ao vivo e importação de tema"
+  caption="Tokens shadcn/ui editáveis com prévia ao vivo e exportação em JSON ou CSS."
+  width={1680}
+  height={1285}
+/>
+
+---
+
+## Tipos de Temas
+
+Os temas no Open Presenter são categorizados por saída e uso:
+
+- **Público (Public):** Layout 16:9 de alto contraste para o telão da congregação.
+- **Retorno (Stage):** Tipografia ampliada em fundo escuro com relógio e cronômetro para o altar.
+- **Transmissão (Stream):** Lower thirds transparentes posicionados nos 20% inferiores da tela para transmissão em vídeo.
+
+---
+
+## Páginas por Contexto (Tema v2)
+
+Um único tema pode conter variações automáticas para cada tipo de conteúdo:
+
+- **Página de Música (`music`):** Texto centralizado ou alinhado à esquerda com 2 a 4 linhas por slide.
+- **Página de Bíblia (`scripture`):** Área de texto para o versículo bíblico e badge destacado com a referência (ex.: `João 3:16 [NVI]`).
+- **Página de Texto Livre (`text`):** Título, subtítulo e corpo para avisos, ministrações ou dízimos e ofertas.
+- **Página de Descanso (`rest`):** Utilizada no retorno quando a projeção está desocupada.
+
+Ao mudar de uma música para a leitura bíblica, o Open Presenter troca a página do tema **automaticamente**, sem que o operador precise trocar de tema manualmente!
+
+---
+
+## Organizar elementos no editor
+
+### Selecionar
+
+- **Clique** seleciona o elemento — ou o **grupo inteiro**, quando o elemento pertence a um grupo.
+- **Duplo clique** ou **`⌘` / `Ctrl` + clique** entra no grupo e seleciona o item individual.
+- **`Shift` + clique** adiciona ou remove o elemento da seleção (seleção múltipla).
+- **Clique em área vazia** (ou `Esc`) limpa a seleção.
+
+### Mover, redimensionar e girar
+
+- Arraste a seleção para mover; elementos **travados** não se movem, mas continuam contando na caixa do grupo.
+- A caixa do grupo ou da seleção tem **alças de redimensionamento**: segure `Shift` para manter a proporção, e os membros escalam juntos mantendo as posições relativas (o texto acompanha).
+- A **alça de rotação** gira a seleção; com `Shift` o giro trava em passos de 15°. O campo **Rotação** da aba **Organizar** faz o mesmo pelo teclado.
+
+### Guias e réguas
+
+- Ative **Réguas** e **Guias** na barra do editor.
+- Arraste a partir da régua horizontal ou vertical para **criar uma guia**; arraste a guia para reposicionar.
+- **Duplo clique** na guia remove só ela; **Limpar guias** remove todas as guias da página.
+- As guias fazem parte do tema (são salvas e reabertas com ele), mas **não aparecem** na projeção nem na exportação de imagem.
+
+### Duplicar, apagar e agrupar
+
+| Ação | Como fazer |
+| :--- | :--- |
+| **Duplicar** | `⌘ / Ctrl + D` ou o botão no painel de camadas — a cópia já sai selecionada |
+| **Apagar** | `Delete` / `Backspace` ou o botão de lixeira |
+| **Agrupar** | `⌘ / Ctrl + G` |
+| **Desagrupar** | `⌘ / Ctrl + Shift + G` |
+| **Selecionar tudo** | `⌘ / Ctrl + A` (todos os elementos da página ativa) |
+
+O último elemento de um layout de página única é protegido: o editor não permite apagá-lo. Grupos que ficam com um único membro são dissolvidos automaticamente.
+
+### Painel de propriedades
+
+As abas **Organizar** e **Aparência** mostram apenas o que faz sentido para o tipo selecionado (texto, forma ou mídia): posição e tamanho, rotação, alinhamento (na tela, no grupo ou na seleção), distribuição (com 3 ou mais elementos), ordem de camadas e agrupamento. As seções começam **fechadas por padrão** — clique no título para abrir.
+
+---
+
+## Planos de Fundo e Efeitos
+
+Você pode configurar diversos tipos de fundo:
+
+1. **Cores Sólidas:** Preto, azul marinho, cinza grafite.
+2. **Gradientes Lineares:** Gradientes modernos em qualquer ângulo ou direção (`to bottom right`).
+3. **Imagens e Vídeos em Loop:** Suporte nativo a arquivos MP4, WebM e fotos de alta resolução.
+4. **Shaders ISF (Interactive Shader Format):** Fundos gerados matematicamente em GPU via WebGL com consumo ínfimo de disco.
+5. **Textura de Ruído Orgânico (SVG Noise):** Adiciona granulado elegante sobre cores ou gradientes, eliminando o efeito de faixas (color banding).
+
+---
+
+## Papel de Parede Permanente (Wallpaper)
+
+O Open Presenter permite definir um **Papel de Parede** global para o telão público:
+- Fica fixo no fundo da tela.
+- Quando nenhuma apresentação está ativa, o papel de parede acolhe a congregação (ex.: logotipo da igreja, versículo do ano ou arte da série de sermões).
+- Ao iniciar uma música, o tema da música sobrepõe suavemente o papel de parede.
+- Ao limpar a tela (`C`), o texto sai e o papel de parede ou fundo suave volta à tona.

@@ -4,7 +4,13 @@ use crate::error::AppError;
 use crate::services::database::Db;
 use crate::services::settings;
 use crate::state::outputs::OutputsState;
-use crate::state::types::{OutputConfig, OutputRuntime, OutputTarget, EVENT_OUTPUTS};
+use crate::state::types::{
+    DisplayOutput, DisplaysSettings, OutputConfig, OutputRuntime, OutputTarget,
+    EVENT_DISPLAYS, EVENT_OUTPUTS,
+};
+
+const KEY_DISPLAY_OUTPUTS: &str = "displays.outputs";
+const KEY_DISPLAYS_SETTINGS: &str = "displays.settings";
 
 fn config_key(target: OutputTarget) -> &'static str {
     match target {
@@ -72,4 +78,67 @@ pub fn get_outputs_state(
 ) -> Result<Vec<OutputRuntime>, AppError> {
     crate::services::display_manager::reconcile_open_state(&app);
     Ok(outputs.snapshot())
+}
+
+#[tauri::command]
+pub fn get_display_outputs(db: State<'_, Db>) -> Result<Vec<DisplayOutput>, AppError> {
+    let raw: Option<String> = db.with_conn(|conn| settings::get_setting(conn, KEY_DISPLAY_OUTPUTS))?;
+    match raw {
+        Some(json) => serde_json::from_str(&json).map_err(|e| AppError::Storage(e.to_string())),
+        None => Ok(vec![]),
+    }
+}
+
+#[tauri::command]
+pub fn save_display_outputs(
+    app: AppHandle,
+    db: State<'_, Db>,
+    outputs: Vec<DisplayOutput>,
+) -> Result<(), AppError> {
+    let json = serde_json::to_string(&outputs).map_err(|e| AppError::Storage(e.to_string()))?;
+    db.with_conn(|conn| settings::set_setting(conn, KEY_DISPLAY_OUTPUTS, &json))?;
+    let _ = app.emit(EVENT_DISPLAYS, &outputs);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_displays_settings(db: State<'_, Db>) -> Result<DisplaysSettings, AppError> {
+    let raw: Option<String> = db.with_conn(|conn| settings::get_setting(conn, KEY_DISPLAYS_SETTINGS))?;
+    match raw {
+        Some(json) => serde_json::from_str(&json).map_err(|e| AppError::Storage(e.to_string())),
+        None => Ok(DisplaysSettings::default()),
+    }
+}
+
+#[tauri::command]
+pub fn save_displays_settings(
+    app: AppHandle,
+    db: State<'_, Db>,
+    settings: DisplaysSettings,
+) -> Result<(), AppError> {
+    let json = serde_json::to_string(&settings).map_err(|e| AppError::Storage(e.to_string()))?;
+    db.with_conn(|conn| settings::set_setting(conn, KEY_DISPLAYS_SETTINGS, &json))?;
+    let _ = app.emit("displays://settings-changed", &settings);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn identify_displays(app: AppHandle, active: bool) -> Result<(), AppError> {
+    crate::services::display_manager::set_identify_displays(&app, active)
+}
+
+#[tauri::command]
+pub async fn open_native_output(
+    app: AppHandle,
+    output_id: String,
+    monitor_id: Option<String>,
+    route: String,
+    title: String,
+) -> Result<(), AppError> {
+    crate::services::display_manager::open_native_output(app, output_id, monitor_id, route, title).await
+}
+
+#[tauri::command]
+pub fn close_native_output(app: AppHandle, output_id: String) -> Result<(), AppError> {
+    crate::services::display_manager::close_native_output(&app, &output_id)
 }

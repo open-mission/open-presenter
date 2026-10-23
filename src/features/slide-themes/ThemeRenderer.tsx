@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { SlideTheme, ThemeAsset, ThemeElement } from "@/core/types";
 import { useMediaPort } from "@/core/config/mediaPort";
 import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
@@ -14,6 +14,8 @@ import {
 } from "./fitText.ts";
 import { typographyFromCss } from "./textMeasure.ts";
 import { useAutoFit } from "./useAutoFit.ts";
+import { buildFitGeometryKey } from "./fitGeometry.ts";
+import { areElementRenderPropsEqual } from "./elementMemo.ts";
 
 const BACKGROUND_KEYS = new Set([
   "background",
@@ -57,12 +59,18 @@ function renderHtml(
 }
 
 function elementStyle(element: ThemeElement): CSSProperties {
+  const host = currentHost();
   const style: CSSProperties = {
     position: "absolute",
     ...(element.css as CSSProperties),
   };
   if (!("top" in element.css)) style.top = `${element.y}%`;
   if (!("left" in element.css)) style.left = `${element.x}%`;
+  if (element.fill && !element.css.background && !element.css.backgroundColor) {
+    style.background = resolveUrlValue(element.fill, host);
+  } else if (element.css.background) {
+    style.background = resolveUrlValue(element.css.background, host);
+  }
   return style;
 }
 
@@ -235,19 +243,7 @@ function AutoScaledText({
 
   const autoHeight = !element.css.height || element.css.height === "auto";
 
-  const geometryKey = [
-    element.css.left,
-    element.css.top,
-    element.css.width,
-    element.css.height,
-    element.css.padding,
-    element.css.paddingTop,
-    element.css.paddingRight,
-    element.css.paddingBottom,
-    element.css.paddingLeft,
-    element.x,
-    element.y,
-  ].join("|");
+  const geometryKey = buildFitGeometryKey(element, autoHeight);
 
   const { fontSize: activeFontSize, overflow: textOverflow } = useAutoFit({
     containerRef,
@@ -398,7 +394,7 @@ function AutoScaledText({
   );
 }
 
-function ThemeElementView({
+const ThemeElementView = memo(function ThemeElementViewImpl({
   element,
   props,
 }: {
@@ -443,31 +439,41 @@ function ThemeElementView({
         />
       );
     case "RECTANGLE":
-      if (element.fill === "web") {
-        return (
-          <div
-            data-theme-element-id={element.id}
-            style={{
-              ...style,
-              backgroundImage: `url("${resolvedSrc}")`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-            }}
-          />
-        );
+    case "CIRCLE":
+    case "TRIANGLE":
+    case "STAR": {
+      let shapeStyle: CSSProperties = {
+        ...style,
+        ...(element.fill ? { background: resolveUrlValue(element.fill, host) } : {}),
+      };
+      if (element.type === "CIRCLE") {
+        shapeStyle = { ...shapeStyle, borderRadius: "50%" };
+      } else if (element.type === "TRIANGLE") {
+        shapeStyle = {
+          ...shapeStyle,
+          clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)",
+        };
+      } else if (element.type === "STAR") {
+        shapeStyle = {
+          ...shapeStyle,
+          clipPath:
+            "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
+        };
       }
-      return (
-        <div
-          data-theme-element-id={element.id}
-          style={
-            element.fill
-              ? { ...style, background: resolveUrlValue(element.fill, host) }
-              : style
-          }
-        />
-      );
+
+      if (element.fill === "web" && mediaSrc) {
+        shapeStyle = {
+          ...shapeStyle,
+          backgroundImage: `url("${resolvedSrc}")`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        };
+      }
+
+      return <div data-theme-element-id={element.id} style={shapeStyle} />;
+    }
   }
-}
+}, areElementRenderPropsEqual);
 
 export function ThemeRenderer({
   theme,

@@ -1,10 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 export function isTauri(): boolean {
   return (
     typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
   );
+}
+
+export function isMainWindow(): boolean {
+  if (!isTauri()) return false;
+  try {
+    return getCurrentWebviewWindow().label === "main";
+  } catch {
+    const hash = typeof window !== "undefined" ? window.location.hash : "";
+    return !hash || hash === "#/" || hash === "#" || hash.startsWith("#/admin");
+  }
 }
 
 export async function invokeCommand<T>(

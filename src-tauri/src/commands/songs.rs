@@ -2,7 +2,9 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::error::AppError;
 use crate::services::database::Db;
-use crate::services::{display_manager, import, lrclib, lyrics, songs};
+use crate::services::{
+    display_manager, holyrics_online, import, lrclib, lyrics, lyrics_search, songs, vagalume,
+};
 use crate::state::{ImportReport, OnlineLyricHit, Song, SongDefaults, SongSection, SongSummary};
 
 #[tauri::command]
@@ -45,9 +47,14 @@ pub fn import_holyrics(db: State<'_, Db>, paths: Vec<String>) -> Result<ImportRe
 }
 
 #[tauri::command]
-pub async fn search_lyrics_online(query: String) -> Result<Vec<OnlineLyricHit>, AppError> {
+pub async fn search_lyrics_online(
+    db: State<'_, Db>,
+    query: String,
+    provider: Option<String>,
+) -> Result<Vec<OnlineLyricHit>, AppError> {
+    let defaults = db.with_conn(|conn| songs::song_defaults(conn))?;
     let client = lrclib::client();
-    lrclib::search(&client, &query).await
+    lyrics_search::search_all(&client, &query, provider.as_deref(), &defaults).await
 }
 
 #[tauri::command]
@@ -56,13 +63,58 @@ pub async fn fetch_online_lyrics(
     id: String,
     track_name: String,
     artist_name: String,
+    provider: Option<String>,
+    provider_id: Option<String>,
 ) -> Result<Song, AppError> {
+    let defaults = db.with_conn(|conn| songs::song_defaults(conn))?;
     let client = lrclib::client();
+
+    match provider.as_deref() {
+        Some("holyrics") => {
+            let song_id = provider_id.as_deref().unwrap_or("");
+            if !song_id.is_empty() {
+                if let Ok((title, artist, composer, song_key, bpm, sections)) =
+                    holyrics_online::fetch(&client, song_id).await
+                {
+                    let sections = songs::apply_layout(sections, defaults);
+                    return Ok(Song {
+                        id,
+                        title,
+                        artist,
+                        album: None,
+                        composer,
+                        song_key,
+                        bpm,
+                        sections,
+                    });
+                }
+            }
+        }
+        Some("vagalume") => {
+            let doc_id = provider_id.as_deref().unwrap_or("");
+            if !doc_id.is_empty() {
+                if let Ok((title, artist, sections)) =
+                    vagalume::fetch(&client, doc_id, defaults.vagalume_api_key.as_deref()).await
+                {
+                    let sections = songs::apply_layout(sections, defaults);
+                    return Ok(Song {
+                        id,
+                        title,
+                        artist,
+                        album: None,
+                        composer: None,
+                        song_key: None,
+                        bpm: None,
+                        sections,
+                    });
+                }
+            }
+        }
+        _ => {}
+    }
+
     let (title, artist, sections) = lrclib::fetch(&client, &track_name, &artist_name).await?;
-    let sections = db.with_conn(|conn| {
-        let defaults = songs::song_defaults(conn)?;
-        Ok(songs::apply_layout(sections, defaults))
-    })?;
+    let sections = songs::apply_layout(sections, defaults);
     Ok(Song {
         id,
         title,

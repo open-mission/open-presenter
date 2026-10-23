@@ -16,6 +16,17 @@ function readStoredWeekStart(): WeekStart {
   }
 }
 
+function readStoredOutputsSection(): OutputsSection {
+  if (typeof window === "undefined") return "server";
+  try {
+    const s = localStorage.getItem("open_presenter_outputs_section");
+    if (s === "devices" || s === "wallpaper") return s;
+    return "server";
+  } catch {
+    return "server";
+  }
+}
+
 interface PreferencesState {
   isOpen: boolean;
   activeTab: PreferencesTab;
@@ -33,7 +44,7 @@ interface PreferencesState {
 export const usePreferencesStore = create<PreferencesState>((set) => ({
   isOpen: false,
   activeTab: "general",
-  outputsSection: "public",
+  outputsSection: readStoredOutputsSection(),
   theme: getStoredTheme(),
   weekStart: readStoredWeekStart(),
   openPreferences: (tab, section) => {

@@ -57,9 +57,6 @@ function createSyncBus(): SyncBus {
       await listenCommand<unknown>(TAURI_EVENTS.stageMessage, (payload) =>
         dispatch(TAURI_EVENTS.stageMessage, payload),
       );
-      await listenCommand<unknown>(TAURI_EVENTS.themes, (payload) =>
-        dispatch(TAURI_EVENTS.themes, payload),
-      );
       await listenCommand<unknown>(TAURI_EVENTS.timer, (payload) =>
         dispatch(TAURI_EVENTS.timer, payload),
       );

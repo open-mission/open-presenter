@@ -1,0 +1,66 @@
+---
+title: Governança & Regras para Agentes de IA (AGENTS.md)
+description: Regras obrigatórias de contribuição, stack pinada, roteamento e convenções de código.
+---
+
+Todo colaborador (humano ou agente de IA) deve seguir impreterivelmente as diretrizes estabelecidas no `AGENTS.md`.
+
+---
+
+## 1. Stack e Versões Pinadas
+
+- **Desktop Backend:** Tauri v2 (Rust 2021).
+- **Frontend:** React 19 + TypeScript, Vite, `react-router-dom` com **`HashRouter`**.
+- **Estilos:** Tailwind CSS v4 (via plugin `@tailwindcss/vite`).
+- **Estado Global:** Zustand.
+- **Ícones:** `lucide-react`.
+
+> **IMPORTANTE:** `package.json` e `src-tauri/Cargo.toml` usam versões pinadas. **Nunca** atualize dependências sem justificativa de correção de vulnerabilidade ou bug comprovado.
+
+---
+
+## 2. Roteamento Obrigatório: `HashRouter`
+
+O Open Presenter utiliza **`HashRouter`** exclusivamente:
+- O aplicativo roda sob o protocolo customizado do Tauri (`tauri://localhost/` ou `http://tauri.localhost/`) e é servido como arquivos estáticos compilados pelo servidor embutido.
+- `BrowserRouter` quebra nesses ambientes ao atualizar a página ou abrir subjanelas nativas.
+- Qualquer nova rota deve funcionar de três formas:
+  1. Janela nativa Tauri (desktop).
+  2. Mini-preview embutido no painel do operador.
+  3. Navegador externo (Chrome, Safari, OBS Browser Source).
+
+---
+
+## 3. Backend Rust: Divisão em 3 Camadas
+
+No diretório `src-tauri/src/`:
+
+```
+commands/ (IPC) ──➔ services/ (Regras de Negócio) ──➔ state/ (Dados em Memória / SQLite)
+```
+
+1. **`commands/`**: Apenas recebem e deserializam os argumentos do IPC, repassam para os serviços e retornam `Result<T, AppError>`. Nunca acessam janelas ou SQLite diretamente.
+2. **`services/`**: Contêm as regras de negócio, persistência no banco SQLite, gerenciamento de janelas e broadcasting.
+3. **`state/`**: Estruturas de dados em memória protegidas por `Arc<RwLock<T>>` ou instâncias do Tauri State.
+4. **Tratamento de Erros:** Erros de comando usam `AppError` (já serializado em formato compreensível pelo frontend).
+
+---
+
+## 4. Gitflow e Commits
+
+- **Fluxo de Branches:**
+  - `main`: Branch de releases estáveis. **Nunca commite diretamente na `main`**.
+  - `develop`: Branch de integração contínua.
+  - `feature/*`: Novas funcionalidades.
+  - `fix/*`: Correções de bugs.
+- **Padrão de Mensagens:**
+  - **Conventional Commits**: curto, em imperativo (`feat(scope): ...`, `fix(scope): ...`, `chore: ...`).
+
+---
+
+## 5. Qualidade e Verificações Antes do Commit
+
+Antes de realizar qualquer commit:
+1. `npm run typecheck` (deve passar com 0 erros).
+2. `npm test` (testes unitários com Node test runner).
+3. `cd src-tauri && CARGO_INCREMENTAL=0 cargo check -p open-presenter` (deve passar com 0 erros).

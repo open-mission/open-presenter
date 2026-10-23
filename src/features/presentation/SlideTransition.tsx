@@ -9,6 +9,7 @@ interface SlideTransitionProps {
   theme: SlideTheme | null;
   asset: ThemeAsset | null;
   cleared: boolean;
+  textHidden?: boolean;
   durationMs?: number;
   transitionBackground?: boolean;
 }
@@ -18,23 +19,33 @@ function RenderSingleSlide({
   theme,
   asset,
   showBackground = false,
+  hideText = false,
 }: {
   slide: LiveSlide;
   theme: SlideTheme | null;
   asset: ThemeAsset | null;
   showBackground?: boolean;
+  hideText?: boolean;
 }) {
   if (theme && asset) {
     return (
       <ScaledStage
         theme={theme}
         asset={asset}
-        props={buildProps(slide.content.kind, slide.content, slide.nextUp)}
+        props={buildProps(slide.content.kind, slide.content, slide.nextUp, {
+          hideText,
+        })}
         showBackground={showBackground}
       />
     );
   }
-  return <SlideCanvas slide={slide} showBackground={showBackground} />;
+  return (
+    <SlideCanvas
+      slide={slide}
+      showBackground={showBackground}
+      hideText={hideText}
+    />
+  );
 }
 
 export function SlideTransition({
@@ -42,6 +53,7 @@ export function SlideTransition({
   theme,
   asset,
   cleared,
+  textHidden = false,
   durationMs = 300,
   transitionBackground = false,
 }: SlideTransitionProps) {
@@ -90,7 +102,7 @@ export function SlideTransition({
     } else {
       setActive({ key: currentKey, slide, theme, asset: effectiveAsset });
     }
-  }, [currentKey, slide, theme, effectiveAsset, durationMs]);
+  }, [currentKey, slide, theme, effectiveAsset, durationMs, textHidden]);
 
   return (
     <div
@@ -113,6 +125,7 @@ export function SlideTransition({
             theme={outgoing.theme}
             asset={outgoing.asset}
             showBackground={transitionBackground}
+            hideText={textHidden}
           />
         </div>
       )}
@@ -131,6 +144,7 @@ export function SlideTransition({
           theme={active.theme}
           asset={active.asset}
           showBackground={transitionBackground}
+          hideText={textHidden}
         />
       </div>
     </div>

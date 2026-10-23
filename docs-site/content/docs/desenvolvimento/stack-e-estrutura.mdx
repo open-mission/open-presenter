@@ -1,0 +1,77 @@
+---
+title: Stack Tecnológica & Estrutura do Projeto
+description: Detalhamento da árvore de diretórios, tecnologias e responsabilidade de cada pasta.
+---
+
+Uma visão detalhada da árvore de pastas do Open Presenter e da responsabilidade de cada diretório.
+
+---
+
+## Árvore de Diretórios
+
+```text
+open-presenter/
+├── src-tauri/                 # Backend Rust (Tauri v2)
+│   ├── src/
+│   │   ├── commands/          # Handlers de comandos IPC invocados pelo frontend
+│   │   ├── error/             # AppError unificado para serialização IPC
+│   │   ├── server/            # Servidor Axum HTTP (porta 5050) e WebSocket (/ws)
+│   │   ├── services/          # Lógica de negócio (display, database, holyrics, etc.)
+│   │   ├── state/             # Tipos Rust, PresentationState, OutputsState
+│   │   └── lib.rs             # Ponto de entrada do plugin e inicialização Tauri
+│   ├── Cargo.toml             # Dependências e metadados Rust
+│   └── tauri.conf.json        # Configuração de janelas, permissões e bundles Tauri
+│
+├── src/                       # Frontend React 19 + TypeScript
+│   ├── components/            # Componentes visuais atômicos e shadcn/ui
+│   │   └── ui/                # Botões, inputs, badges, diálogos, menus
+│   ├── core/                  # SHARED KERNEL
+│   │   ├── config/            # Constantes globais (portas, rotas, eventos)
+│   │   ├── ipc/               # Wrappers tipados para invokeCommand e listen
+│   │   ├── lib/               # Utilitários (cn, formatação, date-fns)
+│   │   ├── sync/              # Barramento syncBus e hooks de sincronização
+│   │   └── types/             # Tipos TypeScript compartilhados com Rust
+│   ├── features/              # Módulos verticais de funcionalidades
+│   │   ├── bible/             # Busca, paginação e projeção de escrituras
+│   │   ├── communication/     # Painel de comunicação, avisos e letreiros
+│   │   ├── events-setlists/   # Gestão de setlists, ordem do culto e drag-and-drop
+│   │   ├── media-library/     # Gerenciamento de imagens e vídeos
+│   │   ├── media-shaders/     # Renderizador de fundos ISF (WebGL) e ruído SVG
+│   │   ├── output-manager/    # Detecção de telas, modos de saída e status de rede
+│   │   ├── preferences/       # Janela e abas de configurações globais
+│   │   ├── presentation/      # Motor de transição de slides e miniaturas
+│   │   ├── remote/            # Interface mobile do controle remoto web
+│   │   ├── slide-themes/      # Editor de temas, engine de templates e ISF
+│   │   ├── stage-display/     # Relógio, cronômetro e layout do retorno
+│   │   └── studio/            # Studio de criação de apresentações ricas
+│   ├── views/                 # Composição de páginas por rota
+│   │   ├── AdminView.tsx      # Rota /admin: Painel principal do operador
+│   │   ├── PublicView.tsx     # Rota /public: Saída de tela cheia do telão
+│   │   ├── StageView.tsx      # Rota /stage: Saída de tela cheia do retorno
+│   │   ├── StreamView.tsx     # Rota /stream: Saída transparente para OBS
+│   │   ├── CommunicationView.tsx # Rota /communication: Janela dedicada de avisos
+│   │   └── PreferencesView.tsx# Rota /preferences: Janela dedicada de configs
+│   ├── App.tsx                # HashRouter e registro das rotas
+│   └── main.tsx               # Bootstrap da aplicação React
+│
+├── docs-site/                 # Documentação oficial com Fumadocs MDX
+├── package.json               # Dependências pinadas e scripts npm
+└── vite.config.ts             # Configuração do Vite e Tailwind CSS v4
+```
+
+---
+
+## Dependências Principais
+
+- **Backend (Rust):**
+  - `tauri` v2: Ponte nativa de SO, janelas e IPC.
+  - `axum`: Servidor web assíncrono de alto desempenho embutido no app.
+  - `rusqlite`: Banco de dados relacional embarcado local.
+  - `tokio`: Runtime assíncrono para WebSocket e timers.
+  - `serde` / `serde_json`: Serialização e deserialização bidirecional.
+- **Frontend (Web):**
+  - `react` 19 & `react-dom` 19.
+  - `zustand` 5: Gerenciamento de estado rápido e desacoplado.
+  - `tailwindcss` 4 + `@tailwindcss/vite`: Design system com variáveis CSS.
+  - `radix-ui`: Primitivas acessíveis e robustas.
+  - `lucide-react`: Ícones consistentes.

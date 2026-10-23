@@ -8,15 +8,33 @@ import StageView from "./views/StageView";
 import StreamView from "./views/StreamView";
 import ThemeEditorView from "./views/ThemeEditorView";
 import SongEditorView from "./views/SongEditorView";
+import CommunicationView from "./views/CommunicationView";
+import DisplaysView from "./views/DisplaysView";
+import IdentifyOverlayView from "./views/IdentifyOverlayView";
+import DynamicOutputView from "./views/DynamicOutputView";
 import RemoteView from "./features/remote/RemoteView";
 import { Toaster } from "@/components/ui/sonner";
 import { useMediaPortSync } from "@/core/config/mediaPort";
 import { initSongGroupsSync } from "@/features/songs/songGroupsStore";
+import { useDesktopShortcuts } from "@/core/hooks/useDesktopShortcuts";
+import { showMainWindow } from "@/core/ipc/commands";
+import { isMainWindow } from "@/core/ipc/tauri";
 
 export default function App() {
   useMediaPortSync();
+  useDesktopShortcuts();
 
-  useEffect(() => initSongGroupsSync(), []);
+  useEffect(() => {
+    initSongGroupsSync();
+
+    if (isMainWindow()) {
+      // Revela a janela principal apenas quando estiver nela, eliminando o flash branco
+      // e sem roubar o foco de subjanelas (preferências, atalhos, editores).
+      showMainWindow().catch((err) => {
+        console.error("Falha ao revelar janela principal:", err);
+      });
+    }
+  }, []);
 
   return (
     <HashRouter>
@@ -28,8 +46,14 @@ export default function App() {
         <Route path="/public" element={<PublicView />} />
         <Route path="/stage" element={<StageView />} />
         <Route path="/stream" element={<StreamView />} />
+        <Route path="/lower" element={<StreamView />} />
         <Route path="/theme-editor" element={<ThemeEditorView />} />
         <Route path="/song-editor" element={<SongEditorView />} />
+        <Route path="/communication" element={<CommunicationView />} />
+        <Route path="/displays" element={<DisplaysView />} />
+        <Route path="/identify" element={<IdentifyOverlayView />} />
+        <Route path="/output/:slug" element={<DynamicOutputView />} />
+        <Route path="/output" element={<DynamicOutputView />} />
         <Route path="/remote" element={<RemoteView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

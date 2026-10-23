@@ -1,6 +1,8 @@
 use std::sync::{Arc, RwLock};
 
-use super::types::{now_millis, LiveSlide, LiveThemes, StageTimer};
+use super::types::{
+    now_millis, CommunicationAlert, LiveOutputPlans, LiveSlide, StageTimer,
+};
 
 fn blank_slide() -> LiveSlide {
     serde_json::from_value(serde_json::json!({
@@ -14,6 +16,7 @@ fn blank_slide() -> LiveSlide {
         "background": { "id": "bg-default", "kind": "color", "value": "#000000" },
         "blackout": false,
         "cleared": true,
+        "textHidden": false,
         "updatedAt": "1970-01-01T00:00:00.000Z"
     }))
     .expect("blank slide JSON é válido")
@@ -22,18 +25,20 @@ fn blank_slide() -> LiveSlide {
 #[derive(Debug, Clone)]
 pub struct PresentationState {
     live: Arc<RwLock<LiveSlide>>,
-    themes: Arc<RwLock<LiveThemes>>,
     timer: Arc<RwLock<StageTimer>>,
     wallpaper: Arc<RwLock<Option<String>>>,
+    stage_message: Arc<RwLock<Option<CommunicationAlert>>>,
+    output_plans: Arc<RwLock<LiveOutputPlans>>,
 }
 
 impl Default for PresentationState {
     fn default() -> Self {
         Self {
             live: Arc::new(RwLock::new(blank_slide())),
-            themes: Arc::new(RwLock::new(LiveThemes::default())),
             timer: Arc::new(RwLock::new(StageTimer::default())),
             wallpaper: Arc::new(RwLock::new(None)),
+            stage_message: Arc::new(RwLock::new(None)),
+            output_plans: Arc::new(RwLock::new(LiveOutputPlans::default())),
         }
     }
 }
@@ -52,19 +57,6 @@ impl PresentationState {
     pub fn set_blackout(&self, blackout: bool) {
         if let Ok(mut guard) = self.live.write() {
             guard.blackout = blackout;
-        }
-    }
-
-    pub fn themes(&self) -> LiveThemes {
-        self.themes
-            .read()
-            .map(|t| t.clone())
-            .unwrap_or_default()
-    }
-
-    pub fn set_themes(&self, themes: LiveThemes) {
-        if let Ok(mut guard) = self.themes.write() {
-            *guard = themes;
         }
     }
 
@@ -105,44 +97,53 @@ impl PresentationState {
             *guard = wallpaper;
         }
     }
+
+    pub fn stage_message(&self) -> Option<CommunicationAlert> {
+        self.stage_message.read().ok().and_then(|m| m.clone())
+    }
+
+    pub fn set_stage_message(&self, message: Option<CommunicationAlert>) {
+        if let Ok(mut guard) = self.stage_message.write() {
+            *guard = message;
+        }
+    }
+
+    pub fn output_plans(&self) -> LiveOutputPlans {
+        self.output_plans
+            .read()
+            .map(|p| p.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn set_output_plans(&self, plans: LiveOutputPlans) {
+        if let Ok(mut guard) = self.output_plans.write() {
+            *guard = plans;
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::types::{SlideTheme, StageTimer};
+    use crate::state::types::StageTimer;
 
-    fn theme(guid: &str) -> SlideTheme {
-        serde_json::from_value(serde_json::json!({
-            "guid": guid,
-            "title": "Tema de teste",
-            "css": { "background": "#000" },
-            "elements": [],
+    #[test]
+    fn live_slide_sem_text_hidden_no_json_usa_false() {
+        let live: LiveSlide = serde_json::from_value(serde_json::json!({
+            "content": {
+                "id": "x",
+                "kind": "lyric",
+                "title": "T",
+                "lines": ["L"],
+                "notes": null
+            },
+            "background": { "id": "bg", "kind": "color", "value": "#000" },
+            "blackout": false,
+            "cleared": false,
+            "updatedAt": "0"
         }))
-        .expect("tema JSON válido")
-    }
-
-    #[test]
-    fn temas_comecam_vazios() {
-        let state = PresentationState::default();
-        let themes = state.themes();
-        assert!(themes.public.is_none());
-        assert!(themes.stage.is_none());
-        assert!(themes.stream.is_none());
-    }
-
-    #[test]
-    fn guarda_e_le_temas() {
-        let state = PresentationState::default();
-        state.set_themes(LiveThemes {
-            public: Some(theme("pub")),
-            stage: Some(theme("stg")),
-            stream: Some(theme("stm")),
-        });
-        let themes = state.themes();
-        assert_eq!(themes.public.as_ref().map(|t| t.guid.as_str()), Some("pub"));
-        assert_eq!(themes.stage.as_ref().map(|t| t.guid.as_str()), Some("stg"));
-        assert_eq!(themes.stream.as_ref().map(|t| t.guid.as_str()), Some("stm"));
+        .unwrap();
+        assert!(!live.text_hidden);
     }
 
     #[test]
@@ -201,5 +202,87 @@ mod tests {
         let timer = state.timer();
         assert!(!timer.running);
         assert_eq!(timer.elapsed_secs, 0);
+    }
+
+    #[test]
+    fn planos_comecam_vazios() {
+        let state = PresentationState::default();
+        assert!(state.output_plans().plans.is_empty());
+    }
+
+    #[test]
+    fn output_plan_round_trip_serde() {
+        use crate::state::types::{
+            LiveOutputPlans, OutputLook, OutputPlan, PlanThemeSource, ScreenColorConfig,
+        };
+
+        let plan = OutputPlan {
+            output_id: "out-1".to_string(),
+            category: crate::state::types::OutputCategory::Public,
+            theme: None,
+            theme_source: PlanThemeSource::Default,
+            content_theme: None,
+            rest_theme: None,
+            look: OutputLook {
+                mask: false,
+                messages: true,
+                props: true,
+                announcements: true,
+                slide: true,
+                media: true,
+                video_input: true,
+                screen_color: true,
+            },
+            background_override: None,
+            screen_color: ScreenColorConfig {
+                enabled: true,
+                value: "#000000".to_string(),
+            },
+            updated_at: "2026-01-01T00:00:00.000Z".to_string(),
+        };
+
+        let mut plans = LiveOutputPlans::default();
+        plans.plans.insert("out-1".to_string(), plan.clone());
+        let json = serde_json::to_string(&plans).unwrap();
+        assert!(json.contains("\"videoInput\":true"));
+        assert!(json.contains("\"themeSource\":\"default\""));
+        let back: LiveOutputPlans = serde_json::from_str(&json).unwrap();
+        let back_plan = back.plans.get("out-1").expect("plano presente");
+        assert_eq!(
+            serde_json::to_value(back_plan).unwrap(),
+            serde_json::to_value(&plan).unwrap()
+        );
+    }
+
+    #[test]
+    fn tema_antigo_sem_layer_e_output_sem_look_abrem() {
+        use crate::state::types::{DisplayOutput, SlideTheme};
+
+        let theme: SlideTheme = serde_json::from_value(serde_json::json!({
+            "guid": "t",
+            "title": "T",
+            "css": {},
+            "elements": [{ "id": "e", "type": "TEXT", "x": 0, "y": 0, "visible": true, "locked": false, "css": {} }],
+        }))
+        .unwrap();
+        assert_eq!(theme.elements[0].layer, None);
+
+        let output: DisplayOutput = serde_json::from_value(serde_json::json!({
+            "id": "o",
+            "name": "O",
+            "category": "public",
+            "type": "monitor",
+            "enabled": true,
+            "resolution": { "width": 1920, "height": 1080 },
+            "aspectRatio": "16:9",
+            "backgroundColor": "#000",
+            "backgroundColorEnabled": true,
+            "frameRate": 60,
+            "videoDelayFrames": 0,
+            "alphaKey": false
+        }))
+        .unwrap();
+        assert!(output.look.is_none());
+        assert!(output.idle_theme_guid.is_none());
     }
 }

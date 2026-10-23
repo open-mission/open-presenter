@@ -42,6 +42,7 @@ pub fn save_theme(conn: &Connection, theme: &SlideTheme) -> Result<(), AppError>
             return Err(AppError::Storage("tema deve ter ao menos uma página".into()));
         }
         let is_stage = theme.category.as_deref() == Some("stage");
+        let is_presentation = theme.category.as_deref() == Some("presentation");
         let mut contextos = std::collections::HashSet::new();
         for page in pages {
             if !["rest", "music", "bible", "text"].contains(&page.context.as_str()) {
@@ -55,7 +56,7 @@ pub fn save_theme(conn: &Connection, theme: &SlideTheme) -> Result<(), AppError>
                     "contexto 'rest' é exclusivo de temas de palco".into(),
                 ));
             }
-            if !contextos.insert(page.context.as_str()) {
+            if !is_presentation && !contextos.insert(page.context.as_str()) {
                 return Err(AppError::Storage(format!(
                     "contexto de página duplicado: {}",
                     page.context
@@ -108,6 +109,7 @@ mod tests {
             url: None,
             group_id: None,
             group_name: None,
+            layer: None,
         }
     }
 
@@ -121,6 +123,7 @@ mod tests {
             category: None,
             created_at: None,
             updated_at: None,
+            guides: None,
         }
     }
 
@@ -128,8 +131,10 @@ mod tests {
         ThemePage {
             id: format!("page-{context}"),
             context: context.into(),
+            name: None,
             css: HashMap::new(),
             elements: vec![elemento("e1")],
+            guides: None,
         }
     }
 
@@ -217,6 +222,7 @@ mod tests {
             category: None,
             created_at: None,
             updated_at: None,
+            guides: None,
         };
         assert!(save_theme(&conn, &vazio).is_err());
     }
@@ -248,5 +254,31 @@ mod tests {
         let temas = list_themes(&conn).unwrap();
         assert_eq!(temas.len(), 1);
         assert_eq!(temas[0].guid, "g1");
+    }
+
+    #[test]
+    fn save_apresentacao_com_multiplas_paginas_contexto_text() {
+        let conn = open_in_memory();
+        let page1 = crate::state::types::ThemePage {
+            id: "p1".into(),
+            context: "text".into(),
+            name: Some("Slide 1".into()),
+            css: HashMap::new(),
+            elements: vec![],
+            guides: None,
+        };
+        let page2 = crate::state::types::ThemePage {
+            id: "p2".into(),
+            context: "text".into(),
+            name: Some("Slide 2".into()),
+            css: HashMap::new(),
+            elements: vec![],
+            guides: None,
+        };
+        let mut pres = tema("pres-1", "Apresentação de Slides");
+        pres.category = Some("presentation".into());
+        pres.pages = Some(vec![page1, page2]);
+        pres.elements = vec![];
+        assert!(save_theme(&conn, &pres).is_ok());
     }
 }

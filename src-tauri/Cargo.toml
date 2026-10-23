@@ -1,6 +1,6 @@
 [package]
 name = "open-presenter"
-version = "0.3.8"
+version = "0.3.9"
 description = "Software desktop open source e leve para apresentação em igrejas e eventos"
 edition = "2021"
 rust-version = "1.90.0"
@@ -28,6 +28,8 @@ rust-embed = "8.12.0"
 mime_guess = "2.0.4"
 futures-util = "0.3.34"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
+flate2 = "1.1.10"
+ring = "0.17.14"
 thiserror = "2.0.21"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

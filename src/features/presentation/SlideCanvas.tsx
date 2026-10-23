@@ -9,11 +9,13 @@ export function SlideCanvas({
   lineClassName,
   showTitle = false,
   showBackground = true,
+  hideText = false,
 }: {
   slide: LiveSlide;
   lineClassName?: string;
   showTitle?: boolean;
   showBackground?: boolean;
+  hideText?: boolean;
 }) {
   if (slide.blackout) {
     return <div className="h-full w-full bg-black" />;
@@ -43,7 +45,7 @@ export function SlideCanvas({
       )}
     >
       {showBackground && <BackgroundRenderer background={slide.background} />}
-      {!slide.cleared && slide.content.kind !== "blank" && (
+      {!slide.cleared && !hideText && slide.content.kind !== "blank" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center p-[4cqw] text-center">
           {shouldRenderTitle && (
             <p className="text-[2.2cqw] font-semibold uppercase tracking-[0.25em] text-white/70 mb-[1.5cqw]">

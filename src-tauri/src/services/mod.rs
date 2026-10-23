@@ -1,11 +1,14 @@
 pub mod bible;
 pub mod broadcaster;
+pub mod crypto_utils;
 pub mod database;
 pub mod display_manager;
 pub mod holyrics;
+pub mod holyrics_online;
 pub mod import;
 pub mod lrclib;
 pub mod lyrics;
+pub mod lyrics_search;
 pub mod media_library;
 pub mod ndi;
 pub mod setlists;
@@ -16,5 +19,7 @@ pub mod theme_template;
 pub mod theme_media;
 pub mod themes;
 pub mod tray;
+pub mod vagalume;
+pub mod window_state;
 
 pub use broadcaster::{Broadcaster, SharedBroadcaster};

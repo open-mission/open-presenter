@@ -133,8 +133,45 @@ pub fn run() {
                 .select_all()
                 .build()?;
 
+            let next_slide_item = MenuItemBuilder::with_id("presentation-next", "Próximo Slide")
+                .accelerator("Right")
+                .build(app)?;
+
+            let prev_slide_item = MenuItemBuilder::with_id("presentation-prev", "Slide Anterior")
+                .accelerator("Left")
+                .build(app)?;
+
+            let blackout_item = MenuItemBuilder::with_id("presentation-blackout", "Tela Preta (Blackout)")
+                .accelerator("CmdOrCtrl+B")
+                .build(app)?;
+
+            let clear_item = MenuItemBuilder::with_id("presentation-clear", "Limpar Texto")
+                .accelerator("CmdOrCtrl+Shift+L")
+                .build(app)?;
+
+            #[cfg(target_os = "macos")]
+            let fullscreen_accelerator = "Ctrl+Cmd+F";
+            #[cfg(not(target_os = "macos"))]
+            let fullscreen_accelerator = "F11";
+
+            let fullscreen_item = MenuItemBuilder::with_id("toggle-fullscreen", "Tela Cheia")
+                .accelerator(fullscreen_accelerator)
+                .build(app)?;
+
+            let presentation_menu = SubmenuBuilder::new(app, "Apresentação")
+                .item(&next_slide_item)
+                .item(&prev_slide_item)
+                .separator()
+                .item(&blackout_item)
+                .item(&clear_item)
+                .build()?;
+
+            let window_menu = SubmenuBuilder::new(app, "Janela")
+                .item(&fullscreen_item)
+                .build()?;
+
             let menu = MenuBuilder::new(app)
-                .items(&[&app_menu, &file_menu, &edit_menu, &help_menu])
+                .items(&[&app_menu, &file_menu, &edit_menu, &presentation_menu, &window_menu, &help_menu])
                 .build()?;
 
             app.set_menu(menu)?;
@@ -163,6 +200,24 @@ pub fn run() {
                     }
                     "import-holyrics" => {
                         let _ = app_handle.emit("import-holyrics", ());
+                    }
+                    "presentation-next" => {
+                        let _ = app_handle.emit("presentation-next", ());
+                    }
+                    "presentation-prev" => {
+                        let _ = app_handle.emit("presentation-prev", ());
+                    }
+                    "presentation-blackout" => {
+                        let _ = app_handle.emit("presentation-blackout", ());
+                    }
+                    "presentation-clear" => {
+                        let _ = app_handle.emit("presentation-clear", ());
+                    }
+                    "toggle-fullscreen" => {
+                        let handle = app_handle.clone();
+                        tauri::async_runtime::spawn(async move {
+                            let _ = crate::commands::presentation::toggle_fullscreen(handle).await;
+                        });
                     }
                     "quit-app" => {
                         let app = app_handle.clone();
@@ -241,6 +296,34 @@ pub fn run() {
             let db = database::Db::new(conn);
             app.manage(db.clone());
 
+            // Carrega e hidrata o evento ativo configurado no SQLite (se houver),
+            // tornando o motor de apresentação e a API imediatamente funcionais
+            // mesmo sem abrir o painel de controle (modo autônomo / headless).
+            let _ = db.with_conn(|conn| {
+                crate::services::setlists::reload_active_event(
+                    conn,
+                    Some(&handle),
+                    &remote_state,
+                    &broadcaster,
+                )
+            });
+
+            if let Some(window) = app.get_webview_window("main") {
+                crate::services::window_state::apply_startup_geometry(&window);
+            }
+
+            let timeout_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+                if let Some(window) = timeout_handle.get_webview_window("main") {
+                    if !window.is_visible().unwrap_or(false) {
+                        crate::services::window_state::apply_startup_geometry(&window);
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+            });
+
             let media_dir = crate::services::theme_media::media_base_dir(&handle)
                 .unwrap_or_else(|_| std::path::PathBuf::from("theme-media"));
             let clients: crate::server::Clients = std::sync::Arc::new(
@@ -295,6 +378,8 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::presentation::show_main_window,
+            commands::presentation::toggle_fullscreen,
             commands::presentation::list_monitors,
             commands::presentation::open_output_window,
             commands::presentation::close_output_window,
@@ -302,12 +387,27 @@ pub fn run() {
             commands::presentation::close_preferences_window,
             commands::presentation::open_shortcuts_window,
             commands::presentation::close_shortcuts_window,
+            commands::presentation::open_communication_window,
+            commands::presentation::close_communication_window,
+            commands::presentation::open_displays_window,
+            commands::presentation::close_displays_window,
             commands::presentation::open_theme_editor,
+            commands::presentation::close_theme_editor,
+            commands::presentation::send_stage_message,
+            commands::presentation::clear_stage_message,
+            commands::presentation::get_stage_message,
             commands::outputs::get_output_config,
             commands::outputs::set_output_config,
             commands::outputs::get_public_wallpaper,
             commands::outputs::set_public_wallpaper,
             commands::outputs::get_outputs_state,
+            commands::outputs::get_display_outputs,
+            commands::outputs::save_display_outputs,
+            commands::outputs::get_displays_settings,
+            commands::outputs::save_displays_settings,
+            commands::outputs::identify_displays,
+            commands::outputs::open_native_output,
+            commands::outputs::close_native_output,
             commands::ndi::get_ndi_status,
             commands::ndi::set_ndi_active,
             commands::server::get_server_status,
@@ -318,11 +418,13 @@ pub fn run() {
             commands::server::get_remote_clients,
             commands::preferences::get_close_to_tray,
             commands::preferences::set_close_to_tray,
+            commands::preferences::get_start_maximized,
+            commands::preferences::set_start_maximized,
             commands::presentation::go_live,
             commands::presentation::set_blackout,
             commands::presentation::get_live_slide,
-            commands::presentation::set_live_themes,
-            commands::presentation::get_live_themes,
+            commands::presentation::set_live_output_plans,
+            commands::presentation::get_live_output_plans,
             commands::presentation::timer_start,
             commands::presentation::timer_pause,
             commands::presentation::timer_reset,
@@ -335,6 +437,8 @@ pub fn run() {
             commands::setlists::create_event,
             commands::setlists::save_event,
             commands::setlists::delete_event,
+            commands::setlists::get_active_event_id,
+            commands::setlists::set_active_event_id,
             commands::songs::list_songs,
             commands::songs::get_song,
             commands::songs::save_song,
@@ -372,8 +476,16 @@ pub fn run() {
             commands::bible::delete_bible,
         ])
         .on_window_event(|window, event| {
+            if matches!(
+                event,
+                tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_)
+            ) {
+                crate::services::window_state::save_geometry(window);
+                return;
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
+                    crate::services::window_state::save_geometry(window);
                     api.prevent_close();
                     let app = window.app_handle().clone();
                     if crate::commands::preferences::close_to_tray(&app)

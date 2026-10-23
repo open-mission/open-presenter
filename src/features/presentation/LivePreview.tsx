@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import {
   Eye,
   EyeOff,
@@ -12,7 +12,10 @@ import {
   Settings,
   SlidersHorizontal,
   Tv,
+  Video,
 } from "lucide-react";
+import { useDisplaysStore } from "@/features/displays/store";
+import { OutputPlaceholder } from "@/features/displays/components/OutputPlaceholder";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,12 +33,12 @@ import {
 import { kindToAsset } from "@/core/types";
 import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
-import { usePreferencesStore } from "@/features/preferences/store";
+import { openDisplaysWindow } from "@/core/ipc/commands";
+import { isTauri } from "@/core/ipc/tauri";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
-import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
-import { contextForSlide } from "@/features/slide-themes/themeResolution";
+import { usePublicThemeResolver } from "@/features/slide-themes/usePublicThemeResolver";
 import { usePresentationStore } from "./store";
 import { SlideCanvas } from "./SlideCanvas";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
@@ -44,24 +47,33 @@ import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 import { SlideTransition } from "./SlideTransition";
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
 import { StageTimerControls } from "@/features/stage-display/StageTimerControls";
+import { DEFAULT_STREAM_THEME } from "@/features/slide-themes/seedThemes";
+import { contextForSlide } from "@/features/slide-themes/themeResolution";
+import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
+import {
+  StageAlertBanner,
+  StageAlertOverlay,
+  useCommunicationStore,
+} from "@/features/communication";
 import { useWallpaperStore } from "./wallpaperStore";
 import { usePreviewLayoutStore } from "./previewLayoutStore";
 import { wallpaperToBackground } from "./wallpaper";
 import type { BackgroundLayer, LiveSlide } from "@/core/types";
+import { filterThemeForLook, resolveOutputLook } from "@/features/slide-themes/layers";
+import { useOutputOverridesStore } from "@/features/slide-themes/outputOverridesStore";
+import { handleAssetDragOver, handleAssetDrop } from "@/features/media-library/dnd";
 
 export function LivePreview() {
   const live = usePresentationStore((s) => s.live);
   const preview = usePresentationStore((s) => s.preview);
   const wallpaper = useWallpaperStore((s) => s.wallpaper);
+  const activeAlert = useCommunicationStore((s) => s.activeAlert);
   const stageConfig = useOutputManagerStore((s) => s.configs.stage);
   const stageRuntime = useOutputManagerStore((s) => s.runtime.stage);
   const serverRunning = useOutputManagerStore((s) => s.server.running);
-  const openPreferences = usePreferencesStore((s) => s.openPreferences);
   const loadThemes = useSlideThemesStore((s) => s.load);
-  const themes = useSlideThemesStore((s) => s.themes);
-  const bindings = useSlideThemesStore((s) => s.bindings);
-  const eventThemeGuid = useSlideThemesStore((s) => s.eventThemeGuid);
-  const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
+  const allThemes = useSlideThemesStore((s) => s.themes);
+  const resolvePublicTheme = usePublicThemeResolver();
 
   // Layout & Visibility store (persistente)
   const showPreview = usePreviewLayoutStore((s) => s.showPreview);
@@ -76,51 +88,41 @@ export function LivePreview() {
   const zoomOut = usePreviewLayoutStore((s) => s.zoomOut);
   const resetZoom = usePreviewLayoutStore((s) => s.resetZoom);
   const showAll = usePreviewLayoutStore((s) => s.showAll);
+  const hiddenOutputIds = usePreviewLayoutStore((s) => s.hiddenOutputIds);
+  const toggleOutputVisibility = usePreviewLayoutStore((s) => s.toggleOutputVisibility);
+  const isOutputVisible = (id: string) => !hiddenOutputIds.includes(id);
+  const configuredOutputs = useDisplaysStore((s) => s.outputs);
+  const selectedOutputId = useDisplaysStore((s) => s.selectedOutputId);
+  const outputOverrides = useOutputOverridesStore((s) => s.overrides);
 
-  const previewContext = preview
-    ? contextForSlide(preview.kind, preview.media?.kind) ?? "music"
-    : "music";
-  const liveContext =
-    contextForSlide(live.content.kind, live.content.media?.kind) ?? "music";
+  const previewOutput = useMemo(() => {
+    const publics = configuredOutputs.filter((output) => output.category === "public");
+    return (
+      publics.find((output) => output.id === selectedOutputId) ??
+      publics.find((output) => output.enabled) ??
+      publics[0] ??
+      null
+    );
+  }, [configuredOutputs, selectedOutputId]);
+  const previewOverride = previewOutput
+    ? (outputOverrides[previewOutput.id]?.background ?? null)
+    : null;
 
-  const previewTheme = useMemo(() => {
-    if (!preview) return null;
-    let base = preview.media?.themeId
-      ? themes.find((t) => t.guid === preview.media?.themeId) ?? null
-      : null;
-    if (!base) {
-      base = resolveTheme(
-        "public",
-        preview.kind,
-        preview.media?.themeId,
-        preview.media?.kind,
-      );
-    }
-    if (base?.pages?.length) {
-      const page = getPageForContext(base, previewContext) ?? base.pages[0];
-      return page ? materializePage(base, page) : base;
-    }
-    return base;
-  }, [preview, previewContext, themes, bindings, eventThemeGuid, resolveTheme]);
+  const previewTheme = useMemo(
+    () => resolvePublicTheme(preview),
+    [preview, resolvePublicTheme],
+  );
+  const liveTheme = useMemo(
+    () => resolvePublicTheme(live.content),
+    [live.content, resolvePublicTheme],
+  );
 
-  const liveTheme = useMemo(() => {
-    let base = live.content.media?.themeId
-      ? themes.find((t) => t.guid === live.content.media?.themeId) ?? null
-      : null;
-    if (!base) {
-      base = resolveTheme(
-        "public",
-        live.content.kind,
-        live.content.media?.themeId,
-        live.content.media?.kind,
-      );
-    }
-    if (base?.pages?.length) {
-      const page = getPageForContext(base, liveContext) ?? base.pages[0];
-      return page ? materializePage(base, page) : base;
-    }
-    return base;
-  }, [live.content, liveContext, themes, bindings, eventThemeGuid, resolveTheme]);
+  const isPublicAlertTargeted = Boolean(
+    activeAlert &&
+      (activeAlert.targets?.length
+        ? activeAlert.targets.includes("public")
+        : activeAlert.target === "public"),
+  );
 
   const effectiveBackground: BackgroundLayer = useMemo(() => {
     const isPresentation = Boolean(live.content.media?.themeId);
@@ -179,6 +181,7 @@ export function LivePreview() {
         background: live.background,
         blackout: false,
         cleared: false,
+        textHidden: false,
         updatedAt: live.updatedAt,
       }
     : null;
@@ -190,111 +193,454 @@ export function LivePreview() {
 
   // Determine if nothing is showing on the Live Public display
   const isLiveEmpty = live.cleared || live.content.kind === "blank";
-  const allHidden = !showPreview && !showLive && !showStage;
+  const allHidden =
+    configuredOutputs.length > 0
+      ? !showPreview && configuredOutputs.every((o) => !isOutputVisible(o.id))
+      : !showPreview && !showLive && !showStage;
 
-  return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-background">
-      {/* Barra de Ferramentas dos Monitores de Prévia */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-muted/20 px-3">
+  const previewCard = (
+    <div key="preview" className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-foreground mr-1 hidden sm:inline">
-            Monitores
+          <Eye className="size-3.5 text-primary" />
+          <span className="font-semibold text-xs text-foreground">
+            Preview
           </span>
-
-          {/* Botões rápidos para alternar visibilidade de cada monitor */}
-          <Button
-            variant={showPreview ? "secondary" : "ghost"}
-            size="sm"
-            onClick={togglePreview}
-            className={`h-7 px-2 text-xs gap-1.5 cursor-pointer ${
-              !showPreview ? "text-muted-foreground/60" : ""
-            }`}
-            title={showPreview ? "Ocultar monitor de Prévia" : "Exibir monitor de Prévia"}
+          <Badge
+            variant="secondary"
+            className="h-4 px-1.5 text-[9px] font-medium text-muted-foreground"
           >
-            {showPreview ? (
-              <Eye className="size-3.5 text-primary" />
-            ) : (
-              <EyeOff className="size-3.5" />
-            )}
-            <span className="hidden md:inline">Prévia</span>
-          </Button>
-
-          <Button
-            variant={showLive ? "secondary" : "ghost"}
-            size="sm"
-            onClick={toggleLive}
-            className={`h-7 px-2 text-xs gap-1.5 cursor-pointer ${
-              !showLive ? "text-muted-foreground/60" : ""
-            }`}
-            title={showLive ? "Ocultar monitor Ao Vivo (Telão)" : "Exibir monitor Ao Vivo (Telão)"}
-          >
-            <Tv
-              className={`size-3.5 ${
-                showLive ? "text-emerald-500" : "text-muted-foreground"
-              }`}
-            />
-            <span className="hidden md:inline">Ao Vivo</span>
-          </Button>
-
-          <Button
-            variant={showStage ? "secondary" : "ghost"}
-            size="sm"
-            onClick={toggleStage}
-            className={`h-7 px-2 text-xs gap-1.5 cursor-pointer ${
-              !showStage ? "text-muted-foreground/60" : ""
-            }`}
-            title={showStage ? "Ocultar monitor de Retorno (Palco)" : "Exibir monitor de Retorno (Palco)"}
-          >
-            <Monitor
-              className={`size-3.5 ${
-                showStage ? "text-sky-500" : "text-muted-foreground"
-              }`}
-            />
-            <span className="hidden md:inline">Retorno</span>
-          </Button>
+            Prévia
+          </Badge>
         </div>
 
-        {/* Controles de Zoom (+ e - para redimensionar os monitores) */}
-        <div className="flex items-center gap-1">
-          <div className="flex items-center rounded-md border border-border/60 bg-muted/40 p-0.5 gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={zoomOut}
-              disabled={zoom <= 50}
-              className="size-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30"
-              title="Diminuir tamanho dos monitores (-)"
-            >
-              <Minus className="size-3" />
-            </Button>
+        {preview && (
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            className="h-6 gap-1 px-2 text-[10px] font-semibold shadow-2xs cursor-pointer"
+            onClick={handlePresentPreview}
+            title="Apresentar este slide no telão ao vivo (Enter)"
+          >
+            <Play className="size-2.5 fill-current" />
+            Apresentar
+          </Button>
+        )}
+      </div>
 
-            <button
-              type="button"
-              onClick={resetZoom}
-              className="text-[10px] font-mono font-medium px-1.5 text-muted-foreground hover:text-foreground cursor-pointer tabular-nums select-none"
-              title="Clique para redefinir o zoom para 100%"
-            >
-              {zoom}%
-            </button>
-
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={zoomIn}
-              disabled={zoom >= 150}
-              className="size-6 rounded-sm text-muted-foreground hover:text-foreground cursor-pointer disabled:opacity-30"
-              title="Aumentar tamanho dos monitores (+)"
-            >
-              <Plus className="size-3" />
-            </Button>
+      {/* 16:9 Canvas */}
+      <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
+        {previewSlide ? (
+          (() => {
+            const asset = kindToAsset(previewSlide.content.kind);
+            if (previewTheme && asset) {
+              return (
+                <>
+                  <BackgroundRenderer
+                    background={previewSlide.background}
+                  />
+                  <ScaledStage
+                    theme={previewTheme}
+                    asset={asset}
+                    props={buildProps(
+                      previewSlide.content.kind,
+                      previewSlide.content,
+                      null,
+                    )}
+                  />
+                </>
+              );
+            }
+            return <SlideCanvas slide={previewSlide} />;
+          })()
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground select-none">
+            <Eye className="size-6 text-muted-foreground/40" />
+            <p className="text-xs font-semibold text-foreground/80">
+              Prévia Vazia
+            </p>
+            <p className="text-[10px] max-w-[200px] text-muted-foreground/80">
+              Clique em uma estrofe da música para carregar a prévia aqui.
+            </p>
           </div>
+        )}
+      </div>
+
+      {/* Subtitle / Staged Info */}
+      <div className="flex h-5 items-center justify-between px-0.5 text-[10px] text-muted-foreground">
+        <span className="truncate">
+          {preview
+            ? `${preview.title}${preview.section ? ` · ${preview.section}` : ""}`
+            : "Aguardando seleção"}
+        </span>
+        {preview && (
+          <span className="tabular-nums font-mono text-[9px] text-primary shrink-0">
+            Pronto para projetar
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
+  const liveCard = (
+    <div key="live" className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Tv className="size-3.5 text-emerald-500" />
+          <span className="font-semibold text-xs text-foreground">
+            Ao Vivo
+          </span>
+          <span className="text-[10px] text-muted-foreground">(Telão)</span>
+        </div>
+
+        <div>
+          {live.blackout ? (
+            <Badge
+              variant="destructive"
+              className="h-4 gap-1 px-1.5 text-[9px] font-semibold animate-pulse"
+            >
+              Blackout
+            </Badge>
+          ) : live.cleared && !isLiveEmpty ? (
+            <Badge
+              variant="secondary"
+              className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-amber-500/15 text-amber-500 border-amber-500/30"
+            >
+              Fundo Ativo
+            </Badge>
+          ) : isLiveEmpty ? (
+            <Badge
+              variant="outline"
+              className="h-4 px-1.5 text-[9px] text-muted-foreground"
+            >
+              Telão Livre
+            </Badge>
+          ) : (
+            <Badge
+              variant="default"
+              className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-emerald-600 hover:bg-emerald-600 text-white animate-pulse"
+            >
+              <Radio className="size-2.5" />
+              No Ar
+            </Badge>
+          )}
         </div>
       </div>
 
+      {/* 16:9 Canvas or Placeholder */}
+      <div
+        className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner"
+        onDragOver={previewOutput ? handleAssetDragOver : undefined}
+        onDrop={previewOutput ? (event) => handleAssetDrop(event, previewOutput) : undefined}
+      >
+        {isLiveEmpty && !live.blackout ? (
+          wallpaper ? (
+            <div className="relative h-full w-full bg-black">
+              <BackgroundRenderer
+                background={wallpaperToBackground(wallpaper)}
+              />
+              <div className="absolute bottom-2 left-2 rounded bg-black/70 px-2 py-0.5 text-[9px] font-medium text-zinc-300 backdrop-blur-xs border border-white/10">
+                Papel de Parede Ativo
+              </div>
+            </div>
+          ) : (
+            /* Placeholder Ao Vivo quando não há nada transmitindo */
+            <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center select-none bg-zinc-950">
+              <div className="flex size-10 items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-500">
+                <Projector className="size-5" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-zinc-300">
+                  Placeholder Ao Vivo
+                </p>
+                <p className="mt-0.5 text-[10px] text-zinc-500">
+                  Telão desocupado · Nenhum conteúdo ao vivo
+                </p>
+              </div>
+            </div>
+          )
+        ) : (
+          <div className="relative h-full w-full">
+            <div
+              className="absolute inset-0 transition-opacity duration-300 ease-in-out"
+              style={{ opacity: live.cleared && wallpaper ? 0 : 1 }}
+            >
+              <PersistentBackground background={previewOverride ?? effectiveBackground} />
+            </div>
+            <div className="absolute inset-0">
+              <SlideTransition
+                slide={live}
+                theme={liveTheme}
+                asset={kindToAsset(live.content.kind)}
+                cleared={live.cleared}
+                textHidden={live.textHidden}
+                durationMs={300}
+                transitionBackground={false}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Blackout overlay badge indicator if blackout is active */}
+        {live.blackout && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+            <Badge
+              variant="destructive"
+              className="text-xs px-2.5 py-1 font-semibold animate-pulse"
+            >
+              Tela Preta (Blackout)
+            </Badge>
+          </div>
+        )}
+
+        {/* Mini Preview do Aviso no Telão Público (se ativo) */}
+        {isPublicAlertTargeted && activeAlert && activeAlert.displayMode === "banner_top" && (
+          <StageAlertBanner position="top" alert={activeAlert} compact />
+        )}
+        {isPublicAlertTargeted && activeAlert && activeAlert.displayMode === "banner_bottom" && (
+          <StageAlertBanner position="bottom" alert={activeAlert} compact />
+        )}
+        {isPublicAlertTargeted && activeAlert && activeAlert.displayMode === "overlay" && (
+          <StageAlertOverlay alert={activeAlert} compact />
+        )}
+      </div>
+
+      {/* Subtitle / Live Output Info */}
+      <div className="flex h-5 items-center justify-between px-0.5 text-[10px] text-muted-foreground">
+        <span className="truncate">
+          {live.blackout
+            ? "Saída escurecida"
+            : isLiveEmpty && wallpaper
+            ? "Papel de parede em exibição (tela desocupada)"
+            : live.cleared
+            ? "Plano de fundo em exibição (sem texto)"
+            : live.content.title}
+        </span>
+        {live.nextUp && !live.blackout && !live.cleared && (
+          <span className="truncate max-w-[140px] text-[9px] opacity-75">
+            Próx: {live.nextUp.lines[0] || live.nextUp.title}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
+  const stageCard = (
+    <div key="stage" className="flex flex-col gap-2 rounded-xl border border-sky-500/30 bg-card p-3 shadow-2xs">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Monitor className="size-3.5 text-sky-500" />
+          <span className="font-semibold text-xs text-foreground">
+            Stage
+          </span>
+          <span className="text-[10px] text-muted-foreground">
+            (Retorno)
+          </span>
+        </div>
+
+        <Badge
+          variant="secondary"
+          className="h-4 px-1.5 text-[9px] font-semibold bg-sky-500/15 text-sky-500 border-sky-500/30 cursor-pointer"
+          onClick={() => {
+            if (isTauri()) void openDisplaysWindow();
+            else window.open("#/displays", "_blank");
+          }}
+          title="Clique para configurar a Tela de Retorno"
+        >
+          {stageActive
+            ? stageConfig.mode === "native"
+              ? "Nativo"
+              : stageConfig.mode === "web"
+              ? "Web"
+              : "Nativo + Web"
+            : "Prévia"}
+        </Badge>
+      </div>
+
+      {/* 16:9 Mini Stage Canvas */}
+      <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-black shadow-inner">
+        <StageMiniPreview />
+      </div>
+
+      {/* Stage Stopwatch Controls (operator panel) */}
+      <StageTimerControls />
+
+      {/* Subtitle */}
+      <div className="flex h-5 items-center justify-between px-0.5 text-[10px] text-muted-foreground">
+        <span className="truncate">Retorno dos músicos no palco</span>
+        <button
+          type="button"
+          onClick={() => {
+            if (isTauri()) void openDisplaysWindow();
+            else window.open("#/displays", "_blank");
+          }}
+          className="text-[9px] text-sky-500 hover:underline cursor-pointer"
+        >
+          Configurar
+        </button>
+      </div>
+    </div>
+  );
+
+  const visibleCards: ReactNode[] = [];
+  if (showPreview) visibleCards.push(previewCard);
+
+  if (configuredOutputs.length > 0) {
+    for (const out of configuredOutputs) {
+      if (!isOutputVisible(out.id)) continue;
+      const outputLook = resolveOutputLook(out);
+      const overrideBackground = outputOverrides[out.id]?.background ?? null;
+
+      if (out.category === "stage") {
+        visibleCards.push(
+          <div
+            key={out.id}
+            className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs"
+            onDragOver={handleAssetDragOver}
+            onDrop={(event) => handleAssetDrop(event, out)}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Monitor className="size-3.5 text-sky-400 shrink-0" />
+                <span className="font-semibold text-xs text-foreground truncate">{out.name}</span>
+                <span className="text-[10px] text-muted-foreground font-mono">({out.resolution.width}x{out.resolution.height})</span>
+              </div>
+              <Badge variant="outline" className="text-[9px] h-4 px-1 text-sky-400 border-sky-400/30">
+                {out.type.toUpperCase()}
+              </Badge>
+            </div>
+            <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-black shadow-inner">
+              <StageMiniPreview outputId={out.id} />
+            </div>
+            <StageTimerControls />
+          </div>
+        );
+      } else if (out.category === "lower") {
+        const lowerRawTheme =
+          (out.defaultThemeGuid ? allThemes.find((t) => t.guid === out.defaultThemeGuid) : null) ??
+          allThemes.find((t) => t.category === "stream") ??
+          DEFAULT_STREAM_THEME;
+        const lowerContext = contextForSlide(live.content.kind, live.content.media?.kind) ?? "music";
+        const lowerTheme = lowerRawTheme.pages?.length
+          ? (getPageForContext(lowerRawTheme, lowerContext)
+              ? materializePage(lowerRawTheme, getPageForContext(lowerRawTheme, lowerContext)!)
+              : lowerRawTheme)
+          : lowerRawTheme;
+
+        const isCustomBg =
+          out.backgroundColorEnabled &&
+          out.backgroundColor &&
+          out.backgroundColor !== "transparent";
+
+        visibleCards.push(
+          <div
+            key={out.id}
+            className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs"
+            onDragOver={handleAssetDragOver}
+            onDrop={(event) => handleAssetDrop(event, out)}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Video className="size-3.5 text-purple-400 shrink-0" />
+                <span className="font-semibold text-xs text-foreground truncate">{out.name}</span>
+                <span className="text-[10px] text-muted-foreground font-mono">({out.resolution.width}x{out.resolution.height})</span>
+              </div>
+              <Badge variant="outline" className="text-[9px] h-4 px-1 text-purple-400 border-purple-400/30">
+                LOWER THIRD
+              </Badge>
+            </div>
+            <div
+              className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner"
+              style={{
+                backgroundColor: isCustomBg ? out.backgroundColor : undefined,
+                backgroundImage: !isCustomBg
+                  ? "repeating-conic-gradient(#1f2937 0% 25%, #111827 0% 50%) 50% / 16px 16px"
+                  : undefined,
+              }}
+            >
+              <div className="absolute inset-0">
+                <SlideTransition
+                  slide={live}
+                  theme={filterThemeForLook(lowerTheme, outputLook)}
+                  asset={kindToAsset(live.content.kind)}
+                  cleared={live.cleared || !outputLook.slide}
+                  textHidden={live.textHidden}
+                  durationMs={300}
+                  transitionBackground={false}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      } else {
+        visibleCards.push(
+          <div
+            key={out.id}
+            className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs"
+            onDragOver={handleAssetDragOver}
+            onDrop={(event) => handleAssetDrop(event, out)}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <Tv className="size-3.5 text-emerald-400 shrink-0" />
+                <span className="font-semibold text-xs text-foreground truncate">{out.name}</span>
+                <span className="text-[10px] text-muted-foreground font-mono">({out.resolution.width}x{out.resolution.height})</span>
+              </div>
+              <Badge variant="outline" className="text-[9px] h-4 px-1 text-emerald-400 border-emerald-400/30">
+                {out.type.toUpperCase()}
+              </Badge>
+            </div>
+            <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
+              {isLiveEmpty && !live.blackout ? (
+                (out.placeholderEnabled ?? true) && out.placeholderType !== "none" ? (
+                  <div className="relative h-full w-full">
+                    <OutputPlaceholder output={out} />
+                  </div>
+                ) : wallpaper ? (
+                  <div className="relative h-full w-full bg-black">
+                    <BackgroundRenderer background={wallpaperToBackground(wallpaper)} />
+                  </div>
+                ) : (
+                  <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center select-none bg-zinc-950">
+                    <Projector className="size-5 text-zinc-500 mb-1" />
+                    <p className="text-xs font-semibold text-zinc-300">Telão Livre</p>
+                  </div>
+                )
+              ) : (
+                <div className="relative h-full w-full">
+                  <PersistentBackground background={overrideBackground ?? effectiveBackground} />
+                  <div className="absolute inset-0">
+                    <SlideTransition
+                      slide={live}
+                      theme={liveTheme ? filterThemeForLook(liveTheme, outputLook) : liveTheme}
+                      asset={kindToAsset(live.content.kind)}
+                      cleared={live.cleared || !outputLook.slide}
+                      textHidden={live.textHidden}
+                      durationMs={300}
+                      transitionBackground={false}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+    }
+  } else {
+    if (showLive) visibleCards.push(liveCard);
+    if (showStage) visibleCards.push(stageCard);
+  }
+
+  const visibleCount = visibleCards.length;
+
+  return (
+    <div className="flex h-full w-full flex-col overflow-hidden bg-background">
       {/* Área dos Monitores com Menu de Contexto no Botão Direito */}
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 select-none [scrollbar-gutter:stable]">
+          <div className="@container flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 select-none [scrollbar-gutter:stable]">
             {allHidden ? (
               <div className="flex h-full min-h-[300px] flex-col items-center justify-center p-6 text-center text-muted-foreground">
                 <div className="flex size-12 items-center justify-center rounded-full bg-muted/60 text-muted-foreground/60 border border-border/40 mb-3">
@@ -304,7 +650,7 @@ export function LivePreview() {
                   Monitores de prévia ocultos
                 </p>
                 <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                  Todos os monitores foram ocultados. Use a barra de ferramentas acima ou clique com o botão direito para reexibir.
+                  Todos os monitores foram ocultados. Use o menu de monitores no cabeçalho ou clique com o botão direito para reexibir.
                 </p>
                 <Button
                   size="sm"
@@ -318,275 +664,20 @@ export function LivePreview() {
               </div>
             ) : (
               <div
-                className="mx-auto flex flex-col gap-3.5 transition-all duration-150"
+                className="mx-auto w-full transition-all duration-150"
                 style={{
-                  maxWidth: `${Math.round(560 * (zoom / 100))}px`,
-                  width: "100%",
+                  maxWidth: `${Math.round((visibleCount >= 2 ? 1160 : 680) * (zoom / 100))}px`,
                 }}
               >
-                {/* Screen 1: Preview (Pré-visualização) */}
-                {showPreview && (
-                  <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Eye className="size-3.5 text-primary" />
-                        <span className="font-semibold text-xs text-foreground">
-                          Preview
-                        </span>
-                        <Badge
-                          variant="secondary"
-                          className="h-4 px-1.5 text-[9px] font-medium text-muted-foreground"
-                        >
-                          Prévia
-                        </Badge>
-                      </div>
-
-                      {preview && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="default"
-                          className="h-6 gap-1 px-2 text-[10px] font-semibold shadow-2xs cursor-pointer"
-                          onClick={handlePresentPreview}
-                          title="Apresentar este slide no telão ao vivo (Enter)"
-                        >
-                          <Play className="size-2.5 fill-current" />
-                          Apresentar
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* 16:9 Canvas */}
-                    <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
-                      {previewSlide ? (
-                        (() => {
-                          const asset = kindToAsset(previewSlide.content.kind);
-                          if (previewTheme && asset) {
-                            return (
-                              <>
-                                <BackgroundRenderer
-                                  background={previewSlide.background}
-                                />
-                                <ScaledStage
-                                  theme={previewTheme}
-                                  asset={asset}
-                                  props={buildProps(
-                                    previewSlide.content.kind,
-                                    previewSlide.content,
-                                    null,
-                                  )}
-                                />
-                              </>
-                            );
-                          }
-                          return <SlideCanvas slide={previewSlide} />;
-                        })()
-                      ) : (
-                        <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground select-none">
-                          <Eye className="size-6 text-muted-foreground/40" />
-                          <p className="text-xs font-semibold text-foreground/80">
-                            Prévia Vazia
-                          </p>
-                          <p className="text-[10px] max-w-[200px] text-muted-foreground/80">
-                            Clique em uma estrofe da música para carregar a prévia aqui.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Subtitle / Staged Info */}
-                    <div className="flex h-5 items-center justify-between px-0.5 text-[10px] text-muted-foreground">
-                      <span className="truncate">
-                        {preview
-                          ? `${preview.title}${preview.section ? ` · ${preview.section}` : ""}`
-                          : "Aguardando seleção"}
-                      </span>
-                      {preview && (
-                        <span className="tabular-nums font-mono text-[9px] text-primary shrink-0">
-                          Pronto para projetar
-                        </span>
-                      )}
-                    </div>
+                {visibleCount === 1 ? (
+                  <div className="w-full">
+                    {visibleCards[0]}
                   </div>
-                )}
-
-                {/* Screen 2: Ao Vivo (Telão do Público) */}
-                {showLive && (
-                  <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Tv className="size-3.5 text-emerald-500" />
-                        <span className="font-semibold text-xs text-foreground">
-                          Ao Vivo
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">(Telão)</span>
-                      </div>
-
-                      <div>
-                        {live.blackout ? (
-                          <Badge
-                            variant="destructive"
-                            className="h-4 gap-1 px-1.5 text-[9px] font-semibold animate-pulse"
-                          >
-                            Blackout
-                          </Badge>
-                        ) : live.cleared && !isLiveEmpty ? (
-                          <Badge
-                            variant="secondary"
-                            className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-amber-500/15 text-amber-500 border-amber-500/30"
-                          >
-                            Fundo Ativo
-                          </Badge>
-                        ) : isLiveEmpty ? (
-                          <Badge
-                            variant="outline"
-                            className="h-4 px-1.5 text-[9px] text-muted-foreground"
-                          >
-                            Telão Livre
-                          </Badge>
-                        ) : (
-                          <Badge
-                            variant="default"
-                            className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-emerald-600 hover:bg-emerald-600 text-white animate-pulse"
-                          >
-                            <Radio className="size-2.5" />
-                            No Ar
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 16:9 Canvas or Placeholder */}
-                    <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
-                      {isLiveEmpty && !live.blackout ? (
-                        wallpaper ? (
-                          <div className="relative h-full w-full bg-black">
-                            <BackgroundRenderer
-                              background={wallpaperToBackground(wallpaper)}
-                            />
-                            <div className="absolute bottom-2 left-2 rounded bg-black/70 px-2 py-0.5 text-[9px] font-medium text-zinc-300 backdrop-blur-xs border border-white/10">
-                              Papel de Parede Ativo
-                            </div>
-                          </div>
-                        ) : (
-                          /* Placeholder Ao Vivo quando não há nada transmitindo */
-                          <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center select-none bg-zinc-950">
-                            <div className="flex size-10 items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-500">
-                              <Projector className="size-5" />
-                            </div>
-                            <div>
-                              <p className="text-xs font-semibold text-zinc-300">
-                                Placeholder Ao Vivo
-                              </p>
-                              <p className="mt-0.5 text-[10px] text-zinc-500">
-                                Telão desocupado · Nenhum conteúdo ao vivo
-                              </p>
-                            </div>
-                          </div>
-                        )
-                      ) : (
-                        <div className="relative h-full w-full">
-                          <div
-                            className="absolute inset-0 transition-opacity duration-300 ease-in-out"
-                            style={{ opacity: live.cleared && wallpaper ? 0 : 1 }}
-                          >
-                            <PersistentBackground background={effectiveBackground} />
-                          </div>
-                          <div className="absolute inset-0">
-                            <SlideTransition
-                              slide={live}
-                              theme={liveTheme}
-                              asset={kindToAsset(live.content.kind)}
-                              cleared={live.cleared}
-                              durationMs={300}
-                              transitionBackground={false}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Blackout overlay badge indicator if blackout is active */}
-                      {live.blackout && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-                          <Badge
-                            variant="destructive"
-                            className="text-xs px-2.5 py-1 font-semibold animate-pulse"
-                          >
-                            Tela Preta (Blackout)
-                          </Badge>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Subtitle / Live Output Info */}
-                    <div className="flex h-5 items-center justify-between px-0.5 text-[10px] text-muted-foreground">
-                      <span className="truncate">
-                        {live.blackout
-                          ? "Saída escurecida"
-                          : isLiveEmpty && wallpaper
-                          ? "Papel de parede em exibição (tela desocupada)"
-                          : live.cleared
-                          ? "Plano de fundo em exibição (sem texto)"
-                          : live.content.title}
-                      </span>
-                      {live.nextUp && !live.blackout && !live.cleared && (
-                        <span className="truncate max-w-[140px] text-[9px] opacity-75">
-                          Próx: {live.nextUp.lines[0] || live.nextUp.title}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Screen 3: Stage (Tela de Retorno) */}
-                {showStage && (
-                  <div className="flex flex-col gap-2 rounded-xl border border-sky-500/30 bg-card p-3 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Monitor className="size-3.5 text-sky-500" />
-                        <span className="font-semibold text-xs text-foreground">
-                          Stage
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          (Retorno)
-                        </span>
-                      </div>
-
-                      <Badge
-                        variant="secondary"
-                        className="h-4 px-1.5 text-[9px] font-semibold bg-sky-500/15 text-sky-500 border-sky-500/30 cursor-pointer"
-                        onClick={() => openPreferences("outputs", "stage")}
-                        title="Clique para configurar a Tela de Retorno"
-                      >
-                        {stageActive
-                          ? stageConfig.mode === "native"
-                            ? "Nativo"
-                            : stageConfig.mode === "web"
-                            ? "Web"
-                            : "Nativo + Web"
-                          : "Prévia"}
-                      </Badge>
-                    </div>
-
-                    {/* 16:9 Mini Stage Canvas */}
-                    <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-black shadow-inner">
-                      <StageMiniPreview />
-                    </div>
-
-                    {/* Stage Stopwatch Controls (operator panel) */}
-                    <StageTimerControls />
-
-                    {/* Subtitle */}
-                    <div className="flex h-5 items-center justify-between px-0.5 text-[10px] text-muted-foreground">
-                      <span className="truncate">Retorno dos músicos no palco</span>
-                      <button
-                        type="button"
-                        onClick={() => openPreferences("outputs", "stage")}
-                        className="text-[9px] text-sky-500 hover:underline cursor-pointer"
-                      >
-                        Configurar
-                      </button>
-                    </div>
+                ) : (
+                  <div className="grid grid-cols-1 @[540px]:grid-cols-2 gap-3.5 items-start">
+                    {visibleCards.map((card, idx) => (
+                      <div key={idx}>{card}</div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -604,6 +695,7 @@ export function LivePreview() {
           <ContextMenuCheckboxItem
             checked={showPreview}
             onCheckedChange={togglePreview}
+            onSelect={(e) => e.preventDefault()}
             className="text-xs cursor-pointer"
           >
             <div className="flex items-center gap-2">
@@ -612,27 +704,63 @@ export function LivePreview() {
             </div>
           </ContextMenuCheckboxItem>
 
-          <ContextMenuCheckboxItem
-            checked={showLive}
-            onCheckedChange={toggleLive}
-            className="text-xs cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <Tv className="size-3.5 text-emerald-500" />
-              <span>Ao Vivo (Telão)</span>
-            </div>
-          </ContextMenuCheckboxItem>
+          {configuredOutputs.length > 0 ? (
+            configuredOutputs.map((out) => {
+              const isVisible = isOutputVisible(out.id);
+              const Icon =
+                out.category === "stage"
+                  ? Monitor
+                  : out.category === "lower"
+                    ? Video
+                    : Tv;
+              const color =
+                out.category === "stage"
+                  ? "text-sky-400"
+                  : out.category === "lower"
+                    ? "text-purple-400"
+                    : "text-emerald-400";
+              return (
+                <ContextMenuCheckboxItem
+                  key={out.id}
+                  checked={isVisible}
+                  onCheckedChange={() => toggleOutputVisibility(out.id)}
+                  onSelect={(e) => e.preventDefault()}
+                  className="text-xs cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Icon className={`size-3.5 ${color}`} />
+                    <span className="truncate">{out.name}</span>
+                  </div>
+                </ContextMenuCheckboxItem>
+              );
+            })
+          ) : (
+            <>
+              <ContextMenuCheckboxItem
+                checked={showLive}
+                onCheckedChange={toggleLive}
+                onSelect={(e) => e.preventDefault()}
+                className="text-xs cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Tv className="size-3.5 text-emerald-500" />
+                  <span>Ao Vivo (Telão)</span>
+                </div>
+              </ContextMenuCheckboxItem>
 
-          <ContextMenuCheckboxItem
-            checked={showStage}
-            onCheckedChange={toggleStage}
-            className="text-xs cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <Monitor className="size-3.5 text-sky-500" />
-              <span>Retorno (Palco)</span>
-            </div>
-          </ContextMenuCheckboxItem>
+              <ContextMenuCheckboxItem
+                checked={showStage}
+                onCheckedChange={toggleStage}
+                onSelect={(e) => e.preventDefault()}
+                className="text-xs cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Monitor className="size-3.5 text-sky-500" />
+                  <span>Retorno (Palco)</span>
+                </div>
+              </ContextMenuCheckboxItem>
+            </>
+          )}
 
           <ContextMenuSeparator />
           <ContextMenuLabel className="text-xs font-semibold text-muted-foreground">
@@ -708,7 +836,10 @@ export function LivePreview() {
 
           <ContextMenuSeparator />
           <ContextMenuItem
-            onClick={() => openPreferences("outputs")}
+            onClick={() => {
+              if (isTauri()) void openDisplaysWindow();
+              else window.open("#/displays", "_blank");
+            }}
             className="text-xs cursor-pointer"
           >
             <Settings className="size-3.5 mr-2" />

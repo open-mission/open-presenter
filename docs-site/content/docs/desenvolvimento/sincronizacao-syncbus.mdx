@@ -1,0 +1,62 @@
+---
+title: Barramento syncBus, Eventos Tauri e WebSocket
+description: Como a sincronização em tempo real entre janelas e dispositivos funciona por baixo dos panos.
+---
+
+O Open Presenter opera em um modelo multi-tela altamente distribuído:
+- Janela do Operador (`AdminView`).
+- Janela de Comunicação (`CommunicationView`).
+- Janela Física do Telão (`PublicView`).
+- Janela Física do Retorno (`StageView`).
+- Browser Source do OBS (`StreamView`).
+- Navegadores móveis (`RemoteView`).
+
+Para manter todas as saídas 100% sincronizadas sem discrepância de frames, o sistema utiliza o **`syncBus`** (`src/core/sync/syncBus.ts`).
+
+---
+
+## Como o `syncBus` Opera
+
+```mermaid
+sequenceDiagram
+    participant Op as Operador (AdminView)
+    participant Rust as Rust Broadcaster
+    participant TauriEv as Tauri Event System
+    participant WS as WebSocket Server (/ws)
+    participant Public as PublicView (Telão)
+    participant Remote as RemoteView (Celular)
+
+    Op->>Rust: IPC: go_live(slide)
+    Rust->>Rust: Atualiza PresentationState
+    par Disparo Desktop Nativo
+        Rust->>TauriEv: emit("presentation://slide", slide)
+        TauriEv->>Public: syncBus dispatch
+    and Disparo Rede Web
+        Rust->>WS: JSON Envelope broadcast
+        WS->>Remote: WebSocket onmessage
+    end
+```
+
+---
+
+## Inicialização do `syncBus`
+
+No ambiente desktop (`isTauri()`), o `syncBus` registra listeners nativos do Tauri:
+
+```typescript
+if (isTauri()) {
+  await listenCommand(TAURI_EVENTS.slide, (p) => dispatch(TAURI_EVENTS.slide, p));
+  await listenCommand(TAURI_EVENTS.stageMessage, (p) => dispatch(TAURI_EVENTS.stageMessage, p));
+  await listenCommand(TAURI_EVENTS.timer, (p) => dispatch(TAURI_EVENTS.timer, p));
+  await listenCommand(TAURI_EVENTS.themes, (p) => dispatch(TAURI_EVENTS.themes, p));
+  await listenCommand(TAURI_EVENTS.wallpaper, (p) => dispatch(TAURI_EVENTS.wallpaper, p));
+}
+```
+
+No ambiente web externo (fora do Tauri):
+- Conecta-se automaticamente via WebSocket: `ws://HOST:5050/ws`.
+- Envia o handshake `client://hello` com o tipo de saída correspondente (`public`, `stage`, `stream`, etc.).
+- Deserializa as mensagens e despacha para os mesmos callbacks locais.
+
+> **REGRA ESSENCIAL:**
+> Qualquer nova janela independente (como `CommunicationView` ou `PreferencesView`) ou novo hook de sincronização **deve** chamar `void syncBus.init()` ao montar, garantindo que os listeners nativos estejam ativos no contexto daquela janela específica.

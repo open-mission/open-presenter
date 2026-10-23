@@ -1,134 +1,126 @@
 import { useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { kindToAsset, type BackgroundLayer } from "@/core/types";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { usePresentationStore } from "@/features/presentation/store";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
 import { PersistentBackground } from "@/features/media-shaders/PersistentBackground";
 import { SlideTransition } from "@/features/presentation/SlideTransition";
-import { useLiveThemesStore } from "@/features/slide-themes/liveThemesStore";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { useOutputPlan } from "@/features/slide-themes/useOutputPlan";
+import { filterThemeForLook } from "@/features/slide-themes/layers";
+import {
+  materializeThemeForContent,
+  resolveOutputBackground,
+} from "@/features/slide-themes/outputPlan";
 import { useWallpaperSync } from "@/features/presentation/useWallpaperSync";
 import { useWallpaperStore } from "@/features/presentation/wallpaperStore";
 import { wallpaperToBackground } from "@/features/presentation/wallpaper";
-import { isIsfBackground } from "@/features/media-shaders/isfEngine";
+import { useDisplaysSync } from "@/features/displays/useDisplaysSync";
+import { OutputPlaceholder } from "@/features/displays/components/OutputPlaceholder";
 
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
-import { contextForSlide } from "@/features/slide-themes/themeResolution";
-import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
+import {
+  StageAlertBanner,
+  StageAlertOverlay,
+  useCommunicationStore,
+  useCommunicationSync,
+} from "@/features/communication";
 
-export default function PublicView() {
+interface PublicViewProps {
+  backgroundColor?: string;
+  outputId?: string;
+}
+
+export default function PublicView({ backgroundColor, outputId }: PublicViewProps = {}) {
   usePresentationSync("public");
   useWallpaperSync();
   useThemesSync();
+  useCommunicationSync();
+  useDisplaysSync();
+
+  const [searchParams] = useSearchParams();
+  const effectiveOutputId = outputId ?? searchParams.get("id");
+  const { output: activeOutput, plan } = useOutputPlan("public", effectiveOutputId);
+  const look = plan.look;
+
   const live = usePresentationStore((s) => s.live);
   const wallpaper = useWallpaperStore((s) => s.wallpaper);
+  const activeAlert = useCommunicationStore((s) => s.activeAlert);
   const loadThemes = useSlideThemesStore((s) => s.load);
-  const themes = useSlideThemesStore((s) => s.themes);
-  const bindings = useSlideThemesStore((s) => s.bindings);
-  const eventThemeGuid = useSlideThemesStore((s) => s.eventThemeGuid);
-  const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
-  const broadcastTheme = useLiveThemesStore((s) => s.themes.public);
-  const mediaThemeId = live.content.media?.themeId;
-  const localTheme = useMemo(
-    () =>
-      resolveTheme(
-        "public",
-        live.content.kind,
-        mediaThemeId,
-        live.content.media?.kind,
-      ),
-    [
-      resolveTheme,
-      themes,
-      bindings,
-      eventThemeGuid,
-      live.content.kind,
-      mediaThemeId,
-      live.content.media?.kind,
-    ],
-  );
-  const customTheme = mediaThemeId
-    ? (themes.find((t) => t.guid === mediaThemeId) ??
-       (broadcastTheme?.guid === mediaThemeId ? broadcastTheme : null))
-    : null;
-  const rawTheme = customTheme ?? broadcastTheme ?? localTheme;
-  const context =
-    contextForSlide(live.content.kind, live.content.media?.kind) ?? "music";
-  const theme = useMemo(() => {
-    if (!rawTheme) return null;
-    if (rawTheme.pages?.length) {
-      const page = getPageForContext(rawTheme, context) ?? rawTheme.pages[0];
-      return page ? materializePage(rawTheme, page) : rawTheme;
-    }
-    return rawTheme;
-  }, [rawTheme, context]);
 
   useEffect(() => {
     void loadThemes();
   }, [loadThemes]);
 
-  const asset = kindToAsset(live.content.kind);
-  const isPresenting = live.content.kind !== "blank";
+  const isTargeted = Boolean(
+    look.messages &&
+      activeAlert &&
+      (activeAlert.targets?.length
+        ? activeAlert.targets.includes("public")
+        : activeAlert.target === "public"),
+  );
 
-  // Prepara o papel de parede se definido
+  const screenBg =
+    backgroundColor ??
+    (plan.screenColor.enabled ? plan.screenColor.value : "#000000");
+
+  const contentTheme = useMemo(
+    () => materializeThemeForContent(plan.contentTheme, live.content),
+    [plan.contentTheme, live.content],
+  );
+  const outputTheme = useMemo(
+    () => materializeThemeForContent(plan.theme, live.content),
+    [plan.theme, live.content],
+  );
+  const theme = useMemo(() => {
+    const source = contentTheme ?? outputTheme;
+    return source ? filterThemeForLook(source, look) : null;
+  }, [contentTheme, outputTheme, look]);
+
+  const asset = kindToAsset(live.content.kind);
+  const isPresenting = live.content.kind !== "blank" && look.slide;
+
   const wallpaperBg: BackgroundLayer | null = wallpaper
     ? wallpaperToBackground(wallpaper)
     : null;
 
-  // Resolve o plano de fundo efetivo do slide/tema
-  const effectiveBackground: BackgroundLayer = useMemo(() => {
-    const isPresentation = Boolean(live.content.media?.themeId);
-
-    // Se for uma apresentação criada no Studio, seu fundo tem prioridade absoluta sobre fundos residuais de músicas
-    if (isPresentation && theme?.css.background && theme.css.background.trim() !== "") {
-      const bg = theme.css.background.trim();
-      const isISF = isIsfBackground(bg);
-      return {
-        id: `theme-bg-${theme.guid}`,
-        kind: isISF ? "isf" : "css",
-        value: bg,
-      };
-    }
-
-    const isCustomLiveBg =
-      live.background.kind !== "color" ||
-      (live.background.value && live.background.value !== "#000000");
-
-    if (isCustomLiveBg) {
-      if (live.background.kind === "isf" || isIsfBackground(live.background.value)) {
-        return {
-          id: live.background.id,
-          kind: "isf",
-          value: live.background.value,
-        };
-      }
-      return live.background;
-    }
-
-    if (theme?.css.background && theme.css.background.trim() !== "") {
-      const bg = theme.css.background.trim();
-      const isISF = isIsfBackground(bg);
-      return {
-        id: `theme-bg-${theme.guid}`,
-        kind: isISF ? "isf" : "css",
-        value: bg,
-      };
-    }
-
-    return live.background;
-  }, [live.background, theme, live.content.media?.themeId]);
+  const effectiveBackground = useMemo(() => {
+    if (!look.slide) return null;
+    return resolveOutputBackground({
+      category: activeOutput?.category ?? "public",
+      contentTheme,
+      overrideBackground: plan.backgroundOverride,
+      liveBackground: live.background,
+      theme: outputTheme,
+    });
+  }, [
+    look.slide,
+    activeOutput?.category,
+    contentTheme,
+    outputTheme,
+    plan.backgroundOverride,
+    live.background,
+  ]);
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-black select-none">
-      {/* Camada 0: Papel de Parede (Base) */}
-      {wallpaperBg && (
+    <div
+      className="relative h-full w-full overflow-hidden select-none"
+      style={{ backgroundColor: screenBg }}
+    >
+      {/* Camada 0: Papel de Parede / Placeholder (Base) */}
+      {activeOutput?.placeholderEnabled && activeOutput.placeholderType !== "none" ? (
+        <div className="absolute inset-0 z-0">
+          <OutputPlaceholder output={activeOutput} />
+        </div>
+      ) : wallpaperBg ? (
         <div className="absolute inset-0 z-0">
           <BackgroundRenderer background={wallpaperBg} />
         </div>
-      )}
+      ) : null}
 
       {/* Camada 1: Plano de Fundo Persistente (mantido estável durante a transição dos slides) */}
-      {isPresenting && (
+      {isPresenting && effectiveBackground && (
         <div
           className="absolute inset-0 z-10 transition-opacity duration-300 ease-in-out"
           style={{
@@ -147,6 +139,7 @@ export default function PublicView() {
             theme={theme}
             asset={asset}
             cleared={live.cleared}
+            textHidden={live.textHidden}
             durationMs={300}
             transitionBackground={false}
           />
@@ -160,6 +153,21 @@ export default function PublicView() {
           opacity: live.blackout ? 1 : 0,
         }}
       />
+
+      {/* Painel de Comunicação & Avisos: Banner Superior */}
+      {isTargeted && activeAlert && activeAlert.displayMode === "banner_top" && (
+        <StageAlertBanner position="top" alert={activeAlert} />
+      )}
+
+      {/* Painel de Comunicação & Avisos: Banner Inferior */}
+      {isTargeted && activeAlert && activeAlert.displayMode === "banner_bottom" && (
+        <StageAlertBanner position="bottom" alert={activeAlert} />
+      )}
+
+      {/* Painel de Comunicação & Avisos: Tela Cheia / Overlay */}
+      {isTargeted && activeAlert && activeAlert.displayMode === "overlay" && (
+        <StageAlertOverlay alert={activeAlert} />
+      )}
     </div>
   );
 }

@@ -4,6 +4,8 @@ import {
   Eye,
   Images,
   Image as ImageIcon,
+  LayoutGrid,
+  List,
   Pencil,
   Play,
   Radio,
@@ -13,8 +15,17 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PreviewZoomControls } from "@/components/PreviewZoomControls";
+import { SlideThumbnail } from "@/components/SlideThumbnail";
+import { ViewModeToggle } from "@/components/ViewModeToggle";
 import { mediaKindLabel } from "@/core/lib/media";
 import { buildMediaSlides } from "@/core/lib/media";
+import { usePersistentNumber } from "@/core/lib/usePersistentNumber";
+import { usePersistentViewMode } from "@/core/lib/usePersistentViewMode";
+import {
+  MEDIA_PREVIEW_GRID,
+  previewGridStyle,
+} from "@/core/lib/previewGrid";
 import {
   appendSlideNumberDigit,
   isSlideNumberKey,
@@ -26,6 +37,7 @@ import type { EventItem, MediaKind } from "@/core/types";
 import { useMediaBaseUrl } from "@/features/presentation/useMediaBaseUrl";
 import { usePresentationStore } from "@/features/presentation/store";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
+import { usePublicThemeResolver } from "@/features/slide-themes/usePublicThemeResolver";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { resolveMediaLibraryUrl } from "@/features/theme-editor/media";
 import { MediaDialog } from "./MediaDialog";
@@ -53,14 +65,30 @@ export function MediaSlidesColumn({
   );
   const isStudioPresentation = Boolean(media?.themeId);
   const slides = useMemo(
-    () => (media ? buildMediaSlides(item.id, media) : []),
-    [item.id, media],
+    () => (media ? buildMediaSlides(item.id, media, studioTheme) : []),
+    [item.id, media, studioTheme],
   );
   const runnerIndex = useSetlistStore((s) => s.runnerIndex);
   const projectSection = useSetlistStore((s) => s.projectSection);
   const removeItem = useSetlistStore((s) => s.removeItem);
   const save = useSetlistStore((s) => s.save);
   const base = useMediaBaseUrl();
+  const [viewMode, setViewMode] = usePersistentViewMode(
+    "open_presenter_setlist_media_view",
+    "list",
+    ["list", "slides", "text"] as const,
+  );
+  const [gridZoom, setGridZoom] = usePersistentNumber(
+    "open_presenter_setlist_media_zoom",
+    MEDIA_PREVIEW_GRID.defaultLevel,
+    MEDIA_PREVIEW_GRID.minLevel,
+    MEDIA_PREVIEW_GRID.maxLevel,
+  );
+  const resolveTheme = usePublicThemeResolver();
+  const thumbnailThemes = useMemo(
+    () => new Map(slides.map((entry) => [entry.slide.id, resolveTheme(entry.slide)])),
+    [slides, resolveTheme],
+  );
 
   const [previewIndex, setPreviewIndex] = useState(0);
   const [numberBuffer, setNumberBuffer] = useState("");
@@ -171,6 +199,9 @@ export function MediaSlidesColumn({
   const fileCount = media.files?.length ?? 0;
   const isFolder = media.kind === "folder";
   const isText = media.kind === "text";
+  const canShowText = isText || isStudioPresentation;
+  const activeView = viewMode === "text" && !canShowText ? "slides" : viewMode;
+  const canSwitchView = slides.length > 1 || canShowText;
 
   function handlePreview(index: number) {
     setPreviewIndex(index);
@@ -194,7 +225,7 @@ export function MediaSlidesColumn({
   }
 
   return (
-    <section className="relative flex h-full w-80 min-h-0 flex-col border-r border-border bg-background sm:w-96 shrink-0 select-none overflow-hidden" onClick={() => setNumberBuffer("")}>
+    <section className="relative flex h-full w-full min-w-0 flex-col border-r border-border bg-background select-none overflow-hidden" onClick={() => setNumberBuffer("")}>
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2.5 pr-3">
           <span
@@ -269,18 +300,41 @@ export function MediaSlidesColumn({
           </Button>
           <Button
             type="button"
-            size="sm"
+            size="icon"
             variant="default"
             disabled={slides.length === 0}
-            className="h-8 gap-1.5 px-3 text-xs font-semibold shadow-xs transition-all active:scale-95"
+            className="size-8 shadow-xs transition-all active:scale-95"
             onClick={() => handlePresent()}
             title="Apresentar mídia para o público (Enter)"
+            aria-label="Apresentar mídia para o público"
           >
             <Play className="size-3.5 fill-current" />
-            Apresentar
           </Button>
         </div>
       </div>
+
+      {canSwitchView && (
+        <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border/70 bg-muted/20 px-3">
+          <ViewModeToggle
+            value={activeView}
+            onChange={setViewMode}
+            options={[
+              { value: "list", label: "Lista", icon: List },
+              { value: "slides", label: "Slides", icon: LayoutGrid },
+              ...(canShowText
+                ? [{ value: "text" as const, label: "Texto", icon: AlignLeft }]
+                : []),
+            ]}
+          />
+          {activeView !== "list" && (
+            <PreviewZoomControls
+              config={MEDIA_PREVIEW_GRID}
+              level={gridZoom}
+              onChange={setGridZoom}
+            />
+          )}
+        </div>
+      )}
 
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 space-y-2.5 [scrollbar-gutter:stable]">
         {slides.length === 0 ? (
@@ -304,6 +358,70 @@ export function MediaSlidesColumn({
                 ? "Edite esta mídia e escolha uma pasta com imagens para exibir."
                 : "Edite esta mídia e escolha o arquivo para exibir."}
             </p>
+          </div>
+        ) : activeView !== "list" ? (
+          <div
+            className="grid gap-2"
+            style={previewGridStyle(MEDIA_PREVIEW_GRID, gridZoom)}
+          >
+            {slides.map((entry) => {
+              const isPreview = previewIndex === entry.index;
+              const isLive = runnerIndex === entry.index;
+              return (
+                <button
+                  key={entry.slide.id}
+                  type="button"
+                  ref={(el) => {
+                    slideRefs.current[entry.index] = el;
+                  }}
+                  onClick={() => handlePreview(entry.index)}
+                  onDoubleClick={() => handlePresent(entry.index)}
+                  className={`group flex min-w-0 flex-col gap-1.5 rounded-lg border p-2 text-left transition-all cursor-pointer ${
+                    isLive
+                      ? "border-emerald-500 bg-emerald-500/5 ring-2 ring-emerald-500/40"
+                      : isPreview
+                      ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                      : "border-border/80 bg-card/70 hover:border-primary/50"
+                  }`}
+                  title="1 clique: prévia · 2 cliques: apresentar"
+                >
+                  {activeView === "slides" ? (
+                    <SlideThumbnail
+                      content={entry.slide}
+                      theme={thumbnailThemes.get(entry.slide.id) ?? null}
+                      className="pointer-events-none"
+                    />
+                  ) : (
+                    <p className="min-h-16 whitespace-pre-line text-[11px] leading-snug text-foreground/90">
+                      {entry.slide.lines.length > 0
+                        ? entry.slide.lines.join("\n")
+                        : entry.label}
+                    </p>
+                  )}
+                  <div className="flex min-w-0 items-center justify-between gap-1">
+                    <span className="truncate text-[10px] font-medium text-muted-foreground">
+                      {entry.label} · #{entry.index + 1}
+                    </span>
+                    {isLive ? (
+                      <Badge className="h-4 shrink-0 gap-1 bg-emerald-600 px-1.5 text-[9px] font-semibold text-white hover:bg-emerald-600">
+                        <Radio className="size-2.5" />
+                        AO VIVO
+                      </Badge>
+                    ) : (
+                      isPreview && (
+                        <Badge
+                          variant="secondary"
+                          className="h-4 shrink-0 gap-1 border-primary/20 bg-primary/15 px-1.5 text-[9px] font-semibold text-primary"
+                        >
+                          <Eye className="size-2.5" />
+                          Prévia
+                        </Badge>
+                      )
+                    )}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         ) : isStudioPresentation && studioTheme ? (
           <div className="space-y-3">

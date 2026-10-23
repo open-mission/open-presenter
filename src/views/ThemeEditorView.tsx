@@ -1,23 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft,
+  AlertCircle,
+  Circle,
   Clock,
   Download,
   FileJson,
-  Grid3x3,
-  Image,
   Film,
   Frame,
+  Grid3x3,
+  Image,
   Menu,
   Pencil,
   Redo,
+  Ruler,
+  Save,
+  Shapes,
   Sparkles,
   Square,
+  Star,
+  Triangle,
   Tv,
+  Trash2,
   Type,
   Undo,
   Video,
+  X,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -27,6 +35,8 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { exportThemeAsImage } from "@/features/theme-editor/exportImage";
 import { exportThemeAsJson } from "@/features/slide-themes/themeIo";
+import { forceCloseCurrentWindow } from "@/core/lib/closeWindow";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   contextToAsset,
   getActivePage,
@@ -46,6 +56,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -58,7 +69,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SAMPLES } from "@/features/slide-themes/samples";
-import { listenCommand } from "@/core/ipc/tauri";
+import { isTauri, listenCommand } from "@/core/ipc/tauri";
 import {
   Canvas,
   RESOLUTION_PRESETS,
@@ -69,8 +80,7 @@ import { PagesBar } from "@/features/theme-editor/PagesBar";
 import { PropertiesPanel } from "@/features/theme-editor/PropertiesPanel";
 import { SymbolsPicker } from "@/features/theme-editor/SymbolsPicker";
 import { useThemeEditorStore } from "@/features/theme-editor/store";
-import { useSlideThemesStore } from "@/features/slide-themes/store";
-import { DEFAULT_STREAM_THEME_GUID } from "@/features/slide-themes/seedThemes";
+import { DEFAULT_STAGE_THEME_GUID, DEFAULT_STREAM_THEME_GUID } from "@/features/slide-themes/seedThemes";
 
 function uniqueId(prefix: string, existing: string[]): string {
   let n = existing.length + 1;
@@ -103,10 +113,6 @@ export default function ThemeEditorView() {
 
   const draft = useThemeEditorStore((s) => s.draft);
   const activePageId = useThemeEditorStore((s) => s.activePageId);
-  const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
-  const resolvedStageThemeGuid = useSlideThemesStore(
-    (s) => s.resolveStageTheme()?.guid ?? null,
-  );
   const error = useThemeEditorStore((s) => s.error);
   const load = useThemeEditorStore((s) => s.load);
   const setTitle = useThemeEditorStore((s) => s.setTitle);
@@ -119,15 +125,24 @@ export default function ThemeEditorView() {
   const revert = useThemeEditorStore((s) => s.revert);
   const addElement = useThemeEditorStore((s) => s.addElement);
   const addElements = useThemeEditorStore((s) => s.addElements);
-  const removeElement = useThemeEditorStore((s) => s.removeElement);
+  const removeSelection = useThemeEditorStore((s) => s.removeSelection);
+  const duplicateSelection = useThemeEditorStore((s) => s.duplicateSelection);
+  const groupSelection = useThemeEditorStore((s) => s.groupSelection);
+  const ungroupSelection = useThemeEditorStore((s) => s.ungroupSelection);
+  const selectAll = useThemeEditorStore((s) => s.selectAll);
   const upgradeToV2 = useThemeEditorStore((s) => s.upgradeToV2);
   const setCategory = useThemeEditorStore((s) => s.setCategory);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selection = useThemeEditorStore((s) => s.selection);
+  const select = useThemeEditorStore((s) => s.select);
+  const clearSelection = useThemeEditorStore((s) => s.clearSelection);
+  const clearGuides = useThemeEditorStore((s) => s.clearGuides);
   const [sampleAsset, setSampleAsset] = useState<ThemeAsset>("music");
   const [snap, setSnap] = useState(true);
   const [showLimit, setShowLimit] = useState(true);
   const [showGrid, setShowGrid] = useState(false);
+  const [showRulers, setShowRulers] = useState(false);
+  const [showGuides, setShowGuides] = useState(true);
   const [gridSize, setGridSize] = useState(40);
   const [simulateCamera, setSimulateCamera] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -149,6 +164,63 @@ export default function ThemeEditorView() {
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [upgradeContext, setUpgradeContext] = useState<ThemeContext>("music");
 
+  // Unsaved changes & close interception state
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingGuid, setPendingGuid] = useState<string | null>(null);
+  const [isClosingOrSaving, setIsClosingOrSaving] = useState(false);
+  const allowCloseRef = useRef(false);
+
+  // Sync document.title and Tauri native window title with current theme/presentation
+  useEffect(() => {
+    if (!draft) return;
+    const isPresentation = draft.category === "presentation";
+    const sectionName = isPresentation ? "Studio de Criação" : "Editor de Temas";
+    const fullTitle = `${draft.title?.trim() || "Sem título"} — ${sectionName} — Open Presenter`;
+    document.title = fullTitle;
+    if (isTauri()) {
+      getCurrentWindow().setTitle(fullTitle).catch(() => {});
+    }
+  }, [draft?.title, draft?.category]);
+
+  // Intercept Tauri window close button (X) when there are unsaved changes
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten: (() => void) | null = null;
+    getCurrentWindow()
+      .onCloseRequested((event) => {
+        if (allowCloseRef.current) {
+          return;
+        }
+        if (useThemeEditorStore.getState().isDirty()) {
+          event.preventDefault();
+          setPendingGuid(null);
+          setShowUnsavedDialog(true);
+        }
+      })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch((err) => {
+        console.error("Falha ao registrar listener de fechamento:", err);
+      });
+
+    return () => {
+      unlisten?.();
+    };
+  }, []);
+
+  // Intercept web browser tab / window closing when dirty
+  useEffect(() => {
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      if (useThemeEditorStore.getState().isDirty() && !allowCloseRef.current) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
   useEffect(() => {
     if (guid) void load(guid);
   }, [guid, load]);
@@ -157,7 +229,12 @@ export default function ThemeEditorView() {
     let unlisten: (() => void) | null = null;
     void listenCommand<string | null>("theme-editor://open", (payload) => {
       if (typeof payload === "string" && payload !== "") {
-        setSelectedId(null);
+        if (useThemeEditorStore.getState().isDirty()) {
+          setPendingGuid(payload);
+          setShowUnsavedDialog(true);
+          return;
+        }
+        clearSelection();
         void load(payload);
       }
     }).then((fn) => {
@@ -166,11 +243,11 @@ export default function ThemeEditorView() {
     return () => {
       unlisten?.();
     };
-  }, [load]);
+  }, [load, clearSelection]);
 
   useEffect(() => {
-    setSelectedId(null);
-  }, [activePageId]);
+    clearSelection();
+  }, [activePageId, clearSelection]);
 
   useEffect(() => {
     if (draft?.category === "stream" || draft?.guid === DEFAULT_STREAM_THEME_GUID) {
@@ -194,24 +271,19 @@ export default function ThemeEditorView() {
         if (!isInput) {
           e.preventDefault();
           e.stopPropagation();
-          if (selectedId) {
-            removeElement(selectedId);
-            setSelectedId(null);
-          }
+          removeSelection();
           return;
         }
       }
 
       if (e.key === "Escape" && !isInput) {
-        if (selectedId) {
-          e.preventDefault();
-          setSelectedId(null);
-        }
+        e.preventDefault();
+        clearSelection();
         return;
       }
 
       const mod = e.ctrlKey || e.metaKey;
-      if (!mod) return;
+      if (!mod || e.repeat) return;
       const key = e.key.toLowerCase();
       if (key === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -222,17 +294,105 @@ export default function ThemeEditorView() {
       } else if (key === "s") {
         e.preventDefault();
         void handleSave();
+      } else if (key === "d") {
+        e.preventDefault();
+        duplicateSelection();
+      } else if (key === "g") {
+        e.preventDefault();
+        if (e.shiftKey) ungroupSelection();
+        else groupSelection();
+      } else if (key === "a") {
+        e.preventDefault();
+        selectAll();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [selectedId, removeElement, undo, redo]);
+  }, [
+    removeSelection,
+    undo,
+    redo,
+    clearSelection,
+    duplicateSelection,
+    groupSelection,
+    ungroupSelection,
+    selectAll,
+  ]);
+
+  async function forceClose() {
+    allowCloseRef.current = true;
+    await forceCloseCurrentWindow(() => {
+      if (window.history.length > 1) {
+        navigate(-1);
+      } else {
+        navigate("/preferences");
+      }
+    });
+  }
+
+  function closeEditor() {
+    if (useThemeEditorStore.getState().isDirty()) {
+      setPendingGuid(null);
+      setShowUnsavedDialog(true);
+    } else {
+      void forceClose();
+    }
+  }
+
+  async function handleConfirmSave() {
+    setIsClosingOrSaving(true);
+    try {
+      await save();
+      const isPresentation = draft?.category === "presentation";
+      toast.success(
+        isPresentation
+          ? "Apresentação salva com sucesso!"
+          : "Tema salvo com sucesso!"
+      );
+      setShowUnsavedDialog(false);
+      if (pendingGuid) {
+        const nextGuid = pendingGuid;
+        setPendingGuid(null);
+        clearSelection();
+        void load(nextGuid);
+      } else {
+        await forceClose();
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao salvar tema.");
+    } finally {
+      setIsClosingOrSaving(false);
+    }
+  }
+
+  async function handleConfirmDiscard() {
+    revert();
+    setShowUnsavedDialog(false);
+    if (pendingGuid) {
+      const nextGuid = pendingGuid;
+      setPendingGuid(null);
+      clearSelection();
+      void load(nextGuid);
+    } else {
+      await forceClose();
+    }
+  }
+
+  function handleCancelClose() {
+    setShowUnsavedDialog(false);
+    setPendingGuid(null);
+  }
 
   async function handleSave() {
     setSaving(true);
     try {
       await save();
-      toast.success("Tema salvo com sucesso!");
+      const isPresentation = draft?.category === "presentation";
+      toast.success(
+        isPresentation
+          ? "Apresentação salva com sucesso!"
+          : "Tema salvo com sucesso!"
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao salvar tema.");
     } finally {
@@ -270,12 +430,17 @@ export default function ThemeEditorView() {
     }
   }
 
-  function handleBack() {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate("/preferences");
+  function blockContextMenu(e: React.MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (
+      target.isContentEditable ||
+      target.closest(
+        "input, textarea, select, [contenteditable='true']",
+      )
+    ) {
+      return;
     }
+    e.preventDefault();
   }
 
   function handleLayersDividerMouseDown(e: React.MouseEvent) {
@@ -324,7 +489,17 @@ export default function ThemeEditorView() {
     window.addEventListener("mouseup", onMouseUp);
   }
 
-  function handleAdd(kind: "text" | "color" | "image" | "video" | "noise") {
+  function handleAdd(
+    kind:
+      | "text"
+      | "color"
+      | "circle"
+      | "triangle"
+      | "star"
+      | "image"
+      | "video"
+      | "noise",
+  ) {
     if (!draft) return;
     const current = viewOf(
       draft,
@@ -363,6 +538,52 @@ export default function ThemeEditorView() {
           locked: false,
           css: { ...baseCss(760, 390, 400, 300) },
           fill: "#1e3a8a",
+        };
+        break;
+      case "circle":
+        el = {
+          id: uniqueId("circulo", ids),
+          name: "Círculo",
+          type: "CIRCLE",
+          x: 810,
+          y: 390,
+          visible: true,
+          locked: false,
+          css: { ...baseCss(810, 390, 300, 300), borderRadius: "50%" },
+          fill: "#4f46e5",
+        };
+        break;
+      case "triangle":
+        el = {
+          id: uniqueId("triangulo", ids),
+          name: "Triângulo",
+          type: "TRIANGLE",
+          x: 810,
+          y: 390,
+          visible: true,
+          locked: false,
+          css: {
+            ...baseCss(810, 390, 300, 300),
+            clipPath: "polygon(50% 0%, 0% 100%, 100% 100%)",
+          },
+          fill: "#f59e0b",
+        };
+        break;
+      case "star":
+        el = {
+          id: uniqueId("estrela", ids),
+          name: "Estrela",
+          type: "STAR",
+          x: 810,
+          y: 390,
+          visible: true,
+          locked: false,
+          css: {
+            ...baseCss(810, 390, 300, 300),
+            clipPath:
+              "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
+          },
+          fill: "#eab308",
         };
         break;
       case "noise":
@@ -409,7 +630,7 @@ export default function ThemeEditorView() {
         break;
     }
     addElement(el);
-    setSelectedId(el.id);
+    select(el.id);
   }
 
   function handleAddSymbol(symbol: string) {
@@ -418,8 +639,8 @@ export default function ThemeEditorView() {
       draft,
       useThemeEditorStore.getState().activePageId,
     );
-    if (selectedId) {
-      const el = current.elements.find((e) => e.id === selectedId);
+    if (selection.anchorId) {
+      const el = current.elements.find((e) => e.id === selection.anchorId);
       if (el && el.type === "TEXT") {
         useThemeEditorStore.getState().updateElement(el.id, {
           ...el,
@@ -445,11 +666,11 @@ export default function ThemeEditorView() {
       text: symbol,
     };
     addElement(newEl);
-    setSelectedId(newEl.id);
+    select(newEl.id);
   }
 
   function handleAddWidget(
-    widget: "clock" | "stopwatch" | "timer" | "next_verse" | "next_preview" | "lyrics",
+    widget: "clock" | "stopwatch" | "timer" | "next_verse" | "next_preview" | "lyrics" | "stage_message",
   ) {
     if (!draft) return;
     const current = viewOf(
@@ -562,6 +783,25 @@ export default function ThemeEditorView() {
           text: "Próximo: {next_preview}",
         };
         break;
+      case "stage_message":
+        el = {
+          id: uniqueId("aviso_operador", ids),
+          type: "TEXT",
+          x: 120,
+          y: 920,
+          visible: true,
+          locked: false,
+          css: {
+            ...baseCss(120, 920, 1680, 100),
+            textAlign: "center",
+            fontSize: "36px",
+            fontWeight: "700",
+            color: "#38bdf8",
+            autoShrink: "true",
+          },
+          text: "{stage_message}",
+        };
+        break;
       case "lyrics":
         el = {
           id: uniqueId("letra", ids),
@@ -584,7 +824,7 @@ export default function ThemeEditorView() {
         break;
     }
     addElement(el);
-    setSelectedId(el.id);
+    select(el.id);
   }
 
   function handleInsertLowerThird() {
@@ -638,23 +878,26 @@ export default function ThemeEditorView() {
     };
 
     addElements([boxEl, textEl]);
-    setSelectedId(textId);
+    select(textId);
     setSimulateCamera(true);
     toast.success("Barra Lower Third adicionada!");
   }
 
   if (!guid || (!draft && error)) {
     return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background text-foreground">
+      <div
+        className="flex h-screen w-screen flex-col items-center justify-center gap-3 bg-background text-foreground"
+        onContextMenu={blockContextMenu}
+      >
         <h1 className="text-lg font-semibold">Editor de Temas</h1>
         <p className="max-w-md text-center text-sm text-muted-foreground">
           {!guid
             ? "Nenhum tema selecionado. Abra o editor a partir da galeria de temas."
             : (error ?? "Tema não encontrado.")}
         </p>
-        <Button variant="outline" onClick={handleBack}>
-          <ArrowLeft className="size-4" />
-          Voltar
+        <Button variant="outline" onClick={closeEditor}>
+          <X className="size-4" />
+          Fechar
         </Button>
       </div>
     );
@@ -671,9 +914,7 @@ export default function ThemeEditorView() {
 
   const dirty = isDirty();
   const isStageTheme =
-    draft.category === "stage" ||
-    draft.guid === stageThemeGuid ||
-    draft.guid === resolvedStageThemeGuid;
+    draft.category === "stage" || draft.guid === DEFAULT_STAGE_THEME_GUID;
   const isStreamTheme =
     draft.category === "stream" ||
     draft.guid === DEFAULT_STREAM_THEME_GUID;
@@ -694,12 +935,12 @@ export default function ThemeEditorView() {
   const redoable = canRedo();
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-background text-foreground">
+    <div
+      className="flex h-screen w-screen flex-col bg-background text-foreground"
+      onContextMenu={blockContextMenu}
+    >
       {/* Top Header */}
       <header className="flex items-center gap-2 border-b border-border px-3 py-2 bg-card/40">
-        <Button variant="ghost" size="icon-sm" aria-label="Voltar" onClick={handleBack}>
-          <ArrowLeft />
-        </Button>
 
         {/* Theme Title with Edit Pencil button */}
         <div className="flex items-center gap-1.5 rounded px-2 py-1 hover:bg-accent/50 group transition-colors">
@@ -904,11 +1145,22 @@ export default function ThemeEditorView() {
             <DropdownMenuItem disabled={!dirty} onSelect={() => revert()}>
               Reverter alterações
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={handleBack}>
-              Fechar editor
+            <DropdownMenuItem onSelect={closeEditor}>
+              Fechar janela
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Fechar janela"
+          onClick={closeEditor}
+          title="Fechar janela"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <X className="size-4" />
+        </Button>
       </header>
 
       {/* Sub-header Toolbar */}
@@ -920,10 +1172,32 @@ export default function ThemeEditorView() {
           <Type className="size-3.5" />
           Texto
         </Button>
-        <Button variant="ghost" size="sm" onClick={() => handleAdd("color")} title="Adicionar Retângulo com cor, gradiente ou textura">
-          <Square className="size-3.5" />
-          Retângulo
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5" title="Adicionar formas geométricas">
+              <Shapes className="size-3.5" />
+              Formas
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onSelect={() => handleAdd("color")} className="gap-2 cursor-pointer">
+              <Square className="size-3.5" />
+              Retângulo
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleAdd("circle")} className="gap-2 cursor-pointer">
+              <Circle className="size-3.5" />
+              Círculo / Elipse
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleAdd("triangle")} className="gap-2 cursor-pointer">
+              <Triangle className="size-3.5" />
+              Triângulo
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleAdd("star")} className="gap-2 cursor-pointer">
+              <Star className="size-3.5" />
+              Estrela
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button
           variant="ghost"
           size="sm"
@@ -972,6 +1246,9 @@ export default function ThemeEditorView() {
             <DropdownMenuItem onSelect={() => handleAddWidget("next_preview")}>
               Próximo (Início com ...) ({`{next_preview}`})
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => handleAddWidget("stage_message")}>
+              Aviso do Operador ({`{stage_message}`})
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -1007,6 +1284,37 @@ export default function ThemeEditorView() {
         >
           Limite
         </Button>
+        <Button
+          variant={showRulers ? "secondary" : "ghost"}
+          size="sm"
+          aria-pressed={showRulers}
+          onClick={() => setShowRulers((v) => !v)}
+          title="Exibir ou ocultar réguas de medição em pixels"
+        >
+          <Ruler className="size-3.5" />
+          Réguas
+        </Button>
+        <Button
+          variant={showGuides ? "secondary" : "ghost"}
+          size="sm"
+          aria-pressed={showGuides}
+          onClick={() => setShowGuides((v) => !v)}
+          title="Exibir ou ocultar guias centrais e de segurança"
+        >
+          <Frame className="size-3.5" />
+          Guias
+        </Button>
+        {(viewTheme.guides?.length ?? 0) > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => clearGuides()}
+            title="Remover todas as guias desta página"
+          >
+            <Trash2 className="size-3.5" />
+            Limpar guias
+          </Button>
+        )}
         <Button
           variant={showGrid ? "secondary" : "ghost"}
           size="sm"
@@ -1088,7 +1396,7 @@ export default function ThemeEditorView() {
           style={{ width: `${layersWidth}px`, minWidth: "180px" }}
           className="shrink-0 flex flex-col h-full overflow-y-auto border-r border-border p-3 bg-card/20"
         >
-          <LayersPanel selectedId={selectedId} onSelect={setSelectedId} />
+          <LayersPanel />
         </aside>
 
         {/* Resizable Divider Handle for Layers */}
@@ -1193,14 +1501,14 @@ export default function ThemeEditorView() {
               theme={viewTheme}
               asset={activeAsset}
               props={sample.props}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
               onChange={(el) =>
                 useThemeEditorStore.getState().updateElement(el.id, el)
               }
               showGrid={showGrid}
               gridSize={gridSize}
               showLimit={showLimit}
+              showRulers={showRulers}
+              showGuides={showGuides}
               snap={snap}
               zoom={zoom}
               resolution={resolution}
@@ -1224,7 +1532,7 @@ export default function ThemeEditorView() {
           style={{ width: `${propertiesWidth}px`, minWidth: "320px" }}
           className="shrink-0 flex flex-col h-full overflow-y-auto border-l border-border p-3 bg-card/20"
         >
-          <PropertiesPanel selectedId={selectedId} />
+          <PropertiesPanel />
         </aside>
       </div>
 
@@ -1321,6 +1629,65 @@ export default function ThemeEditorView() {
               }}
             >
               Salvar Nome
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unsaved Changes Confirmation Dialog */}
+      <Dialog
+        open={showUnsavedDialog}
+        onOpenChange={(open) => {
+          if (!open) handleCancelClose();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-500">
+                <AlertCircle className="size-5" />
+              </div>
+              <DialogTitle className="text-base font-semibold">
+                {draft?.category === "presentation"
+                  ? "Salvar alterações na apresentação?"
+                  : "Salvar alterações no tema?"}
+              </DialogTitle>
+            </div>
+            <DialogDescription className="pt-2 text-sm leading-relaxed text-muted-foreground">
+              {draft?.category === "presentation"
+                ? `A apresentação "${draft?.title || "Sem título"}" possui alterações não salvas.`
+                : `O tema "${draft?.title || "Sem título"}" possui alterações não salvas.`}{" "}
+              Deseja salvar antes de fechar? Se você fechar sem salvar, suas alterações serão perdidas.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={handleCancelClose}
+              disabled={isClosingOrSaving}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleConfirmDiscard()}
+              disabled={isClosingOrSaving}
+            >
+              Descartar alterações
+            </Button>
+            <Button
+              onClick={() => void handleConfirmSave()}
+              disabled={isClosingOrSaving}
+              className="gap-1.5"
+            >
+              {isClosingOrSaving ? (
+                "Salvando…"
+              ) : (
+                <>
+                  <Save className="size-4" />
+                  Salvar e Fechar
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

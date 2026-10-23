@@ -21,6 +21,17 @@ pub enum MediaKind {
     Video,
 }
 
+impl MediaKind {
+    pub fn as_label(&self) -> &'static str {
+        match self {
+            MediaKind::Text => "Texto",
+            MediaKind::Image => "Imagem",
+            MediaKind::Folder => "Pasta de imagens",
+            MediaKind::Video => "Vídeo",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MediaItem {
@@ -94,6 +105,8 @@ pub struct LiveSlide {
     pub background: BackgroundLayer,
     pub blackout: bool,
     pub cleared: bool,
+    #[serde(default, rename = "textHidden")]
+    pub text_hidden: bool,
     #[serde(rename = "updatedAt")]
     pub updated_at: String,
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "nextUp")]
@@ -312,10 +325,37 @@ impl LinesPerSlide {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct SongDefaults {
     pub lines_per_slide: LinesPerSlide,
+    #[serde(default)]
+    pub add_empty_slide_at_start: bool,
+    #[serde(default = "default_true")]
+    pub vagalume_enabled: bool,
+    #[serde(default = "default_true")]
+    pub holyrics_enabled: bool,
+    #[serde(default = "default_true")]
+    pub lrclib_enabled: bool,
+    #[serde(default)]
+    pub vagalume_api_key: Option<String>,
+}
+
+impl Default for SongDefaults {
+    fn default() -> Self {
+        Self {
+            lines_per_slide: LinesPerSlide::Two,
+            add_empty_slide_at_start: false,
+            vagalume_enabled: true,
+            holyrics_enabled: true,
+            lrclib_enabled: true,
+            vagalume_api_key: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -377,6 +417,10 @@ pub struct OnlineLyricHit {
     pub track_name: String,
     pub artist_name: String,
     pub album_name: Option<String>,
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub provider_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -396,11 +440,14 @@ pub const EVENT_SLIDE: &str = "presentation://slide";
 pub const EVENT_STAGE_MESSAGE: &str = "stage://message";
 pub const EVENT_TIMER: &str = "stage://timer";
 pub const EVENT_OUTPUTS: &str = "outputs://changed";
-pub const EVENT_THEMES: &str = "presentation://themes";
+pub const EVENT_OUTPUT_PLANS: &str = "presentation://output-plans";
 pub const EVENT_THEMES_CHANGED: &str = "themes://changed";
 pub const EVENT_REMOTE_SETLIST: &str = "remote://setlist";
+pub const EVENT_SETLIST_ACTIVE_CHANGED: &str = "setlist://active-changed";
 pub const EVENT_WALLPAPER: &str = "presentation://wallpaper";
 pub const EVENT_CLIENT_HELLO: &str = "client://hello";
+pub const EVENT_DISPLAYS: &str = "displays://changed";
+pub const EVENT_DISPLAYS_IDENTIFY: &str = "displays://identify";
 
 pub const OUTPUT_HTTP_PORT: u16 = 5050;
 pub const WS_PATH: &str = "/ws";
@@ -460,6 +507,143 @@ pub struct OutputRuntime {
     pub monitor_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum OutputType {
+    Monitor,
+    Html,
+    Ndi,
+    Virtual,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum OutputCategory {
+    Public,
+    Stage,
+    Lower,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputResolution {
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CornerPinning {
+    pub top_left: (f64, f64),
+    pub top_right: (f64, f64),
+    pub bottom_left: (f64, f64),
+    pub bottom_right: (f64, f64),
+}
+
+/// Configuração de camadas de uma saída ("Look"). Não guarda elementos: apenas
+/// liga/desliga as camadas mestras no render. `screen_color` é fachada para
+/// `background_color_enabled` (fonte única na saída).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct OutputLook {
+    pub mask: bool,
+    pub messages: bool,
+    pub props: bool,
+    pub announcements: bool,
+    pub slide: bool,
+    pub media: bool,
+    pub video_input: bool,
+    pub screen_color: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenColorConfig {
+    pub enabled: bool,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplayOutput {
+    pub id: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slug: Option<String>,
+    pub category: OutputCategory,
+    #[serde(rename = "type")]
+    pub output_type: OutputType,
+    pub enabled: bool,
+    pub resolution: OutputResolution,
+    pub aspect_ratio: String,
+    pub background_color: String,
+    pub background_color_enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_theme_guid: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idle_theme_guid: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<OutputLook>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub monitor_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub monitor_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ndi_stream_name: Option<String>,
+    #[serde(default)]
+    pub frame_rate: u32,
+    #[serde(default)]
+    pub video_delay_frames: u32,
+    #[serde(default)]
+    pub alpha_key: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout_mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_destination: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub corner_pinning: Option<CornerPinning>,
+    #[serde(default)]
+    pub placeholder_enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placeholder_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placeholder_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub placeholder_fit: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplaysSettings {
+    pub auto_activate_on_launch: bool,
+    pub show_performance_stats: bool,
+    pub ignore_background_colors: bool,
+    pub show_keynote_screens: bool,
+    pub timer_font_mode: String,
+    pub bit_depth: String,
+    pub public_enabled: bool,
+    pub stage_enabled: bool,
+    pub lower_enabled: bool,
+}
+
+impl Default for DisplaysSettings {
+    fn default() -> Self {
+        Self {
+            auto_activate_on_launch: true,
+            show_performance_stats: false,
+            ignore_background_colors: false,
+            show_keynote_screens: false,
+            timer_font_mode: "auto".to_string(),
+            bit_depth: "8bit".to_string(),
+            public_enabled: true,
+            stage_enabled: true,
+            lower_enabled: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ClientKind {
@@ -490,6 +674,9 @@ pub enum ThemeElementType {
     Image,
     Video,
     Rectangle,
+    Circle,
+    Triangle,
+    Star,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -522,6 +709,16 @@ pub struct ThemeElement {
     pub group_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "groupName")]
     pub group_name: Option<String>,
+    /// Camada mestra de saída. Ausente = "slide" (temas v1/v2).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layer: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeGuide {
+    pub id: String,
+    pub axis: String,
+    pub pos: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -530,6 +727,10 @@ pub struct ThemePage {
     pub context: String,
     pub css: HashMap<String, String>,
     pub elements: Vec<ThemeElement>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guides: Option<Vec<ThemeGuide>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -546,27 +747,44 @@ pub struct SlideTheme {
     pub created_at: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guides: Option<Vec<ThemeGuide>>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum PlanThemeSource {
+    Override,
+    Event,
+    Default,
+    Fallback,
+}
+
+/// Plano resolvido de uma saída. O admin é o único resolvedor; o Rust apenas
+/// guarda e publica. `content_theme` é aplicado no renderer, por cima.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ThemeBinding {
-    pub target: OutputTarget,
-    pub asset: String,
-    #[serde(rename = "themeGuid")]
-    pub theme_guid: String,
+#[serde(rename_all = "camelCase")]
+pub struct OutputPlan {
+    pub output_id: String,
+    pub category: OutputCategory,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub theme: Option<SlideTheme>,
+    pub theme_source: PlanThemeSource,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_theme: Option<SlideTheme>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rest_theme: Option<SlideTheme>,
+    pub look: OutputLook,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub background_override: Option<BackgroundLayer>,
+    pub screen_color: ScreenColorConfig,
+    pub updated_at: String,
 }
 
-/// Temas já resolvidos para as saídas. O operador (admin) decide qual tema
-/// cada saída usa; aqui guardamos o resultado para que clientes nativos e web
-/// rendam exatamente o mesmo tema, sem depender de localStorage ou IPC.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct LiveThemes {
+pub struct LiveOutputPlans {
     #[serde(default)]
-    pub public: Option<SlideTheme>,
-    #[serde(default)]
-    pub stage: Option<SlideTheme>,
-    #[serde(default)]
-    pub stream: Option<SlideTheme>,
+    pub plans: HashMap<String, OutputPlan>,
 }
 
 /// Cronômetro do palco. Fonte da verdade no Rust: todas as saídas e o painel
@@ -632,6 +850,61 @@ pub fn now_millis() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CommunicationDisplayMode {
+    #[default]
+    BannerTop,
+    BannerBottom,
+    Overlay,
+    VariableOnly,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CommunicationLevel {
+    #[default]
+    Info,
+    Warning,
+    Urgent,
+}
+
+fn default_comm_scroll() -> bool {
+    true
+}
+
+fn default_comm_target() -> String {
+    "stage".to_string()
+}
+
+fn default_comm_targets() -> Vec<String> {
+    vec!["stage".to_string()]
+}
+
+/// Alerta / Mensagem do painel de comunicação, exibido no retorno (Stage),
+/// telão público, transmissão (OBS) e extensível para outros canais.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CommunicationAlert {
+    pub id: String,
+    pub text: String,
+    #[serde(default)]
+    pub display_mode: CommunicationDisplayMode,
+    #[serde(default = "default_comm_scroll")]
+    pub scroll: bool,
+    #[serde(default)]
+    pub level: CommunicationLevel,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sender: Option<String>,
+    #[serde(default = "default_comm_target")]
+    pub target: String,
+    #[serde(default = "default_comm_targets")]
+    pub targets: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_dismiss_seconds: Option<u32>,
+    pub created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

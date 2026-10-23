@@ -46,7 +46,7 @@ export default function PreferencesView() {
     ) as OutputsSection | null;
     if (
       savedSection &&
-      (["public", "stage", "stream", "server", "devices"] as const).includes(savedSection)
+      (["server", "devices", "wallpaper"] as const).includes(savedSection)
     ) {
       setOutputsSection(savedSection);
     }
@@ -59,7 +59,7 @@ export default function PreferencesView() {
       }
       if (e.key === "open_presenter_outputs_section" && e.newValue) {
         if (
-          (["public", "stage", "stream", "server", "devices"] as const).includes(
+          (["server", "devices", "wallpaper"] as const).includes(
             e.newValue as OutputsSection,
           )
         ) {

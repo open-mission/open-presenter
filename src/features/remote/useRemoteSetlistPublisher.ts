@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { setRemoteSetlist } from "@/core/ipc/commands";
 import { isTauri, listenCommand } from "@/core/ipc/tauri";
 import { useSetlistStore } from "@/features/events-setlists/store";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
 import { useRemoteStore } from "./store";
 import { buildRemoteSetlist } from "./remoteSetlist";
@@ -17,6 +18,9 @@ export function useRemoteSetlistPublisher(): void {
   const songsCache = useSetlistStore((s) => s.songsCache);
   const dirty = useSetlistStore((s) => s.dirty);
   const songGroups = useSongGroupsStore((s) => s.groups);
+  const addEmptySlideAtStart = useSongDefaultsStore(
+    (s) => s.addEmptySlideAtStart,
+  );
   const ensureToken = useRemoteStore((s) => s.ensureToken);
   const appendImprevistoSong = useSetlistStore((s) => s.appendImprevistoSong);
 
@@ -27,17 +31,28 @@ export function useRemoteSetlistPublisher(): void {
 
   useEffect(() => {
     if (!isTauri()) return;
-    let unlisten: (() => void) | null = null;
+    let unlistenImprevisto: (() => void) | null = null;
+    let unlistenActive: (() => void) | null = null;
+
     void listenCommand<string>("remote://imprevisto", (songId) => {
       if (songId) {
         void appendImprevistoSong(songId);
       }
     }).then((fn) => {
-      unlisten = fn;
+      unlistenImprevisto = fn;
+    });
+
+    void listenCommand<string>("setlist://active-changed", (eventId) => {
+      if (eventId && eventId !== useSetlistStore.getState().activeEventId) {
+        void useSetlistStore.getState().selectEvent(eventId);
+      }
+    }).then((fn) => {
+      unlistenActive = fn;
     });
 
     return () => {
-      unlisten?.();
+      unlistenImprevisto?.();
+      unlistenActive?.();
     };
   }, [appendImprevistoSong]);
 
@@ -48,7 +63,12 @@ export function useRemoteSetlistPublisher(): void {
       void (async () => {
         try {
           const snapshot = event
-            ? await buildRemoteSetlist(event, songsCache, songGroups)
+            ? await buildRemoteSetlist(
+                event,
+                songsCache,
+                songGroups,
+                addEmptySlideAtStart,
+              )
             : null;
           if (!cancelled) {
             await setRemoteSetlist(snapshot);
@@ -63,5 +83,5 @@ export function useRemoteSetlistPublisher(): void {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [event, songsCache, dirty, songGroups]);
+  }, [event, songsCache, dirty, songGroups, addEmptySlideAtStart]);
 }

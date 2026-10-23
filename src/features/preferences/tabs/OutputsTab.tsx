@@ -4,64 +4,49 @@ import {
   Copy,
   ExternalLink,
   Image as ImageIcon,
-  Layers,
-  Monitor,
-  MonitorUp,
   Palette,
   Play,
-  PowerOff,
-  Projector,
-  Radio,
   RefreshCw,
   RotateCcw,
   Server,
+  Sliders,
   Smartphone,
   Square,
   Trash2,
   TriangleAlert,
-  Tv,
   Upload,
-  Video,
 } from "lucide-react";
-import { cn } from "@/core/lib/utils";
 import { outputHttpUrl } from "@/core/config/app";
-import type {
-  ConnectedClient,
-  MonitorInfo,
-  OutputMode,
-  OutputTarget,
-} from "@/core/types";
+import type { ConnectedClient } from "@/core/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { getConnectedClients, saveThemeMedia } from "@/core/ipc/commands";
+import {
+  getConnectedClients,
+  openDisplaysWindow,
+  saveThemeMedia,
+} from "@/core/ipc/commands";
+import { isTauri } from "@/core/ipc/tauri";
+import { useDisplaysStore } from "@/features/displays/store";
 import {
   resolveThemeMediaUrl,
   parseMediaWithFit,
   FIT_CLASSES,
   type MediaFit,
 } from "@/features/theme-editor/media";
-import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { usePreferencesStore } from "@/features/preferences/store";
 import type { OutputsSection } from "@/features/preferences/types";
-import { useSlideThemesStore } from "@/features/slide-themes/store";
-import { StageTab } from "./StageTab";
-import { StreamTab } from "./StreamTab";
-
-const TARGET_LABEL: Record<OutputTarget, string> = {
-  public: "Projeção Pública",
-  stage: "Retorno de Palco",
-  stream: "Transmissão (OBS)",
-};
-
-const MODE_OPTIONS: { id: OutputMode; label: string; icon: typeof PowerOff }[] = [
-  { id: "off", label: "Desligada", icon: PowerOff },
-  { id: "native", label: "Nativa", icon: MonitorUp },
-  { id: "web", label: "Web", icon: Radio },
-  { id: "both", label: "Ambas", icon: Layers },
-];
+import { useOutputThemeDocument } from "@/features/slide-themes/useOutputPlan";
 
 const FIT_OPTIONS: { id: MediaFit; label: string; desc: string }[] = [
   { id: "contain", label: "Ajustar", desc: "Exibe a imagem inteira sem cortes (com barras se necessário)" },
@@ -70,78 +55,17 @@ const FIT_OPTIONS: { id: MediaFit; label: string; desc: string }[] = [
   { id: "fill", label: "Esticar", desc: "Estica preenchendo toda a tela (pode distorcer)" },
 ];
 
-interface TargetCardProps {
-  target: OutputTarget;
-  title: string;
-  subtitle: string;
-  icon: typeof Projector;
-  webPath: "/public" | "/stage" | "/stream";
-  monitors: MonitorInfo[];
-}
-
-function TargetCard({
-  target,
-  title,
-  subtitle,
-  icon: Icon,
-  webPath,
-  monitors,
-}: TargetCardProps) {
-  const config = useOutputManagerStore((s) => s.configs[target]);
-  const live = useOutputManagerStore((s) => s.runtime[target]);
-  const host = useOutputManagerStore((s) => s.host);
-  const port = useOutputManagerStore((s) => s.server.port);
-  const serverRunning = useOutputManagerStore((s) => s.server.running);
-  const setMode = useOutputManagerStore((s) => s.setMode);
-  const setMonitor = useOutputManagerStore((s) => s.setMonitor);
+function PublicWallpaperCard() {
+  const wallpaper = useOutputManagerStore((s) => s.configs.public.wallpaper);
   const setWallpaper = useOutputManagerStore((s) => s.setWallpaper);
-  const themeName = useSlideThemesStore((s) => {
-    if (target === "stage") {
-      const guid = s.stageThemeGuid;
-      return s.themes.find((t) => t.guid === guid)?.title ?? null;
-    }
-    if (target === "stream") {
-      const binding =
-        s.bindings.find((b) => b.target === "stream" && b.asset === "lyric") ??
-        s.bindings.find((b) => b.target === "stream");
-      if (!binding) return "Lower Third (Padrão)";
-      return s.themes.find((t) => t.guid === binding.themeGuid)?.title ?? null;
-    }
-    const binding =
-      s.bindings.find((b) => b.target === "public" && b.asset === "lyric") ??
-      s.bindings.find((b) => b.target === "public");
-    if (!binding) return null;
-    return s.themes.find((t) => t.guid === binding.themeGuid)?.title ?? null;
-  });
+  const themeName = useOutputThemeDocument("public").title;
 
-  const [copied, setCopied] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [wallpaperError, setWallpaperError] = useState(false);
 
   useEffect(() => {
     setWallpaperError(false);
-  }, [config.wallpaper]);
-
-  const currentUrl = outputHttpUrl(host, port, webPath);
-  const active = isOutputActive(config.mode, live.open, serverRunning);
-  const savedMissing =
-    config.monitorId !== null &&
-    !monitors.some((m) => m.id === config.monitorId);
-
-  async function handleModeChange(mode: OutputMode) {
-    if (mode === config.mode) return;
-    setBusy(true);
-    try {
-      await setMode(target, mode);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function handleMonitorSelect(monitorId: string | null) {
-    void setMonitor(target, monitorId);
-  }
+  }, [wallpaper]);
 
   async function handleWallpaperUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -152,20 +76,16 @@ function TargetCard({
       const ext = file.name.split(".").pop()?.toLowerCase() || "png";
       const safeName = `wallpaper_${Date.now()}.${ext}`;
       const saved = await saveThemeMedia("wallpapers", safeName, Array.from(bytes));
-      const currentFit = config.wallpaper
-        ? parseMediaWithFit(config.wallpaper).fit
-        : "contain";
-      await setWallpaper(target, `${saved}#fit=${currentFit}`);
+      const currentFit = wallpaper ? parseMediaWithFit(wallpaper).fit : "contain";
+      await setWallpaper("public", `${saved}#fit=${currentFit}`);
       toast.success("Papel de parede definido com sucesso!");
     } catch (err) {
       console.warn("Falha ao salvar via saveThemeMedia, aplicando data URL:", err);
       const reader = new FileReader();
       reader.onload = async () => {
         if (typeof reader.result === "string") {
-          const currentFit = config.wallpaper
-            ? parseMediaWithFit(config.wallpaper).fit
-            : "contain";
-          await setWallpaper(target, `${reader.result}#fit=${currentFit}`);
+          const currentFit = wallpaper ? parseMediaWithFit(wallpaper).fit : "contain";
+          await setWallpaper("public", `${reader.result}#fit=${currentFit}`);
           toast.success("Papel de parede definido com sucesso!");
         }
       };
@@ -177,339 +97,134 @@ function TargetCard({
   }
 
   function handleFitChange(fit: MediaFit) {
-    if (!config.wallpaper) return;
-    const { url } = parseMediaWithFit(config.wallpaper);
-    void setWallpaper(target, `${url}#fit=${fit}`);
+    if (!wallpaper) return;
+    const { url } = parseMediaWithFit(wallpaper);
+    void setWallpaper("public", `${url}#fit=${fit}`);
     const fitLabel = FIT_OPTIONS.find((o) => o.id === fit)?.label ?? fit;
     toast.info(`Ajuste alterado para: ${fitLabel}`);
   }
 
-  function handleCopyUrl() {
-    void navigator.clipboard.writeText(currentUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  async function handleOpenUrl() {
-    try {
-      const { openUrl } = await import("@tauri-apps/plugin-opener");
-      await openUrl(currentUrl);
-    } catch {
-      window.open(currentUrl, "_blank");
-    }
-  }
-
   return (
-    <div className="flex flex-col rounded-xl border border-border/80 bg-card p-5 shadow-2xs">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Icon className="size-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h4 className="font-semibold text-sm text-foreground">{title}</h4>
-              <Badge
-                variant="outline"
-                className="font-mono text-[10px] text-muted-foreground"
-              >
-                {webPath}
-              </Badge>
-            </div>
-            <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
-          </div>
+    <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-card p-5 shadow-2xs mt-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ImageIcon className="size-4 text-primary" />
+          <h4 className="font-semibold text-sm text-foreground">
+            Papel de Parede (Tela Livre)
+          </h4>
         </div>
+        {wallpaper && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() => void setWallpaper("public", null)}
+            className="h-7 text-xs text-red-500 hover:text-red-400 hover:bg-red-500/10 cursor-pointer"
+          >
+            <Trash2 className="size-3.5 mr-1" />
+            Remover Imagem
+          </Button>
+        )}
+      </div>
 
-        <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs">
-          <span
-            className={`size-2 rounded-full ${
-              active ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"
-            }`}
-          />
-          <span className="font-medium text-[11px] text-foreground">
-            {active ? "Em Exibição" : "Desligada"}
+      <p className="text-xs text-muted-foreground">
+        Exibido no telão em proporção 16:9 quando nada estiver em apresentação ou quando a projeção estiver desocupada.
+      </p>
+
+      {/* Preview Box */}
+      <div className="relative aspect-video w-full max-w-md overflow-hidden rounded-lg border border-border bg-black shadow-inner">
+        {wallpaper ? (
+          (() => {
+            const { url, fit } = parseMediaWithFit(wallpaper);
+            const resolvedUrl = resolveThemeMediaUrl(url);
+            if (wallpaperError) {
+              return (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground select-none">
+                  <TriangleAlert className="size-8 text-amber-500/80" />
+                  <span className="text-xs font-medium text-foreground/80">
+                    Arquivo não encontrado
+                  </span>
+                </div>
+              );
+            }
+            return (
+              <img
+                src={resolvedUrl}
+                alt="Papel de parede"
+                className={`h-full w-full ${FIT_CLASSES[fit]}`}
+                onError={() => setWallpaperError(true)}
+              />
+            );
+          })()
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground select-none">
+            <ImageIcon className="size-8 text-muted-foreground/30" />
+            <span className="text-xs font-medium text-foreground/80">
+              Nenhum papel de parede definido
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              O telão permanecerá preto enquanto estiver livre.
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Controls: Upload & Object-Fit */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="cursor-pointer inline-flex">
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleWallpaperUpload}
+              disabled={uploading}
+            />
+            <span className="inline-flex items-center justify-center gap-1.5 rounded-md border border-input bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground shadow-2xs hover:bg-secondary/80">
+              <Upload className="size-3.5" />
+              {uploading ? "Salvando…" : wallpaper ? "Trocar Imagem" : "Escolher Imagem"}
+            </span>
+          </label>
+          <span className="text-[11px] text-muted-foreground">
+            Formatos recomendados: PNG, JPG ou WebP (1920×1080).
           </span>
         </div>
-      </div>
 
-      {/* Mode Controls Segmented */}
-      <div className="mt-4 flex flex-col gap-2">
-        <label className="text-xs font-medium text-foreground">
-          Modo de Operação
-        </label>
-        <div className="grid grid-cols-4 gap-1.5 rounded-lg border border-border/80 bg-muted/40 p-1">
-          {MODE_OPTIONS.map((option) => {
-            const OptionIcon = option.icon;
-            const selected = config.mode === option.id;
-            return (
-              <button
-                key={option.id}
-                type="button"
-                disabled={busy}
-                onClick={() => void handleModeChange(option.id)}
-                className={`flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-                  selected
-                    ? "bg-background text-primary shadow-2xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <OptionIcon className="size-3.5" />
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Helper quando a saída está desligada */}
-      {config.mode === "off" && (
-        <div className="mt-4 rounded-lg border border-dashed border-border/70 bg-muted/20 p-3 text-center text-xs text-muted-foreground">
-          Esta saída está desligada. Escolha um modo acima (Nativa, Web ou Ambas) para ativá-la.
-        </div>
-      )}
-
-      {/* Monitor Picker — visível apenas se modo Nativa ou Ambas */}
-      {(config.mode === "native" || config.mode === "both") && (
-        <div className="mt-4 flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-foreground">
-            Monitor de Exibição Nativa
-          </label>
-          <select
-            className="h-9 w-full rounded-md border border-input bg-background px-3 text-xs text-foreground shadow-2xs outline-none focus:ring-1 focus:ring-ring"
-            value={config.monitorId ?? ""}
-            disabled={busy}
-            onChange={(e) => handleMonitorSelect(e.target.value || null)}
-          >
-            <option value="">Detecção automática de monitor</option>
-            {savedMissing && (
-              <option value={config.monitorId ?? ""}>
-                {config.monitorLabel ?? config.monitorId} — não conectado
-              </option>
-            )}
-            {monitors.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name} ({m.width}×{m.height}) {m.isPrimary ? "• Principal" : ""}
-              </option>
-            ))}
-          </select>
-          {savedMissing && (
-            <p className="flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-500">
-              <TriangleAlert className="size-3.5 shrink-0" />
-              Monitor salvo não conectado — a janela nativa não abre até
-              reconectar ou trocar de monitor.
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Web URL & Share Bar — visível apenas se modo Web ou Ambas */}
-      {(config.mode === "web" || config.mode === "both") && (
-        <div className="mt-4 flex min-w-0 flex-col gap-1.5 rounded-lg border border-border/60 bg-muted/20 p-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              Endereço Web Local (OBS / Celulares / Tablets)
+        {wallpaper && (
+          <div className="flex flex-col gap-1.5 pt-1 border-t border-border/40">
+            <span className="text-[11px] font-medium text-foreground">
+              Ajuste na Tela (Object Fit)
             </span>
-            <span className="font-mono text-[10px] text-muted-foreground">
-              porta {port}
-            </span>
-          </div>
-          {/* Input Group do Shadcn UI para URL Web */}
-          <div
-            className={`flex min-w-0 items-center rounded-md border border-input bg-background/80 shadow-2xs focus-within:ring-1 focus-within:ring-ring ${
-              serverRunning ? "" : "opacity-50"
-            }`}
-          >
-            <input
-              type="text"
-              readOnly
-              value={currentUrl}
-              className="h-8 min-w-0 flex-1 bg-transparent px-2.5 font-mono text-xs text-foreground outline-none select-all"
-            />
-            <div className="flex shrink-0 items-center gap-1 border-l border-border/60 px-1 py-1 bg-muted/20">
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-6 gap-1 px-2 text-xs font-medium cursor-pointer"
-                onClick={handleCopyUrl}
-                disabled={!serverRunning}
-                title={serverRunning ? "Copiar endereço" : "Servidor local parado"}
-              >
-                {copied ? (
-                  <>
-                    <Check className="size-3 text-emerald-500" />
-                    <span>Copiado!</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy className="size-3" />
-                    <span>Copiar</span>
-                  </>
-                )}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="h-6 gap-1 px-2 text-xs font-medium cursor-pointer"
-                onClick={() => void handleOpenUrl()}
-                disabled={!serverRunning}
-                title={serverRunning ? "Abrir no navegador" : "Servidor local parado"}
-              >
-                <ExternalLink className="size-3" />
-                <span>Abrir</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Papel de Parede (Tela Desocupada / Sem Apresentação) */}
-      {target === "public" && (
-        <div className="mt-4 flex flex-col gap-3 rounded-lg border border-border/60 bg-muted/20 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <ImageIcon className="size-3.5 text-primary" />
-                Papel de Parede (Tela Livre)
-              </span>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
-                Exibido no telão em proporção 16:9 quando nada estiver em apresentação.
-              </p>
-            </div>
-            {config.wallpaper && (
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 cursor-pointer"
-                onClick={() => {
-                  void setWallpaper(target, null);
-                  toast.info("Papel de parede removido.");
-                }}
-              >
-                <Trash2 className="size-3 mr-1" />
-                Remover
-              </Button>
-            )}
-          </div>
-
-          {/* 16:9 Preview Container */}
-          <div className="relative aspect-video w-full max-w-md overflow-hidden rounded-lg border border-border/80 bg-zinc-950 shadow-inner">
-            {config.wallpaper ? (
-              (() => {
-                const { url, fit } = parseMediaWithFit(config.wallpaper);
-                const resolved = resolveThemeMediaUrl(url, host, port) ?? url;
-                if (wallpaperError) {
-                  return (
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground select-none">
-                      <TriangleAlert className="size-6 text-amber-500" />
-                      <span className="text-xs font-semibold text-foreground">
-                        Falha ao carregar imagem
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        Arquivo pode não existir mais no disco. Escolha uma nova imagem.
-                      </span>
-                    </div>
-                  );
-                }
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 rounded-lg border border-border/80 bg-muted/40 p-1 max-w-md">
+              {FIT_OPTIONS.map((opt) => {
+                const currentFit = parseMediaWithFit(wallpaper).fit;
+                const selected = currentFit === opt.id;
                 return (
-                  <div className="relative h-full w-full">
-                    <img
-                      src={resolved}
-                      alt="Papel de parede"
-                      onError={() => setWallpaperError(true)}
-                      className={cn("h-full w-full", FIT_CLASSES[fit])}
-                    />
-                    <div className="absolute top-2 left-2 flex items-center gap-1.5">
-                      <div className="rounded bg-black/75 px-2 py-0.5 text-[10px] font-medium text-zinc-300 backdrop-blur-xs border border-white/10">
-                        16:9 Telão Livre · {FIT_OPTIONS.find((o) => o.id === fit)?.label ?? fit}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleFitChange(fit === "contain" ? "cover" : "contain")}
-                        className="rounded bg-primary/20 hover:bg-primary/30 px-2 py-0.5 text-[10px] font-semibold text-primary border border-primary/40 backdrop-blur-xs transition-colors cursor-pointer"
-                        title={fit === "contain" ? "Mudar para preencher tela cortando bordas" : "Mudar para ver imagem completa sem cortes"}
-                      >
-                        {fit === "contain" ? "Preencher Tela" : "Ver Completa (Ajustar)"}
-                      </button>
-                    </div>
-                  </div>
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => handleFitChange(opt.id)}
+                    className={`flex items-center justify-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-all cursor-pointer ${
+                      selected
+                        ? "bg-background text-primary shadow-2xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    title={opt.desc}
+                  >
+                    {opt.label}
+                  </button>
                 );
-              })()
-            ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground select-none">
-                <ImageIcon className="size-8 text-muted-foreground/30" />
-                <span className="text-xs font-medium text-foreground/80">
-                  Nenhum papel de parede definido
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  O telão permanecerá preto enquanto estiver livre.
-                </span>
-              </div>
-            )}
-          </div>
-
-          {/* Controls: Upload & Object-Fit */}
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="cursor-pointer inline-flex">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleWallpaperUpload}
-                  disabled={uploading}
-                />
-                <span className="inline-flex items-center justify-center gap-1.5 rounded-md border border-input bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground shadow-2xs hover:bg-secondary/80">
-                  <Upload className="size-3.5" />
-                  {uploading ? "Salvando…" : config.wallpaper ? "Trocar Imagem" : "Escolher Imagem"}
-                </span>
-              </label>
-              <span className="text-[11px] text-muted-foreground">
-                Formatos recomendados: PNG, JPG ou WebP (1920×1080).
-              </span>
+              })}
             </div>
-
-            {config.wallpaper && (
-              <div className="flex flex-col gap-1.5 pt-1 border-t border-border/40">
-                <span className="text-[11px] font-medium text-foreground">
-                  Ajuste na Tela (Object Fit)
-                </span>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 rounded-lg border border-border/80 bg-muted/40 p-1 max-w-md">
-                  {FIT_OPTIONS.map((opt) => {
-                    const currentFit = parseMediaWithFit(config.wallpaper).fit;
-                    const selected = currentFit === opt.id;
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => handleFitChange(opt.id)}
-                        className={`flex items-center justify-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-all cursor-pointer ${
-                          selected
-                            ? "bg-background text-primary shadow-2xs font-semibold"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                        title={opt.desc}
-                      >
-                        {opt.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Current theme (read-only) */}
-      <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground border-t border-border/40 pt-2">
         <Palette className="size-3.5 shrink-0" />
-        <span className="font-medium">Tema atual:</span>
-        <span className="truncate text-foreground">
-          {themeName ?? "Nenhum tema ligado"}
+        <span className="font-medium">Tema atual da projeção:</span>
+        <span className="truncate text-foreground font-semibold">
+          {themeName ?? "Padrão"}
         </span>
       </div>
     </div>
@@ -735,151 +450,85 @@ function ServerSection() {
   );
 }
 
-function formatClientTime(epochSecs: number): string {
-  const date = new Date(epochSecs * 1000);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
 function DevicesSection() {
-  const runtime = useOutputManagerStore((s) => s.runtime);
-  const configs = useOutputManagerStore((s) => s.configs);
-  const monitors = useOutputManagerStore((s) => s.monitors);
-  const refreshRuntime = useOutputManagerStore((s) => s.refreshRuntime);
   const [clients, setClients] = useState<ConnectedClient[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function refreshClients() {
+    setBusy(true);
+    try {
+      setClients(await getConnectedClients());
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
-    let disposed = false;
-    async function load(): Promise<void> {
-      const list = await getConnectedClients();
-      if (!disposed) setClients(list);
-    }
-    void load();
-    const timer = setInterval(() => void load(), 5000);
-    return () => {
-      disposed = true;
-      clearInterval(timer);
-    };
+    void refreshClients();
+    const interval = setInterval(() => void refreshClients(), 4000);
+    return () => clearInterval(interval);
   }, []);
-
-  async function handleRefresh(): Promise<void> {
-    setRefreshing(true);
-    try {
-      const [clients] = await Promise.all([
-        getConnectedClients(),
-        refreshRuntime(),
-      ]);
-      setClients(clients);
-    } finally {
-      setTimeout(() => setRefreshing(false), 400);
-    }
-  }
-
-  const nativeOpen = (["public", "stage"] as const).filter(
-    (t) => runtime[t]?.open,
-  );
-  const empty = nativeOpen.length === 0 && clients.length === 0;
-
-  function monitorLabel(target: OutputTarget): string {
-    const id = runtime[target]?.monitorId;
-    return (
-      monitors.find((m) => m.id === id)?.name ??
-      configs[target].monitorLabel ??
-      "Detecção automática"
-    );
-  }
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-card p-5 shadow-2xs">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
             <Smartphone className="size-5" />
           </div>
           <div>
-            <h4 className="font-semibold text-sm text-foreground">
-              Dispositivos conectados
-            </h4>
+            <h4 className="font-semibold text-sm text-foreground">Dispositivos Conectados</h4>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Janelas nativas abertas e navegadores web ligados às saídas.
+              Navegadores e telas remotas sincronizados com esta máquina via WebSocket.
             </p>
           </div>
         </div>
+
         <Button
-          type="button"
           size="sm"
           variant="outline"
-          className="h-7 shrink-0 gap-1.5 text-xs"
-          onClick={() => void handleRefresh()}
-          disabled={refreshing}
-          title="Atualizar lista de dispositivos"
+          onClick={() => void refreshClients()}
+          className="h-8 gap-1.5 text-xs"
+          disabled={busy}
         >
-          <RefreshCw
-            className={`size-3.5 ${refreshing ? "animate-spin text-primary" : ""}`}
-          />
+          <RefreshCw className={`size-3.5 ${busy ? "animate-spin" : ""}`} />
           Atualizar
         </Button>
       </div>
 
-      {empty ? (
-        <div className="flex items-center gap-3 rounded-lg border border-dashed border-border bg-background/50 p-3 text-xs text-muted-foreground">
-          <Smartphone className="size-4 shrink-0 text-muted-foreground" />
-          <span>
-            Nenhum dispositivo conectado. Abra uma saída web em um celular,
-            tablet ou OBS para vê-lo aqui.
-          </span>
+      {clients.length === 0 ? (
+        <div className="p-6 text-center rounded-lg border border-dashed border-border/80 bg-muted/10 text-xs text-muted-foreground">
+          Nenhum dispositivo conectado no momento.
         </div>
       ) : (
-        <table className="w-full text-left text-xs">
-          <thead>
-            <tr className="border-b border-border/60 text-[11px] uppercase tracking-wide text-muted-foreground">
-              <th className="py-2 pr-2 font-medium">Dispositivo</th>
-              <th className="py-2 pr-2 font-medium">Saída</th>
-              <th className="py-2 font-medium">Detalhes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {nativeOpen.map((t) => (
-              <tr
-                key={`native-${t}`}
-                className="border-b border-border/40 last:border-0"
-              >
-                <td className="py-2 pr-2">
-                  <span className="flex items-center gap-1.5 font-medium text-foreground">
-                    <Monitor className="size-3.5 shrink-0 text-muted-foreground" />
-                    Janela nativa
-                  </span>
-                </td>
-                <td className="py-2 pr-2 text-foreground">{TARGET_LABEL[t]}</td>
-                <td className="py-2 text-muted-foreground">
-                  {monitorLabel(t)}
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-border/60 text-muted-foreground">
+                <th className="pb-2 font-medium">IP</th>
+                <th className="pb-2 font-medium">Tipo</th>
+                <th className="pb-2 font-medium">Saída</th>
+                <th className="pb-2 font-medium">Navegador</th>
               </tr>
-            ))}
-            {clients.map((c) => (
-              <tr key={c.id} className="border-b border-border/40 last:border-0">
-                <td className="py-2 pr-2">
-                  <span className="flex items-center gap-1.5 font-medium text-foreground">
-                    <Smartphone className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="font-mono">{c.ip}</span>
-                  </span>
-                </td>
-                <td className="py-2 pr-2 text-foreground">
-                  {c.output ? TARGET_LABEL[c.output] : "—"}
-                </td>
-                <td className="py-2 text-muted-foreground">
-                  {formatClientTime(c.connectedAt)}
-                  {c.userAgent ? ` · ${c.userAgent}` : ""}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-border/40">
+              {clients.map((c) => (
+                <tr key={c.id}>
+                  <td className="py-2 font-mono text-foreground">{c.ip}</td>
+                  <td className="py-2 capitalize">{c.kind}</td>
+                  <td className="py-2">
+                    <Badge variant="outline" className="text-[10px] font-mono">
+                      {c.output ?? "Indefinida"}
+                    </Badge>
+                  </td>
+                  <td className="py-2 text-muted-foreground truncate max-w-[200px]" title={c.userAgent ?? ""}>
+                    {c.userAgent ?? "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -892,6 +541,10 @@ export function OutputsTab() {
   const refreshRuntime = useOutputManagerStore((s) => s.refreshRuntime);
   const section = usePreferencesStore((s) => s.outputsSection);
   const setSection = usePreferencesStore((s) => s.setOutputsSection);
+
+  const displaysSettings = useDisplaysStore((s) => s.settings);
+  const updateDisplaysSettings = useDisplaysStore((s) => s.updateSettings);
+  const configuredOutputs = useDisplaysStore((s) => s.outputs);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -909,6 +562,14 @@ export function OutputsTab() {
     }
   }
 
+  async function handleOpenDisplays() {
+    if (isTauri()) {
+      await openDisplaysWindow();
+    } else {
+      window.open("#/displays", "_blank");
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Section Header */}
@@ -918,98 +579,239 @@ export function OutputsTab() {
             Saídas (telas)
           </h3>
           <p className="text-sm text-muted-foreground">
-            Configure telas de projeção física, retorno de palco e servidor web local.
+            Configure saídas de projeção física, retorno de palco, stream OBS (HTML) e servidor web local.
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-8 gap-1.5 text-xs shrink-0 cursor-pointer"
-          onClick={() => void refreshHardware()}
-          disabled={refreshing}
-        >
-          <RefreshCw
-            className={`size-3.5 ${refreshing ? "animate-spin text-primary" : ""}`}
-          />
-          Detectar Telas ({monitors.length})
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            className="h-8 gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white cursor-pointer"
+            onClick={() => void handleOpenDisplays()}
+          >
+            <Sliders className="size-3.5" />
+            Configurar telas... ({configuredOutputs.length})
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs shrink-0 cursor-pointer"
+            onClick={() => void refreshHardware()}
+            disabled={refreshing}
+          >
+            <RefreshCw
+              className={`size-3.5 ${refreshing ? "animate-spin text-primary" : ""}`}
+            />
+            Detectar ({monitors.length})
+          </Button>
+        </div>
       </div>
 
-      {/* Telas em abas internas */}
+      {/* ProPresenter Screen Preferences Card (matching CleanShot 2026-10-22 at 21.53.57@2x.png) */}
+      <div className="rounded-xl border border-border/80 bg-muted/20 p-4 space-y-5">
+        <div className="space-y-4">
+          {/* Switch 1: Ativar telas automaticamente */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-0.5">
+              <label
+                htmlFor="auto-activate"
+                className="text-xs font-semibold text-foreground cursor-pointer"
+              >
+                Ativar telas automaticamente na inicialização
+              </label>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Quando o aplicativo for iniciado, ative automaticamente as telas de palco e público. Esta configuração afeta apenas as saídas gráficas.
+              </p>
+            </div>
+            <Switch
+              id="auto-activate"
+              checked={displaysSettings.autoActivateOnLaunch}
+              onCheckedChange={(checked) =>
+                void updateDisplaysSettings({ autoActivateOnLaunch: checked })
+              }
+              className="scale-90 shrink-0"
+            />
+          </div>
+
+          <div className="h-px bg-border/50" />
+
+          {/* Switch 2: Exibir estatísticas de desempenho */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-0.5">
+              <label
+                htmlFor="perf-stats"
+                className="text-xs font-semibold text-foreground cursor-pointer"
+              >
+                Exibir estatísticas de desempenho na tela
+              </label>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                A ativação exibirá os quadros renderizados por segundo (FPS) e a utilização de memória de vídeo em todas as telas.
+              </p>
+            </div>
+            <Switch
+              id="perf-stats"
+              checked={displaysSettings.showPerformanceStats}
+              onCheckedChange={(checked) =>
+                void updateDisplaysSettings({ showPerformanceStats: checked })
+              }
+              className="scale-90 shrink-0"
+            />
+          </div>
+
+          <div className="h-px bg-border/50" />
+
+          {/* Switch 3: Ignorar cores de fundo */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-0.5">
+              <label
+                htmlFor="ignore-bg"
+                className="text-xs font-semibold text-foreground cursor-pointer"
+              >
+                Ignorar cores de fundo
+              </label>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Ignora as cores de fundo da apresentação e do slide para todo o conteúdo renderizado.
+              </p>
+            </div>
+            <Switch
+              id="ignore-bg"
+              checked={displaysSettings.ignoreBackgroundColors}
+              onCheckedChange={(checked) =>
+                void updateDisplaysSettings({ ignoreBackgroundColors: checked })
+              }
+              className="scale-90 shrink-0"
+            />
+          </div>
+
+          <div className="h-px bg-border/50" />
+
+          {/* Switch 4: Mostrar telas de Keynote */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-0.5">
+              <label
+                htmlFor="keynote-screens"
+                className="text-xs font-semibold text-foreground cursor-pointer"
+              >
+                Mostrar telas de Keynote
+              </label>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                Exibir telas de apresentação de Keynote / PowerPoint, mesmo quando a projeção estiver ativa.
+              </p>
+            </div>
+            <Switch
+              id="keynote-screens"
+              checked={displaysSettings.showKeynoteScreens}
+              onCheckedChange={(checked) =>
+                void updateDisplaysSettings({ showKeynoteScreens: checked })
+              }
+              className="scale-90 shrink-0"
+            />
+          </div>
+        </div>
+
+        {/* Renderização Group */}
+        <div className="pt-2 border-t border-border/60 space-y-3">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Renderização
+          </h4>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">
+                Fonte de cronômetro
+              </label>
+              <Select
+                value={displaysSettings.timerFontMode}
+                onValueChange={(val) =>
+                  void updateDisplaysSettings({ timerFontMode: val })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Automático</SelectItem>
+                  <SelectItem value="mono">Monospace</SelectItem>
+                  <SelectItem value="system">Sistema</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground">
+                Profundidade de Bit
+              </label>
+              <Select
+                value={displaysSettings.bitDepth}
+                onValueChange={(val) =>
+                  void updateDisplaysSettings({ bitDepth: val })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="8bit">Normal (8-bit)</SelectItem>
+                  <SelectItem value="10bit">Profundo (10-bit HDR)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-muted-foreground leading-normal">
+            Aumentar a profundidade de bit irá melhorar a qualidade de renderização, mas também requer significativamente mais processamento do computador. Esta alteração requer uma reinicialização da aplicação.
+          </p>
+
+          <div className="flex justify-end pt-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void handleOpenDisplays()}
+              className="h-8 px-4 text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-700 gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Sliders className="size-3.5" />
+              Configurar telas...
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Abas de Rede, Servidor e Papel de Parede */}
       <Tabs
         value={section}
         onValueChange={(v) => setSection(v as OutputsSection)}
         className="flex flex-col gap-4"
       >
-        <TabsList className="grid grid-cols-5 w-full">
-          <TabsTrigger value="public" className="gap-1.5 text-xs">
-            <Tv className="size-3.5" />
-            Projeção Pública
-          </TabsTrigger>
-          <TabsTrigger value="stage" className="gap-1.5 text-xs">
-            <Projector className="size-3.5" />
-            Retorno de Palco
-          </TabsTrigger>
-          <TabsTrigger value="stream" className="gap-1.5 text-xs">
-            <Video className="size-3.5" />
-            Transmissão (OBS)
-          </TabsTrigger>
+        <TabsList className="grid grid-cols-3 w-full">
           <TabsTrigger value="server" className="gap-1.5 text-xs">
             <Server className="size-3.5" />
-            Servidor
+            Servidor Local
           </TabsTrigger>
           <TabsTrigger value="devices" className="gap-1.5 text-xs">
             <Smartphone className="size-3.5" />
-            Dispositivos
+            Dispositivos Conectados
+          </TabsTrigger>
+          <TabsTrigger value="wallpaper" className="gap-1.5 text-xs">
+            <ImageIcon className="size-3.5" />
+            Papel de Parede do Telão
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="public">
-          <TargetCard
-            target="public"
-            title="Projeção Pública (Telão)"
-            subtitle="Saída enviada aos projetores com slides de músicas, bíblia e fundos animados."
-            icon={Tv}
-            webPath="/public"
-            monitors={monitors}
-          />
-        </TabsContent>
-
-        <TabsContent value="stage">
-          <div className="flex flex-col gap-4">
-            <TargetCard
-              target="stage"
-              title="Retorno de Palco (Stage Display)"
-              subtitle="Saída para os músicos com relógio, cronômetro, próximo slide e alertas."
-              icon={Projector}
-              webPath="/stage"
-              monitors={monitors}
-            />
-            <StageTab />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="stream">
-          <div className="flex flex-col gap-4">
-            <TargetCard
-              target="stream"
-              title="Transmissão (OBS / vMix / NDI)"
-              subtitle="Saída com fundo transparente para sobreposição de letras, bíblia e avisos na transmissão ao vivo."
-              icon={Video}
-              webPath="/stream"
-              monitors={monitors}
-            />
-            <StreamTab />
-          </div>
-        </TabsContent>
-
+        {/* Tab 1: Servidor Local */}
         <TabsContent value="server">
           <ServerSection />
         </TabsContent>
 
+        {/* Tab 2: Dispositivos Conectados */}
         <TabsContent value="devices">
           <DevicesSection />
+        </TabsContent>
+
+        {/* Tab 3: Papel de Parede do Telão */}
+        <TabsContent value="wallpaper">
+          <PublicWallpaperCard />
         </TabsContent>
       </Tabs>
     </div>

@@ -1,8 +1,17 @@
-import { cleanCommentText, cleanPublicLines, formatStageLyrics, isCommentLine } from "@/core/lib/lyrics";
-import type { SlideContent, SlideKind, StageTimer } from "@/core/types";
-import { stageTimerElapsed } from "@/core/types";
-import { formatElapsed } from "@/core/lib/format";
-import { BIBLE_BOOKS } from "@/features/bible/bibleParser";
+import {
+  cleanCommentText,
+  cleanPublicLines,
+  formatStageLyrics,
+  isCommentLine,
+} from "../../core/lib/lyrics.ts";
+import type {
+  SlideContent,
+  SlideKind,
+  StageTimer,
+} from "../../core/types/index.ts";
+import { stageTimerElapsed } from "../../core/types/index.ts";
+import { formatElapsed } from "../../core/lib/format.ts";
+import { BIBLE_BOOKS } from "../bible/bibleParser.ts";
 
 export function renderTemplate(
   template: string,
@@ -128,16 +137,21 @@ export function buildProps(
   kind: SlideKind,
   content: SlideContent,
   nextUp?: SlideContent | null,
+  options?: { hideText?: boolean },
 ): Record<string, string> {
-  const nextVerse = nextVerseOf(nextUp);
-  const nextPreview = nextPreviewOf(nextUp);
-  const nextLine = nextFirstLineOf(nextUp);
+  const hidesText = options?.hideText === true;
+  const isBlankLyric =
+    kind === "lyric" && cleanPublicLines(content.lines).length === 0;
+  const nextVerse = isBlankLyric ? "" : nextVerseOf(nextUp);
+  const nextPreview = isBlankLyric ? "" : nextPreviewOf(nextUp);
+  const nextLine = isBlankLyric ? "" : nextFirstLineOf(nextUp);
   const curIdx = indexFromId(content.id);
+  let props: Record<string, string>;
   switch (kind) {
     case "lyric": {
       const publicLines = cleanPublicLines(content.lines);
       const text = publicLines.join("\n");
-      return {
+      props = {
         // English
         title: content.title,
         artist: "",
@@ -168,6 +182,7 @@ export function buildProps(
         currentIndex: curIdx,
         totalCount: "1",
       };
+      break;
     }
     case "scripture": {
       const sc = content.scripture;
@@ -187,7 +202,7 @@ export function buildProps(
       const text = content.lines.join("\n");
       const titleWithVersion = cleanVer ? `${refFull} (${cleanVer})` : refFull;
 
-      return {
+      props = {
         // English (Canonical)
         title: titleWithVersion,
         reference: refFull,
@@ -234,10 +249,11 @@ export function buildProps(
         proximo_trecho: nextPreview,
         proxima_linha: nextLine,
       };
+      break;
     }
     case "custom": {
       const text = content.lines.join("\n");
-      return {
+      props = {
         // English
         title: content.title,
         text,
@@ -257,10 +273,11 @@ export function buildProps(
         currentIndex: curIdx,
         totalCount: "1",
       };
+      break;
     }
     case "media": {
       const text = content.media?.title || content.title;
-      return {
+      props = {
         title: content.title,
         text,
         content: text,
@@ -271,10 +288,18 @@ export function buildProps(
         currentIndex: curIdx,
         totalCount: "1",
       };
+      break;
     }
     case "blank":
-      return { title: content.title, titulo: content.title };
+      props = { title: content.title, titulo: content.title };
+      break;
   }
+
+  if (!hidesText) return props;
+
+  return Object.fromEntries(
+    Object.keys(props).map((key) => [key, ""]),
+  );
 }
 
 export function buildStageProps(options: {
@@ -289,6 +314,7 @@ export function buildStageProps(options: {
   countdownMinutes?: number;
   blackout?: boolean;
   cleared?: boolean;
+  activeMessage?: string | null;
 }): Record<string, string> {
   const {
     content,
@@ -302,6 +328,7 @@ export function buildStageProps(options: {
     countdownMinutes = 0,
     blackout = false,
     cleared = false,
+    activeMessage = "",
   } = options;
 
   const date = new Date(nowMs);
@@ -433,6 +460,11 @@ export function buildStageProps(options: {
     stopwatch: cronometro,
     timer: timerFormatted,
     countdown: timerFormatted,
+    stage_message: activeMessage ?? "",
+    message: activeMessage ?? "",
+    mensagem: activeMessage ?? "",
+    aviso: activeMessage ?? "",
+    alerta: activeMessage ?? "",
     // Legacy aliases (pt-BR)
     titulo: cleanTitle,
     referencia: cleanReference,

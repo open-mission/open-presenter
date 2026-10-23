@@ -1,9 +1,27 @@
-import { useEffect, useState } from "react";
-import { BookOpen, Play, Radio, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  AlignLeft,
+  BookOpen,
+  LayoutGrid,
+  List,
+  Play,
+  Radio,
+  Trash2,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PreviewZoomControls } from "@/components/PreviewZoomControls";
+import { SlideThumbnail } from "@/components/SlideThumbnail";
+import { ViewModeToggle } from "@/components/ViewModeToggle";
+import { usePersistentViewMode } from "@/core/lib/usePersistentViewMode";
+import { usePersistentNumber } from "@/core/lib/usePersistentNumber";
+import {
+  SETLIST_PREVIEW_GRID,
+  previewGridStyle,
+} from "@/core/lib/previewGrid";
 import type { EventItem, SlideContent } from "@/core/types";
 import { usePresentationStore } from "@/features/presentation/store";
+import { usePublicThemeResolver } from "@/features/slide-themes/usePublicThemeResolver";
 import { buildScriptureItemSlides, useSetlistStore } from "./store";
 
 export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
@@ -15,6 +33,22 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
 
   const [slides, setSlides] = useState<SlideContent[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
+  const [viewMode, setViewMode] = usePersistentViewMode(
+    "open_presenter_setlist_scripture_view",
+    "list",
+    ["list", "slides", "text"] as const,
+  );
+  const [gridZoom, setGridZoom] = usePersistentNumber(
+    "open_presenter_setlist_scripture_zoom",
+    SETLIST_PREVIEW_GRID.defaultLevel,
+    SETLIST_PREVIEW_GRID.minLevel,
+    SETLIST_PREVIEW_GRID.maxLevel,
+  );
+  const resolveTheme = usePublicThemeResolver();
+  const thumbnailThemes = useMemo(
+    () => new Map(slides.map((slide) => [slide.id, resolveTheme(slide)])),
+    [slides, resolveTheme],
+  );
 
   const ref = item.scripture;
   const isLiveItem =
@@ -90,7 +124,7 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
   if (!ref) return null;
 
   return (
-    <section className="relative flex h-full w-80 min-h-0 flex-col border-r border-border bg-background sm:w-96 shrink-0 select-none overflow-hidden">
+    <section className="relative flex h-full w-full min-w-0 flex-col border-r border-border bg-background select-none overflow-hidden">
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="flex min-w-0 flex-1 items-center gap-2.5 pr-3">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
@@ -142,7 +176,37 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 space-y-2 overflow-y-auto p-3">
+      <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border/70 bg-muted/20 px-3">
+        <ViewModeToggle
+          value={viewMode}
+          onChange={setViewMode}
+          options={[
+            { value: "list", label: "Lista", icon: List },
+            { value: "slides", label: "Slides", icon: LayoutGrid },
+            { value: "text", label: "Texto", icon: AlignLeft },
+          ]}
+        />
+        {viewMode !== "list" && (
+          <PreviewZoomControls
+            config={SETLIST_PREVIEW_GRID}
+            level={gridZoom}
+            onChange={setGridZoom}
+          />
+        )}
+      </div>
+
+      <div
+        className={
+          viewMode === "list"
+            ? "flex-1 min-h-0 space-y-2 overflow-y-auto p-3"
+            : "grid flex-1 min-h-0 gap-2 overflow-y-auto p-3"
+        }
+        style={
+          viewMode === "list"
+            ? undefined
+            : previewGridStyle(SETLIST_PREVIEW_GRID, gridZoom)
+        }
+      >
         {slides.length === 0 ? (
           <div className="flex h-48 items-center justify-center p-4 text-center text-xs text-muted-foreground">
             Não foi possível carregar o texto deste versículo.
@@ -157,7 +221,9 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
                 type="button"
                 onClick={() => handlePreview(index)}
                 onDoubleClick={() => handlePresent(index)}
-                className={`flex w-full flex-col gap-2 rounded-xl border p-3.5 text-left transition-all cursor-pointer ${
+                className={`flex w-full flex-col rounded-xl border text-left transition-all cursor-pointer ${
+                  viewMode === "list" ? "gap-2 p-3.5" : "gap-1.5 p-2"
+                } ${
                   isLive
                     ? "border-emerald-500 bg-emerald-500/5 ring-2 ring-emerald-500/40"
                     : isPreview
@@ -165,8 +231,8 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
                       : "border-border/80 bg-card/70 hover:border-zinc-400 hover:bg-accent/40 dark:hover:border-zinc-700"
                 }`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="truncate rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
                     {slide.scripture && slide.scripture.totalParts > 1
                       ? `Parte ${index + 1}/${slide.scripture.totalParts}`
                       : "Versículo"}
@@ -177,15 +243,23 @@ export function ScriptureSlidesColumn({ item }: { item: EventItem }) {
                       AO VIVO
                     </span>
                   ) : (
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="truncate text-[10px] text-muted-foreground">
                       {slide.section}
                     </span>
                   )}
                 </div>
-                <p className="whitespace-pre-line text-xs leading-relaxed text-foreground/90">
-                  {slide.lines.join("\n")}
-                </p>
-                <span className="text-[10px] font-medium text-primary">
+                {viewMode === "slides" ? (
+                  <SlideThumbnail
+                    content={slide}
+                    theme={thumbnailThemes.get(slide.id) ?? null}
+                    className="rounded-lg pointer-events-none"
+                  />
+                ) : (
+                  <p className="whitespace-pre-line text-xs leading-relaxed text-foreground/90">
+                    {slide.lines.join("\n")}
+                  </p>
+                )}
+                <span className="truncate text-[10px] font-medium text-primary">
                   1 clique: prévia · 2 cliques: apresentar
                 </span>
               </button>

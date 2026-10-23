@@ -1,22 +1,39 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlignLeft,
   ArrowLeft,
   ArrowRight,
   BookOpen,
   Columns2,
-  Download,
   EyeOff,
+  LayoutGrid,
+  List,
   Loader2,
+  MoreHorizontal,
   Play,
   Radio,
   Scissors,
   Search,
+  Settings2,
   Sparkles,
-  Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PreviewZoomControls } from "@/components/PreviewZoomControls";
+import { SlideThumbnail } from "@/components/SlideThumbnail";
+import { ViewModeToggle } from "@/components/ViewModeToggle";
+import { buildScriptureSlide } from "@/core/lib/biblePresentation";
+import { cn } from "@/core/lib/utils";
+import { usePersistentViewMode } from "@/core/lib/usePersistentViewMode";
+import { usePersistentNumber } from "@/core/lib/usePersistentNumber";
+import {
+  BIBLE_PREVIEW_GRID,
+  previewGridStyle,
+} from "@/core/lib/previewGrid";
+import { BOOKS_VIEW_DEFAULT, BOOKS_VIEW_MODES } from "@/core/lib/viewMode";
+import { usePublicThemeResolver } from "@/features/slide-themes/usePublicThemeResolver";
 import {
   Select,
   SelectContent,
@@ -27,10 +44,17 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useBibleStore } from "./store";
 import { usePresentationStore } from "../presentation/store";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { CompareModal } from "./CompareModal";
 import { BibleCommandPalette } from "./BibleCommandPalette";
-import { toast } from "sonner";
-import { isTauri } from "@/core/ipc/tauri";
+import { shouldOpenPaletteOnKey } from "./bibleShortcuts";
+import { ManageBibleVersionsDialog } from "./ManageBibleVersionsDialog";
+import { pickBibleFiles } from "./bibleFilePicker";
 
 export function BiblePage() {
   const versions = useBibleStore((s) => s.versions);
@@ -43,6 +67,7 @@ export function BiblePage() {
   const activePartIndex = useBibleStore((s) => s.activePartIndex);
   const liveVerseKey = useBibleStore((s) => s.liveVerseKey);
   const splitLongVerses = useBibleStore((s) => s.splitLongVerses);
+  const splitThresholdChars = useBibleStore((s) => s.splitThresholdChars);
   const setSplitLongVerses = useBibleStore((s) => s.setSplitLongVerses);
   const getVerseParts = useBibleStore((s) => s.getVerseParts);
 
@@ -58,8 +83,7 @@ export function BiblePage() {
 
   const loadInitial = useBibleStore((s) => s.loadInitial);
   const setActiveVersion = useBibleStore((s) => s.setActiveVersion);
-  const importBibleFile = useBibleStore((s) => s.importBibleFile);
-  const deleteBibleVersion = useBibleStore((s) => s.deleteBibleVersion);
+  const importBibleFiles = useBibleStore((s) => s.importBibleFiles);
   const selectBook = useBibleStore((s) => s.selectBook);
   const selectChapter = useBibleStore((s) => s.selectChapter);
   const selectVerse = useBibleStore((s) => s.selectVerse);
@@ -75,11 +99,35 @@ export function BiblePage() {
 
   const clearLive = usePresentationStore((s) => s.clearLive);
   const liveSlide = usePresentationStore((s) => s.live);
+  const [versesView, setVersesView] = usePersistentViewMode(
+    "open_presenter_bible_verses_view",
+    "list",
+    ["list", "slides", "text"] as const,
+  );
+  const [verseZoom, setVerseZoom] = usePersistentNumber(
+    "open_presenter_bible_verses_zoom",
+    BIBLE_PREVIEW_GRID.defaultLevel,
+    BIBLE_PREVIEW_GRID.minLevel,
+    BIBLE_PREVIEW_GRID.maxLevel,
+  );
+  const [booksView, setBooksView] = usePersistentViewMode(
+    "open_presenter_bible_books_view",
+    BOOKS_VIEW_DEFAULT,
+    BOOKS_VIEW_MODES,
+  );
+  const resolveTheme = usePublicThemeResolver();
 
   const [quickRefInput, setQuickRefInput] = useState("");
   const [wordSearchInput, setWordSearchInput] = useState("");
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [paletteInitialQuery, setPaletteInitialQuery] = useState("");
+  const [isManageVersionsOpen, setIsManageVersionsOpen] = useState(false);
   const versesContainerRef = useRef<HTMLDivElement>(null);
+
+  function openPalette(initial = "") {
+    setPaletteInitialQuery(initial);
+    setIsCommandPaletteOpen(true);
+  }
 
   useEffect(() => {
     void loadInitial();
@@ -104,10 +152,41 @@ export function BiblePage() {
     [books, activeBookId],
   );
 
-  const activeVersion = useMemo(
-    () => versions.find((v) => v.id === activeVersionId),
-    [versions, activeVersionId],
-  );
+  const verseCards = useMemo(() => {
+    if (versesView === "list" || !activeBook || !activeVersionId) return [];
+    return verses.flatMap((verse) => {
+      const parts = getVerseParts(verse.text);
+      return parts.map((partText, partIndex) => {
+        const slide = buildScriptureSlide({
+          versionId: activeVersionId,
+          bookId: activeBook.id,
+          bookName: activeBook.name,
+          chapter: activeChapter,
+          verse: verse.verse,
+          text: partText,
+          part: partIndex,
+          totalParts: parts.length,
+        });
+        return {
+          verse,
+          partIndex,
+          totalParts: parts.length,
+          slide,
+          theme: resolveTheme(slide),
+        };
+      });
+    });
+  }, [
+    versesView,
+    verses,
+    activeBook,
+    activeVersionId,
+    activeChapter,
+    getVerseParts,
+    resolveTheme,
+    splitLongVerses,
+    splitThresholdChars,
+  ]);
 
   const isCurrentLiveScripture =
     liveSlide.content.kind === "scripture" && !liveSlide.cleared && !liveSlide.blackout;
@@ -115,12 +194,14 @@ export function BiblePage() {
   // Rola até o versículo selecionado se houver
   useEffect(() => {
     if (selectedVerseNum && versesContainerRef.current) {
-      const el = document.getElementById(`verse-row-${selectedVerseNum}`);
+      const el = document.querySelector<HTMLElement>(
+        `[data-verse="${selectedVerseNum}"]`,
+      );
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
     }
-  }, [selectedVerseNum]);
+  }, [selectedVerseNum, versesView]);
 
   // Teclas de atalho para selecionar e apresentar versículos
   useEffect(() => {
@@ -128,7 +209,8 @@ export function BiblePage() {
       // Abre Command Palette com Cmd+K (Mac) ou Ctrl+K (Windows/Linux)
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setIsCommandPaletteOpen((prev) => !prev);
+        if (!isCommandPaletteOpen) openPalette();
+        else setIsCommandPaletteOpen(false);
         return;
       }
 
@@ -136,8 +218,35 @@ export function BiblePage() {
       if (
         target?.tagName === "INPUT" ||
         target?.tagName === "TEXTAREA" ||
-        target?.isContentEditable
+        target?.isContentEditable ||
+        target?.closest('[role="dialog"]')
       ) {
+        return;
+      }
+
+      // Se a paleta já está aberta, não captura mais nada aqui
+      if (isCommandPaletteOpen) {
+        return;
+      }
+
+      // Digitação direta de um caractere abre a paleta pré-preenchida,
+      // respeitando a precedência dos atalhos globais (B/C/F) com apresentação ativa
+      const live = usePresentationStore.getState().live;
+      const presentationActive = live.content.kind !== "blank";
+      if (
+        shouldOpenPaletteOnKey(
+          {
+            key: e.key,
+            metaKey: e.metaKey,
+            ctrlKey: e.ctrlKey,
+            altKey: e.altKey,
+          },
+          presentationActive,
+        )
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        openPalette(e.key);
         return;
       }
 
@@ -200,8 +309,8 @@ export function BiblePage() {
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [
     presentCurrentVerse,
     presentNextVerse,
@@ -210,38 +319,13 @@ export function BiblePage() {
     isCurrentLiveScripture,
     isSearching,
     clearSearch,
+    isCommandPaletteOpen,
   ]);
 
   async function handleImport() {
-    if (!isTauri()) {
-      toast.info("A importação de arquivos SQLite/JSON está disponível no aplicativo Desktop.");
-      return;
-    }
-
-    try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-      const selected = await open({
-        multiple: false,
-        title: "Selecione o arquivo da Bíblia (SQLite ou JSON)",
-        filters: [
-          { name: "Bíblias", extensions: ["sqlite", "db", "json"] },
-        ],
-      });
-
-      if (selected && typeof selected === "string") {
-        await importBibleFile(selected);
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`Falha ao abrir seletor: ${msg}`);
-    }
-  }
-
-  async function handleDeleteVersion() {
-    if (!activeVersionId) return;
-    if (confirm(`Deseja realmente remover a versão "${activeVersion?.name || activeVersionId}"?`)) {
-      await deleteBibleVersion(activeVersionId);
-    }
+    const paths = await pickBibleFiles(true);
+    if (paths.length === 0) return;
+    await importBibleFiles(paths);
   }
 
   function handleQuickRefSubmit(e: React.FormEvent) {
@@ -291,30 +375,29 @@ export function BiblePage() {
             </Badge>
           )}
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void handleImport()}
-            className="h-9 text-xs cursor-pointer"
-            title="Importar Bíblia em formato SQLite (.sqlite, .db) ou JSON (.json)"
-          >
-            <Download className="size-3.5 mr-1" />
-            Importar
-          </Button>
-
-          {versions.length > 0 && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => void handleDeleteVersion()}
-              className="size-9 text-muted-foreground hover:text-destructive cursor-pointer"
-              title="Excluir versão atual"
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-9"
+                title="Mais ações da Bíblia"
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => void handleImport()}>
+                <Upload className="mr-2 size-4" />
+                Importar Bíblia…
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsManageVersionsOpen(true)}>
+                <Settings2 className="mr-2 size-4" />
+                Gerenciar versões…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Campo Central: Referência Rápida (Ex: Jo 3:16) */}
@@ -343,7 +426,7 @@ export function BiblePage() {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => setIsCommandPaletteOpen(true)}
+          onClick={() => openPalette()}
           className="h-9 px-3 gap-2 text-xs font-semibold cursor-pointer border-border/70 hover:border-primary/60 bg-background shrink-0"
           title="Abrir Command Palette para buscar referências bíblicas (⌘K / Ctrl+K)"
         >
@@ -485,7 +568,20 @@ export function BiblePage() {
         /* Layout Principal 3 Colunas: [Livros] | [Capítulos] | [Versículos] */
         <main className="flex flex-1 overflow-hidden">
           {/* Coluna 1: Livros da Bíblia */}
-          <section className="flex w-64 shrink-0 flex-col border-r border-border bg-card/25">
+          <section
+            className="flex w-64 shrink-0 flex-col border-r border-border bg-card/25"
+          >
+            <div className="flex h-9 items-center justify-between border-b border-border/60 px-3">
+              <span className="text-xs font-bold text-foreground">Livros</span>
+              <ViewModeToggle
+                value={booksView}
+                onChange={setBooksView}
+                options={[
+                  { value: "list", label: "Lista", icon: List },
+                  { value: "table", label: "Tabela", icon: LayoutGrid },
+                ]}
+              />
+            </div>
             {/* Filtros OT / NT */}
             <div className="p-2 border-b border-border/60 space-y-2">
               <div className="flex rounded-lg bg-muted/60 p-0.5 text-xs font-medium">
@@ -533,39 +629,79 @@ export function BiblePage() {
             </div>
 
             {/* Lista de Livros */}
-            <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
-              {filteredBooks.map((book) => {
-                const isActive = book.id === activeBookId;
-                return (
-                  <button
-                    key={book.id}
-                    type="button"
-                    onClick={() => void selectBook(book.id)}
-                    className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer ${
-                      isActive
-                        ? "bg-primary text-primary-foreground font-bold shadow-xs"
-                        : "text-foreground hover:bg-muted"
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5 truncate">
-                      <span className={`text-[11px] font-mono shrink-0 ${isActive ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+            {booksView === "table" ? (
+              <div className="flex-1 overflow-y-auto p-1.5">
+                <div
+                  className="grid gap-1"
+                  style={{
+                    gridTemplateColumns: "repeat(auto-fill, minmax(2.25rem, 1fr))",
+                  }}
+                >
+                  {filteredBooks.map((book) => {
+                    const isActive = book.id === activeBookId;
+                    const isOld = book.testamentReferenceId === 1;
+                    return (
+                      <button
+                        key={book.id}
+                        type="button"
+                        title={book.name}
+                        onClick={() => void selectBook(book.id)}
+                        className={cn(
+                          "flex min-h-7 items-center justify-center rounded border px-1 font-mono text-[10px] font-semibold transition-colors cursor-pointer",
+                          isActive
+                            ? "border-primary bg-primary text-primary-foreground shadow-xs"
+                            : isOld
+                            ? "border-amber-500/30 bg-amber-500/5 text-amber-700 hover:border-amber-500/60 dark:text-amber-300"
+                            : "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 hover:border-emerald-500/60 dark:text-emerald-300",
+                        )}
+                      >
                         {book.abbrev}
-                      </span>
-                      <span className="truncate">{book.name}</span>
-                    </span>
-                    <span
-                      className={`text-[10px] rounded px-1 shrink-0 ${
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
+                {filteredBooks.map((book) => {
+                  const isActive = book.id === activeBookId;
+                  return (
+                    <button
+                      key={book.id}
+                      type="button"
+                      onClick={() => void selectBook(book.id)}
+                      className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs transition-colors cursor-pointer ${
                         isActive
-                          ? "bg-primary-foreground/20 text-primary-foreground"
-                          : "bg-muted text-muted-foreground"
+                          ? "bg-primary text-primary-foreground font-bold shadow-xs"
+                          : "text-foreground hover:bg-muted"
                       }`}
                     >
-                      {book.chapterCount}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                      <span className="flex items-center gap-1.5 truncate">
+                        <span
+                          className={`text-[11px] font-mono shrink-0 ${
+                            isActive
+                              ? "text-primary-foreground/80"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {book.abbrev}
+                        </span>
+                        <span className="truncate">{book.name}</span>
+                      </span>
+                      <span
+                        className={`text-[10px] rounded px-1 shrink-0 ${
+                          isActive
+                            ? "bg-primary-foreground/20 text-primary-foreground"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {book.chapterCount}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </section>
 
           {/* Coluna 2: Capítulos do Livro Selecionado */}
@@ -622,6 +758,22 @@ export function BiblePage() {
               </div>
 
               <div className="flex items-center gap-2">
+                <ViewModeToggle
+                  value={versesView}
+                  onChange={setVersesView}
+                  options={[
+                    { value: "list", label: "Lista", icon: List },
+                    { value: "slides", label: "Slides", icon: LayoutGrid },
+                    { value: "text", label: "Texto", icon: AlignLeft },
+                  ]}
+                />
+                {versesView !== "list" && (
+                  <PreviewZoomControls
+                    config={BIBLE_PREVIEW_GRID}
+                    level={verseZoom}
+                    onChange={setVerseZoom}
+                  />
+                )}
                 <Button
                   type="button"
                   size="sm"
@@ -647,7 +799,10 @@ export function BiblePage() {
             {/* Lista dos Versículos */}
             <div
               ref={versesContainerRef}
-              className="flex-1 overflow-y-auto p-4 space-y-2.5"
+              className={cn(
+                "flex-1 overflow-y-auto p-4",
+                versesView === "list" && "space-y-2.5",
+              )}
             >
               {loading && verses.length === 0 ? (
                 <div className="flex h-40 items-center justify-center">
@@ -658,6 +813,69 @@ export function BiblePage() {
                   {versions.length === 0
                     ? "Importe uma Bíblia usando o botão acima para começar a exibir versículos."
                     : "Nenhum versículo encontrado neste capítulo."}
+                </div>
+              ) : versesView !== "list" ? (
+                <div
+                  className="grid gap-2"
+                  style={previewGridStyle(BIBLE_PREVIEW_GRID, verseZoom)}
+                >
+                  {verseCards.map(
+                    ({ verse, partIndex, totalParts, slide, theme }) => {
+                      const isLive =
+                        isCurrentLiveScripture && liveVerseKey === slide.id;
+                      const isSelected =
+                        selectedVerseNum === verse.verse &&
+                        activePartIndex === partIndex;
+                      return (
+                        <button
+                          key={slide.id}
+                          type="button"
+                          data-verse={verse.verse}
+                          onClick={() => selectVerse(verse.verse, partIndex)}
+                          onDoubleClick={() =>
+                            void presentVerse(
+                              verse,
+                              undefined,
+                              partIndex,
+                            )
+                          }
+                          className={cn(
+                            "group flex flex-col gap-1.5 rounded-xl border p-2 text-left transition-all",
+                            isLive
+                              ? "border-emerald-500 bg-emerald-500/5 ring-2 ring-emerald-500/40"
+                              : isSelected
+                              ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                              : "border-border/80 bg-card/70 hover:border-primary/50",
+                          )}
+                        >
+                          {versesView === "slides" ? (
+                            <SlideThumbnail
+                              content={slide}
+                              theme={theme}
+                              className="pointer-events-none"
+                            />
+                          ) : (
+                            <p className="min-h-16 whitespace-pre-line text-[11px] leading-snug text-foreground/90">
+                              {slide.lines.join("\n")}
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between gap-1 px-0.5">
+                            <span className="truncate text-[10px] font-semibold text-primary">
+                              {slide.section}
+                            </span>
+                            {totalParts > 1 && (
+                              <Badge
+                                variant="outline"
+                                className="h-4 px-1 text-[9px]"
+                              >
+                                {partIndex + 1}/{totalParts}
+                              </Badge>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    },
+                  )}
                 </div>
               ) : (
                 verses.map((verse) => {
@@ -676,6 +894,7 @@ export function BiblePage() {
                     <div
                       key={verse.id || verse.verse}
                       id={`verse-row-${verse.verse}`}
+                      data-verse={verse.verse}
                       onClick={() => {
                         if (
                           document.activeElement instanceof HTMLElement &&
@@ -874,11 +1093,19 @@ export function BiblePage() {
 
       {/* Modal de Comparação de Versões */}
       <CompareModal />
+      <ManageBibleVersionsDialog
+        open={isManageVersionsOpen}
+        onOpenChange={setIsManageVersionsOpen}
+      />
 
       {/* Command Palette de Referências Bíblicas (⌘K / Ctrl+K) */}
       <BibleCommandPalette
         open={isCommandPaletteOpen}
-        onOpenChange={setIsCommandPaletteOpen}
+        onOpenChange={(open) => {
+          setIsCommandPaletteOpen(open);
+          if (!open) setPaletteInitialQuery("");
+        }}
+        initialQuery={paletteInitialQuery}
       />
     </div>
   );

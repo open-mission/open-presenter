@@ -12,9 +12,10 @@ export const ROUTES = {
 export const TAURI_EVENTS = {
   slide: "presentation://slide",
   outputs: "outputs://changed",
+  displays: "displays://changed",
   stageMessage: "stage://message",
   timer: "stage://timer",
-  themes: "presentation://themes",
+  outputPlans: "presentation://output-plans",
   themesChanged: "themes://changed",
   wallpaper: "presentation://wallpaper",
 } as const;

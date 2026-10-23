@@ -1,0 +1,248 @@
+---
+title: API REST, Swagger & Automações
+description: Guia completo para automatizar o Open Presenter via API HTTP, Swagger UI, Stream Deck, Bitfocus Companion e scripts.
+---
+
+O Open Presenter inclui um servidor HTTP de alta performance (baseado em **Axum**) que roda na porta **`5050`**, expondo endpoints REST e WebSocket para controle remoto e automações audiovisuais.
+
+Com esta API, você pode integrar o Open Presenter com:
+- **Bitfocus Companion** e mesas **Elgato Stream Deck**.
+- Controladores MIDI e pedais de palco.
+- Bots de WhatsApp e automações de recepção/estacionamento (envio de avisos de carros).
+- Sistemas de automação de transmissão e roteadores de vídeo.
+
+```mermaid
+sequenceDiagram
+    participant Client as Stream Deck / Companion
+    participant API as Axum :5050
+    participant Token as Validação de token
+    participant Command as Comando interno
+    participant State as PresentationState
+
+    Client->>API: requisição REST
+    API->>Token: Bearer / PIN
+    Token-->>API: autorizado
+    API->>Command: executa a ação
+    Command->>State: atualiza slide ou aviso
+    State-->>Client: 200 + estado atual
+```
+
+---
+
+## Swagger UI Interativo
+
+O servidor embutido fornece uma interface interativa do **Swagger UI** para inspecionar, testar e executar chamadas em tempo real:
+
+- **Swagger UI:** `http://localhost:5050/api/v1/swagger` (ou `http://localhost:5050/swagger`)
+- **Especificação OpenAPI 3.0 (JSON):** `http://localhost:5050/api/v1/openapi.json`
+
+Na interface do Swagger, você pode clicar no botão verde **Authorize**, inserir o seu token e testar qualquer comando diretamente pelo navegador.
+
+---
+
+## Autenticação com Token (API Key)
+
+Por segurança, os endpoints que alteram a projeção ou leem dados do culto exigem autenticação.
+
+### Como Obter o Token:
+1. Abra o Open Presenter.
+2. Acesse **Preferências** (`⌘ ,`) ➔ aba **Controle Remoto**.
+3. O token ativo é exibido no campo **Token de Acesso / PIN**. Você pode copiá-lo ou gerar um novo token clicando em *Regenerar Token*.
+4. Certifique-se de que a opção **Habilitar Controle Remoto & API** esteja ativada.
+
+### Formas de Envio do Token nas Requisições:
+
+Você pode enviar o token de duas maneiras:
+
+1. **Cabeçalho Authorization Bearer:**
+   ```http
+   Authorization: Bearer SEU_TOKEN_AQUI
+   ```
+
+2. **Cabeçalho X-API-Key:**
+   ```http
+   X-API-Key: SEU_TOKEN_AQUI
+   ```
+
+Se o token for inválido ou ausente, a API retornará `401 Unauthorized`. Se a API estiver desativada nas preferências, retornará `403 Forbidden`.
+
+---
+
+## Principais Endpoints de Automação
+
+### 1. Ao Vivo e Slides
+
+| Método | Endpoint | Descrição | Payload (JSON) |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/live` | Consulta o slide no ar | — |
+| `POST` | `/api/v1/next` | Avança para o próximo slide do setlist | — |
+| `POST` | `/api/v1/prev` | Volta para o slide anterior do setlist | — |
+| `POST` | `/api/v1/present` | Projeta slide do setlist | `{"itemId": "id", "index": 0}` |
+| `POST` | `/api/v1/clear` | Limpa texto mantendo fundo | — |
+| `POST` | `/api/v1/blackout` | Liga/Desliga tela preta | `{"blackout": true}` |
+| `POST` | `/api/v1/wallpaper` | Liga/Desliga papel de parede | `{"enabled": true}` |
+
+### 2. Programação e Modo Autônomo (Headless)
+
+O mecanismo do Open Presenter funciona de forma **autônoma e independente da interface gráfica do painel de controle**. O evento ativo é persistido no banco SQLite e hidratado imediatamente na inicialização do servidor, permitindo navegação remota mesmo se a janela de controle desktop estiver fechada:
+
+| Método | Endpoint | Descrição | Payload (JSON) |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/setlist` | Snapshot da programação ativa | — |
+| `GET` | `/api/v1/setlist/active` | ID e dados do evento ativo | — |
+| `POST` | `/api/v1/setlist/active` | Alterna o evento ativo do culto | `{"eventId": "culto-domingo"}` |
+
+### 3. Cronômetro & Timer
+
+| Método | Endpoint | Descrição | Payload (JSON) |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/timer` | Consulta o cronômetro | — |
+| `POST` | `/api/v1/timer/start` | Inicia contagem | — |
+| `POST` | `/api/v1/timer/pause` | Pausa contagem | — |
+| `POST` | `/api/v1/timer/reset` | Reseta para 00:00 | — |
+| `POST` | `/api/v1/timer/countdown`| Define contagem regressiva | `{"seconds": 1800}` (30 min) |
+
+### 3. Painel de Comunicação & Avisos
+
+Envie mensagens para o Retorno de Palco, Telão ou Transmissão:
+
+- **Endpoint:** `POST /api/v1/stage-message`
+- **Payload de Exemplo:**
+```json
+{
+  "id": "alert-bot-01",
+  "text": "Atenção: veículo placa ABC-1234 bloqueando a garagem",
+  "displayMode": "banner_bottom",
+  "scroll": true,
+  "level": "warning",
+  "targets": ["public", "stage"],
+  "autoDismissSeconds": 30
+}
+```
+
+- **Limpar Aviso do Ar:**
+  - `DELETE /api/v1/stage-message`
+
+---
+
+## Integração com Bitfocus Companion (Stream Deck)
+
+Para controlar o Open Presenter a partir do seu Elgato Stream Deck usando o **Bitfocus Companion**:
+
+1. No Companion, adicione a conexão **`generic-http`**.
+2. Configure a Base URL para `http://IP_DO_OPEN_PRESENTER:5050`.
+3. Adicione o cabeçalho padrão:
+   - Header: `Authorization`
+   - Value: `Bearer SEU_TOKEN`
+4. Crie botões de ação:
+   - **Botão Blackout:**
+     - Ação: `POST` para `/api/v1/blackout`
+     - Body: `{"blackout": true}`
+   - **Botão Limpar Texto:**
+     - Ação: `POST` para `/api/v1/clear`
+   - **Botão Iniciar Timer 40 Min:**
+     - Ação: `POST` para `/api/v1/timer/countdown`
+     - Body: `{"seconds": 2400}`
+   - **Botão Alerta de Emergência:**
+     - Ação: `POST` para `/api/v1/stage-message`
+     - Body: `{"id": "deck-1", "text": "Pastor chamando no púlpito", "displayMode": "banner_top", "targets": ["stage"]}`
+
+---
+
+## Exemplos em Código
+
+### cURL
+
+```bash
+# Consultar o slide no ar
+curl -H "Authorization: Bearer MEU_TOKEN" http://localhost:5050/api/v1/live
+
+# Disparar Blackout
+curl -X POST \
+  -H "Authorization: Bearer MEU_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"blackout": true}' \
+  http://localhost:5050/api/v1/blackout
+
+# Enviar aviso com letreiro rolante
+curl -X POST \
+  -H "X-API-Key: MEU_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "aviso-1",
+    "text": "Farol aceso no estacionamento",
+    "displayMode": "banner_bottom",
+    "scroll": true,
+    "targets": ["public"]
+  }' \
+  http://localhost:5050/api/v1/stage-message
+```
+
+### Python
+
+```python
+import requests
+
+API_URL = "http://localhost:5050/api/v1"
+HEADERS = {"Authorization": "Bearer MEU_TOKEN"}
+
+# Iniciar contagem regressiva de 45 minutos para o sermão
+response = requests.post(
+    f"{API_URL}/timer/countdown",
+    headers=HEADERS,
+    json={"seconds": 2700}
+)
+print("Timer status:", response.status_code)
+```
+
+### Node.js / TypeScript
+
+```typescript
+const API_URL = "http://localhost:5050/api/v1";
+const TOKEN = "MEU_TOKEN";
+
+async function sendUrgentNotice(message: string) {
+  const res = await fetch(`${API_URL}/stage-message`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      id: `alert-${Date.now()}`,
+      text: message,
+      displayMode: "overlay",
+      level: "urgent",
+      targets: ["stage", "public"],
+      autoDismissSeconds: 20,
+    }),
+  });
+  return res.ok;
+}
+```
+
+---
+
+## Streaming em Tempo Real (WebSocket)
+
+Para aplicações que precisam ser notificadas instantaneamente quando um slide mudar ou quando o cronômetro atualizar, conecte-se ao WebSocket:
+
+```javascript
+const ws = new WebSocket("ws://localhost:5050/ws");
+
+ws.onopen = () => {
+  console.log("Conectado ao Open Presenter WebSocket");
+  // Identificação do cliente
+  ws.send(JSON.stringify({ channel: "client://hello", payload: { output: "admin" } }));
+};
+
+ws.onmessage = (event) => {
+  const { channel, payload } = JSON.parse(event.data);
+  if (channel === "presentation://slide") {
+    console.log("Novo slide no ar:", payload);
+  }
+  if (channel === "stage://message") {
+    console.log("Aviso no ar:", payload);
+  }
+};
+```

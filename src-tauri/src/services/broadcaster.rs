@@ -3,7 +3,10 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::broadcast;
 
-use crate::state::{types::EVENT_SLIDE, LiveSlide, LiveThemes, PresentationState, StageTimer};
+use crate::state::{
+    types::{EVENT_SLIDE, EVENT_STAGE_MESSAGE},
+    CommunicationAlert, LiveOutputPlans, LiveSlide, PresentationState, StageTimer,
+};
 
 #[derive(Debug, Clone)]
 pub struct Broadcaster {
@@ -57,18 +60,17 @@ impl Broadcaster {
         }
     }
 
-    pub fn publish_themes(&self, themes: &LiveThemes) {
+    pub fn publish_output_plans(&self, plans: &LiveOutputPlans) {
         if let Some(app) = &self.app {
-            let state = app.state::<PresentationState>();
-            state.set_themes(themes.clone());
-            let _ = app.emit(crate::state::types::EVENT_THEMES, themes);
+            app.state::<PresentationState>().set_output_plans(plans.clone());
+            let _ = app.emit(crate::state::types::EVENT_OUTPUT_PLANS, plans);
         } else {
-            self.fallback.set_themes(themes.clone());
+            self.fallback.set_output_plans(plans.clone());
         }
 
-        if let Ok(payload) = serde_json::to_value(themes) {
+        if let Ok(payload) = serde_json::to_value(plans) {
             let envelope = serde_json::json!({
-                "channel": crate::state::types::EVENT_THEMES,
+                "channel": crate::state::types::EVENT_OUTPUT_PLANS,
                 "payload": payload,
                 "version": 1,
             });
@@ -76,11 +78,11 @@ impl Broadcaster {
         }
     }
 
-    pub fn current_themes(&self) -> LiveThemes {
+    pub fn current_output_plans(&self) -> LiveOutputPlans {
         if let Some(app) = &self.app {
-            app.state::<PresentationState>().themes()
+            app.state::<PresentationState>().output_plans()
         } else {
-            self.fallback.themes()
+            self.fallback.output_plans()
         }
     }
 
@@ -129,6 +131,31 @@ impl Broadcaster {
             app.state::<PresentationState>().wallpaper()
         } else {
             self.fallback.wallpaper()
+        }
+    }
+
+    pub fn publish_stage_message(&self, message: Option<CommunicationAlert>) {
+        if let Some(app) = &self.app {
+            let state = app.state::<PresentationState>();
+            state.set_stage_message(message.clone());
+            let _ = app.emit(EVENT_STAGE_MESSAGE, &message);
+        } else {
+            self.fallback.set_stage_message(message.clone());
+        }
+
+        let envelope = serde_json::json!({
+            "channel": EVENT_STAGE_MESSAGE,
+            "payload": message,
+            "version": 1,
+        });
+        let _ = self.ws_tx.send(envelope.to_string());
+    }
+
+    pub fn current_stage_message(&self) -> Option<CommunicationAlert> {
+        if let Some(app) = &self.app {
+            app.state::<PresentationState>().stage_message()
+        } else {
+            self.fallback.stage_message()
         }
     }
 

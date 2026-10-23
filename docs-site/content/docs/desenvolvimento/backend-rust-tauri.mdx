@@ -1,0 +1,79 @@
+---
+title: Backend Rust & Comandos IPC
+description: Como funciona a camada nativa em Rust, gerenciamento de estado e chamadas IPC no Tauri v2.
+---
+
+O backend do Open Presenter é implementado em **Rust** e executado pelo runtime do **Tauri v2**. Ele garante máxima segurança de memória, ausência de deadlocks e latência quase nula.
+
+---
+
+## Gerenciamento de Estado no Tauri
+
+Toda estrutura de dados compartilhada é gerenciada pelo Tauri via `app.manage(...)` no `src-tauri/src/lib.rs`:
+
+```rust
+// Gerenciamento do estado de apresentação
+app.manage(PresentationState::default());
+
+// Gerenciamento do broadcaster compartilhado
+let broadcaster: SharedBroadcaster = Arc::new(Broadcaster::new(handle.clone(), ws_tx.clone()));
+app.manage(broadcaster.clone());
+```
+
+> **ATENÇÃO PARA DESENVOLVEDORES & AGENTES:**
+> Se um serviço é registrado como `Arc<Broadcaster>` (`SharedBroadcaster`), qualquer comando IPC **deve** declarar o parâmetro como:
+> `broadcaster: State<'_, SharedBroadcaster>`
+> Tipar incorretamente como `State<'_, Broadcaster>` faz com que o Tauri falhe ao resolver a dependência em tempo de execução!
+
+---
+
+## Estrutura de um Comando IPC
+
+Todos os comandos IPC são declarados em `src-tauri/src/commands/`:
+
+```rust
+#[tauri::command]
+pub async fn send_stage_message(
+    broadcaster: State<'_, SharedBroadcaster>,
+    message: crate::state::types::CommunicationAlert,
+) -> Result<(), AppError> {
+    broadcaster.publish_stage_message(Some(message));
+    Ok(())
+}
+```
+
+E registrados no `invoke_handler` em `src-tauri/src/lib.rs`:
+
+```rust
+.invoke_handler(tauri::generate_handler![
+    commands::presentation::go_live,
+    commands::presentation::send_stage_message,
+    commands::presentation::clear_stage_message,
+    // ...
+])
+```
+
+---
+
+## Mapeamento para o Frontend TypeScript
+
+No frontend, em `src/core/ipc/commands.ts`, expõe-se um wrapper tipado usando `invokeCommand`:
+
+```typescript
+export async function sendStageMessage(
+  message: CommunicationAlert,
+): Promise<void> {
+  if (isTauri()) {
+    await invokeCommand("send_stage_message", { message });
+  } else {
+    // Fallback gracioso para navegadores web externos via HTTP REST
+    await fetch("/api/v1/stage-message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(message),
+    });
+  }
+}
+```
+
+Essa abordagem híbrida permite que os componentes da interface funcionem de forma idêntica tanto dentro do aplicativo Tauri desktop quanto em uma aba de navegador comum.

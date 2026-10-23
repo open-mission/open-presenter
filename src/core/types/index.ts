@@ -49,6 +49,7 @@ export interface LiveSlide {
   background: BackgroundLayer;
   blackout: boolean;
   cleared: boolean;
+  textHidden: boolean;
   updatedAt: string;
   nextUp?: SlideContent;
   prevUp?: SlideContent;
@@ -86,6 +87,89 @@ export interface OutputRuntime {
   monitorId: string | null;
 }
 
+export type OutputType = "monitor" | "html" | "ndi" | "virtual";
+export type OutputCategory = "public" | "stage" | "lower";
+
+export type MasterLayerId =
+  | "mask"
+  | "messages"
+  | "props"
+  | "announcements"
+  | "slide"
+  | "media"
+  | "videoInput"
+  | "screenColor";
+
+/**
+ * Configuração de camadas de uma saída ("Look"). Não guarda elementos: apenas
+ * liga/desliga as camadas mestras do tema no render. `screenColor` é fachada
+ * para `DisplayOutput.backgroundColorEnabled` (fonte única).
+ */
+export interface OutputLook {
+  mask: boolean;
+  messages: boolean;
+  props: boolean;
+  announcements: boolean;
+  slide: boolean;
+  media: boolean;
+  videoInput: boolean;
+  screenColor: boolean;
+}
+
+export interface OutputResolution {
+  width: number;
+  height: number;
+}
+
+export interface CornerPinning {
+  topLeft: [number, number];
+  topRight: [number, number];
+  bottomLeft: [number, number];
+  bottomRight: [number, number];
+}
+
+export interface DisplayOutput {
+  id: string;
+  name: string;
+  slug?: string | null;
+  category: OutputCategory;
+  type: OutputType;
+  enabled: boolean;
+  resolution: OutputResolution;
+  aspectRatio: string;
+  backgroundColor: string;
+  backgroundColorEnabled: boolean;
+  defaultThemeGuid?: string | null;
+  idleThemeGuid?: string | null;
+  look?: OutputLook;
+  monitorId?: string | null;
+  monitorName?: string | null;
+  url?: string | null;
+  ndiStreamName?: string | null;
+  frameRate: number;
+  videoDelayFrames: number;
+  alphaKey: boolean;
+  layoutMode?: string | null;
+  outputDestination?: string | null;
+  cornerPinning?: CornerPinning | null;
+  placeholderEnabled?: boolean;
+  placeholderType?: "logo" | "image" | "none" | null;
+  placeholderUrl?: string | null;
+  placeholderFit?: "contain" | "cover" | "center" | null;
+}
+
+export interface DisplaysSettings {
+  autoActivateOnLaunch: boolean;
+  showPerformanceStats: boolean;
+  ignoreBackgroundColors: boolean;
+  showKeynoteScreens: boolean;
+  timerFontMode: string;
+  bitDepth: string;
+  publicEnabled: boolean;
+  stageEnabled: boolean;
+  lowerEnabled: boolean;
+}
+
 export interface NdiStatus {
   available: boolean;
   active: boolean;
@@ -109,14 +193,31 @@ export interface ConnectedClient {
   kind: ClientKind;
 }
 
-export type StageAlertLevel = "info" | "warning" | "urgent";
+export type CommunicationDisplayMode =
+  | "banner_top"
+  | "banner_bottom"
+  | "overlay"
+  | "variable_only";
 
-export interface StageMessage {
+export type CommunicationLevel = "info" | "warning" | "urgent";
+
+export type CommunicationTarget = "stage" | "public" | "stream";
+
+export interface CommunicationAlert {
   id: string;
   text: string;
-  level: StageAlertLevel;
+  displayMode: CommunicationDisplayMode;
+  scroll: boolean;
+  level: CommunicationLevel;
+  sender?: string;
+  target?: string;
+  targets: CommunicationTarget[];
+  autoDismissSeconds?: number;
   createdAt: string;
 }
+
+export type StageAlertLevel = CommunicationLevel;
+export type StageMessage = CommunicationAlert;
 
 export interface StageTimer {
   running: boolean;
@@ -185,6 +286,11 @@ export type WeekStart = "sunday" | "monday";
 
 export interface SongDefaults {
   linesPerSlide: LinesPerSlide;
+  addEmptySlideAtStart: boolean;
+  vagalumeEnabled: boolean;
+  holyricsEnabled: boolean;
+  lrclibEnabled: boolean;
+  vagalumeApiKey: string | null;
 }
 
 export interface EventItem {
@@ -229,6 +335,8 @@ export interface OnlineLyricHit {
   trackName: string;
   artistName: string;
   albumName: string | null;
+  provider?: string | null;
+  providerId?: string | null;
 }
 
 export interface ImportSkip {
@@ -306,7 +414,14 @@ export interface ImageTreeNode {
   children?: ImageTreeNode[];
 }
 
-export type ThemeElementType = "TEXT" | "IMAGE" | "VIDEO" | "RECTANGLE";
+export type ThemeElementType =
+  | "TEXT"
+  | "IMAGE"
+  | "VIDEO"
+  | "RECTANGLE"
+  | "CIRCLE"
+  | "TRIANGLE"
+  | "STAR";
 
 export type ThemeAsset = "music" | "bible" | "text" | "rest";
 
@@ -328,6 +443,14 @@ export interface ThemeElement {
   url?: string;
   groupId?: string;
   groupName?: string;
+  /** Camada mestra de saída à qual o elemento pertence. Ausente = "slide". */
+  layer?: MasterLayerId;
+}
+
+export interface ThemeGuide {
+  id: string;
+  axis: "x" | "y";
+  pos: number;
 }
 
 export interface ThemePage {
@@ -335,6 +458,8 @@ export interface ThemePage {
   context: ThemeContext;
   css: Record<string, string>;
   elements: ThemeElement[];
+  name?: string;
+  guides?: ThemeGuide[];
 }
 
 export interface SlideTheme {
@@ -346,23 +471,37 @@ export interface SlideTheme {
   category?: "presentation" | "theme" | string;
   createdAt?: string;
   updatedAt?: string;
+  guides?: ThemeGuide[];
 }
 
-export interface ThemeBinding {
-  target: OutputTarget;
-  asset: SlideKind;
-  themeGuid: string;
+/** Override ao vivo de uma saída (efêmero, não persistido no SQLite). */
+export interface LiveOutputOverride {
+  themeGuid?: string | null;
+  background?: BackgroundLayer | null;
+  updatedAt: string;
 }
+
+export type PlanThemeSource = "override" | "event" | "default" | "fallback";
 
 /**
- * Temas resolvidos pelo operador e transmitidos a todas as saídas.
- * O admin decide o tema de cada saída; as saídas (janela nativa e web)
- * apenas consomem o resultado, sem depender de localStorage ou IPC.
+ * Plano resolvido de uma saída. O admin é o único resolvedor; o Rust apenas
+ * guarda e publica. `contentTheme` é aplicado no renderer, por cima do plano.
  */
-export interface LiveThemes {
-  public: SlideTheme | null;
-  stage: SlideTheme | null;
-  stream: SlideTheme | null;
+export interface OutputPlan {
+  outputId: string;
+  category: OutputCategory;
+  theme: SlideTheme | null;
+  themeSource: PlanThemeSource;
+  contentTheme: SlideTheme | null;
+  restTheme: SlideTheme | null;
+  look: OutputLook;
+  backgroundOverride: BackgroundLayer | null;
+  screenColor: { enabled: boolean; value: string };
+  updatedAt: string;
+}
+
+export interface LiveOutputPlans {
+  plans: Record<string, OutputPlan>;
 }
 
 export function kindToAsset(kind: SlideKind): ThemeAsset | null {

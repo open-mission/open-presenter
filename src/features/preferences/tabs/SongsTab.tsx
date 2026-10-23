@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  AlertTriangle,
   ChevronDown,
   ChevronUp,
   FolderOpen,
@@ -11,13 +12,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { getSongDefaults, setSongDefaults } from "@/core/ipc/commands";
-import { isTauri } from "@/core/ipc/tauri";
+import { Switch } from "@/components/ui/switch";
+import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import type { LinesPerSlide } from "@/core/types";
 import { useSongsStore } from "@/features/songs/store";
 import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
@@ -66,30 +68,57 @@ export function SongsTab() {
   const resetDefaults = useSongGroupsStore((s) => s.resetDefaults);
 
   const [recordingGroupId, setRecordingGroupId] = useState<string | null>(null);
-  const [linesPerSlide, setLinesPerSlide] = useState<LinesPerSlide | null>(null);
+  const linesPerSlide = useSongDefaultsStore((s) => s.linesPerSlide);
+  const addEmptySlideAtStart = useSongDefaultsStore(
+    (s) => s.addEmptySlideAtStart,
+  );
+  const vagalumeEnabled = useSongDefaultsStore((s) => s.vagalumeEnabled);
+  const holyricsEnabled = useSongDefaultsStore((s) => s.holyricsEnabled);
+  const lrclibEnabled = useSongDefaultsStore((s) => s.lrclibEnabled);
+  const vagalumeApiKey = useSongDefaultsStore((s) => s.vagalumeApiKey);
+  const defaultsLoaded = useSongDefaultsStore((s) => s.loaded);
+  const defaultsLoading = useSongDefaultsStore((s) => s.loading);
+  const loadSongDefaults = useSongDefaultsStore((s) => s.load);
+  const updateSongDefaults = useSongDefaultsStore((s) => s.update);
 
-  // Load persisted lines-per-slide preference
   useEffect(() => {
-    if (!isTauri()) return;
-    let cancelled = false;
-    void getSongDefaults()
-      .then((defaults) => {
-        if (!cancelled) setLinesPerSlide(defaults.linesPerSlide);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          toast.error(err instanceof Error ? err.message : String(err));
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    void loadSongDefaults().catch((err) => {
+      toast.error(err instanceof Error ? err.message : String(err));
+    });
+  }, [loadSongDefaults]);
 
   async function handleLinesPerSlideChange(value: LinesPerSlide) {
     try {
-      const saved = await setSongDefaults({ linesPerSlide: value });
-      setLinesPerSlide(saved.linesPerSlide);
+      await updateSongDefaults({ linesPerSlide: value });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function handleAddEmptySlideChange(value: boolean) {
+    try {
+      await updateSongDefaults({ addEmptySlideAtStart: value });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function handleProviderToggle(
+    provider: "vagalume" | "holyrics" | "lrclib",
+    value: boolean,
+  ) {
+    try {
+      if (provider === "vagalume") await updateSongDefaults({ vagalumeEnabled: value });
+      if (provider === "holyrics") await updateSongDefaults({ holyricsEnabled: value });
+      if (provider === "lrclib") await updateSongDefaults({ lrclibEnabled: value });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  async function handleVagalumeApiKeyChange(key: string) {
+    try {
+      await updateSongDefaults({ vagalumeApiKey: key });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
@@ -181,10 +210,14 @@ export function SongsTab() {
           {LINES_PER_SLIDE_OPTIONS.map((option) => (
             <label
               key={option.value}
-              className={`flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-colors ${
+              className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-colors ${
                 linesPerSlide === option.value
                   ? "bg-primary/5 font-medium text-foreground"
                   : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+              } ${
+                defaultsLoading || !defaultsLoaded
+                  ? "cursor-not-allowed opacity-60"
+                  : "cursor-pointer"
               }`}
             >
               <input
@@ -193,11 +226,135 @@ export function SongsTab() {
                 value={option.value}
                 checked={linesPerSlide === option.value}
                 onChange={() => void handleLinesPerSlideChange(option.value)}
+                disabled={defaultsLoading || !defaultsLoaded}
                 className="accent-primary"
               />
               <span>{option.label}</span>
             </label>
           ))}
+        </div>
+
+        <div className="flex items-center justify-between gap-6 rounded-xl border border-border/80 bg-card/60 p-4 shadow-2xs">
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-foreground">
+              Adicionar slide vazio no início de todas as músicas
+            </p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Vale para músicas existentes e novas. Não altera a letra salva;
+              apenas acrescenta um slide em branco antes do primeiro slide.
+            </p>
+          </div>
+          <Switch
+            checked={addEmptySlideAtStart}
+            onCheckedChange={(value) => void handleAddEmptySlideChange(value)}
+            disabled={defaultsLoading || !defaultsLoaded}
+            aria-label="Adicionar slide vazio no início de todas as músicas"
+          />
+        </div>
+      </div>
+
+      {/* Section: Provedores de busca online */}
+      <div className="flex flex-col gap-3">
+        <div>
+          <h4 className="text-sm font-semibold text-foreground">
+            Provedores de busca de letras na internet
+          </h4>
+          <p className="text-xs text-muted-foreground">
+            Configure quais acervos online serão consultados ao buscar letras no Open Presenter.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {/* Holyrics Provider */}
+          <div className="flex flex-col gap-2.5 rounded-xl border border-border/80 bg-card/60 p-4 shadow-2xs">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">
+                    Holyrics (Acervo de Louvores)
+                  </span>
+                  <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-500 border border-amber-500/20">
+                    Experimental
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Busca louvores cristãos nacionais com Tom original, BPM e divisão de slides.
+                </p>
+              </div>
+              <Switch
+                checked={holyricsEnabled}
+                onCheckedChange={(checked) => void handleProviderToggle("holyrics", checked)}
+                disabled={defaultsLoading || !defaultsLoaded}
+                aria-label="Ativar provedor Holyrics"
+              />
+            </div>
+
+            {/* Disclaimer Box */}
+            <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="size-4 shrink-0 mt-0.5 text-amber-500" />
+              <p className="leading-relaxed">
+                <strong>Aviso de Compatibilidade:</strong> Este conector utiliza a infraestrutura pública do Holyrics por engenharia reversa. O serviço pode sofrer instabilidades, lentidão ou parar de responder caso haja alterações nos servidores ou protocolos de terceiros.
+              </p>
+            </div>
+          </div>
+
+          {/* Vagalume Provider */}
+          <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-card/60 p-4 shadow-2xs">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">Vagalume</span>
+                  <span className="rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-500 border border-emerald-500/20">
+                    Nacional
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Catálogo nacional com hinos da Harpa Cristã, Cantor Cristão e MPB.
+                </p>
+              </div>
+              <Switch
+                checked={vagalumeEnabled}
+                onCheckedChange={(checked) => void handleProviderToggle("vagalume", checked)}
+                disabled={defaultsLoading || !defaultsLoaded}
+                aria-label="Ativar provedor Vagalume"
+              />
+            </div>
+
+            {vagalumeEnabled && (
+              <div className="pt-2 border-t border-border/40 flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-foreground">
+                  Chave de API personalizada (opcional)
+                </label>
+                <Input
+                  placeholder="Deixe em branco para usar as chaves comunitárias padrão"
+                  value={vagalumeApiKey ?? ""}
+                  onChange={(e) => void handleVagalumeApiKeyChange(e.target.value)}
+                  className="text-xs h-8"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* LRCLIB Provider */}
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-border/80 bg-card/60 p-4 shadow-2xs">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-foreground">LRCLIB</span>
+                <span className="rounded-md bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-500 border border-blue-500/20">
+                  Internacional
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Base aberta de letras e sincronização temporal para canções internacionais.
+              </p>
+            </div>
+            <Switch
+              checked={lrclibEnabled}
+              onCheckedChange={(checked) => void handleProviderToggle("lrclib", checked)}
+              disabled={defaultsLoading || !defaultsLoaded}
+              aria-label="Ativar provedor LRCLIB"
+            />
+          </div>
         </div>
       </div>
 

@@ -16,10 +16,14 @@ import {
   ArrowUp,
   Ban,
   ChevronDown,
+  Circle,
   Clock,
+  Code,
   Eye,
   EyeOff,
   Film,
+  FolderMinus,
+  FolderPlus,
   Image as ImageIcon,
   Layers,
   Lock,
@@ -29,13 +33,15 @@ import {
   Sliders,
   Sparkles,
   Square,
+  Star,
+  Triangle,
   Type,
   Unlock,
   WrapText,
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import type { ThemeElement } from "@/core/types";
+import type { SlideTheme, ThemeElement, ThemeElementType } from "@/core/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -52,8 +58,16 @@ import { saveThemeMedia } from "@/core/ipc/commands";
 import { resolveCssMediaUrls } from "./media";
 import { VARIABLE_KEYS } from "@/features/slide-themes/samples";
 import { getActivePage, materializePage } from "@/features/slide-themes/pages";
-import { alignToScreen } from "./geometry";
+import {
+  LOGICAL_H,
+  LOGICAL_W,
+  elementBox,
+  parseRotateDeg,
+  toPct,
+} from "./geometry";
 import type { AlignEdge } from "./geometry";
+import { selectionVisualBox } from "./selection";
+import type { ReorderDirection } from "./elements";
 import { useThemeEditorStore } from "./store";
 import { FontPicker } from "./FontPicker";
 import { SymbolsPicker } from "./SymbolsPicker";
@@ -81,13 +95,24 @@ const FONT_WEIGHTS = [
 
 const ALL_VARIABLES = [...new Set(Object.values(VARIABLE_KEYS).flat())].sort();
 
-const ALIGN_BUTTONS: { label: string; edge: AlignEdge; icon: LucideIcon }[] = [
-  { label: "Esquerda", edge: "left", icon: AlignHorizontalJustifyStart },
-  { label: "Centro H", edge: "centerX", icon: AlignHorizontalJustifyCenter },
-  { label: "Direita", edge: "right", icon: AlignHorizontalJustifyEnd },
-  { label: "Topo", edge: "top", icon: AlignVerticalJustifyStart },
-  { label: "Meio V", edge: "middle", icon: AlignVerticalJustifyCenter },
-  { label: "Fundo", edge: "bottom", icon: AlignVerticalJustifyEnd },
+const ALIGN_BUTTONS: { title: string; edge: AlignEdge; icon: LucideIcon }[] = [
+  { title: "Alinhar à esquerda", edge: "left", icon: AlignHorizontalJustifyStart },
+  { title: "Centralizar", edge: "centerX", icon: AlignHorizontalJustifyCenter },
+  { title: "Alinhar à direita", edge: "right", icon: AlignHorizontalJustifyEnd },
+  { title: "Alinhar ao topo", edge: "top", icon: AlignVerticalJustifyStart },
+  { title: "Alinhar ao meio", edge: "middle", icon: AlignVerticalJustifyCenter },
+  { title: "Alinhar à base", edge: "bottom", icon: AlignVerticalJustifyEnd },
+];
+
+const ORDER_BUTTONS: {
+  label: string;
+  direction: ReorderDirection;
+  icon: LucideIcon;
+}[] = [
+  { label: "Trazer para frente", direction: "front", icon: ArrowUp },
+  { label: "Avançar", direction: "forward", icon: ArrowRight },
+  { label: "Recuar", direction: "backward", icon: ArrowLeft },
+  { label: "Enviar para trás", direction: "back", icon: ArrowDown },
 ];
 
 const CASE_BUTTONS = [
@@ -160,7 +185,7 @@ type UpdateElement = (id: string, patch: Partial<ThemeElement>) => void;
 function Section({
   title,
   icon: Icon,
-  defaultOpen = true,
+  defaultOpen = false,
   children,
 }: {
   title: string;
@@ -209,15 +234,281 @@ function Field({
   );
 }
 
-interface PropertiesPanelProps {
-  selectedId: string | null;
+function SlideSettingsSection({
+  draft,
+}: {
+  draft: SlideTheme;
+  updateCss: (patch: Record<string, string>) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <Section title="CONFIGURAÇÕES DO SLIDE" icon={Sliders}>
+        <Field label="Título do Tema / Apresentação">
+          <Input
+            value={draft.title}
+            disabled
+            className="h-8 text-xs font-mono"
+          />
+        </Field>
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+          <span>Categoria</span>
+          <span className="font-semibold text-foreground uppercase">{draft.category ?? "theme"}</span>
+        </div>
+        <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
+          <span>Elementos no Slide</span>
+          <span className="font-mono text-foreground">{draft.elements.length}</span>
+        </div>
+      </Section>
+    </div>
+  );
 }
 
-export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
+function TextBoxBackgroundSection({
+  el,
+  updateElement,
+  guid,
+}: {
+  el: ThemeElement;
+  updateElement: UpdateElement;
+  guid: string;
+}) {
+  const currentBg = el.css.background || el.css.backgroundColor || el.fill || "transparent";
+  const isTransparent = currentBg === "transparent" || !currentBg;
+  const isGradient = currentBg.includes("gradient");
+  const isImage = currentBg.includes("url(");
+  const isShader = isIsfBackground(currentBg);
+
+  const [activeTab, setActiveTab] = useState<"none" | "solid" | "gradient" | "image" | "shader">(() =>
+    isShader ? "shader" : isImage ? "image" : isGradient ? "gradient" : isTransparent ? "none" : "solid",
+  );
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const currentSize = el.css.backgroundSize || "cover";
+  const currentPos = el.css.backgroundPosition || "center";
+  const currentRepeat = el.css.backgroundRepeat || "no-repeat";
+  const currentPadding = el.css.padding || "0px";
+
+  async function handleImageFile(file: File) {
+    setUploading(true);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const saved = await saveThemeMedia(guid, file.name, Array.from(bytes));
+      updateElement(el.id, {
+        css: {
+          ...el.css,
+          background: `url(${saved})`,
+          backgroundSize: currentSize,
+          backgroundPosition: currentPos,
+          backgroundRepeat: currentRepeat,
+        },
+      });
+    } catch (e) {
+      console.error("Falha ao salvar imagem de fundo da caixa de texto", e);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <Section title="PLANO DE FUNDO DA CAIXA" icon={Palette}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(v) => {
+          setActiveTab(v as "none" | "solid" | "gradient" | "image" | "shader");
+          if (v === "none") {
+            const nextCss = { ...el.css };
+            delete nextCss.background;
+            delete nextCss.backgroundColor;
+            delete nextCss.backgroundImage;
+            updateElement(el.id, { css: nextCss, fill: undefined });
+          }
+        }}
+        className="w-full"
+      >
+        <TabsList className="grid grid-cols-5 h-8 p-0.5">
+          <TabsTrigger value="none" className="text-[10px]">Nenhum</TabsTrigger>
+          <TabsTrigger value="solid" className="text-[10px]">Cor</TabsTrigger>
+          <TabsTrigger value="gradient" className="text-[10px]">Gradiente</TabsTrigger>
+          <TabsTrigger value="image" className="text-[10px]">Imagem</TabsTrigger>
+          <TabsTrigger value="shader" className="text-[10px]">Shader</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="none" className="pt-2">
+          <p className="text-xs text-muted-foreground">Fundo transparente.</p>
+        </TabsContent>
+
+        <TabsContent value="solid" className="pt-2 flex flex-col gap-2.5">
+          <Field label="Cor de Fundo da Caixa">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="color"
+                value={asHex(currentBg, "#000000")}
+                onChange={(e) =>
+                  updateElement(el.id, {
+                    css: { ...el.css, background: e.target.value },
+                    fill: e.target.value,
+                  })
+                }
+                className="size-8 rounded border border-border cursor-pointer p-0 shrink-0"
+              />
+              <Input
+                value={currentBg}
+                onChange={(e) =>
+                  updateElement(el.id, {
+                    css: { ...el.css, background: e.target.value },
+                    fill: e.target.value,
+                  })
+                }
+                className="h-8 font-mono text-xs"
+                placeholder="#000000 ou rgba(0,0,0,0.5)"
+              />
+            </div>
+          </Field>
+        </TabsContent>
+
+        <TabsContent value="gradient" className="pt-2">
+          <GradientBuilder
+            value={isGradient ? currentBg : "linear-gradient(135deg, #1e1b4b 0%, #312e81 100%)"}
+            onChange={(val) =>
+              updateElement(el.id, {
+                css: { ...el.css, background: val },
+                fill: val,
+              })
+            }
+          />
+        </TabsContent>
+
+        <TabsContent value="image" className="pt-2 flex flex-col gap-2.5">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleImageFile(file);
+            }}
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={uploading}
+              onClick={() => fileRef.current?.click()}
+              className="h-8 text-xs gap-1.5 flex-1 cursor-pointer"
+            >
+              <ImageIcon className="size-3.5" />
+              {uploading ? "Enviando..." : "Escolher Imagem de Fundo"}
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <Field label="Ajuste (Tamanho)">
+              <Select
+                value={currentSize}
+                onValueChange={(val) =>
+                  updateElement(el.id, {
+                    css: { ...el.css, backgroundSize: val },
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cover">Preencher (Cover)</SelectItem>
+                  <SelectItem value="contain">Ajustar (Contain)</SelectItem>
+                  <SelectItem value="auto">Original (Auto)</SelectItem>
+                  <SelectItem value="100% 100%">Esticar (100%)</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field label="Posição">
+              <Select
+                value={currentPos}
+                onValueChange={(val) =>
+                  updateElement(el.id, {
+                    css: { ...el.css, backgroundPosition: val },
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="center">Centro</SelectItem>
+                  <SelectItem value="top">Superior</SelectItem>
+                  <SelectItem value="bottom">Inferior</SelectItem>
+                  <SelectItem value="left">Esquerda</SelectItem>
+                  <SelectItem value="right">Direita</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="shader" className="pt-2 flex flex-col gap-2">
+          <Field label="Shader ISF / Efeito">
+            <Input
+              value={isShader ? currentBg : ""}
+              placeholder="isf:nome-do-shader ou generator"
+              onChange={(e) =>
+                updateElement(el.id, {
+                  css: { ...el.css, background: e.target.value },
+                })
+              }
+              className="h-8 font-mono text-xs"
+            />
+          </Field>
+        </TabsContent>
+      </Tabs>
+
+      {/* Espaçamento interno (Padding) */}
+      <div className="pt-2 border-t border-border/40 flex flex-col gap-1.5">
+        <Field label="Espaçamento Interno (Padding)">
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={currentPadding}
+              onChange={(e) =>
+                updateElement(el.id, {
+                  css: { ...el.css, padding: e.target.value },
+                })
+              }
+              placeholder="ex: 16px ou 12px 24px"
+              className="h-8 font-mono text-xs"
+            />
+            <div className="flex gap-1">
+              {["0px", "8px", "16px", "24px"].map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() =>
+                    updateElement(el.id, {
+                      css: { ...el.css, padding: p },
+                    })
+                  }
+                  className="px-1.5 py-0.5 text-[10px] rounded border border-border bg-card/60 hover:bg-muted font-mono cursor-pointer"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+        </Field>
+      </div>
+    </Section>
+  );
+}
+
+export function PropertiesPanel() {
   const draft = useThemeEditorStore((s) => s.draft);
   const activePageId = useThemeEditorStore((s) => s.activePageId);
   const updateCss = useThemeEditorStore((s) => s.updateCss);
   const updateElement = useThemeEditorStore((s) => s.updateElement);
+  const selection = useThemeEditorStore((s) => s.selection);
 
   if (!draft) {
     return (
@@ -227,33 +518,294 @@ export function PropertiesPanel({ selectedId }: PropertiesPanelProps) {
 
   const page = getActivePage(draft, activePageId);
   const viewTheme = page ? materializePage(draft, page) : draft;
-  const selected = viewTheme.elements.find((el) => el.id === selectedId) ?? null;
+  const members = viewTheme.elements.filter((el) =>
+    selection.ids.includes(el.id),
+  );
+  const selected =
+    members.find((el) => el.id === selection.anchorId) ?? members[0] ?? null;
+  const scope = members.length > 1 ? "selection" : "item";
 
   if (!selected) {
-    return <ThemeBackground draft={viewTheme} updateCss={updateCss} />;
+    return (
+      <Tabs defaultValue="background" className="w-full flex flex-col">
+        <TabsList className="grid grid-cols-2 h-9 p-1 bg-muted/60 mb-2">
+          <TabsTrigger value="background" className="text-xs gap-1.5 cursor-pointer">
+            <Palette className="size-3.5" />
+            Fundo do Slide
+          </TabsTrigger>
+          <TabsTrigger value="slide" className="text-xs gap-1.5 cursor-pointer">
+            <Sliders className="size-3.5" />
+            Slide & Tela
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="background" className="space-y-3">
+          <ThemeBackground draft={viewTheme} updateCss={updateCss} />
+        </TabsContent>
+
+        <TabsContent value="slide" className="space-y-3">
+          <SlideSettingsSection draft={viewTheme} updateCss={updateCss} />
+        </TabsContent>
+      </Tabs>
+    );
   }
 
-  return (
-    <div className="flex flex-col gap-3">
-      <GeneralSection selected={selected} updateElement={updateElement} />
-      <PositionSection el={selected} updateElement={updateElement} />
-      {selected.type === "TEXT" && (
-        <TextSection el={selected} updateElement={updateElement} />
+  const isText = selected.type === "TEXT";
+  const isMedia = selected.type === "IMAGE" || selected.type === "VIDEO";
+  const isShape =
+    selected.type === "RECTANGLE" ||
+    selected.type === "CIRCLE" ||
+    selected.type === "TRIANGLE" ||
+    selected.type === "STAR";
+
+  const organize = (
+    <div className="space-y-3">
+      <GeometrySection
+        scope={scope}
+        el={scope === "item" ? selected : null}
+        elements={viewTheme.elements}
+      />
+      <AlignDistributeSection />
+      <OrderSection />
+      <GroupSection selected={selected} />
+      {scope === "item" && (
+        <GeneralSection selected={selected} updateElement={updateElement} />
       )}
-      {selected.type === "RECTANGLE" && (
-        <RectangleSection el={selected} updateElement={updateElement} />
-      )}
-      {(selected.type === "IMAGE" || selected.type === "VIDEO") && (
-        <ElementMediaSection
-          guid={draft.guid}
+    </div>
+  );
+
+  if (scope === "selection") {
+    return <div className="flex flex-col gap-2">{organize}</div>;
+  }
+
+  const appearance = (
+    <div className="space-y-3">
+      {isText && (
+        <TextBoxBackgroundSection
           el={selected}
           updateElement={updateElement}
+          guid={draft.guid}
         />
       )}
+      {isShape && (
+        <RectangleSection el={selected} updateElement={updateElement} />
+      )}
       <AppearanceSection el={selected} updateElement={updateElement} />
-      <TransitionsSection el={selected} updateElement={updateElement} />
-      <AdvancedCssSection el={selected} updateElement={updateElement} />
     </div>
+  );
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Tabs
+        key={`${selected.type}-${scope}`}
+        defaultValue={isText ? "text" : isMedia ? "media" : "organize"}
+        className="w-full flex flex-col"
+      >
+        <TabsList
+          className={cn(
+            "grid h-9 p-1 bg-muted/60 mb-2",
+            isText || isMedia ? "grid-cols-5" : "grid-cols-4",
+          )}
+        >
+          {isText && (
+            <TabsTrigger value="text" className="text-[10px] gap-1 cursor-pointer">
+              <Type className="size-3.5" />
+              Texto
+            </TabsTrigger>
+          )}
+          {isMedia && (
+            <TabsTrigger value="media" className="text-[10px] gap-1 cursor-pointer">
+              <ImageIcon className="size-3.5" />
+              Mídia
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="organize" className="text-[10px] gap-1 cursor-pointer">
+            <Move className="size-3.5" />
+            Organizar
+          </TabsTrigger>
+          <TabsTrigger value="appearance" className="text-[10px] gap-1 cursor-pointer">
+            <Palette className="size-3.5" />
+            Aparência
+          </TabsTrigger>
+          <TabsTrigger value="transitions" className="text-[10px] gap-1 cursor-pointer">
+            <Sparkles className="size-3.5" />
+            Animação
+          </TabsTrigger>
+          <TabsTrigger value="advanced" className="text-[10px] gap-1 cursor-pointer">
+            <Code className="size-3.5" />
+            CSS
+          </TabsTrigger>
+        </TabsList>
+
+        {isText && (
+          <TabsContent value="text" className="space-y-3">
+            <TextSection el={selected} updateElement={updateElement} />
+          </TabsContent>
+        )}
+
+        {isMedia && (
+          <TabsContent value="media" className="space-y-3">
+            <ElementMediaSection
+              guid={draft.guid}
+              el={selected}
+              updateElement={updateElement}
+            />
+          </TabsContent>
+        )}
+
+        <TabsContent value="organize" className="space-y-3">
+          {organize}
+        </TabsContent>
+
+        <TabsContent value="appearance" className="space-y-3">
+          {appearance}
+        </TabsContent>
+
+        <TabsContent value="transitions" className="space-y-3">
+          <TransitionsSection el={selected} updateElement={updateElement} />
+        </TabsContent>
+
+        <TabsContent value="advanced" className="space-y-3">
+          <AdvancedCssSection el={selected} updateElement={updateElement} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function AlignDistributeSection() {
+  const selection = useThemeEditorStore((s) => s.selection);
+  const alignSelection = useThemeEditorStore((s) => s.alignSelection);
+  const distributeSelection = useThemeEditorStore((s) => s.distributeSelection);
+  const disabled = selection.ids.length === 0;
+
+  return (
+    <Section title="ALINHAR & DISTRIBUIR" icon={AlignCenter}>
+      <div className="grid grid-cols-6 gap-1">
+        {ALIGN_BUTTONS.map(({ title, edge, icon: Icon }) => (
+          <Button
+            key={edge}
+            type="button"
+            variant="outline"
+            size="sm"
+            title={title}
+            disabled={disabled}
+            className="h-8 cursor-pointer p-0 hover:bg-muted"
+            onClick={() => alignSelection(edge)}
+          >
+            <Icon className="size-3.5 text-foreground" />
+          </Button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          title="Distribuir horizontalmente"
+          disabled={selection.ids.length < 3}
+          className="h-8 cursor-pointer gap-1 text-[11px]"
+          onClick={() => distributeSelection("x")}
+        >
+          <ArrowLeft className="size-3.5" />
+          Distribuir H
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          title="Distribuir verticalmente"
+          disabled={selection.ids.length < 3}
+          className="h-8 cursor-pointer gap-1 text-[11px]"
+          onClick={() => distributeSelection("y")}
+        >
+          <ArrowDown className="size-3.5" />
+          Distribuir V
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
+function OrderSection() {
+  const selection = useThemeEditorStore((s) => s.selection);
+  const reorderSelection = useThemeEditorStore((s) => s.reorderSelection);
+
+  return (
+    <Section title="ORDEM" icon={Layers}>
+      <div className="grid grid-cols-4 gap-1">
+        {ORDER_BUTTONS.map(({ label, direction, icon: Icon }) => (
+          <Button
+            key={direction}
+            type="button"
+            variant="outline"
+            size="sm"
+            title={label}
+            disabled={selection.ids.length === 0}
+            className="h-8 cursor-pointer p-0"
+            onClick={() => reorderSelection(direction)}
+          >
+            <Icon className="size-3.5" />
+          </Button>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
+function GroupSection({ selected }: { selected: ThemeElement }) {
+  const selection = useThemeEditorStore((s) => s.selection);
+  const groupSelection = useThemeEditorStore((s) => s.groupSelection);
+  const ungroupSelection = useThemeEditorStore((s) => s.ungroupSelection);
+  const renameGroup = useThemeEditorStore((s) => s.renameGroup);
+  const groupId = selection.enteredGroupId ?? selected.groupId ?? null;
+
+  return (
+    <Section title="AGRUPAR" icon={FolderPlus}>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 flex-1 cursor-pointer gap-1 text-xs"
+          disabled={selection.ids.length < 2}
+          onClick={() => groupSelection()}
+        >
+          <FolderPlus className="size-3.5" />
+          Agrupar
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 flex-1 cursor-pointer gap-1 text-xs"
+          disabled={!groupId}
+          onClick={() => ungroupSelection()}
+        >
+          <FolderMinus className="size-3.5" />
+          Desagrupar
+        </Button>
+      </div>
+      {groupId && (
+        <Field label="Nome do grupo">
+          <Input
+            key={groupId}
+            defaultValue={selected.groupName ?? "Grupo"}
+            className="h-8 text-xs"
+            onBlur={(e) => {
+              const name = e.target.value.trim();
+              if (name) renameGroup(groupId, name);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }}
+          />
+        </Field>
+      )}
+    </Section>
   );
 }
 
@@ -265,7 +817,7 @@ function GeneralSection({
   updateElement: UpdateElement;
 }) {
   return (
-    <Section title="ELEMENTO" icon={Layers} defaultOpen={true}>
+    <Section title="ELEMENTO" icon={Layers}>
       <Field label="Identificador">
         <Input value={selected.id} disabled aria-label="Nome do elemento" className="h-8 font-mono text-xs" />
       </Field>
@@ -298,32 +850,84 @@ function GeneralSection({
   );
 }
 
-function PositionSection({
+function GeometrySection({
+  scope,
   el,
-  updateElement,
+  elements,
 }: {
-  el: ThemeElement;
-  updateElement: UpdateElement;
+  scope: "item" | "selection";
+  el: ThemeElement | null;
+  elements: ThemeElement[];
 }) {
-  function setPos(k: "left" | "top", value: string) {
+  const selection = useThemeEditorStore((s) => s.selection);
+  const updateElement = useThemeEditorStore((s) => s.updateElement);
+  const translateSelection = useThemeEditorStore((s) => s.translateSelection);
+  const scaleSelection = useThemeEditorStore((s) => s.scaleSelection);
+  const setSelectionRotation = useThemeEditorStore(
+    (s) => s.setSelectionRotation,
+  );
+  const rotateSelectionBy = useThemeEditorStore((s) => s.rotateSelectionBy);
+  const [rotationDelta, setRotationDelta] = useState("");
+
+  const box =
+    scope === "item" && el
+      ? elementBox(el)
+      : selectionVisualBox(elements, selection.ids);
+  if (!box) return null;
+
+  function setPos(axis: "left" | "top", value: string) {
+    if (!el || !box) return;
     const num = Number(value);
     if (!Number.isFinite(num)) return;
-    const patchCoord = k === "left" ? { x: Math.round(num) } : { y: Math.round(num) };
+    const left = axis === "left" ? Math.round(num) : Math.round(box.left);
+    const top = axis === "top" ? Math.round(num) : Math.round(box.top);
     updateElement(el.id, {
-      ...patchCoord,
-      css: { ...el.css, [k]: `${num}px` },
+      x: toPct(left, LOGICAL_W),
+      y: toPct(top, LOGICAL_H),
+      css: { ...el.css, left: `${left}px`, top: `${top}px` },
     });
   }
 
-  function setDim(k: "width" | "height", value: string) {
+  function setDim(axis: "width" | "height", value: string) {
+    if (!el) return;
     const num = Number(value);
     if (!Number.isFinite(num) || num <= 0) return;
     updateElement(el.id, {
-      css: { ...el.css, [k]: `${num}px` },
+      css: { ...el.css, [axis]: `${Math.round(num)}px` },
     });
   }
 
+  function moveSelection(axis: "left" | "top", value: string) {
+    if (!box) return;
+    const num = Number(value);
+    if (!Number.isFinite(num)) return;
+    if (axis === "left") translateSelection(num - box.left, 0);
+    else translateSelection(0, num - box.top);
+  }
+
+  function resizeSelection(axis: "width" | "height", value: string) {
+    if (!box) return;
+    const num = Number(value);
+    if (!Number.isFinite(num) || num <= 0) return;
+    if (axis === "width") scaleSelection(num / box.width, 1);
+    else scaleSelection(1, num / box.height);
+  }
+
+  function setRotation(value: string) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return;
+    setSelectionRotation(Math.max(-180, Math.min(180, num)));
+  }
+
+  function applyRotationDelta() {
+    const num = Number(rotationDelta);
+    setRotationDelta("");
+    if (!Number.isFinite(num) || num === 0) return;
+    rotateSelectionBy(num);
+  }
+
   function setScale(value: string) {
+    if (!el) return;
     const num = Number(value);
     if (!Number.isFinite(num) || num <= 0) return;
     updateElement(el.id, {
@@ -332,6 +936,7 @@ function PositionSection({
   }
 
   function setMargin(side: string, value: string) {
+    if (!el) return;
     const num = Number(value);
     if (!Number.isFinite(num) || num < 0) return;
     const css = { ...el.css };
@@ -344,23 +949,33 @@ function PositionSection({
   }
 
   return (
-    <Section title="POSIÇÃO & DIMENSÕES" icon={Move} defaultOpen={true}>
-      {/* Flex wrap para Posição e Dimensão com min-w */}
+    <Section
+      title={scope === "item" ? "GEOMETRIA" : "GEOMETRIA DA SELEÇÃO"}
+      icon={Move}
+    >
       <div className="flex flex-wrap gap-2">
         <Field label="X (px)" className="min-w-[110px] flex-1">
           <Input
             type="number"
             className="h-8 font-mono text-xs"
-            value={pxOf(el.css.left)}
-            onChange={(e) => setPos("left", e.target.value)}
+            value={Math.round(box.left)}
+            onChange={(e) =>
+              scope === "item"
+                ? setPos("left", e.target.value)
+                : moveSelection("left", e.target.value)
+            }
           />
         </Field>
         <Field label="Y (px)" className="min-w-[110px] flex-1">
           <Input
             type="number"
             className="h-8 font-mono text-xs"
-            value={pxOf(el.css.top)}
-            onChange={(e) => setPos("top", e.target.value)}
+            value={Math.round(box.top)}
+            onChange={(e) =>
+              scope === "item"
+                ? setPos("top", e.target.value)
+                : moveSelection("top", e.target.value)
+            }
           />
         </Field>
         <Field label="Largura (px)" className="min-w-[110px] flex-1">
@@ -368,8 +983,12 @@ function PositionSection({
             type="number"
             min={20}
             className="h-8 font-mono text-xs"
-            value={pxOf(el.css.width)}
-            onChange={(e) => setDim("width", e.target.value)}
+            value={Math.round(box.width)}
+            onChange={(e) =>
+              scope === "item"
+                ? setDim("width", e.target.value)
+                : resizeSelection("width", e.target.value)
+            }
           />
         </Field>
         <Field label="Altura (px)" className="min-w-[110px] flex-1">
@@ -377,36 +996,51 @@ function PositionSection({
             type="number"
             min={20}
             className="h-8 font-mono text-xs"
-            value={pxOf(el.css.height)}
-            onChange={(e) => setDim("height", e.target.value)}
+            value={Math.round(box.height)}
+            onChange={(e) =>
+              scope === "item"
+                ? setDim("height", e.target.value)
+                : resizeSelection("height", e.target.value)
+            }
           />
         </Field>
+        {scope === "item" ? (
+          <Field label="Rotação (°)" className="min-w-[110px] flex-1">
+            <Input
+              type="number"
+              min={-180}
+              max={180}
+              step={1}
+              className="h-8 font-mono text-xs"
+              value={Math.round(parseRotateDeg(el?.css.rotate))}
+              onChange={(e) => setRotation(e.target.value)}
+            />
+          </Field>
+        ) : (
+          <Field label="Rotação (°)" className="min-w-[110px] flex-1">
+            <Input
+              type="number"
+              step={1}
+              placeholder="0"
+              className="h-8 font-mono text-xs"
+              value={rotationDelta}
+              onChange={(e) => setRotationDelta(e.target.value)}
+              onBlur={applyRotationDelta}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  applyRotationDelta();
+                }
+              }}
+            />
+          </Field>
+        )}
       </div>
 
-      {/* Alinhar à tela com ícones */}
-      <div className="flex flex-col gap-1.5 pt-1">
-        <span className="text-[11px] font-medium text-muted-foreground">
-          Alinhar à Tela
-        </span>
-        <div className="grid grid-cols-6 gap-1">
-          {ALIGN_BUTTONS.map(({ label, edge, icon: Icon }) => (
-            <Button
-              key={edge}
-              type="button"
-              variant="outline"
-              size="sm"
-              title={`Alinhar ao ${label}`}
-              className="h-8 p-0 flex items-center justify-center cursor-pointer hover:bg-muted"
-              onClick={() => updateElement(el.id, alignToScreen(el, edge))}
-            >
-              <Icon className="size-3.5 text-foreground" />
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* Escala */}
-      <div className="flex flex-col gap-1.5 pt-1 border-t border-border/40">
+      {scope === "item" && el && (
+        <>
+          {/* Escala */}
+          <div className="flex flex-col gap-1.5 pt-1 border-t border-border/40">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-medium text-foreground">
             Escala: {scalePctOf(el.css.transform)}%
@@ -474,6 +1108,8 @@ function PositionSection({
           </Field>
         </div>
       </div>
+        </>
+      )}
     </Section>
   );
 }
@@ -547,7 +1183,7 @@ function TextSection({
       : "center";
 
   return (
-    <Section title="TEXTO & TIPOGRAFIA" icon={Type} defaultOpen={true}>
+    <Section title="TEXTO & TIPOGRAFIA" icon={Type}>
       <Textarea
         ref={areaRef}
         aria-label="Conteúdo do texto"
@@ -586,6 +1222,8 @@ function TextSection({
           { label: "reference_abbr", key: "reference_abbr" },
           { label: "next_verse", key: "next_verse" },
           { label: "next_preview", key: "next_preview" },
+          { label: "stage_message", key: "stage_message" },
+          { label: "aviso", key: "aviso" },
           { label: "title", key: "title" },
         ].map((v) => (
           <button
@@ -1010,6 +1648,15 @@ function RectangleSection({
   el: ThemeElement;
   updateElement: UpdateElement;
 }) {
+  const shapeInfo: Partial<Record<ThemeElementType, { title: string; icon: LucideIcon }>> = {
+    RECTANGLE: { title: "PREENCHIMENTO DO RETÂNGULO", icon: Square },
+    CIRCLE: { title: "PREENCHIMENTO DO CÍRCULO", icon: Circle },
+    TRIANGLE: { title: "PREENCHIMENTO DO TRIÂNGULO", icon: Triangle },
+    STAR: { title: "PREENCHIMENTO DA ESTRELA", icon: Star },
+  };
+  const currentShape = shapeInfo[el.type] ?? { title: "PREENCHIMENTO DA FORMA", icon: Square };
+  const ShapeIcon = currentShape.icon;
+
   const currentFill = el.fill ?? "#1e3a8a";
   const isGradient = currentFill.includes("gradient");
   const isNoise = hasNoiseLayer(currentFill);
@@ -1046,7 +1693,7 @@ function RectangleSection({
   }
 
   return (
-    <Section title="PREENCHIMENTO DO RETÂNGULO" icon={Square} defaultOpen={true}>
+    <Section title={currentShape.title} icon={ShapeIcon}>
       {/* Mini preview do preenchimento */}
       <div
         className="h-10 w-full rounded-lg border border-border shadow-inner overflow-hidden flex items-center justify-center text-[10px] font-mono text-muted-foreground/70"
@@ -1290,7 +1937,7 @@ function ElementMediaSection({
   }
 
   return (
-    <Section title={isVideo ? "VÍDEO" : "IMAGEM"} icon={isVideo ? Film : ImageIcon} defaultOpen={true}>
+    <Section title={isVideo ? "VÍDEO" : "IMAGEM"} icon={isVideo ? Film : ImageIcon}>
       {(el.src ?? "") !== "" && (
         <p className="truncate px-1 font-mono text-[11px] text-muted-foreground" title={el.src}>
           {el.src}
@@ -1493,7 +2140,7 @@ function TransitionsSection({
     TRANSITION_TYPES[1];
 
   return (
-    <Section title="TRANSIÇÃO & ANIMAÇÃO" icon={Zap} defaultOpen={true}>
+    <Section title="TRANSIÇÃO & ANIMAÇÃO" icon={Zap}>
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-foreground">
@@ -1627,7 +2274,7 @@ function ThemeBackground({
 
   return (
     <div className="flex flex-col gap-4">
-      <Section title="PLANO DE FUNDO DO TEMA" icon={Palette} defaultOpen={true}>
+      <Section title="PLANO DE FUNDO DO TEMA" icon={Palette}>
         {/* Preview do Fundo */}
         <div
           className="h-20 w-full rounded-lg border border-border shadow-inner overflow-hidden relative"

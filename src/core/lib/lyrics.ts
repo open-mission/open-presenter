@@ -3,9 +3,15 @@ import type { SectionType, SlideContent, Song, SongSection } from "../types";
 
 export interface RunnerSlide {
   index: number;
+  sectionIndex: number | null;
+  isBlank: boolean;
   label: string | null;
   sectionType: SectionType | null;
   slide: SlideContent;
+}
+
+export interface BuildSongSlidesOptions {
+  addEmptySlideAtStart?: boolean;
 }
 
 export function computeSectionLabels(sections: SongSection[]): (string | null)[] {
@@ -212,24 +218,50 @@ export function formatStageLyrics(lines: string[]): string {
   return `<div style="display:flex;flex-direction:column;align-items:center;width:100%;">${commentHtml}<div style="display:inline-block;text-align:left;max-width:100%;">${pairsHtml}</div></div>`;
 }
 
-export function buildSongSlides(song: Song): RunnerSlide[] {
+export function buildSongSlides(
+  song: Song,
+  options: BuildSongSlidesOptions = {},
+): RunnerSlide[] {
   const labels = computeSectionLabels(song.sections);
+  const offset = options.addEmptySlideAtStart ? 1 : 0;
 
-  return song.sections.map((section, index) => {
-    const label = labels[index] ?? null;
+  const realSlides: RunnerSlide[] = song.sections.map((section, sectionIndex) => {
+    const label = labels[sectionIndex] ?? null;
+    const isBlank = section.lines.length === 0;
     return {
-      index,
+      index: sectionIndex + offset,
+      sectionIndex,
+      isBlank,
       label,
       sectionType: section.sectionType,
       slide: {
-        id: `${song.id}#${index}`,
+        id: `${song.id}#${sectionIndex}`,
         kind: "lyric",
-        title: song.title,
+        title: isBlank ? "" : song.title,
         lines: section.lines,
-        section: label ?? undefined,
+        section: isBlank ? undefined : label ?? undefined,
       },
     };
   });
+
+  if (!offset) return realSlides;
+
+  return [
+    {
+      index: 0,
+      sectionIndex: null,
+      isBlank: true,
+      label: null,
+      sectionType: null,
+      slide: {
+        id: `${song.id}#empty-start`,
+        kind: "lyric",
+        title: "",
+        lines: [],
+      },
+    },
+    ...realSlides,
+  ];
 }
 
 export interface SlideGroup {
@@ -237,6 +269,7 @@ export interface SlideGroup {
   indices: number[];
   label: string | null;
   sectionType: SectionType | null;
+  isBlank: boolean;
 }
 
 /** Slide mínimo para agrupar seções (rótulo + tipo da seção). */
@@ -244,6 +277,7 @@ export interface GroupableSlide {
   index: number;
   label?: string | null;
   sectionType?: SectionType | null;
+  isBlank?: boolean;
 }
 
 export function computeSlideGroups(slides: GroupableSlide[]): SlideGroup[] {
@@ -252,12 +286,14 @@ export function computeSlideGroups(slides: GroupableSlide[]): SlideGroup[] {
   for (const slide of slides) {
     const current = groups[groups.length - 1];
     const label = slide.label ?? null;
-    if (label !== null || current === undefined) {
+    const isBlank = slide.isBlank === true;
+    if (isBlank || label !== null || current === undefined || current.isBlank) {
       groups.push({
         startIndex: slide.index,
         indices: [slide.index],
         label,
         sectionType: slide.sectionType ?? null,
+        isBlank,
       });
       continue;
     }

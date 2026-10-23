@@ -26,7 +26,7 @@ pub fn import_holyrics_file(conn: &Connection, path: &Path) -> Result<ImportRepo
             });
             continue;
         }
-        let sections = songs::apply_layout(song.sections, defaults);
+        let sections = songs::apply_layout(song.sections, defaults.clone());
         songs::insert_new(conn, &song.title, &song.artist, &sections)?;
         report.imported.push(song.title);
     }
@@ -105,7 +105,11 @@ mod tests {
         let conn = open_in_memory();
         songs::save_song_defaults(
             &conn,
-            SongDefaults { lines_per_slide: LinesPerSlide::Keep },
+            SongDefaults {
+                lines_per_slide: LinesPerSlide::Keep,
+                add_empty_slide_at_start: false,
+                ..Default::default()
+            },
         )
         .unwrap();
         import_holyrics_file(&conn, Path::new(FIXTURE_SINGLE)).unwrap();

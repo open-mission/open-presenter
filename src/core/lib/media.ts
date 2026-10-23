@@ -1,4 +1,4 @@
-import type { MediaItem, MediaKind, SlideContent } from "../types";
+import type { MediaItem, MediaKind, SlideContent, SlideTheme } from "../types";
 import type { RunnerSlide } from "./lyrics";
 
 export const MEDIA_KIND_LABEL: Record<MediaKind, string> = {
@@ -49,7 +49,7 @@ function slideForText(
     title: media.title,
     lines,
     section: total > 1 ? `${index + 1}/${total}` : undefined,
-    media,
+    media: { ...media, index },
   };
 }
 
@@ -69,14 +69,46 @@ function slideForMedia(
   };
 }
 
-export function buildMediaSlides(itemId: string, media: MediaItem): RunnerSlide[] {
+export function buildMediaSlides(
+  itemId: string,
+  media: MediaItem,
+  presentationTheme?: SlideTheme | null,
+): RunnerSlide[] {
   switch (media.kind) {
     case "text": {
+      if (
+        presentationTheme?.category === "presentation" &&
+        presentationTheme.pages &&
+        presentationTheme.pages.length > 0
+      ) {
+        const total = presentationTheme.pages.length;
+        return presentationTheme.pages.map((page, index) => ({
+          index,
+          sectionIndex: null,
+          isBlank: false,
+          label: page.name || (total > 1 ? `Slide ${index + 1}` : "Apresentação"),
+          sectionType: null,
+          slide: {
+            id: `${itemId}#${index}`,
+            kind: "custom",
+            title: page.name || media.title,
+            lines: [],
+            section: total > 1 ? `${index + 1}/${total}` : undefined,
+            media: {
+              ...media,
+              index,
+            },
+          },
+        }));
+      }
+
       const blocks = splitTextBlocks(media.text);
       if (blocks.length === 0 && media.themeId) {
         return [
           {
             index: 0,
+            sectionIndex: null,
+            isBlank: false,
             label: "Apresentação",
             sectionType: null,
             slide: slideForText(itemId, media, [], 0, 1),
@@ -85,6 +117,8 @@ export function buildMediaSlides(itemId: string, media: MediaItem): RunnerSlide[
       }
       return blocks.map((lines, index) => ({
         index,
+        sectionIndex: null,
+        isBlank: false,
         label:
           blocks.length > 1
             ? `Texto ${index + 1}`
@@ -100,6 +134,8 @@ export function buildMediaSlides(itemId: string, media: MediaItem): RunnerSlide[
       return [
         {
           index: 0,
+          sectionIndex: null,
+          isBlank: false,
           label: MEDIA_KIND_LABEL[media.kind],
           sectionType: null,
           slide: slideForMedia(itemId, media, 0),
@@ -112,6 +148,8 @@ export function buildMediaSlides(itemId: string, media: MediaItem): RunnerSlide[
       }
       return files.map((path, index) => ({
         index,
+        sectionIndex: null,
+        isBlank: false,
         label: `Imagem ${index + 1}`,
         sectionType: null,
         slide: slideForMedia(
