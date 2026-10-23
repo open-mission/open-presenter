@@ -92,7 +92,21 @@ export function LivePreview() {
   const toggleOutputVisibility = usePreviewLayoutStore((s) => s.toggleOutputVisibility);
   const isOutputVisible = (id: string) => !hiddenOutputIds.includes(id);
   const configuredOutputs = useDisplaysStore((s) => s.outputs);
+  const selectedOutputId = useDisplaysStore((s) => s.selectedOutputId);
   const outputOverrides = useOutputOverridesStore((s) => s.overrides);
+
+  const previewOutput = useMemo(() => {
+    const publics = configuredOutputs.filter((output) => output.category === "public");
+    return (
+      publics.find((output) => output.id === selectedOutputId) ??
+      publics.find((output) => output.enabled) ??
+      publics[0] ??
+      null
+    );
+  }, [configuredOutputs, selectedOutputId]);
+  const previewOverride = previewOutput
+    ? (outputOverrides[previewOutput.id]?.background ?? null)
+    : null;
 
   const previewTheme = useMemo(
     () => resolvePublicTheme(preview),
@@ -315,7 +329,11 @@ export function LivePreview() {
       </div>
 
       {/* 16:9 Canvas or Placeholder */}
-      <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
+      <div
+        className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner"
+        onDragOver={previewOutput ? handleAssetDragOver : undefined}
+        onDrop={previewOutput ? (event) => handleAssetDrop(event, previewOutput) : undefined}
+      >
         {isLiveEmpty && !live.blackout ? (
           wallpaper ? (
             <div className="relative h-full w-full bg-black">
@@ -348,7 +366,7 @@ export function LivePreview() {
               className="absolute inset-0 transition-opacity duration-300 ease-in-out"
               style={{ opacity: live.cleared && wallpaper ? 0 : 1 }}
             >
-              <PersistentBackground background={effectiveBackground} />
+              <PersistentBackground background={previewOverride ?? effectiveBackground} />
             </div>
             <div className="absolute inset-0">
               <SlideTransition

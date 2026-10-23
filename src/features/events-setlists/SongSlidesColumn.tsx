@@ -52,6 +52,8 @@ import {
 import { useSongDefaultsStore } from "@/core/store/songDefaultsStore";
 import type { EventItem, SectionType, ServiceEvent, Song } from "@/core/types";
 import { usePublicThemeResolver } from "@/features/slide-themes/usePublicThemeResolver";
+import { handleAssetDrop, readAssetPayload } from "@/features/media-library/dnd";
+import { resolveApplyTarget } from "@/features/media-library/applyAsset";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSongsStore } from "@/features/songs/store";
 import { useSongGroupsStore } from "@/features/songs/songGroupsStore";
@@ -685,6 +687,14 @@ function SongSlidesContent() {
                   }
                 }}
                 onDrop={(e) => {
+                  const assetPayload = readAssetPayload(e.dataTransfer);
+                  if (assetPayload) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const target = resolveApplyTarget("public");
+                    if (target) handleAssetDrop(e, target);
+                    return;
+                  }
                   e.preventDefault();
                   e.stopPropagation();
                   const srcIdx = dragSlideRef.current ?? draggedSlideIndex;
