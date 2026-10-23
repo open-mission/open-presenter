@@ -414,6 +414,19 @@ async fn delete_stage_message_handler(
     axum::http::StatusCode::OK.into_response()
 }
 
+fn current_display_outputs(state: &ServerState) -> Vec<crate::state::types::DisplayOutput> {
+    state
+        .db
+        .as_ref()
+        .and_then(|db| {
+            db.with_conn(|conn| crate::services::settings::get_setting(conn, "displays.outputs"))
+                .ok()
+                .flatten()
+        })
+        .and_then(|json| serde_json::from_str(&json).ok())
+        .unwrap_or_default()
+}
+
 async fn handle_socket(socket: WebSocket, state: Arc<ServerState>, client_id: String) {
     let _guard = ClientGuard::new(&state.clients, client_id.clone());
     let (mut sender, mut receiver) = socket.split();
@@ -428,12 +441,21 @@ async fn handle_socket(socket: WebSocket, state: Arc<ServerState>, client_id: St
         let _ = sender.send(Message::Text(text.into())).await;
     }
 
-    let themes_snapshot = serde_json::to_string(&serde_json::json!({
-        "channel": crate::state::types::EVENT_THEMES,
-        "payload": state.broadcaster.current_themes(),
+    let output_plans_snapshot = serde_json::to_string(&serde_json::json!({
+        "channel": crate::state::types::EVENT_OUTPUT_PLANS,
+        "payload": state.broadcaster.current_output_plans(),
         "version": 1,
     }));
-    if let Ok(text) = themes_snapshot {
+    if let Ok(text) = output_plans_snapshot {
+        let _ = sender.send(Message::Text(text.into())).await;
+    }
+
+    let displays_snapshot = serde_json::to_string(&serde_json::json!({
+        "channel": crate::state::types::EVENT_DISPLAYS,
+        "payload": current_display_outputs(state.as_ref()),
+        "version": 1,
+    }));
+    if let Ok(text) = displays_snapshot {
         let _ = sender.send(Message::Text(text.into())).await;
     }
 

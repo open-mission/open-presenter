@@ -62,6 +62,7 @@ import type { SlideTheme, Song, SongSummary } from "@/core/types";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { isPublicTheme, previewTheme } from "@/features/slide-themes/pages";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { useOutputThemeDocument } from "@/features/slide-themes/useOutputPlan";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { useSongsStore } from "./store";
 import { useSongGroupsStore } from "./songGroupsStore";
@@ -109,14 +110,10 @@ export function SongsPage() {
     () => themes.filter(isPublicTheme),
     [themes],
   );
-  const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
   const loadThemes = useSlideThemesStore((s) => s.load);
   const ensureSeeded = useSlideThemesStore((s) => s.ensureSeeded);
 
-  const defaultTheme = useMemo(
-    () => resolveTheme("public", "lyric"),
-    [resolveTheme, themes],
-  );
+  const defaultTheme = useOutputThemeDocument("public");
 
   const [selectedThemeGuid, setSelectedThemeGuid] = useState<string | null>(
     () => defaultTheme?.guid ?? (templateThemes[0]?.guid || null),

@@ -15,9 +15,8 @@ export const TAURI_EVENTS = {
   displays: "displays://changed",
   stageMessage: "stage://message",
   timer: "stage://timer",
-  themes: "presentation://themes",
-  themesChanged: "themes://changed",
   outputPlans: "presentation://output-plans",
+  themesChanged: "themes://changed",
   wallpaper: "presentation://wallpaper",
 } as const;
 

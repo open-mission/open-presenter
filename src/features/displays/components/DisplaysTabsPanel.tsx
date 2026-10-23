@@ -1136,7 +1136,7 @@ export function DisplaysTabsPanel({
                 >
                   {output.category === "stage" ? (
                     <div className="relative w-full h-full bg-black">
-                      <StageMiniPreview />
+                      <StageMiniPreview outputId={output.id} />
                     </div>
                   ) : output.category === "lower" ? (
                     <div className="relative w-full h-full">
@@ -1323,7 +1323,7 @@ export function DisplaysTabsPanel({
                   </Badge>
                 </div>
                 <div className="relative aspect-video w-full overflow-hidden rounded border border-zinc-800 bg-black shadow-inner">
-                  <StageMiniPreview />
+                  <StageMiniPreview outputId={output.id} />
                 </div>
               </div>
             </div>

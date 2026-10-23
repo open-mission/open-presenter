@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use super::types::{
-    now_millis, CommunicationAlert, LiveOutputPlans, LiveSlide, LiveThemes, StageTimer,
+    now_millis, CommunicationAlert, LiveOutputPlans, LiveSlide, StageTimer,
 };
 
 fn blank_slide() -> LiveSlide {
@@ -25,7 +25,6 @@ fn blank_slide() -> LiveSlide {
 #[derive(Debug, Clone)]
 pub struct PresentationState {
     live: Arc<RwLock<LiveSlide>>,
-    themes: Arc<RwLock<LiveThemes>>,
     timer: Arc<RwLock<StageTimer>>,
     wallpaper: Arc<RwLock<Option<String>>>,
     stage_message: Arc<RwLock<Option<CommunicationAlert>>>,
@@ -36,7 +35,6 @@ impl Default for PresentationState {
     fn default() -> Self {
         Self {
             live: Arc::new(RwLock::new(blank_slide())),
-            themes: Arc::new(RwLock::new(LiveThemes::default())),
             timer: Arc::new(RwLock::new(StageTimer::default())),
             wallpaper: Arc::new(RwLock::new(None)),
             stage_message: Arc::new(RwLock::new(None)),
@@ -59,19 +57,6 @@ impl PresentationState {
     pub fn set_blackout(&self, blackout: bool) {
         if let Ok(mut guard) = self.live.write() {
             guard.blackout = blackout;
-        }
-    }
-
-    pub fn themes(&self) -> LiveThemes {
-        self.themes
-            .read()
-            .map(|t| t.clone())
-            .unwrap_or_default()
-    }
-
-    pub fn set_themes(&self, themes: LiveThemes) {
-        if let Ok(mut guard) = self.themes.write() {
-            *guard = themes;
         }
     }
 
@@ -140,17 +125,7 @@ impl PresentationState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::types::{SlideTheme, StageTimer};
-
-    fn theme(guid: &str) -> SlideTheme {
-        serde_json::from_value(serde_json::json!({
-            "guid": guid,
-            "title": "Tema de teste",
-            "css": { "background": "#000" },
-            "elements": [],
-        }))
-        .expect("tema JSON válido")
-    }
+    use crate::state::types::StageTimer;
 
     #[test]
     fn live_slide_sem_text_hidden_no_json_usa_false() {
@@ -169,29 +144,6 @@ mod tests {
         }))
         .unwrap();
         assert!(!live.text_hidden);
-    }
-
-    #[test]
-    fn temas_comecam_vazios() {
-        let state = PresentationState::default();
-        let themes = state.themes();
-        assert!(themes.public.is_none());
-        assert!(themes.stage.is_none());
-        assert!(themes.stream.is_none());
-    }
-
-    #[test]
-    fn guarda_e_le_temas() {
-        let state = PresentationState::default();
-        state.set_themes(LiveThemes {
-            public: Some(theme("pub")),
-            stage: Some(theme("stg")),
-            stream: Some(theme("stm")),
-        });
-        let themes = state.themes();
-        assert_eq!(themes.public.as_ref().map(|t| t.guid.as_str()), Some("pub"));
-        assert_eq!(themes.stage.as_ref().map(|t| t.guid.as_str()), Some("stg"));
-        assert_eq!(themes.stream.as_ref().map(|t| t.guid.as_str()), Some("stm"));
     }
 
     #[test]

@@ -15,7 +15,6 @@ import type {
   ImportReport,
   LiveOutputPlans,
   LiveSlide,
-  LiveThemes,
   MonitorInfo,
   NdiStatus,
   OnlineLyricHit,
@@ -122,14 +121,6 @@ export async function setBlackout(blackout: boolean): Promise<void> {
 
 export async function fetchLiveSlide(): Promise<LiveSlide | null> {
   return invokeCommand<LiveSlide>("get_live_slide");
-}
-
-export async function setLiveThemes(themes: LiveThemes): Promise<void> {
-  await invokeCommand("set_live_themes", { themes });
-}
-
-export async function fetchLiveThemes(): Promise<LiveThemes | null> {
-  return invokeCommand<LiveThemes>("get_live_themes");
 }
 
 export async function setLiveOutputPlans(plans: LiveOutputPlans): Promise<void> {

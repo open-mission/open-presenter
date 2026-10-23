@@ -403,8 +403,6 @@ pub fn run() {
             commands::presentation::go_live,
             commands::presentation::set_blackout,
             commands::presentation::get_live_slide,
-            commands::presentation::set_live_themes,
-            commands::presentation::get_live_themes,
             commands::presentation::set_live_output_plans,
             commands::presentation::get_live_output_plans,
             commands::presentation::timer_start,

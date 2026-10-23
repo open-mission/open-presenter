@@ -22,6 +22,11 @@ import {
 } from "@/features/slide-themes/seedThemes";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { SAMPLES } from "@/features/slide-themes/samples";
+import {
+  filterThemeForLook,
+  resolveOutputLook,
+} from "@/features/slide-themes/layers";
+import { useOutputOverridesStore } from "@/features/slide-themes/outputOverridesStore";
 import { OutputPlaceholder } from "./OutputPlaceholder";
 
 interface DisplaysCanvasPreviewProps {
@@ -34,6 +39,10 @@ export function DisplaysCanvasPreview({ output }: DisplaysCanvasPreviewProps) {
   const live = usePresentationStore((s) => s.live);
   const wallpaper = useWallpaperStore((s) => s.wallpaper);
   const themes = useSlideThemesStore((s) => s.themes);
+  const look = resolveOutputLook(output);
+  const overrideBackground = useOutputOverridesStore(
+    (s) => s.overrides[output.id]?.background ?? null,
+  );
 
   // Compute aspect ratio CSS
   const { width, height } = output.resolution;
@@ -52,7 +61,8 @@ export function DisplaysCanvasPreview({ output }: DisplaysCanvasPreviewProps) {
       ? "transparent"
       : "#000000";
 
-  const isPresenting = live.content.kind !== "blank" && !live.cleared;
+  const isPresenting =
+    live.content.kind !== "blank" && !live.cleared && look.slide;
 
   // Resolve theme for this output
   const activeTheme = useMemo(() => {
@@ -79,13 +89,20 @@ export function DisplaysCanvasPreview({ output }: DisplaysCanvasPreviewProps) {
     return activeTheme;
   }, [activeTheme, context]);
 
+  const visibleTheme = useMemo(
+    () => filterThemeForLook(materializedTheme, look),
+    [materializedTheme, look],
+  );
+
   const sampleTheme = useMemo(() => {
-    if (activeTheme.pages?.length) {
-      const page = getPageForContext(activeTheme, "music") ?? activeTheme.pages[0];
-      return page ? materializePage(activeTheme, page) : activeTheme;
-    }
-    return activeTheme;
-  }, [activeTheme]);
+    const base = activeTheme.pages?.length
+      ? (() => {
+          const page = getPageForContext(activeTheme, "music") ?? activeTheme.pages[0];
+          return page ? materializePage(activeTheme, page) : activeTheme;
+        })()
+      : activeTheme;
+    return filterThemeForLook(base, look);
+  }, [activeTheme, look]);
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-6 bg-zinc-950/40 overflow-hidden relative select-none">
@@ -116,16 +133,16 @@ export function DisplaysCanvasPreview({ output }: DisplaysCanvasPreviewProps) {
             <div className="absolute inset-0 z-10 overflow-hidden">
               {output.category === "stage" ? (
                 <div className="relative w-full h-full bg-black">
-                  <StageMiniPreview />
+                  <StageMiniPreview outputId={output.id} />
                 </div>
               ) : output.category === "lower" ? (
                 <div className="relative w-full h-full">
                   {isPresenting ? (
                     <SlideTransition
                       slide={live}
-                      theme={materializedTheme}
+                      theme={visibleTheme}
                       asset={kindToAsset(live.content.kind)}
-                      cleared={live.cleared}
+                      cleared={live.cleared || !look.slide}
                       textHidden={live.textHidden}
                       durationMs={300}
                       transitionBackground={false}
@@ -146,13 +163,13 @@ export function DisplaysCanvasPreview({ output }: DisplaysCanvasPreviewProps) {
                 <div className="relative w-full h-full">
                   {isPresenting ? (
                     <>
-                      <PersistentBackground background={live.background} />
+                      <PersistentBackground background={overrideBackground ?? live.background} />
                       <div className="absolute inset-0">
                         <SlideTransition
                           slide={live}
-                          theme={materializedTheme}
+                          theme={visibleTheme}
                           asset={kindToAsset(live.content.kind)}
-                          cleared={live.cleared}
+                          cleared={live.cleared || !look.slide}
                           textHidden={live.textHidden}
                           durationMs={300}
                           transitionBackground={false}

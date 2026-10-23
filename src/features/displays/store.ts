@@ -17,6 +17,7 @@ import {
   saveDisplaysSettings,
 } from "@/core/ipc/commands";
 import { isTauri } from "@/core/ipc/tauri";
+import { migrateLegacyThemeBindings } from "./migrateLegacyThemes";
 
 const STORAGE_KEY_OUTPUTS = "open_presenter_display_outputs";
 const STORAGE_KEY_SETTINGS = "open_presenter_displays_settings";
@@ -139,12 +140,17 @@ export const useDisplaysStore = create<DisplaysState>((set, get) => ({
           getDisplayOutputs(),
           getDisplaysSettings(),
         ]);
-        const outputs = backendOutputs ?? [];
+        const migration = migrateLegacyThemeBindings(backendOutputs ?? []);
+        const outputs = migration.outputs;
         const settings = backendSettings ?? DEFAULT_SETTINGS;
 
         // Persist local mirror
         localStorage.setItem(STORAGE_KEY_OUTPUTS, JSON.stringify(outputs));
         localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+
+        if (migration.changed) {
+          void saveDisplayOutputs(outputs);
+        }
 
         set((s) => ({
           outputs,
@@ -169,8 +175,14 @@ export const useDisplaysStore = create<DisplaysState>((set, get) => ({
       }
     }
 
-    const localOutputs = loadLocalStorageOutputs();
+    const migration = migrateLegacyThemeBindings(loadLocalStorageOutputs());
+    const localOutputs = migration.outputs;
     const localSettings = loadLocalStorageSettings();
+    if (migration.changed) {
+      try {
+        localStorage.setItem(STORAGE_KEY_OUTPUTS, JSON.stringify(localOutputs));
+      } catch {}
+    }
     set((s) => ({
       outputs: localOutputs,
       settings: localSettings,

@@ -54,6 +54,10 @@ import type {
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { isPublicTheme, previewTheme } from "@/features/slide-themes/pages";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import {
+  setCategoryDefaultTheme,
+  useOutputThemeDocument,
+} from "@/features/slide-themes/useOutputPlan";
 import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { SECTION_OPTIONS } from "./songEditorUtils";
 
@@ -109,15 +113,10 @@ export function SongSlidesPreview({
     () => themes.filter(isPublicTheme),
     [themes],
   );
-  const resolveTheme = useSlideThemesStore((s) => s.resolveTheme);
-  const setBinding = useSlideThemesStore((s) => s.setBinding);
   const loadThemes = useSlideThemesStore((s) => s.load);
   const ensureSeeded = useSlideThemesStore((s) => s.ensureSeeded);
 
-  const defaultTheme = useMemo(
-    () => resolveTheme("public", effectiveKind),
-    [resolveTheme, themes, effectiveKind],
-  );
+  const defaultTheme = useOutputThemeDocument("public");
 
   const [selectedThemeGuid, setSelectedThemeGuid] = useState<string | null>(
     () => themeGuid ?? defaultTheme?.guid ?? (templateThemes[0]?.guid || null),
@@ -156,7 +155,7 @@ export function SongSlidesPreview({
 
   const handleSetDefaultTheme = () => {
     if (!activeTheme) return;
-    setBinding("public", effectiveKind, activeTheme.guid);
+    setCategoryDefaultTheme("public", activeTheme.guid);
     toast.success(
       `Tema "${activeTheme.title}" definido como padrão para ${bindingLabel}!`,
     );

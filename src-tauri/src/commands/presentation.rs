@@ -3,7 +3,7 @@ use tauri::State;
 use crate::error::AppError;
 use crate::services::display_manager;
 use crate::services::SharedBroadcaster;
-use crate::state::{LiveOutputPlans, LiveSlide, LiveThemes, MonitorInfo, OutputTarget, StageTimer};
+use crate::state::{LiveOutputPlans, LiveSlide, MonitorInfo, OutputTarget, StageTimer};
 
 #[tauri::command]
 pub async fn list_monitors(app: tauri::AppHandle) -> Result<Vec<MonitorInfo>, AppError> {
@@ -57,22 +57,6 @@ pub async fn get_live_slide(
     broadcaster: State<'_, SharedBroadcaster>,
 ) -> Result<LiveSlide, AppError> {
     Ok(broadcaster.current_slide())
-}
-
-#[tauri::command]
-pub async fn set_live_themes(
-    broadcaster: State<'_, SharedBroadcaster>,
-    themes: LiveThemes,
-) -> Result<(), AppError> {
-    broadcaster.publish_themes(&themes);
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn get_live_themes(
-    broadcaster: State<'_, SharedBroadcaster>,
-) -> Result<LiveThemes, AppError> {
-    Ok(broadcaster.current_themes())
 }
 
 #[tauri::command]

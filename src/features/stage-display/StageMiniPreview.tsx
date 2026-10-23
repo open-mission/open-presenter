@@ -6,12 +6,14 @@ import {
   DEFAULT_STAGE_REST_THEME,
   DEFAULT_STAGE_THEME,
 } from "@/features/slide-themes/seedThemes";
-import { useLiveThemesStore } from "@/features/slide-themes/liveThemesStore";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { resolveStageRenderTheme } from "@/features/slide-themes/themeResolution";
 import {
-  resolveStageRenderTheme,
-  resolveStageRestRenderTheme,
-} from "@/features/slide-themes/themeResolution";
+  materializeThemeForContent,
+  resolveContentTheme,
+} from "@/features/slide-themes/outputPlan";
+import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
+import { useOutputPlan } from "@/features/slide-themes/useOutputPlan";
 import { SlideCanvas } from "@/features/presentation/SlideCanvas";
 import { useStageConfigStore } from "./configStore";
 import { useStageTimerStore } from "./timerStore";
@@ -21,7 +23,11 @@ import {
   useCommunicationStore,
 } from "@/features/communication";
 
-export function StageMiniPreview() {
+interface StageMiniPreviewProps {
+  outputId?: string;
+}
+
+export function StageMiniPreview({ outputId }: StageMiniPreviewProps = {}) {
   const live = usePresentationStore((s) => s.live);
   const nextUp = usePresentationStore((s) => s.live.nextUp);
   const activeAlert = useCommunicationStore((s) => s.activeAlert);
@@ -30,22 +36,34 @@ export function StageMiniPreview() {
   const timer = useStageTimerStore((s) => s.timer);
 
   const themes = useSlideThemesStore((s) => s.themes);
-  const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
-  const stageRestThemeGuid = useSlideThemesStore((s) => s.stageRestThemeGuid);
-  const resolveStageTheme = useSlideThemesStore((s) => s.resolveStageTheme);
-  const resolveStageRestTheme = useSlideThemesStore((s) => s.resolveStageRestTheme);
-  const broadcastStageTheme = useLiveThemesStore((s) => s.themes.stage);
-  const broadcastPublicTheme = useLiveThemesStore((s) => s.themes.public);
-  const localStageTheme = useMemo(
-    () => resolveStageTheme(),
-    [resolveStageTheme, themes, stageThemeGuid],
-  );
-  const localStageRestTheme = useMemo(
-    () => resolveStageRestTheme(),
-    [resolveStageRestTheme, themes, stageThemeGuid, stageRestThemeGuid],
-  );
+  const { plan } = useOutputPlan("stage", outputId ?? null);
+  const mediaThemeId = live.content.media?.themeId ?? null;
 
-  const isPresentation = Boolean(live.content.media?.themeId);
+  const contentTheme = useMemo(() => {
+    const doc = resolveContentTheme(mediaThemeId, themes, "stage");
+    return materializeThemeForContent(doc, live.content);
+  }, [mediaThemeId, themes, live.content]);
+
+  const liveTheme =
+    resolveStageRenderTheme(
+      plan.theme ?? DEFAULT_STAGE_THEME,
+      live.content.kind,
+      live.content.media?.kind,
+      DEFAULT_STAGE_THEME,
+    ) ?? { theme: DEFAULT_STAGE_THEME, asset: "music" as const };
+
+  const restRender = useMemo(() => {
+    const candidate = plan.restTheme ?? DEFAULT_STAGE_REST_THEME;
+    if (candidate.pages?.length) {
+      const page = getPageForContext(candidate, "rest") ?? candidate.pages[0];
+      if (page) {
+        return { theme: materializePage(candidate, page), asset: "rest" as const };
+      }
+    }
+    return { theme: candidate, asset: "rest" as const };
+  }, [plan.restTheme]);
+
+  const isPresentation = Boolean(mediaThemeId);
   const isMedia = live.content.kind === "media" && Boolean(live.content.media);
 
   const isIdle =
@@ -56,30 +74,6 @@ export function StageMiniPreview() {
       live.content.lines.length === 0 &&
       !live.content.title);
 
-  const stageTheme = broadcastStageTheme ?? localStageTheme ?? DEFAULT_STAGE_THEME;
-  const restTheme = resolveStageRestRenderTheme(
-    stageTheme,
-    localStageRestTheme ?? DEFAULT_STAGE_REST_THEME,
-  );
-  const liveTheme =
-    resolveStageRenderTheme(
-      stageTheme,
-      live.content.kind,
-      live.content.media?.kind,
-      DEFAULT_STAGE_THEME,
-    ) ?? { theme: DEFAULT_STAGE_THEME, asset: "music" as const };
-
-  const presentationTheme = isPresentation
-    ? (themes.find((t) => t.guid === live.content.media?.themeId) ??
-       (broadcastPublicTheme?.guid === live.content.media?.themeId
-         ? broadcastPublicTheme
-         : null) ??
-       (broadcastStageTheme?.guid === live.content.media?.themeId
-         ? broadcastStageTheme
-         : null) ??
-       liveTheme.theme)
-    : null;
-
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -88,7 +82,8 @@ export function StageMiniPreview() {
   }, []);
 
   const isTargeted = Boolean(
-    activeAlert &&
+    plan.look.messages &&
+      activeAlert &&
       (!activeAlert.targets ||
         activeAlert.targets.length === 0 ||
         activeAlert.targets.includes("stage") ||
@@ -115,14 +110,14 @@ export function StageMiniPreview() {
         <div className="absolute inset-0 bg-black" />
       ) : isIdle ? (
         <ScaledStage
-          theme={restTheme.theme}
-          asset={restTheme.asset}
+          theme={restRender.theme}
+          asset={restRender.asset}
           props={stageProps}
           className="absolute inset-0"
         />
-      ) : isPresentation && presentationTheme ? (
+      ) : isPresentation && contentTheme ? (
         <ScaledStage
-          theme={presentationTheme}
+          theme={contentTheme}
           asset="text"
           props={buildProps(live.content.kind, live.content, nextUp)}
           showBackground={true}

@@ -5,7 +5,7 @@ use tokio::sync::broadcast;
 
 use crate::state::{
     types::{EVENT_SLIDE, EVENT_STAGE_MESSAGE},
-    CommunicationAlert, LiveOutputPlans, LiveSlide, LiveThemes, PresentationState, StageTimer,
+    CommunicationAlert, LiveOutputPlans, LiveSlide, PresentationState, StageTimer,
 };
 
 #[derive(Debug, Clone)]
@@ -57,33 +57,6 @@ impl Broadcaster {
             app.state::<PresentationState>().get()
         } else {
             self.fallback.get()
-        }
-    }
-
-    pub fn publish_themes(&self, themes: &LiveThemes) {
-        if let Some(app) = &self.app {
-            let state = app.state::<PresentationState>();
-            state.set_themes(themes.clone());
-            let _ = app.emit(crate::state::types::EVENT_THEMES, themes);
-        } else {
-            self.fallback.set_themes(themes.clone());
-        }
-
-        if let Ok(payload) = serde_json::to_value(themes) {
-            let envelope = serde_json::json!({
-                "channel": crate::state::types::EVENT_THEMES,
-                "payload": payload,
-                "version": 1,
-            });
-            let _ = self.ws_tx.send(envelope.to_string());
-        }
-    }
-
-    pub fn current_themes(&self) -> LiveThemes {
-        if let Some(app) = &self.app {
-            app.state::<PresentationState>().themes()
-        } else {
-            self.fallback.themes()
         }
     }
 

@@ -59,6 +59,8 @@ import { useWallpaperStore } from "./wallpaperStore";
 import { usePreviewLayoutStore } from "./previewLayoutStore";
 import { wallpaperToBackground } from "./wallpaper";
 import type { BackgroundLayer, LiveSlide } from "@/core/types";
+import { filterThemeForLook, resolveOutputLook } from "@/features/slide-themes/layers";
+import { useOutputOverridesStore } from "@/features/slide-themes/outputOverridesStore";
 
 export function LivePreview() {
   const live = usePresentationStore((s) => s.live);
@@ -89,6 +91,7 @@ export function LivePreview() {
   const toggleOutputVisibility = usePreviewLayoutStore((s) => s.toggleOutputVisibility);
   const isOutputVisible = (id: string) => !hiddenOutputIds.includes(id);
   const configuredOutputs = useDisplaysStore((s) => s.outputs);
+  const outputOverrides = useOutputOverridesStore((s) => s.overrides);
 
   const previewTheme = useMemo(
     () => resolvePublicTheme(preview),
@@ -467,6 +470,8 @@ export function LivePreview() {
   if (configuredOutputs.length > 0) {
     for (const out of configuredOutputs) {
       if (!isOutputVisible(out.id)) continue;
+      const outputLook = resolveOutputLook(out);
+      const overrideBackground = outputOverrides[out.id]?.background ?? null;
 
       if (out.category === "stage") {
         visibleCards.push(
@@ -482,7 +487,7 @@ export function LivePreview() {
               </Badge>
             </div>
             <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-black shadow-inner">
-              <StageMiniPreview />
+              <StageMiniPreview outputId={out.id} />
             </div>
             <StageTimerControls />
           </div>
@@ -528,9 +533,9 @@ export function LivePreview() {
               <div className="absolute inset-0">
                 <SlideTransition
                   slide={live}
-                  theme={lowerTheme}
+                  theme={filterThemeForLook(lowerTheme, outputLook)}
                   asset={kindToAsset(live.content.kind)}
-                  cleared={live.cleared}
+                  cleared={live.cleared || !outputLook.slide}
                   textHidden={live.textHidden}
                   durationMs={300}
                   transitionBackground={false}
@@ -570,13 +575,13 @@ export function LivePreview() {
                 )
               ) : (
                 <div className="relative h-full w-full">
-                  <PersistentBackground background={effectiveBackground} />
+                  <PersistentBackground background={overrideBackground ?? effectiveBackground} />
                   <div className="absolute inset-0">
                     <SlideTransition
                       slide={live}
-                      theme={liveTheme}
+                      theme={liveTheme ? filterThemeForLook(liveTheme, outputLook) : liveTheme}
                       asset={kindToAsset(live.content.kind)}
-                      cleared={live.cleared}
+                      cleared={live.cleared || !outputLook.slide}
                       textHidden={live.textHidden}
                       durationMs={300}
                       transitionBackground={false}

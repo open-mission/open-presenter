@@ -80,8 +80,7 @@ import { PagesBar } from "@/features/theme-editor/PagesBar";
 import { PropertiesPanel } from "@/features/theme-editor/PropertiesPanel";
 import { SymbolsPicker } from "@/features/theme-editor/SymbolsPicker";
 import { useThemeEditorStore } from "@/features/theme-editor/store";
-import { useSlideThemesStore } from "@/features/slide-themes/store";
-import { DEFAULT_STREAM_THEME_GUID } from "@/features/slide-themes/seedThemes";
+import { DEFAULT_STAGE_THEME_GUID, DEFAULT_STREAM_THEME_GUID } from "@/features/slide-themes/seedThemes";
 
 function uniqueId(prefix: string, existing: string[]): string {
   let n = existing.length + 1;
@@ -114,10 +113,6 @@ export default function ThemeEditorView() {
 
   const draft = useThemeEditorStore((s) => s.draft);
   const activePageId = useThemeEditorStore((s) => s.activePageId);
-  const stageThemeGuid = useSlideThemesStore((s) => s.stageThemeGuid);
-  const resolvedStageThemeGuid = useSlideThemesStore(
-    (s) => s.resolveStageTheme()?.guid ?? null,
-  );
   const error = useThemeEditorStore((s) => s.error);
   const load = useThemeEditorStore((s) => s.load);
   const setTitle = useThemeEditorStore((s) => s.setTitle);
@@ -919,9 +914,7 @@ export default function ThemeEditorView() {
 
   const dirty = isDirty();
   const isStageTheme =
-    draft.category === "stage" ||
-    draft.guid === stageThemeGuid ||
-    draft.guid === resolvedStageThemeGuid;
+    draft.category === "stage" || draft.guid === DEFAULT_STAGE_THEME_GUID;
   const isStreamTheme =
     draft.category === "stream" ||
     draft.guid === DEFAULT_STREAM_THEME_GUID;

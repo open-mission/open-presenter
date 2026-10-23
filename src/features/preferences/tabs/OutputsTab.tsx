@@ -46,7 +46,7 @@ import {
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { usePreferencesStore } from "@/features/preferences/store";
 import type { OutputsSection } from "@/features/preferences/types";
-import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { useOutputThemeDocument } from "@/features/slide-themes/useOutputPlan";
 
 const FIT_OPTIONS: { id: MediaFit; label: string; desc: string }[] = [
   { id: "contain", label: "Ajustar", desc: "Exibe a imagem inteira sem cortes (com barras se necessário)" },
@@ -58,13 +58,7 @@ const FIT_OPTIONS: { id: MediaFit; label: string; desc: string }[] = [
 function PublicWallpaperCard() {
   const wallpaper = useOutputManagerStore((s) => s.configs.public.wallpaper);
   const setWallpaper = useOutputManagerStore((s) => s.setWallpaper);
-  const themeName = useSlideThemesStore((s) => {
-    const binding =
-      s.bindings.find((b) => b.target === "public" && b.asset === "lyric") ??
-      s.bindings.find((b) => b.target === "public");
-    if (!binding) return null;
-    return s.themes.find((t) => t.guid === binding.themeGuid)?.title ?? null;
-  });
+  const themeName = useOutputThemeDocument("public").title;
 
   const [uploading, setUploading] = useState(false);
   const [wallpaperError, setWallpaperError] = useState(false);

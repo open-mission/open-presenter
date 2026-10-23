@@ -1,9 +1,13 @@
 import { useMemo } from "react";
-import type { DisplayOutput, OutputCategory, OutputPlan } from "@/core/types";
+import type { DisplayOutput, OutputCategory, OutputPlan, SlideTheme } from "@/core/types";
 import { useDisplaysStore } from "@/features/displays/store";
 import { useSlideThemesStore } from "./store";
 import { selectOutputPlan, useOutputPlansStore } from "./outputPlansStore";
-import { fallbackPlanForOutput, systemPlanForCategory } from "./outputPlan";
+import {
+  defaultThemeForCategory,
+  fallbackPlanForOutput,
+  systemPlanForCategory,
+} from "./outputPlan";
 
 /**
  * Identidade da saída: `?id=` vence; sem id (ou id desconhecido), cai na
@@ -51,4 +55,23 @@ export function useOutputPlan(
         : systemPlanForCategory(category, themes));
     return { output, plan };
   }, [outputs, themes, plans, category, outputId]);
+}
+
+/**
+ * Documento do tema que a categoria usa hoje (plano da primeira saída), para
+ * previews de letras/slides no admin.
+ */
+export function useOutputThemeDocument(category: OutputCategory): SlideTheme {
+  const { plan } = useOutputPlan(category, null);
+  return plan.theme ?? defaultThemeForCategory(category);
+}
+
+/** Define o tema padrão da primeira saída da categoria (ação "usar como padrão"). */
+export function setCategoryDefaultTheme(
+  category: OutputCategory,
+  guid: string | null,
+): void {
+  const store = useDisplaysStore.getState();
+  const output = resolveOutputForView(store.outputs, category, null);
+  if (output) void store.updateOutput(output.id, { defaultThemeGuid: guid });
 }

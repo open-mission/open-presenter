@@ -20,7 +20,7 @@ import { PreferencesDialog } from "@/features/preferences/PreferencesDialog";
 import { SetlistSidebar } from "@/features/events-setlists/SetlistSidebar";
 import { SongSlidesColumn } from "@/features/events-setlists/SongSlidesColumn";
 import { LivePreview } from "@/features/presentation/LivePreview";
-import { useLiveThemesPublisher, useThemesSync } from "@/features/slide-themes/useThemeSync";
+import { useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { useOutputPlansPublisher } from "@/features/slide-themes/useOutputPlansPublisher";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useOutputsSync } from "@/features/output-manager/useOutputsSync";
@@ -60,7 +60,6 @@ export default function AdminView() {
   useStageTimerSync();
   useNativeMenu();
   useThemesSync();
-  useLiveThemesPublisher();
   useOutputPlansPublisher();
   useRemoteSetlistPublisher();
   useBibleLiveSync();

@@ -474,23 +474,6 @@ export interface SlideTheme {
   guides?: ThemeGuide[];
 }
 
-export interface ThemeBinding {
-  target: OutputTarget;
-  asset: SlideKind;
-  themeGuid: string;
-}
-
-/**
- * Temas resolvidos pelo operador e transmitidos a todas as saídas.
- * O admin decide o tema de cada saída; as saídas (janela nativa e web)
- * apenas consomem o resultado, sem depender de localStorage ou IPC.
- */
-export interface LiveThemes {
-  public: SlideTheme | null;
-  stage: SlideTheme | null;
-  stream: SlideTheme | null;
-}
-
 /** Override ao vivo de uma saída (efêmero, não persistido no SQLite). */
 export interface LiveOutputOverride {
   themeGuid?: string | null;
