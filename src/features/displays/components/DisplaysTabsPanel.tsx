@@ -930,19 +930,9 @@ export function DisplaysTabsPanel({
                 {MASTER_LAYER_ORDER.map((layer) => {
                   const isScreenColor = layer === "screenColor";
                   const checked = isScreenColor ? output.backgroundColorEnabled : look[layer];
-                  const noRenderer =
-                    layer !== "slide" &&
-                    layer !== "messages" &&
-                    layer !== "props" &&
-                    layer !== "announcements" &&
-                    !isScreenColor;
-                  const stageDisables = output.category === "stage" && layer !== "messages";
-                  const disabled = isScreenColor ? false : noRenderer || stageDisables;
-                  const hint = stageDisables
-                    ? "Não se aplica ao Stage nesta fase"
-                    : noRenderer
-                      ? "Sem renderer nesta fase"
-                      : undefined;
+                  const noRenderer = layer === "media" || layer === "videoInput";
+                  const disabled = noRenderer;
+                  const hint = noRenderer ? "Sem renderer nesta fase" : undefined;
                   return (
                     <label
                       key={layer}

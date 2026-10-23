@@ -21,7 +21,9 @@ import {
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { resolveStageRenderTheme } from "@/features/slide-themes/themeResolution";
 import { materializeThemeForContent, resolveContentTheme } from "@/features/slide-themes/outputPlan";
+import { filterThemeForLook, overlayThemeForLayer } from "@/features/slide-themes/layers";
 import { useOutputPlan } from "@/features/slide-themes/useOutputPlan";
+import { MaskOverlay } from "@/components/MaskOverlay";
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
 import { SlideCanvas } from "@/features/presentation/SlideCanvas";
@@ -46,7 +48,7 @@ export default function StageView({ backgroundColor, outputId }: StageViewProps 
 
   const [searchParams] = useSearchParams();
   const effectiveOutputId = outputId ?? searchParams.get("id");
-  const { plan } = useOutputPlan("stage", effectiveOutputId);
+  const { output: activeOutput, plan } = useOutputPlan("stage", effectiveOutputId);
   const look = plan.look;
 
   const live = usePresentationStore((s) => s.live);
@@ -136,6 +138,31 @@ export default function StageView({ backgroundColor, outputId }: StageViewProps 
     activeMessage: isTargeted ? activeAlert?.text : "",
   });
 
+  const overlayBase = isIdle
+    ? restRender.theme
+    : isPresentation && contentTheme
+      ? contentTheme
+      : liveTheme.theme;
+  const overlayAsset = isIdle ? restRender.asset : isPresentation ? "text" : liveTheme.asset;
+  const overlayProps = isPresentation
+    ? buildProps(live.content.kind, live.content, nextUp)
+    : stageProps;
+  const announcementsTheme = overlayThemeForLayer(overlayBase, look, "announcements");
+  const propsTheme = overlayThemeForLayer(overlayBase, look, "props");
+
+  const restSlideTheme = useMemo(
+    () => filterThemeForLook(restRender.theme, look),
+    [restRender.theme, look],
+  );
+  const contentSlideTheme = useMemo(
+    () => (contentTheme ? filterThemeForLook(contentTheme, look) : null),
+    [contentTheme, look],
+  );
+  const liveSlideTheme = useMemo(
+    () => filterThemeForLook(liveTheme.theme, look),
+    [liveTheme.theme, look],
+  );
+
   return (
     <div
       className="relative h-screen w-screen overflow-hidden select-none"
@@ -143,30 +170,70 @@ export default function StageView({ backgroundColor, outputId }: StageViewProps 
     >
       {live.blackout ? (
         <div className="absolute inset-0 bg-black" />
-      ) : isIdle ? (
-        <ScaledStage
-          theme={restRender.theme}
-          asset={restRender.asset}
-          props={stageProps}
-          className="absolute inset-0"
-        />
-      ) : isPresentation && contentTheme ? (
-        <ScaledStage
-          theme={contentTheme}
-          asset="text"
-          props={buildProps(live.content.kind, live.content, nextUp)}
-          showBackground={true}
-          className="absolute inset-0"
-        />
-      ) : isMedia ? (
-        <SlideCanvas slide={live} showBackground={true} />
       ) : (
-        <ScaledStage
-          theme={liveTheme.theme}
-          asset={liveTheme.asset}
-          props={stageProps}
-          className="absolute inset-0"
-        />
+        <>
+          {isIdle ? (
+            look.slide && (
+              <ScaledStage
+                theme={restSlideTheme}
+                asset={restRender.asset}
+                props={stageProps}
+                className="absolute inset-0"
+              />
+            )
+          ) : isPresentation && contentSlideTheme ? (
+            look.slide && (
+              <ScaledStage
+                theme={contentSlideTheme}
+                asset="text"
+                props={buildProps(live.content.kind, live.content, nextUp)}
+                showBackground={true}
+                className="absolute inset-0"
+              />
+            )
+          ) : isMedia ? (
+            look.slide ? (
+              <SlideCanvas slide={live} showBackground={true} />
+            ) : null
+          ) : (
+            look.slide && (
+              <ScaledStage
+                theme={liveSlideTheme}
+                asset={liveTheme.asset}
+                props={stageProps}
+                className="absolute inset-0"
+              />
+            )
+          )}
+
+          {announcementsTheme && (
+            <div className="absolute inset-0 z-[21] pointer-events-none">
+              <ScaledStage
+                theme={announcementsTheme}
+                asset={overlayAsset}
+                props={overlayProps}
+                showBackground={false}
+              />
+            </div>
+          )}
+
+          {propsTheme && (
+            <div className="absolute inset-0 z-[22] pointer-events-none">
+              <ScaledStage
+                theme={propsTheme}
+                asset={overlayAsset}
+                props={overlayProps}
+                showBackground={false}
+              />
+            </div>
+          )}
+
+          {look.mask && activeOutput?.mask && (
+            <div className="absolute inset-0 z-[26] pointer-events-none">
+              <MaskOverlay mask={activeOutput.mask} />
+            </div>
+          )}
+        </>
       )}
 
       {/* Painel de Comunicação & Avisos: Banner Superior */}
