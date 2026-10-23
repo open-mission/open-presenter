@@ -124,13 +124,13 @@ export default function PublicView({ backgroundColor, outputId }: PublicViewProp
       style={{ backgroundColor: screenBg }}
     >
       {/* Camada 0: Papel de Parede / Placeholder (Base) */}
-      {activeOutput?.placeholderEnabled && activeOutput.placeholderType !== "none" ? (
-        <div className="absolute inset-0 z-0">
-          <OutputPlaceholder output={activeOutput} />
-        </div>
-      ) : wallpaperBg ? (
+      {wallpaperBg ? (
         <div className="absolute inset-0 z-0">
           <BackgroundRenderer background={wallpaperBg} />
+        </div>
+      ) : activeOutput?.placeholderEnabled && activeOutput.placeholderType !== "none" ? (
+        <div className="absolute inset-0 z-0">
+          <OutputPlaceholder output={activeOutput} />
         </div>
       ) : null}
 
