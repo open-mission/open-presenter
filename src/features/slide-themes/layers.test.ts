@@ -6,9 +6,11 @@ import {
   defaultLookForCategory,
   elementLayer,
   elementVisibleForLook,
+  elementsForLayer,
   filterThemeForLook,
   normalizeLook,
   normalizeThemeLayers,
+  overlayThemeForLayer,
   resolveOutputLook,
 } from "./layers.ts";
 import type { DisplayOutput, MasterLayerId, OutputLook, SlideTheme, ThemeElement } from "@/core/types";
@@ -51,13 +53,14 @@ test("elemento sem layer efetivo é slide", () => {
   assert.equal(elementLayer(element("IMAGE", "props")), "props");
 });
 
-test("filtro por look só renderiza elementos da camada slide nesta fase", () => {
+test("filtro por look: slide, props e anúncios têm renderer; mídia ainda não", () => {
   const look = defaultLookForCategory("public");
   assert.equal(elementVisibleForLook(element("TEXT"), look), true);
   assert.equal(elementVisibleForLook(element("TEXT"), { ...look, slide: false }), false);
-  // props/announcements ainda não têm renderer nesta fase
-  assert.equal(elementVisibleForLook(element("IMAGE", "props"), look), false);
-  assert.equal(elementVisibleForLook(element("IMAGE", "announcements"), look), false);
+  assert.equal(elementVisibleForLook(element("IMAGE", "props"), look), true);
+  assert.equal(elementVisibleForLook(element("IMAGE", "props"), { ...look, props: false }), false);
+  assert.equal(elementVisibleForLook(element("IMAGE", "announcements"), look), true);
+  assert.equal(elementVisibleForLook(element("IMAGE", "media"), look), false);
 });
 
 test("defaults de look por categoria", () => {
@@ -114,7 +117,7 @@ test("normalizeThemeLayers materializa layer slide sem mudar o original", () => 
   assert.equal(original.layer, undefined);
 });
 
-test("filterThemeForLook remove elementos de camadas sem renderer e slide desligado", () => {
+test("filterThemeForLook mantém apenas a camada slide (props/anúncios vão em overlays)", () => {
   const t = theme([
     element("TEXT", "slide", "a"),
     element("IMAGE", "props", "b"),
@@ -123,5 +126,23 @@ test("filterThemeForLook remove elementos de camadas sem renderer e slide deslig
   assert.deepEqual(
     filterThemeForLook(t, { ...defaultLookForCategory("public"), slide: false }).elements,
     [],
+  );
+});
+
+test("overlayThemeForLayer separa props/anúncios e respeita o Look", () => {
+  const t = theme([
+    element("TEXT", "slide", "a"),
+    element("IMAGE", "props", "p"),
+    element("IMAGE", "announcements", "n"),
+  ]);
+  const look = defaultLookForCategory("public");
+
+  assert.deepEqual(elementsForLayer(t.elements, "props").map((e) => e.id), ["p"]);
+  assert.equal(overlayThemeForLayer(t, look, "props")?.elements[0].id, "p");
+  assert.equal(overlayThemeForLayer(t, look, "announcements")?.elements[0].id, "n");
+  assert.equal(overlayThemeForLayer(t, { ...look, props: false }, "props"), null);
+  assert.equal(
+    overlayThemeForLayer(theme([element("TEXT", "slide", "a")]), look, "props"),
+    null,
   );
 });

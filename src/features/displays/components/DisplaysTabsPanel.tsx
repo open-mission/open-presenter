@@ -898,7 +898,11 @@ export function DisplaysTabsPanel({
                   const isScreenColor = layer === "screenColor";
                   const checked = isScreenColor ? output.backgroundColorEnabled : look[layer];
                   const noRenderer =
-                    layer !== "slide" && layer !== "messages" && !isScreenColor;
+                    layer !== "slide" &&
+                    layer !== "messages" &&
+                    layer !== "props" &&
+                    layer !== "announcements" &&
+                    !isScreenColor;
                   const stageDisables = output.category === "stage" && layer !== "messages";
                   const disabled = isScreenColor ? false : noRenderer || stageDisables;
                   const hint = stageDisables

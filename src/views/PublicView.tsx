@@ -6,9 +6,11 @@ import { usePresentationStore } from "@/features/presentation/store";
 import { BackgroundRenderer } from "@/features/media-shaders/BackgroundRenderer";
 import { PersistentBackground } from "@/features/media-shaders/PersistentBackground";
 import { SlideTransition } from "@/features/presentation/SlideTransition";
+import { ScaledStage } from "@/features/slide-themes/ScaledStage";
+import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useOutputPlan } from "@/features/slide-themes/useOutputPlan";
-import { filterThemeForLook } from "@/features/slide-themes/layers";
+import { filterThemeForLook, overlayThemeForLayer } from "@/features/slide-themes/layers";
 import {
   materializeThemeForContent,
   resolveOutputBackground,
@@ -78,6 +80,17 @@ export default function PublicView({ backgroundColor, outputId }: PublicViewProp
     return source ? filterThemeForLook(source, look) : null;
   }, [contentTheme, outputTheme, look]);
 
+  const overlaySource = contentTheme ?? outputTheme;
+  const announcementsTheme = useMemo(
+    () => (overlaySource ? overlayThemeForLayer(overlaySource, look, "announcements") : null),
+    [overlaySource, look],
+  );
+  const propsTheme = useMemo(
+    () => (overlaySource ? overlayThemeForLayer(overlaySource, look, "props") : null),
+    [overlaySource, look],
+  );
+  const overlayVisible = live.content.kind !== "blank" && !live.cleared;
+
   const asset = kindToAsset(live.content.kind);
   const isPresenting = live.content.kind !== "blank" && look.slide;
 
@@ -142,6 +155,34 @@ export default function PublicView({ backgroundColor, outputId }: PublicViewProp
             textHidden={live.textHidden}
             durationMs={300}
             transitionBackground={false}
+          />
+        </div>
+      )}
+
+      {/* Camada: Anúncios (conteúdo secundário) */}
+      {overlayVisible && announcementsTheme && (
+        <div className="absolute inset-0 z-[21] pointer-events-none">
+          <ScaledStage
+            theme={announcementsTheme}
+            asset={asset ?? "text"}
+            props={buildProps(live.content.kind, live.content, live.nextUp, {
+              hideText: live.textHidden,
+            })}
+            showBackground={false}
+          />
+        </div>
+      )}
+
+      {/* Camada: Props (bug/logo/overlay) */}
+      {overlayVisible && propsTheme && (
+        <div className="absolute inset-0 z-[22] pointer-events-none">
+          <ScaledStage
+            theme={propsTheme}
+            asset={asset ?? "text"}
+            props={buildProps(live.content.kind, live.content, live.nextUp, {
+              hideText: live.textHidden,
+            })}
+            showBackground={false}
           />
         </div>
       )}

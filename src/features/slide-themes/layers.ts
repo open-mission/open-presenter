@@ -51,8 +51,8 @@ export const ELEMENT_LAYER_IDS: readonly MasterLayerId[] = [
 export const LAYER_HAS_ELEMENT_RENDERER: Record<MasterLayerId, boolean> = {
   mask: false,
   messages: false,
-  props: false,
-  announcements: false,
+  props: true,
+  announcements: true,
   slide: true,
   media: false,
   videoInput: false,
@@ -102,8 +102,34 @@ export function normalizeThemeLayers(theme: SlideTheme): SlideTheme {
 export function filterThemeForLook(theme: SlideTheme, look: OutputLook): SlideTheme {
   return {
     ...theme,
-    elements: theme.elements.filter((el) => elementVisibleForLook(el, look)),
+    elements: look.slide ? elementsForLayer(theme.elements, "slide") : [],
   };
+}
+
+export function elementsForLayer(
+  elements: readonly ThemeElement[],
+  layer: MasterLayerId,
+): ThemeElement[] {
+  return elements.filter((element) => elementLayer(element) === layer);
+}
+
+export function withElements(theme: SlideTheme, elements: ThemeElement[]): SlideTheme {
+  return { ...theme, elements };
+}
+
+/**
+ * Overlay de uma camada de conteúdo (props/anúncios) acima do Slide. Retorna
+ * `null` quando a camada está desligada no Look ou não há elementos nela.
+ */
+export function overlayThemeForLayer(
+  theme: SlideTheme,
+  look: OutputLook,
+  layer: "props" | "announcements",
+): SlideTheme | null {
+  if (!look[layer] || !LAYER_HAS_ELEMENT_RENDERER[layer]) return null;
+  const elements = elementsForLayer(theme.elements, layer);
+  if (elements.length === 0) return null;
+  return withElements(theme, elements);
 }
 
 /**

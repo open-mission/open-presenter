@@ -4,9 +4,11 @@ import { kindToAsset } from "@/core/types";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
 import { usePresentationStore } from "@/features/presentation/store";
 import { SlideTransition } from "@/features/presentation/SlideTransition";
+import { ScaledStage } from "@/features/slide-themes/ScaledStage";
+import { buildProps } from "@/features/slide-themes/themeTemplate";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useOutputPlan } from "@/features/slide-themes/useOutputPlan";
-import { filterThemeForLook } from "@/features/slide-themes/layers";
+import { filterThemeForLook, overlayThemeForLayer } from "@/features/slide-themes/layers";
 import { materializeThemeForContent } from "@/features/slide-themes/outputPlan";
 import { DEFAULT_STREAM_THEME } from "@/features/slide-themes/seedThemes";
 import { useThemesSync } from "@/features/slide-themes/useThemeSync";
@@ -66,16 +68,32 @@ export default function StreamView({ backgroundColor, outputId }: StreamViewProp
     backgroundColor ??
     (plan.screenColor.enabled ? plan.screenColor.value : "transparent");
 
-  const theme = useMemo(() => {
-    const contentTheme = materializeThemeForContent(plan.contentTheme, live.content);
-    const outputTheme =
-      materializeThemeForContent(plan.theme, live.content) ?? DEFAULT_STREAM_THEME;
-    return filterThemeForLook(contentTheme ?? outputTheme, look);
-  }, [plan.contentTheme, plan.theme, live.content, look]);
+  const contentTheme = useMemo(
+    () => materializeThemeForContent(plan.contentTheme, live.content),
+    [plan.contentTheme, live.content],
+  );
+  const outputTheme = useMemo(
+    () => materializeThemeForContent(plan.theme, live.content) ?? DEFAULT_STREAM_THEME,
+    [plan.theme, live.content],
+  );
+  const overlaySource = contentTheme ?? outputTheme;
+  const theme = useMemo(
+    () => filterThemeForLook(overlaySource, look),
+    [overlaySource, look],
+  );
+  const announcementsTheme = useMemo(
+    () => overlayThemeForLayer(overlaySource, look, "announcements"),
+    [overlaySource, look],
+  );
+  const propsTheme = useMemo(
+    () => overlayThemeForLayer(overlaySource, look, "props"),
+    [overlaySource, look],
+  );
 
   const asset = kindToAsset(live.content.kind) ?? "music";
   const isPresenting = live.content.kind !== "blank";
   const shouldClear = live.cleared || !isPresenting || !look.slide;
+  const overlayVisible = live.content.kind !== "blank" && !live.cleared;
 
   const isTargeted = Boolean(
     look.messages &&
@@ -102,6 +120,34 @@ export default function StreamView({ backgroundColor, outputId }: StreamViewProp
           transitionBackground={false}
         />
       </div>
+
+      {/* Camada: Anúncios (conteúdo secundário) */}
+      {overlayVisible && announcementsTheme && (
+        <div className="absolute inset-0 z-[21] pointer-events-none">
+          <ScaledStage
+            theme={announcementsTheme}
+            asset={asset}
+            props={buildProps(live.content.kind, live.content, live.nextUp, {
+              hideText: live.textHidden,
+            })}
+            showBackground={false}
+          />
+        </div>
+      )}
+
+      {/* Camada: Props (bug/logo/overlay) */}
+      {overlayVisible && propsTheme && (
+        <div className="absolute inset-0 z-[22] pointer-events-none">
+          <ScaledStage
+            theme={propsTheme}
+            asset={asset}
+            props={buildProps(live.content.kind, live.content, live.nextUp, {
+              hideText: live.textHidden,
+            })}
+            showBackground={false}
+          />
+        </div>
+      )}
 
       {/* Camada de Blackout com fade suave */}
       <div
