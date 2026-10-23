@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { DisplayOutput, MonitorInfo } from "@/core/types";
+import type { BackgroundLayer, DisplayOutput, MasterLayerId, MonitorInfo } from "@/core/types";
 import { kindToAsset } from "@/core/types";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
   Globe,
   HelpCircle,
   Image as ImageIcon,
+  Layers as LayersIcon,
   Plus,
   Radio,
   Sparkles,
@@ -38,6 +39,13 @@ import {
   DEFAULT_STAGE_THEME,
   DEFAULT_STREAM_THEME,
 } from "@/features/slide-themes/seedThemes";
+import {
+  MASTER_LAYER_LABELS,
+  MASTER_LAYER_ORDER,
+  resolveOutputLook,
+} from "@/features/slide-themes/layers";
+import { isBackgroundCompatible, themeSupportsCategory } from "@/features/slide-themes/outputPlan";
+import { useOutputOverridesStore } from "@/features/slide-themes/outputOverridesStore";
 import { ScaledStage } from "@/features/slide-themes/ScaledStage";
 import { SAMPLES } from "@/features/slide-themes/samples";
 import { useStageConfigStore } from "@/features/stage-display/configStore";
@@ -69,8 +77,8 @@ export function DisplaysTabsPanel({
   const [activeTab, setActiveTab] = useState<string>("hardware");
   const themes = useSlideThemesStore((s) => s.themes);
   const saveTheme = useSlideThemesStore((s) => s.save);
-  const setBinding = useSlideThemesStore((s) => s.setBinding);
-  const setStageTheme = useSlideThemesStore((s) => s.setStageTheme);
+  const override = useOutputOverridesStore((s) => s.overrides[output.id] ?? null);
+  const setOverride = useOutputOverridesStore((s) => s.setOverride);
 
   const live = usePresentationStore((s) => s.live);
   const wallpaper = useWallpaperStore((s) => s.wallpaper);
@@ -146,15 +154,6 @@ export function DisplaysTabsPanel({
       newTheme.category = category;
       await saveTheme(newTheme);
       await onUpdate({ defaultThemeGuid: newTheme.guid });
-
-      // Sincroniza vínculos ativos do sistema
-      if (output.category === "lower") {
-        setBinding("stream", "lyric", newTheme.guid);
-        setBinding("stream", "scripture", newTheme.guid);
-        setBinding("stream", "custom", newTheme.guid);
-      } else if (output.category === "stage") {
-        setStageTheme(newTheme.guid);
-      }
 
       toast.success("Novo modelo criado com sucesso!");
       if (isTauri()) {
@@ -235,19 +234,38 @@ export function DisplaysTabsPanel({
       ? "transparent"
       : "#000000";
 
-  const matchingThemes = useMemo(() => {
-    if (output.category === "stage") {
-      return themes.filter((t) => t.category === "stage");
-    }
-    if (output.category === "lower") {
-      return themes.filter((t) => t.category === "stream");
-    }
-    return themes.filter((t) => t.category !== "stage" && t.category !== "stream");
+  const recommendedThemes = useMemo(() => {
+    return themes.filter((t) => themeSupportsCategory(t, output.category));
   }, [themes, output.category]);
 
   const otherThemes = useMemo(() => {
-    return themes.filter((t) => !matchingThemes.some((m) => m.guid === t.guid));
-  }, [themes, matchingThemes]);
+    return themes.filter((t) => !themeSupportsCategory(t, output.category));
+  }, [themes, output.category]);
+
+  const look = resolveOutputLook(output);
+
+  function setLayer(layer: MasterLayerId, value: boolean) {
+    void onUpdate({ look: { ...look, [layer]: value } });
+  }
+
+  function applyColorOverride(value: string) {
+    const background: BackgroundLayer = {
+      id: `override-${output.id}-${Date.now()}`,
+      kind: "color",
+      value,
+    };
+    setOverride(output.id, { background, updatedAt: new Date().toISOString() });
+  }
+
+  function applyWallpaperOverride() {
+    if (!wallpaper) return;
+    const background = wallpaperToBackground(wallpaper);
+    if (!isBackgroundCompatible(output.category, background)) {
+      toast.error("Este fundo não é compatível com saídas Lower Third.");
+      return;
+    }
+    setOverride(output.id, { background, updatedAt: new Date().toISOString() });
+  }
 
   const PRESET_COLORS = [
     { name: "Preto", value: "#000000" },
@@ -296,6 +314,13 @@ export function DisplaysTabsPanel({
               className="text-xs px-2.5 py-1 data-[state=active]:bg-zinc-800 data-[state=active]:text-white"
             >
               Modelo Padrão
+            </TabsTrigger>
+            <TabsTrigger
+              value="look"
+              className="text-xs px-2.5 py-1 data-[state=active]:bg-zinc-800 data-[state=active]:text-white gap-1"
+            >
+              <LayersIcon className="size-3" />
+              Camadas
             </TabsTrigger>
             <TabsTrigger
               value="preview"
@@ -794,18 +819,7 @@ export function DisplaysTabsPanel({
                   value={output.defaultThemeGuid ?? "none"}
                   onValueChange={(val) => {
                     const newGuid = val === "none" ? null : val;
-                    void onUpdate({
-                      defaultThemeGuid: newGuid,
-                    });
-                    if (newGuid) {
-                      if (output.category === "lower") {
-                        setBinding("stream", "lyric", newGuid);
-                        setBinding("stream", "scripture", newGuid);
-                        setBinding("stream", "custom", newGuid);
-                      } else if (output.category === "stage") {
-                        setStageTheme(newGuid);
-                      }
-                    }
+                    void onUpdate({ defaultThemeGuid: newGuid });
                   }}
                 >
                   <SelectTrigger className="h-8 bg-zinc-950 border-zinc-800 text-xs">
@@ -813,12 +827,12 @@ export function DisplaysTabsPanel({
                   </SelectTrigger>
                   <SelectContent className="bg-zinc-900 border-zinc-800 text-xs text-zinc-200 max-h-60">
                     <SelectItem value="none">Nenhum (Padrão do Sistema)</SelectItem>
-                    {matchingThemes.length > 0 && (
+                    {recommendedThemes.length > 0 && (
                       <>
                         <div className="px-2 py-1 text-[10px] font-semibold text-zinc-400 uppercase tracking-wider bg-zinc-950/40">
                           Recomendados ({output.category === "stage" ? "Palco" : output.category === "lower" ? "Lower Thirds" : "Público"})
                         </div>
-                        {matchingThemes.map((t) => (
+                        {recommendedThemes.map((t) => (
                           <SelectItem key={t.guid} value={t.guid}>
                             {t.title}
                           </SelectItem>
@@ -828,11 +842,11 @@ export function DisplaysTabsPanel({
                     {otherThemes.length > 0 && (
                       <>
                         <div className="px-2 py-1 text-[10px] font-semibold text-zinc-500 uppercase tracking-wider bg-zinc-950/40 mt-1">
-                          Outros Modelos
+                          Outros Modelos (incompatíveis)
                         </div>
                         {otherThemes.map((t) => (
-                          <SelectItem key={t.guid} value={t.guid}>
-                            {t.title}
+                          <SelectItem key={t.guid} value={t.guid} disabled>
+                            {t.title} — incompatível
                           </SelectItem>
                         ))}
                       </>
@@ -862,6 +876,122 @@ export function DisplaysTabsPanel({
                   </Button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Camadas (Look da saída) */}
+        {activeTab === "look" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+            <div className="space-y-3 lg:col-span-7">
+              <div className="pb-2 border-b border-zinc-800/80">
+                <div className="text-xs font-semibold text-zinc-200">
+                  Camadas da Saída (Look)
+                </div>
+                <div className="text-[11px] text-zinc-400">
+                  Define o que esta saída entrega. O tema continua pronto para tudo; a saída decide o que aparece.
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                {MASTER_LAYER_ORDER.map((layer) => {
+                  const isScreenColor = layer === "screenColor";
+                  const checked = isScreenColor ? output.backgroundColorEnabled : look[layer];
+                  const noRenderer =
+                    layer !== "slide" && layer !== "messages" && !isScreenColor;
+                  const stageDisables = output.category === "stage" && layer !== "messages";
+                  const disabled = isScreenColor ? false : noRenderer || stageDisables;
+                  const hint = stageDisables
+                    ? "Não se aplica ao Stage nesta fase"
+                    : noRenderer
+                      ? "Sem renderer nesta fase"
+                      : undefined;
+                  return (
+                    <label
+                      key={layer}
+                      className={cn(
+                        "flex items-center justify-between rounded border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-xs",
+                        disabled && "opacity-60",
+                      )}
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="text-zinc-200">{MASTER_LAYER_LABELS[layer]}</span>
+                        {hint && (
+                          <span className="text-[10px] text-zinc-500 truncate">— {hint}</span>
+                        )}
+                      </span>
+                      <Switch
+                        checked={checked}
+                        disabled={disabled}
+                        className="scale-75"
+                        onCheckedChange={(value) => {
+                          if (isScreenColor) void onUpdate({ backgroundColorEnabled: value });
+                          else setLayer(layer, value);
+                        }}
+                      />
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-3 lg:col-span-5">
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3.5 space-y-3">
+                <span className="text-xs font-semibold text-zinc-200 flex items-center gap-1.5">
+                  <LayersIcon className="size-3.5 text-indigo-400" />
+                  Fundo da Saída
+                </span>
+                <div className="text-[11px] text-zinc-400 leading-relaxed">
+                  Substitui o fundo do tema só nesta saída. O texto e as outras saídas não mudam.
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-zinc-700 hover:bg-zinc-800"
+                    onClick={() => setOverride(output.id, null)}
+                    disabled={!override?.background}
+                  >
+                    Usar fundo do tema
+                  </Button>
+                  <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1">
+                    <input
+                      type="color"
+                      value={
+                        override?.background?.value?.startsWith("#")
+                          ? override.background.value
+                          : "#000000"
+                      }
+                      onChange={(e) => applyColorOverride(e.target.value)}
+                      className="size-5 rounded border border-zinc-700 bg-transparent cursor-pointer"
+                    />
+                    <span className="text-[10px] text-zinc-500 font-mono">cor</span>
+                  </div>
+                  {output.category !== "lower" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs border-zinc-700 hover:bg-zinc-800"
+                      onClick={applyWallpaperOverride}
+                      disabled={!wallpaper}
+                      title={wallpaper ? "Aplicar o papel de parede atual" : "Defina um papel de parede no admin"}
+                    >
+                      Wallpaper atual
+                    </Button>
+                  )}
+                </div>
+                <div className="text-[10px] text-zinc-500">
+                  {override?.background
+                    ? `Override ativo (${override.background.kind}).`
+                    : "Sem override — usando o fundo do tema."}
+                  {output.category === "lower" && " Lower Third aceita apenas cor/transparente."}
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3.5 text-[11px] text-zinc-400 leading-relaxed">
+                O tema do evento e a ação ao vivo (este painel) podem sobrepor o modelo padrão.
+                Prioridade: <span className="text-zinc-200">ao vivo &gt; evento &gt; padrão da saída</span>.
+              </div>
             </div>
           </div>
         )}
