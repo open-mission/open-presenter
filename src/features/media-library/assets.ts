@@ -1,28 +1,49 @@
 import { useMemo } from "react";
 import { useMediaShadersStore } from "@/features/media-shaders/store";
-import { useImageLibrary } from "@/features/image-browser/useImageLibrary";
 import {
+  buildAudioAssets,
   buildImageAssets,
   buildShaderAssets,
+  buildVideoAssets,
   type BackgroundAsset,
 } from "./types";
+import { useMediaFolderLibrary } from "./useMediaFolderLibrary";
 
-export interface BackgroundAssetsApi {
+export interface MediaLibraryAssetsApi {
+  backgrounds: BackgroundAsset[];
   images: BackgroundAsset[];
+  videos: BackgroundAsset[];
+  audios: BackgroundAsset[];
   shaders: BackgroundAsset[];
   loading: boolean;
 }
 
-/** Fundos disponíveis: presets de shader + imagens da biblioteca. */
-export function useBackgroundAssets(): BackgroundAssetsApi {
+/** Ativos disponíveis: fundos, imagens da biblioteca, vídeos, áudios e shaders. */
+export function useBackgroundAssets(): MediaLibraryAssetsApi {
   const presets = useMediaShadersStore((s) => s.presets);
-  const library = useImageLibrary();
+  const bgLib = useMediaFolderLibrary("backgrounds");
+  const imgLib = useMediaFolderLibrary("images");
+  const vidLib = useMediaFolderLibrary("videos");
+  const audLib = useMediaFolderLibrary("audios");
 
   return useMemo(() => {
     return {
-      images: buildImageAssets(library.tree),
+      backgrounds: buildImageAssets(bgLib.tree),
+      images: buildImageAssets(imgLib.tree),
+      videos: buildVideoAssets(vidLib.tree),
+      audios: buildAudioAssets(audLib.tree),
       shaders: buildShaderAssets(presets),
-      loading: library.loading,
+      loading: bgLib.loading || imgLib.loading || vidLib.loading || audLib.loading,
     };
-  }, [presets, library.tree, library.loading]);
+  }, [
+    presets,
+    bgLib.tree,
+    imgLib.tree,
+    vidLib.tree,
+    audLib.tree,
+    bgLib.loading,
+    imgLib.loading,
+    vidLib.loading,
+    audLib.loading,
+  ]);
 }

@@ -5,6 +5,7 @@ interface OutputOverridesState {
   overrides: Record<string, LiveOutputOverride>;
   setOverride(outputId: string, override: LiveOutputOverride | null): void;
   clearOverride(outputId: string): void;
+  clearAll(): void;
   rehydrate(plans: LiveOutputPlans): void;
 }
 
@@ -28,6 +29,9 @@ export const useOutputOverridesStore = create<OutputOverridesState>((set) => ({
       delete next[outputId];
       return { overrides: next };
     });
+  },
+  clearAll: () => {
+    set({ overrides: {} });
   },
   rehydrate: (plans) => {
     const next: Record<string, LiveOutputOverride> = {};

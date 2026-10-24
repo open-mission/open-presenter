@@ -12,6 +12,7 @@ import {
   Sparkles,
   Trash2,
   Video,
+  Volume2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ const KIND_ICON: Record<MediaKind, typeof AlignLeft> = {
   image: ImageIcon,
   folder: Images,
   video: Video,
+  audio: Volume2,
 };
 
 export function MediaSlidesColumn({

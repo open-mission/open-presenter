@@ -1,4 +1,4 @@
-import { getMediaPort, isMediaServerRunning, resolveMediaPort } from "@/core/config/mediaPort";
+import { isMediaServerRunning, resolveMediaPort } from "@/core/config/mediaPort";
 import { isTauri } from "@/core/ipc/tauri";
 
 export type MediaFit = "cover" | "contain" | "scale-down" | "fill";
@@ -48,12 +48,10 @@ export function resolveThemeMediaUrl(
   const category = match[1];
   const filename = match[2];
 
-  // Sem servidor HTTP no desktop, servimos pelo protocolo customizado media://
-  // (o handler Rust lê do mesmo diretório). Evita apontar para uma porta morta.
-  // Vale também enquanto a porta real não chegou via IPC: a padrão do código não
-  // é necessariamente a configurada pelo usuário.
-  const portaInexistente = !port && !getMediaPort();
-  if (isTauri() && (isMediaServerRunning() === false || portaInexistente)) {
+  // Apenas se o servidor HTTP local estiver explicitamente parado no desktop
+  // tentamos o protocolo customizado media://. Caso contrário, usamos a porta HTTP
+  // resolvida (embutida) que suporta CORS e Range headers no WebKit e Chromium.
+  if (isTauri() && isMediaServerRunning() === false) {
     return hasExplicitFit ? `${trimmed}#fit=${fit}` : trimmed;
   }
 

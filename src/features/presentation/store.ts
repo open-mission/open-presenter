@@ -21,7 +21,7 @@ interface PresentationState {
   preview: SlideContent | null;
   applyRemote(slide: LiveSlide): void;
   setPreview(slide: SlideContent | null): void;
-  setBackground(background: BackgroundLayer): void;
+  setBackground(background: BackgroundLayer): Promise<void>;
   setBlackout(blackout: boolean): void;
   setCleared(cleared: boolean): void;
   publishLive(
@@ -40,8 +40,15 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   preview: null,
   applyRemote: (slide) => set({ live: slide }),
   setPreview: (preview) => set({ preview }),
-  setBackground: (background) =>
-    set((s) => ({ live: { ...s.live, background } })),
+  setBackground: async (background) => {
+    const next: LiveSlide = {
+      ...get().live,
+      background,
+      updatedAt: new Date().toISOString(),
+    };
+    get().applyRemote(next);
+    await publishSlide(next);
+  },
   setBlackout: (blackout) =>
     set((s) => ({ live: { ...s.live, blackout } })),
   setCleared: (cleared) =>
