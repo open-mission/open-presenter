@@ -30,6 +30,7 @@ import {
   useCommunicationStore,
   useCommunicationSync,
 } from "@/features/communication";
+import { useMediaPlaybackSync } from "@/core/sync/useMediaPlaybackSync";
 
 interface PublicViewProps {
   backgroundColor?: string;
@@ -42,6 +43,7 @@ export default function PublicView({ backgroundColor, outputId }: PublicViewProp
   useThemesSync();
   useCommunicationSync();
   useDisplaysSync();
+  useMediaPlaybackSync();
 
   const [searchParams] = useSearchParams();
   const effectiveOutputId = outputId ?? searchParams.get("id");
@@ -95,6 +97,7 @@ export default function PublicView({ backgroundColor, outputId }: PublicViewProp
 
   const asset = kindToAsset(live.content.kind);
   const isPresenting = live.content.kind !== "blank" && look.slide;
+  const hasOverrideBg = Boolean(plan.backgroundOverride);
 
   const wallpaperBg: BackgroundLayer | null = wallpaper
     ? wallpaperToBackground(wallpaper)
@@ -118,6 +121,9 @@ export default function PublicView({ backgroundColor, outputId }: PublicViewProp
     live.background,
   ]);
 
+  const showBackground =
+    (isPresenting || hasOverrideBg) && Boolean(effectiveBackground) && !live.blackout;
+
   return (
     <div
       className="relative h-full w-full overflow-hidden select-none"
@@ -134,8 +140,8 @@ export default function PublicView({ backgroundColor, outputId }: PublicViewProp
         </div>
       ) : null}
 
-      {/* Camada 1: Plano de Fundo Persistente (mantido estável durante a transição dos slides) */}
-      {isPresenting && effectiveBackground && (
+      {/* Camada 1: Plano de Fundo Persistente (mantido estável durante a transição dos slides ou override ao vivo) */}
+      {showBackground && effectiveBackground && (
         <div
           className="absolute inset-0 z-10 transition-opacity duration-300 ease-in-out"
           style={{

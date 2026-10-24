@@ -6,6 +6,7 @@ import {
   SlidersHorizontal,
   Smartphone,
   Sparkles,
+  Volume2,
   type LucideIcon,
 } from "lucide-react";
 import type { PreferencesTab } from "./types";
@@ -29,6 +30,12 @@ export const PREFERENCES_NAV_ITEMS: NavItemConfig[] = [
     label: "Saídas",
     breadcrumb: "Saídas",
     icon: Monitor,
+  },
+  {
+    id: "audio",
+    label: "Áudio",
+    breadcrumb: "Saída de Áudio",
+    icon: Volume2,
   },
   {
     id: "themes",

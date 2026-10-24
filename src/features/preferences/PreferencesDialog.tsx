@@ -3,6 +3,7 @@ import { ChevronRight, X } from "lucide-react";
 import { usePreferencesStore } from "./store";
 import { PREFERENCES_NAV_ITEMS } from "./nav";
 import { AppearanceTab } from "./tabs/AppearanceTab";
+import { AudioTab } from "./tabs/AudioTab";
 import { GeneralTab } from "./tabs/GeneralTab";
 import { OutputsTab } from "./tabs/OutputsTab";
 import { RemoteTab } from "./tabs/RemoteTab";
@@ -161,6 +162,7 @@ export function PreferencesDialog() {
           <ScrollArea className="min-h-0 min-w-0 flex-1 p-6">
             <div className="mx-auto w-full max-w-3xl pb-6">
               {activeTab === "appearance" && <AppearanceTab />}
+              {activeTab === "audio" && <AudioTab />}
               {activeTab === "outputs" && <OutputsTab />}
               {activeTab === "themes" && <ThemesTab />}
               {activeTab === "songs" && <SongsTab />}

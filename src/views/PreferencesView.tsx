@@ -4,6 +4,7 @@ import { usePreferencesStore } from "@/features/preferences/store";
 import type { OutputsSection, PreferencesTab } from "@/features/preferences/types";
 import { PREFERENCES_NAV_ITEMS } from "@/features/preferences/nav";
 import { AppearanceTab } from "@/features/preferences/tabs/AppearanceTab";
+import { AudioTab } from "@/features/preferences/tabs/AudioTab";
 import { GeneralTab } from "@/features/preferences/tabs/GeneralTab";
 import { OutputsTab } from "@/features/preferences/tabs/OutputsTab";
 import { RemoteTab } from "@/features/preferences/tabs/RemoteTab";
@@ -172,6 +173,7 @@ export default function PreferencesView() {
         <ScrollArea className="min-h-0 min-w-0 flex-1 p-6">
           <div className="mx-auto w-full max-w-3xl pb-8">
             {activeTab === "appearance" && <AppearanceTab />}
+            {activeTab === "audio" && <AudioTab />}
             {activeTab === "outputs" && <OutputsTab />}
             {activeTab === "themes" && <ThemesTab />}
             {activeTab === "songs" && <SongsTab />}

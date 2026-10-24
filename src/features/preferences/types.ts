@@ -1,6 +1,7 @@
 export type PreferencesTab =
   | "appearance"
   | "outputs"
+  | "audio"
   | "themes"
   | "songs"
   | "general"
