@@ -37,6 +37,59 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: "0.5.1",
+    date: "2026-10-24",
+    title: "Estabilidade no Windows e Rolagem",
+    summary:
+      "Correção crítica de inicialização no Windows 10 para processos que ficavam ocultos no Gerenciador de Tarefas, proteção de instância única, contenção de erros com ErrorBoundary e barras de rolagem nativas na busca de músicas e no painel de monitores.",
+    highlights: [
+      {
+        icon: "monitor",
+        title: "Inicialização no Windows 10",
+        description:
+          "Eliminado o problema onde o processo ficava em segundo plano sem abrir a janela. A janela agora abre visível e focada imediatamente com proteção de coordenadas.",
+      },
+      {
+        icon: "refresh",
+        title: "Instância Única e Foco",
+        description:
+          "Reabrir o aplicativo agora restaura e traz para a frente a janela já em execução, evitando processos fantasmas e conflitos de porta.",
+      },
+      {
+        icon: "layers",
+        title: "Barras de Rolagem Nativas",
+        description:
+          "Rolagem fluida com roda do mouse e trackpad na busca online de letras e em todas as abas do painel de configuração de monitores e saídas.",
+      },
+    ],
+    sections: [
+      {
+        title: "Desktop e Sistema Operacional",
+        items: [
+          "Correção da visibilidade do WebView2 no Windows 10 com visible: true e exibição incondicional.",
+          "Filtro contra coordenadas de janelas minimizadas (-32000, -32000) gravadas no banco de dados.",
+          "Plugin de instância única para restaurar a janela existente e prevenir múltiplos processos.",
+          "Proteção contra sequestro de tela: monitores externos desconectados não cobrem a tela principal.",
+          "ErrorBoundary global no React para evitar tela preta em caso de erro na interface.",
+        ],
+      },
+      {
+        title: "Interface e Rolagem",
+        items: [
+          "Container com overflow-y-auto e barra nativa estilizada na janela de busca de letras na internet.",
+          "Rolagem completa de todas as 7 abas do painel inferior de configuração de telas e saídas.",
+          "Rolagem responsiva na barra lateral de saídas e nas configurações de saídas em Preferências.",
+        ],
+      },
+    ],
+    fixes: [
+      "Processo fantasma no Gerenciador de Tarefas no Windows 10 resolvido.",
+      "Janela abrindo fora da tela devido a coordenadas de minimização corrigida.",
+      "Rolagem ausente na busca de letras e no painel de monitores implementada.",
+    ],
+    changelogUrl: `${CHANGELOG_URL}#051---2026-10-24`,
+  },
+  {
     version: "0.5.0",
     date: "2026-10-24",
     title: "Multiview, Paleta Global e Drag & Drop",
