@@ -1,6 +1,6 @@
 export type SlideKind = "lyric" | "scripture" | "custom" | "blank" | "media";
 
-export type MediaKind = "text" | "image" | "folder" | "video";
+export type MediaKind = "text" | "image" | "folder" | "video" | "audio";
 
 export interface MediaItem {
   kind: MediaKind;

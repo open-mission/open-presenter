@@ -6,6 +6,7 @@ interface PersistentBackgroundProps {
   background: BackgroundLayer;
   className?: string;
   durationMs?: number;
+  isFirstFrameOnly?: boolean;
 }
 
 /**
@@ -18,6 +19,7 @@ export function PersistentBackground({
   background,
   className,
   durationMs = 400,
+  isFirstFrameOnly = false,
 }: PersistentBackgroundProps) {
   const [current, setCurrent] = useState(background);
   const [prev, setPrev] = useState<BackgroundLayer | null>(null);
@@ -49,7 +51,7 @@ export function PersistentBackground({
             animation: `slideFadeOut ${durationMs}ms ease-in-out forwards`,
           }}
         >
-          <BackgroundRenderer background={prev} className={className} />
+          <BackgroundRenderer background={prev} className={className} isFirstFrameOnly={isFirstFrameOnly} />
         </div>
       )}
       <div
@@ -61,7 +63,7 @@ export function PersistentBackground({
             : undefined
         }
       >
-        <BackgroundRenderer background={current} className={className} />
+        <BackgroundRenderer background={current} className={className} isFirstFrameOnly={isFirstFrameOnly} />
       </div>
     </div>
   );

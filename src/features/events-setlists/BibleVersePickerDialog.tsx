@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { buildScriptureRef } from "@/core/lib/biblePresentation";
+import { formatBibleVersionLabel } from "@/features/bible/bibleUtils";
 import { useBibleStore } from "@/features/bible/store";
 import { useSetlistStore } from "./store";
 
@@ -161,12 +162,16 @@ export function BibleVersePickerDialog({
               onValueChange={(value) => void setActiveVersion(value)}
             >
               <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder="Versão" />
+                <SelectValue placeholder="Versão">
+                  {versions.find((v) => v.id === activeVersionId)
+                    ? formatBibleVersionLabel(versions.find((v) => v.id === activeVersionId)!)
+                    : undefined}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {versions.map((version) => (
                   <SelectItem key={version.id} value={version.id}>
-                    {version.name}
+                    {formatBibleVersionLabel(version)}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -4,6 +4,7 @@ import { useDisplaysStore } from "@/features/displays/store";
 import { themeSupportsCategory } from "@/features/slide-themes/outputPlan";
 import { useOutputOverridesStore } from "@/features/slide-themes/outputOverridesStore";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { usePresentationStore } from "@/features/presentation/store";
 import {
   assetSupportsOutput,
   backgroundFromAsset,
@@ -17,14 +18,14 @@ export function preferredCategoryForTheme(theme: SlideTheme): OutputCategory {
 }
 
 /**
- * Alvo da ação "aplicar": a saída selecionada no painel de Displays; sem
- * seleção, a primeira saída habilitada da categoria.
+ * Alvo da ação "aplicar": a saída selecionada no painel de Displays (se compatível);
+ * sem seleção válida, a primeira saída habilitada da categoria.
  */
 export function resolveApplyTarget(preferred: OutputCategory): DisplayOutput | null {
   const store = useDisplaysStore.getState();
   if (store.selectedOutputId) {
     const selected = store.outputs.find((o) => o.id === store.selectedOutputId);
-    if (selected) return selected;
+    if (selected && selected.category === preferred && selected.enabled) return selected;
   }
   return (
     store.outputs.find((o) => o.category === preferred && o.enabled) ??
@@ -80,10 +81,31 @@ export function applyBackgroundToOutput(
     background,
     updatedAt: new Date().toISOString(),
   });
+  const store = useDisplaysStore.getState();
+  const isPrimaryPublic =
+    output.category === "public" &&
+    (output.id === store.selectedOutputId ||
+      output.id === store.outputs.find((o) => o.category === "public" && o.enabled)?.id);
+  if (isPrimaryPublic) {
+    void usePresentationStore.getState().setBackground(background);
+  }
   toast.success(`Fundo "${asset.name}" aplicado em ${output.name}.`);
   return true;
 }
 
-export function clearOverrideForOutput(outputId: string): void {
-  useOutputOverridesStore.getState().clearOverride(outputId);
+export function clearOverrideForOutput(outputId?: string | null): void {
+  if (outputId) {
+    useOutputOverridesStore.getState().clearOverride(outputId);
+  } else {
+    useOutputOverridesStore.getState().clearAll();
+  }
+  const outputs = useDisplaysStore.getState().outputs;
+  const target = outputId ? outputs.find((o) => o.id === outputId) : null;
+  if (!target || target.category === "public") {
+    void usePresentationStore.getState().setBackground({
+      id: "bg-default",
+      kind: "color",
+      value: "#000000",
+    });
+  }
 }

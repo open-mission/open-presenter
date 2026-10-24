@@ -38,6 +38,14 @@ impl Broadcaster {
             let state = app.state::<PresentationState>();
             state.set(slide.clone());
             let _ = app.emit(EVENT_SLIDE, slide);
+
+            if let Some(db) = app.try_state::<crate::services::database::Db>() {
+                if let Ok(serialized) = serde_json::to_string(slide) {
+                    let _ = db.with_conn(|conn| {
+                        crate::services::settings::set_setting(conn, "presentation.live_slide", &serialized)
+                    });
+                }
+            }
         } else {
             self.fallback.set(slide.clone());
         }
@@ -64,6 +72,14 @@ impl Broadcaster {
         if let Some(app) = &self.app {
             app.state::<PresentationState>().set_output_plans(plans.clone());
             let _ = app.emit(crate::state::types::EVENT_OUTPUT_PLANS, plans);
+
+            if let Some(db) = app.try_state::<crate::services::database::Db>() {
+                if let Ok(serialized) = serde_json::to_string(plans) {
+                    let _ = db.with_conn(|conn| {
+                        crate::services::settings::set_setting(conn, "presentation.output_plans", &serialized)
+                    });
+                }
+            }
         } else {
             self.fallback.set_output_plans(plans.clone());
         }
@@ -114,6 +130,16 @@ impl Broadcaster {
             let state = app.state::<PresentationState>();
             state.set_wallpaper(wallpaper.clone());
             let _ = app.emit(crate::state::types::EVENT_WALLPAPER, &wallpaper);
+
+            if let Some(db) = app.try_state::<crate::services::database::Db>() {
+                let _ = db.with_conn(|conn| {
+                    crate::services::settings::set_setting(
+                        conn,
+                        "presentation.wallpaper",
+                        wallpaper.as_deref().unwrap_or(""),
+                    )
+                });
+            }
         } else {
             self.fallback.set_wallpaper(wallpaper.clone());
         }

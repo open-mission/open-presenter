@@ -10,6 +10,7 @@ use crate::services::theme_media;
 
 const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "webp", "gif", "bmp", "avif"];
 const VIDEO_EXTENSIONS: &[&str] = &["mp4", "webm", "mov", "m4v", "ogv", "ogg"];
+const AUDIO_EXTENSIONS: &[&str] = &["mp3", "wav", "m4a", "aac", "flac", "ogg", "wma", "aiff"];
 const MAX_FOLDER_FILES: usize = 1000;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,6 +64,10 @@ fn is_image(path: &Path) -> bool {
 
 fn is_video(path: &Path) -> bool {
     VIDEO_EXTENSIONS.contains(&extension(path).as_str())
+}
+
+fn is_audio(path: &Path) -> bool {
+    AUDIO_EXTENSIONS.contains(&extension(path).as_str())
 }
 
 fn now_seconds() -> u64 {
@@ -133,8 +138,9 @@ fn kind_dir(kind: &str) -> Result<&'static str, AppError> {
     match kind {
         "image" => Ok("images"),
         "video" => Ok("videos"),
+        "audio" => Ok("audios"),
         _ => Err(AppError::Storage(
-            "tipo de mídia inválido (use image ou video)".into(),
+            "tipo de mídia inválido (use image, video ou audio)".into(),
         )),
     }
 }
@@ -156,9 +162,10 @@ pub fn import_file(
     let (allowed, subdir) = match kind {
         "image" => (is_image(source), kind_dir("image")?),
         "video" => (is_video(source), kind_dir("video")?),
+        "audio" => (is_audio(source), kind_dir("audio")?),
         _ => {
             return Err(AppError::Storage(
-                "tipo de mídia inválido (use image ou video)".into(),
+                "tipo de mídia inválido (use image, video ou audio)".into(),
             ))
         }
     };
@@ -298,6 +305,24 @@ pub fn images_dir(app: &AppHandle) -> Result<PathBuf, AppError> {
     Ok(dir)
 }
 
+pub fn backgrounds_dir(app: &AppHandle) -> Result<PathBuf, AppError> {
+    let dir = library_dir(app)?.join("backgrounds");
+    std::fs::create_dir_all(&dir).map_err(storage_error)?;
+    Ok(dir)
+}
+
+pub fn videos_dir(app: &AppHandle) -> Result<PathBuf, AppError> {
+    let dir = library_dir(app)?.join("videos");
+    std::fs::create_dir_all(&dir).map_err(storage_error)?;
+    Ok(dir)
+}
+
+pub fn audios_dir(app: &AppHandle) -> Result<PathBuf, AppError> {
+    let dir = library_dir(app)?.join("audios");
+    std::fs::create_dir_all(&dir).map_err(storage_error)?;
+    Ok(dir)
+}
+
 fn relative_name(parent: &Path, name: &str) -> String {
     if parent.as_os_str().is_empty() {
         name.to_string()
@@ -310,9 +335,11 @@ fn relative_name(parent: &Path, name: &str) -> String {
     }
 }
 
-fn build_image_tree(
+fn build_media_tree(
     base: &Path,
     current: &Path,
+    uri_prefix: &str,
+    is_supported: fn(&Path) -> bool,
     depth: usize,
     budget: &mut usize,
 ) -> std::io::Result<Vec<ImageTreeNode>> {
@@ -338,7 +365,14 @@ fn build_image_tree(
 
         if file_type.is_dir() {
             *budget -= 1;
-            let children = build_image_tree(base, Path::new(&path), depth + 1, budget)?;
+            let children = build_media_tree(
+                base,
+                Path::new(&path),
+                uri_prefix,
+                is_supported,
+                depth + 1,
+                budget,
+            )?;
             nodes.push(ImageTreeNode {
                 name,
                 path,
@@ -346,19 +380,28 @@ fn build_image_tree(
                 url: None,
                 children,
             });
-        } else if file_type.is_file() && is_image(&entry.path()) {
+        } else if file_type.is_file() && is_supported(&entry.path()) {
             *budget -= 1;
             nodes.push(ImageTreeNode {
                 name,
                 path: path.clone(),
                 kind: ImageNodeKind::Image,
-                url: Some(media_uri(&format!("images/{path}"))),
+                url: Some(media_uri(&format!("{uri_prefix}/{path}"))),
                 children: Vec::new(),
             });
         }
     }
 
     Ok(nodes)
+}
+
+fn build_image_tree(
+    base: &Path,
+    current: &Path,
+    depth: usize,
+    budget: &mut usize,
+) -> std::io::Result<Vec<ImageTreeNode>> {
+    build_media_tree(base, current, "images", is_image, depth, budget)
 }
 
 pub fn list_images_in_dir(root: &Path) -> Result<Vec<ImageTreeNode>, AppError> {
@@ -372,6 +415,104 @@ pub fn list_images_in_dir(root: &Path) -> Result<Vec<ImageTreeNode>, AppError> {
 pub fn list_images(app: &AppHandle) -> Result<Vec<ImageTreeNode>, AppError> {
     let root = images_dir(app)?;
     list_images_in_dir(&root)
+}
+
+pub fn list_backgrounds(app: &AppHandle) -> Result<Vec<ImageTreeNode>, AppError> {
+    let root = backgrounds_dir(app)?;
+    let mut budget = 5000;
+    build_media_tree(&root, Path::new(""), "backgrounds", is_image, 0, &mut budget)
+        .map_err(storage_error)
+}
+
+pub fn list_videos(app: &AppHandle) -> Result<Vec<ImageTreeNode>, AppError> {
+    let root = videos_dir(app)?;
+    let mut budget = 5000;
+    build_media_tree(&root, Path::new(""), "videos", is_video, 0, &mut budget)
+        .map_err(storage_error)
+}
+
+pub fn list_audios(app: &AppHandle) -> Result<Vec<ImageTreeNode>, AppError> {
+    let root = audios_dir(app)?;
+    let mut budget = 5000;
+    build_media_tree(&root, Path::new(""), "audios", is_audio, 0, &mut budget)
+        .map_err(storage_error)
+}
+
+fn resolve_library_dir(app: &AppHandle, library: &str) -> Result<PathBuf, AppError> {
+    match library {
+        "backgrounds" => backgrounds_dir(app),
+        "videos" => videos_dir(app),
+        "audios" => audios_dir(app),
+        _ => images_dir(app),
+    }
+}
+
+pub fn create_media_folder(
+    app: &AppHandle,
+    library: &str,
+    parent_path: &str,
+    name: &str,
+) -> Result<String, AppError> {
+    let root = resolve_library_dir(app, library)?;
+    let safe_name = sanitize_component(name, "nova-pasta");
+    let target_dir = if parent_path.trim().is_empty() {
+        root.join(&safe_name)
+    } else {
+        root.join(parent_path.trim_start_matches('/')).join(&safe_name)
+    };
+    std::fs::create_dir_all(&target_dir).map_err(storage_error)?;
+    let relative = target_dir
+        .strip_prefix(&root)
+        .map_err(|e| AppError::Storage(e.to_string()))?
+        .to_string_lossy()
+        .replace('\\', "/");
+    Ok(relative)
+}
+
+pub fn import_files_to_library(
+    app: &AppHandle,
+    library: &str,
+    subfolder: Option<&str>,
+    sources: &[String],
+) -> Result<Vec<ImportedMedia>, AppError> {
+    let root = resolve_library_dir(app, library)?;
+    let target_dir = match subfolder {
+        Some(sub) if !sub.trim().is_empty() => root.join(sub.trim_start_matches('/')),
+        _ => root.clone(),
+    };
+    std::fs::create_dir_all(&target_dir).map_err(storage_error)?;
+
+    let mut imported = Vec::new();
+    let lib_base = library_dir(app)?;
+    for source_str in sources {
+        let source = Path::new(source_str);
+        if !source.is_file() {
+            continue;
+        }
+        let original_name = source
+            .file_name()
+            .and_then(|v| v.to_str())
+            .unwrap_or("arquivo");
+        let safe_name = sanitize_component(original_name, "midia");
+        let target = unique_path(&target_dir, &safe_name);
+        if std::fs::copy(source, &target).is_ok() {
+            if let Ok(rel) = target.strip_prefix(&lib_base) {
+                let rel_str = rel.to_string_lossy().replace('\\', "/");
+                imported.push(ImportedMedia {
+                    path: media_uri(&rel_str),
+                    name: original_name.to_string(),
+                });
+            }
+        }
+    }
+    Ok(imported)
+}
+
+pub fn open_library_folder(app: &AppHandle, library: &str) -> Result<(), AppError> {
+    let dir = resolve_library_dir(app, library)?;
+    app.opener()
+        .open_path(dir.to_string_lossy().to_string(), None::<&str>)
+        .map_err(|err| AppError::Storage(format!("falha ao abrir a pasta de {library}: {err}")))
 }
 
 fn copy_images_tree(

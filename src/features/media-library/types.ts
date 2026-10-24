@@ -1,6 +1,6 @@
-import type { BackgroundLayer, ImageTreeNode, OutputCategory } from "@/core/types";
+import type { BackgroundLayer, ImageTreeNode, OutputCategory, SongSummary } from "@/core/types";
 
-export type BackgroundAssetKind = "color" | "image" | "video" | "shader";
+export type BackgroundAssetKind = "color" | "image" | "video" | "shader" | "audio";
 export type BackgroundAssetCategory = OutputCategory | "any";
 
 export interface BackgroundAsset {
@@ -16,7 +16,16 @@ export const ASSET_DND_MIME = "application/x-open-presenter-asset";
 
 export type AssetDragPayload =
   | { type: "theme"; themeGuid: string }
-  | { type: "background"; asset: BackgroundAsset };
+  | { type: "background"; asset: BackgroundAsset }
+  | {
+      type: "scripture";
+      versionId: string;
+      bookId: number;
+      bookName: string;
+      chapter: number;
+      verses: number[];
+    }
+  | { type: "song"; song: SongSummary };
 
 /**
  * Compatibilidade de fundo por categoria. Ativo sem categoria é tratado como
@@ -75,10 +84,41 @@ export function buildImageAssets(tree: ImageTreeNode[]): BackgroundAsset[] {
     }));
 }
 
+export function buildVideoAssets(tree: ImageTreeNode[]): BackgroundAsset[] {
+  return flattenImageNodes(tree)
+    .filter((node) => Boolean(node.url))
+    .map((node) => ({
+      id: `vid:${node.path}`,
+      name: node.name,
+      kind: "video" as const,
+      source: node.url ?? node.path,
+      category: "public" as const,
+      tags: [node.path],
+    }));
+}
+
+export function buildAudioAssets(tree: ImageTreeNode[]): BackgroundAsset[] {
+  return flattenImageNodes(tree)
+    .filter((node) => Boolean(node.url))
+    .map((node) => ({
+      id: `aud:${node.path}`,
+      name: node.name,
+      kind: "audio" as const,
+      source: node.url ?? node.path,
+      category: "public" as const,
+      tags: [node.path],
+    }));
+}
+
 const SHADER_LABELS: Record<string, string> = {
   "bg-sunset": "Pôr do sol",
   "bg-night": "Noite",
   "bg-isf-demo": "Plasma (ISF)",
+  "isf-plasma": "Plasma Fluido",
+  "isf-aurora": "Aurora Boreal",
+  "isf-particles": "Partículas de Luz",
+  "isf-gradient-wave": "Ondas Modernas",
+  "isf-worship-rays": "Raios de Luz",
 };
 
 export function buildShaderAssets(presets: BackgroundLayer[]): BackgroundAsset[] {
@@ -89,13 +129,25 @@ export function buildShaderAssets(presets: BackgroundLayer[]): BackgroundAsset[]
         preset.kind === "isf" && !preset.value.startsWith("isf:")
           ? `isf:${preset.value}`
           : preset.value;
+      let name = SHADER_LABELS[preset.id] ?? preset.id;
+      if (preset.id.startsWith("custom-")) {
+        name = preset.id.replace("custom-", "");
+        if (source.startsWith("isf:")) {
+          try {
+            const parsed = JSON.parse(source.slice(4));
+            if (parsed.name) name = parsed.name;
+          } catch {
+            // ignore
+          }
+        }
+      }
       return {
         id: `shader:${preset.id}`,
-        name: SHADER_LABELS[preset.id] ?? preset.id,
+        name,
         kind: "shader" as const,
         source,
         category: "public" as const,
-        tags: [preset.kind],
+        tags: [preset.kind, preset.id.startsWith("custom-") ? "custom" : "preset"],
       };
     });
 }

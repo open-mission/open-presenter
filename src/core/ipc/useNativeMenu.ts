@@ -6,6 +6,10 @@ import { useSongsStore } from "@/features/songs/store";
 import { usePresentationStore } from "@/features/presentation/store";
 import { useSetlistStore } from "@/features/events-setlists/store";
 import { useUpdatesStore } from "@/features/updates/store";
+import { useCommandPaletteStore } from "@/features/command-palette/store";
+import { usePanelLayoutStore } from "@/features/presentation/panelLayoutStore";
+import { usePreviewLayoutStore } from "@/features/presentation/previewLayoutStore";
+import { useCommunicationStore } from "@/features/communication";
 
 export function useNativeMenu() {
   useEffect(() => {
@@ -20,6 +24,13 @@ export function useNativeMenu() {
     let unlistenPrev: (() => void) | null = null;
     let unlistenBlackout: (() => void) | null = null;
     let unlistenClear: (() => void) | null = null;
+    let unlistenPalette: (() => void) | null = null;
+    let unlistenMonitors: (() => void) | null = null;
+    let unlistenMedia: (() => void) | null = null;
+    let unlistenAlerts: (() => void) | null = null;
+    let unlistenTimers: (() => void) | null = null;
+    let unlistenComm: (() => void) | null = null;
+    let unlistenAgenda: (() => void) | null = null;
 
     function handleOpenShortcuts() {
       if (isTauri()) {
@@ -96,6 +107,54 @@ export function useNativeMenu() {
       unlistenClear = fn;
     });
 
+    void listenCommand("open-command-palette", () => {
+      useCommandPaletteStore.getState().openPalette();
+    }).then((fn) => {
+      unlistenPalette = fn;
+    });
+
+    void listenCommand("toggle-monitors", () => {
+      usePanelLayoutStore.getState().toggleMonitors();
+    }).then((fn) => {
+      unlistenMonitors = fn;
+    });
+
+    void listenCommand("toggle-media", () => {
+      usePanelLayoutStore.getState().toggleMedia();
+    }).then((fn) => {
+      unlistenMedia = fn;
+    });
+
+    void listenCommand("view-alerts", () => {
+      if (!usePanelLayoutStore.getState().monitorsVisible) {
+        usePanelLayoutStore.getState().toggleMonitors();
+      }
+      usePreviewLayoutStore.getState().setAdjustmentsTab("alerts");
+    }).then((fn) => {
+      unlistenAlerts = fn;
+    });
+
+    void listenCommand("view-timers", () => {
+      if (!usePanelLayoutStore.getState().monitorsVisible) {
+        usePanelLayoutStore.getState().toggleMonitors();
+      }
+      usePreviewLayoutStore.getState().setAdjustmentsTab("timers");
+    }).then((fn) => {
+      unlistenTimers = fn;
+    });
+
+    void listenCommand("open-communication-window", () => {
+      void useCommunicationStore.getState().openWindow();
+    }).then((fn) => {
+      unlistenComm = fn;
+    });
+
+    void listenCommand("open-agenda", () => {
+      useSetlistStore.getState().openAgenda();
+    }).then((fn) => {
+      unlistenAgenda = fn;
+    });
+
     // Keyboard shortcut fallback for browser & desktop environments
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && (e.key === "/" || e.key === "?")) {
@@ -168,6 +227,13 @@ export function useNativeMenu() {
       unlistenPrev?.();
       unlistenBlackout?.();
       unlistenClear?.();
+      unlistenPalette?.();
+      unlistenMonitors?.();
+      unlistenMedia?.();
+      unlistenAlerts?.();
+      unlistenTimers?.();
+      unlistenComm?.();
+      unlistenAgenda?.();
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, []);

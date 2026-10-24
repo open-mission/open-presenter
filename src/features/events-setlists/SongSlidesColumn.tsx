@@ -140,10 +140,46 @@ function SongSlidesContent() {
 
   const item =
     selectedItemId === null ? undefined : findEventItem(event, selectedItemId);
+  const adHocSong = useSongsStore((s) => s.adHocSong);
+  const effectiveItem = useMemo(() => {
+    if (item) return item;
+    if (!adHocSong) return undefined;
+    return {
+      id: `adhoc-${adHocSong.id}`,
+      kind: "song" as const,
+      songId: adHocSong.id,
+      song: {
+        id: adHocSong.id,
+        title: adHocSong.title,
+        artist: adHocSong.artist,
+      },
+      durationSecs: null,
+      notes: null,
+      nextItemId: null,
+      transition: "fade" as const,
+    };
+  }, [item, adHocSong]);
+  const isAdHoc = !item && Boolean(adHocSong);
+
   const song =
-    item !== undefined && item.song != null && item.songId != null
+    (item !== undefined && item.song != null && item.songId != null
       ? songsCache[item.songId]
-      : undefined;
+      : undefined) ?? (isAdHoc ? (adHocSong ?? undefined) : undefined);
+
+  function projectOrPublish(targetIdx: number) {
+    if (targetIdx < 0 || targetIdx >= slides.length) return;
+    const curSlide = slides[targetIdx]?.slide;
+    const nextSlide = slides[targetIdx + 1]?.slide ?? null;
+    const prevSlide = targetIdx > 0 ? slides[targetIdx - 1]?.slide ?? null : null;
+    if (isAdHoc) {
+      if (curSlide) {
+        void usePresentationStore.getState().publishLive(curSlide, nextSlide, prevSlide);
+        usePresentationStore.getState().setPreview(curSlide);
+      }
+    } else if (item) {
+      void projectSection(item.id, targetIdx);
+    }
+  }
 
   useEffect(() => {
     if (item !== undefined && item.song != null && song === undefined) {
@@ -169,8 +205,17 @@ function SongSlidesContent() {
   const nextItem = resolveNextItem(item, event);
 
   const live = usePresentationStore((s) => s.live);
+  const liveSlideIndex = useMemo(() => {
+    if (live.cleared || live.blackout || live.content.kind === "blank") {
+      return null;
+    }
+    const idx = slides.findIndex((s) => s.slide.id === live.content.id);
+    return idx !== -1 ? idx : null;
+  }, [live, slides]);
+
+  const effectiveLiveIndex = runnerIndex ?? liveSlideIndex;
   const isPresentationActive =
-    runnerIndex !== null &&
+    effectiveLiveIndex !== null &&
     !live.cleared &&
     !live.blackout &&
     live.content.kind !== "blank";
@@ -181,7 +226,7 @@ function SongSlidesContent() {
   // Sync preview slide on song load or change
   useEffect(() => {
     if (slides.length > 0) {
-      const initialIdx = runnerIndex ?? 0;
+      const initialIdx = effectiveLiveIndex ?? 0;
       setPreviewIndex(initialIdx);
       usePresentationStore.getState().setPreview(slides[initialIdx]?.slide ?? null);
     } else {
@@ -224,12 +269,16 @@ function SongSlidesContent() {
         return;
       }
 
-      if (slides.length === 0 || !item) return;
+      if (slides.length === 0 || !effectiveItem) return;
 
       const live = usePresentationStore.getState().live;
       const currentRunnerIdx = useSetlistStore.getState().runnerIndex;
+      const liveSlideIdx = slides.findIndex((s) => s.slide.id === live.content.id);
+      const activeIdx = currentRunnerIdx !== null
+        ? currentRunnerIdx
+        : (liveSlideIdx !== -1 ? liveSlideIdx : null);
       const isPresentationActive =
-        currentRunnerIdx !== null &&
+        activeIdx !== null &&
         !live.cleared &&
         !live.blackout &&
         live.content.kind !== "blank";
@@ -260,14 +309,14 @@ function SongSlidesContent() {
         return;
       }
 
-      if (e.key === "ArrowRight") {
+      if (e.key === "ArrowRight" || e.key === "PageDown" || (e.key === " " && !numberBuffer)) {
         e.preventDefault();
-        if (isPresentationActive && currentRunnerIdx !== null) {
-          if (currentRunnerIdx < slides.length - 1) {
-            const nextIdx = currentRunnerIdx + 1;
+        if (isPresentationActive && activeIdx !== null) {
+          if (activeIdx < slides.length - 1) {
+            const nextIdx = activeIdx + 1;
             setPreviewIndex(nextIdx);
             usePresentationStore.getState().setPreview(slides[nextIdx]?.slide ?? null);
-            void projectSection(item.id, nextIdx);
+            projectOrPublish(nextIdx);
             slideRefs.current[nextIdx]?.scrollIntoView({
               block: "nearest",
               behavior: "smooth",
@@ -288,14 +337,14 @@ function SongSlidesContent() {
         return;
       }
 
-      if (e.key === "ArrowLeft") {
+      if (e.key === "ArrowLeft" || e.key === "PageUp") {
         e.preventDefault();
-        if (isPresentationActive && currentRunnerIdx !== null) {
-          if (currentRunnerIdx > 0) {
-            const prevIdx = currentRunnerIdx - 1;
+        if (isPresentationActive && activeIdx !== null) {
+          if (activeIdx > 0) {
+            const prevIdx = activeIdx - 1;
             setPreviewIndex(prevIdx);
             usePresentationStore.getState().setPreview(slides[prevIdx]?.slide ?? null);
-            void projectSection(item.id, prevIdx);
+            projectOrPublish(prevIdx);
             slideRefs.current[prevIdx]?.scrollIntoView({
               block: "nearest",
               behavior: "smooth",
@@ -355,7 +404,7 @@ function SongSlidesContent() {
             setPreviewIndex(targetIdx);
             usePresentationStore.getState().setPreview(slides[targetIdx]?.slide ?? null);
             if (isPresentationActive) {
-              void projectSection(item.id, targetIdx);
+              projectOrPublish(targetIdx);
             }
             slideRefs.current[targetIdx]?.scrollIntoView({
               block: "nearest",
@@ -365,7 +414,7 @@ function SongSlidesContent() {
           return;
         }
         if (previewIndex !== null) {
-          void projectSection(item.id, previewIndex);
+          projectOrPublish(previewIndex);
           slideRefs.current[previewIndex]?.scrollIntoView({
             block: "nearest",
             behavior: "smooth",
@@ -453,7 +502,7 @@ function SongSlidesContent() {
         .getState()
         .setPreview(slides[nextTargetIdx]?.slide ?? null);
       if (isPresentationActive) {
-        void projectSection(item.id, nextTargetIdx);
+        projectOrPublish(nextTargetIdx);
       }
       slideRefs.current[nextTargetIdx]?.scrollIntoView({
         block: "nearest",
@@ -463,7 +512,7 @@ function SongSlidesContent() {
 
     window.addEventListener("keydown", handleGroupShortcut, true);
     return () => window.removeEventListener("keydown", handleGroupShortcut, true);
-  }, [slides, item, projectSection]);
+  }, [slides, effectiveItem, isAdHoc]);
 
   function resolveGroupBadge(group: SlideGroup) {
     const groupConfig = findSongGroup(groups, group.sectionType, group.label);
@@ -480,12 +529,12 @@ function SongSlidesContent() {
 
   function handlePresent(idx?: number) {
     const targetIdx = idx ?? previewIndex;
-    if (item === undefined || targetIdx === null || targetIdx >= slides.length) {
+    if (effectiveItem === undefined || targetIdx === null || targetIdx >= slides.length) {
       return;
     }
     setPreviewIndex(targetIdx);
     usePresentationStore.getState().setPreview(slides[targetIdx]?.slide ?? null);
-    void projectSection(item.id, targetIdx);
+    projectOrPublish(targetIdx);
   }
 
   // Context Menu Actions
@@ -620,7 +669,7 @@ function SongSlidesContent() {
     group: SlideGroup,
     positionInGroup: number,
   ) {
-    const isLive = runnerIndex === block.index;
+    const isLive = effectiveLiveIndex === block.index;
     const isPreview = previewIndex === block.index;
     const isBeingDragged =
       (dragSlideRef.current ?? draggedSlideIndex) === block.index;
@@ -970,9 +1019,16 @@ function SongSlidesContent() {
       {/* Top Header with increased padding top & bottom */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
         <div className="min-w-0 flex-1 pr-3">
-          <p className="truncate font-semibold text-xs text-foreground">
-            {song?.title || item?.song?.title || "Letra & Estrofes"}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="truncate font-semibold text-xs text-foreground">
+              {song?.title || effectiveItem?.song?.title || "Letra & Estrofes"}
+            </p>
+            {isAdHoc && (
+              <Badge variant="outline" className="h-4 px-1 text-[9px] text-amber-500 border-amber-500/40 font-mono">
+                Avulso
+              </Badge>
+            )}
+          </div>
           <p className="truncate text-[11px] text-muted-foreground mt-0.5">
             {song
               ? `${song.artist} · ${slides.length} estrofes`
@@ -981,7 +1037,7 @@ function SongSlidesContent() {
         </div>
 
         {/* Action: Apresentar slide selecionado para o público */}
-        {item && slides.length > 0 && (
+        {effectiveItem && slides.length > 0 && (
           <div className="flex shrink-0 items-center gap-1.5">
             <Button
               type="button"
@@ -1000,7 +1056,7 @@ function SongSlidesContent() {
       </div>
 
       {/* Barra de Previews: modo (lista/slides/texto) e densidade */}
-      {item && slides.length > 0 && (
+      {effectiveItem && slides.length > 0 && (
         <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border/70 bg-muted/20 px-3">
           <ViewModeToggle
             value={viewMode}
@@ -1022,7 +1078,7 @@ function SongSlidesContent() {
       )}
 
       {/* Barra Rápida de Seções / Atalhos de Grupos */}
-      {item && labeledGroups.length > 0 && (
+      {(item || isAdHoc) && labeledGroups.length > 0 && (
         <div className="flex shrink-0 items-center gap-1.5 border-b border-border/70 bg-muted/30 px-3 py-1.5 overflow-x-auto [scrollbar-width:none]">
           <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider shrink-0">
             Ir para:
@@ -1035,7 +1091,7 @@ function SongSlidesContent() {
               const isSelected =
                 previewIndex !== null && g.indices.includes(previewIndex);
               const isCurrentLive =
-                runnerIndex !== null && g.indices.includes(runnerIndex);
+                effectiveLiveIndex !== null && g.indices.includes(effectiveLiveIndex);
 
               return (
                 <button
@@ -1047,7 +1103,7 @@ function SongSlidesContent() {
                       .getState()
                       .setPreview(firstSlide?.slide ?? null);
                     if (isPresentationActive) {
-                      void projectSection(item.id, g.startIndex);
+                      projectOrPublish(g.startIndex);
                     }
                     slideRefs.current[g.startIndex]?.scrollIntoView({
                       block: "nearest",
@@ -1086,7 +1142,7 @@ function SongSlidesContent() {
         </div>
       )}
 
-      {item && song && labeledGroups.length === 0 && slides.length > 0 && (
+      {effectiveItem && song && labeledGroups.length === 0 && slides.length > 0 && (
         <div className="flex shrink-0 items-center justify-between border-b border-border/70 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-600 dark:text-amber-400">
           <span className="truncate">Música sem seções definidas (Verso, Refrão...)</span>
           <button
@@ -1101,7 +1157,7 @@ function SongSlidesContent() {
 
       {/* Slides Cards List (Scrollable with persistent native scrollbar) */}
       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 [scrollbar-gutter:stable]">
-          {!item ? (
+          {!effectiveItem ? (
             <div className="flex h-64 flex-col items-center justify-center p-6 text-center text-xs text-muted-foreground">
               <div className="mb-2 flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
                 <Music className="size-5" />

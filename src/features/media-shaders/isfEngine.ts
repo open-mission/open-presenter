@@ -588,6 +588,54 @@ export function serializeISFBackground(data: ISFBackgroundData): string {
   return `isf:${JSON.stringify(data)}`;
 }
 
+export const ISF_STARTER_TEMPLATE = `/*{
+  "ISFVSN": "2.0",
+  "DESCRIPTION": "Meu Shader ISF Personalizado",
+  "CATEGORIES": ["Generator"],
+  "INPUTS": [
+    {
+      "NAME": "speed",
+      "LABEL": "Velocidade",
+      "TYPE": "float",
+      "DEFAULT": 1.0,
+      "MIN": 0.1,
+      "MAX": 3.0
+    },
+    {
+      "NAME": "intensity",
+      "LABEL": "Intensidade",
+      "TYPE": "float",
+      "DEFAULT": 0.8,
+      "MIN": 0.1,
+      "MAX": 2.0
+    },
+    {
+      "NAME": "color1",
+      "LABEL": "Cor Primária",
+      "TYPE": "color",
+      "DEFAULT": [0.1, 0.4, 0.8, 1.0]
+    },
+    {
+      "NAME": "color2",
+      "LABEL": "Cor Secundária",
+      "TYPE": "color",
+      "DEFAULT": [0.8, 0.2, 0.5, 1.0]
+    }
+  ]
+}*/
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / RENDERSIZE;
+  float t = TIME * 0.5 * speed;
+  
+  float wave = sin(uv.x * 6.0 + t) + cos(uv.y * 6.0 - t);
+  vec3 col = mix(color1.rgb, color2.rgb, wave * 0.5 + 0.5);
+  col *= intensity;
+  
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
 /**
  * Retorna o código GLSL completo de um ISFBackgroundData.
  */
@@ -595,6 +643,106 @@ export function resolveISFSource(data: ISFBackgroundData): string {
   if (data.code && data.code.trim()) {
     return data.code;
   }
-  const preset = ISF_PRESETS.find((p) => p.id === data.id) ?? ISF_PRESETS[0];
+  const cleanId = (data.id || "").replace(/^isf-/, "");
+  const preset =
+    ISF_PRESETS.find((p) => p.id === cleanId || p.id === data.id) ?? ISF_PRESETS[0];
   return preset.code;
+}
+
+// ---------------------------------------------------------
+// Miniaturas Estáticas de Shaders ISF (Snapshots WebGL)
+// ---------------------------------------------------------
+
+const isfThumbnailCache = new Map<string, string>();
+let thumbCanvas: HTMLCanvasElement | null = null;
+let thumbGl: WebGLRenderingContext | null = null;
+let thumbBuffer: WebGLBuffer | null = null;
+
+/**
+ * Renderiza um único frame estático do shader ISF em um canvas offscreen
+ * e retorna uma Data URL (JPEG) para ser exibida como preview sem sobrecarga de GPU.
+ */
+export function getISFThumbnail(shaderSource: string): string | null {
+  if (typeof document === "undefined") return null;
+  if (!shaderSource) return null;
+
+  const cached = isfThumbnailCache.get(shaderSource);
+  if (cached) return cached;
+
+  try {
+    if (!thumbCanvas) {
+      thumbCanvas = document.createElement("canvas");
+      thumbCanvas.width = 320;
+      thumbCanvas.height = 180;
+      thumbGl =
+        thumbCanvas.getContext("webgl", {
+          preserveDrawingBuffer: true,
+          alpha: false,
+          antialias: false,
+          powerPreference: "low-power",
+        }) ||
+        (thumbCanvas.getContext("experimental-webgl", {
+          preserveDrawingBuffer: true,
+          alpha: false,
+        }) as WebGLRenderingContext | null);
+
+      if (!thumbGl) return null;
+
+      thumbBuffer = thumbGl.createBuffer();
+      if (!thumbBuffer) return null;
+      thumbGl.bindBuffer(thumbGl.ARRAY_BUFFER, thumbBuffer);
+      thumbGl.bufferData(
+        thumbGl.ARRAY_BUFFER,
+        new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+        thumbGl.STATIC_DRAW,
+      );
+    }
+
+    const gl = thumbGl;
+    if (!gl || !thumbBuffer) return null;
+
+    const data = parseISFBackground(shaderSource);
+    const source = resolveISFSource(data);
+    const compilation = compileISF(gl, source);
+    if (compilation.error || !compilation.bundle) return null;
+
+    const bundle = compilation.bundle;
+    const cw = thumbCanvas.width;
+    const ch = thumbCanvas.height;
+
+    gl.viewport(0, 0, cw, ch);
+    gl.useProgram(bundle.program);
+    gl.enableVertexAttribArray(bundle.positionLoc);
+    gl.bindBuffer(gl.ARRAY_BUFFER, thumbBuffer);
+    gl.vertexAttribPointer(bundle.positionLoc, 2, gl.FLOAT, false, 0, 0);
+
+    // Tempo fixo em 2.0s para capturar um frame maduro e vibrante
+    applyISFUniforms(gl, bundle, data.inputs ?? {}, 2.0, cw, ch);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    const dataUrl = thumbCanvas.toDataURL("image/jpeg", 0.85);
+    gl.deleteProgram(bundle.program);
+
+    isfThumbnailCache.set(shaderSource, dataUrl);
+    return dataUrl;
+  } catch {
+    return null;
+  }
+}
+
+export function invalidateISFThumbnail(shaderSource: string) {
+  isfThumbnailCache.delete(shaderSource);
+}
+
+// Pré-aquece miniaturas dos presets ISF em navegadores compatíveis com WebGL
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  setTimeout(() => {
+    for (const p of ISF_PRESETS) {
+      try {
+        getISFThumbnail(`isf:${p.id}`);
+      } catch {
+        // ignore
+      }
+    }
+  }, 100);
 }

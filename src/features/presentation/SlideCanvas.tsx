@@ -10,12 +10,14 @@ export function SlideCanvas({
   showTitle = false,
   showBackground = true,
   hideText = false,
+  isFirstFrameOnly = false,
 }: {
   slide: LiveSlide;
   lineClassName?: string;
   showTitle?: boolean;
   showBackground?: boolean;
   hideText?: boolean;
+  isFirstFrameOnly?: boolean;
 }) {
   if (slide.blackout) {
     return <div className="h-full w-full bg-black" />;
@@ -44,7 +46,12 @@ export function SlideCanvas({
         showBackground ? "bg-black" : "bg-transparent",
       )}
     >
-      {showBackground && <BackgroundRenderer background={slide.background} />}
+      {showBackground && (
+        <BackgroundRenderer
+          background={slide.background}
+          isFirstFrameOnly={isFirstFrameOnly}
+        />
+      )}
       {!slide.cleared && !hideText && slide.content.kind !== "blank" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center p-[4cqw] text-center">
           {shouldRenderTitle && (

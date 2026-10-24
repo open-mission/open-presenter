@@ -1,16 +1,15 @@
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo } from "react";
 import {
+  ArrowLeft,
+  ArrowRight,
   Eye,
-  EyeOff,
-  Minus,
+  Megaphone,
   Monitor,
+  MoreVertical,
   Play,
-  Plus,
   Projector,
-  Radio,
-  RotateCcw,
   Settings,
-  SlidersHorizontal,
+  Timer,
   Tv,
   Video,
 } from "lucide-react";
@@ -20,16 +19,22 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
-  ContextMenuCheckboxItem,
   ContextMenuContent,
-  ContextMenuItem,
   ContextMenuLabel,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
   ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { kindToAsset } from "@/core/types";
 import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
@@ -46,7 +51,6 @@ import { PersistentBackground } from "@/features/media-shaders/PersistentBackgro
 import { isIsfBackground } from "@/features/media-shaders/isfEngine";
 import { SlideTransition } from "./SlideTransition";
 import { StageMiniPreview } from "@/features/stage-display/StageMiniPreview";
-import { StageTimerControls } from "@/features/stage-display/StageTimerControls";
 import { DEFAULT_STREAM_THEME } from "@/features/slide-themes/seedThemes";
 import { contextForSlide } from "@/features/slide-themes/themeResolution";
 import { getPageForContext, materializePage } from "@/features/slide-themes/pages";
@@ -56,13 +60,29 @@ import {
   useCommunicationStore,
 } from "@/features/communication";
 import { useWallpaperStore } from "./wallpaperStore";
-import { usePreviewLayoutStore } from "./previewLayoutStore";
+import {
+  usePreviewLayoutStore,
+  type GridMode,
+} from "./previewLayoutStore";
 import { wallpaperToBackground } from "./wallpaper";
 import type { BackgroundLayer, LiveSlide } from "@/core/types";
 import { filterThemeForLook, resolveOutputLook } from "@/features/slide-themes/layers";
 import { useOutputOverridesStore } from "@/features/slide-themes/outputOverridesStore";
 import { handleAssetDragOver, handleAssetDrop } from "@/features/media-library/dnd";
 import { MaskOverlay } from "@/components/MaskOverlay";
+import { ResizeHandle } from "@/components/ResizeHandle";
+import { HeaderMediaControls } from "@/components/HeaderMediaControls";
+import { AlertsAdjustmentTab } from "./tabs/AlertsAdjustmentTab";
+import { TimersAdjustmentTab } from "./tabs/TimersAdjustmentTab";
+import { cn } from "@/core/lib/utils";
+
+const SOURCE_OPTIONS = [
+  { id: "live", label: "Ao Vivo (Telão Principal)", icon: Tv, color: "text-emerald-400" },
+  { id: "stage", label: "Retorno de Palco (Stage)", icon: Monitor, color: "text-sky-400" },
+  { id: "stream", label: "Transmissão (OBS / Stream)", icon: Video, color: "text-purple-400" },
+  { id: "next", label: "Próximo Slide (A Seguir)", icon: ArrowRight, color: "text-amber-400" },
+  { id: "prev", label: "Slide Anterior", icon: ArrowLeft, color: "text-zinc-400" },
+];
 
 export function LivePreview() {
   const live = usePresentationStore((s) => s.live);
@@ -77,21 +97,15 @@ export function LivePreview() {
   const resolvePublicTheme = usePublicThemeResolver();
 
   // Layout & Visibility store (persistente)
-  const showPreview = usePreviewLayoutStore((s) => s.showPreview);
-  const showLive = usePreviewLayoutStore((s) => s.showLive);
-  const showStage = usePreviewLayoutStore((s) => s.showStage);
-  const zoom = usePreviewLayoutStore((s) => s.zoom);
-  const togglePreview = usePreviewLayoutStore((s) => s.togglePreview);
-  const toggleLive = usePreviewLayoutStore((s) => s.toggleLive);
-  const toggleStage = usePreviewLayoutStore((s) => s.toggleStage);
-  const setZoom = usePreviewLayoutStore((s) => s.setZoom);
-  const zoomIn = usePreviewLayoutStore((s) => s.zoomIn);
-  const zoomOut = usePreviewLayoutStore((s) => s.zoomOut);
-  const resetZoom = usePreviewLayoutStore((s) => s.resetZoom);
-  const showAll = usePreviewLayoutStore((s) => s.showAll);
-  const hiddenOutputIds = usePreviewLayoutStore((s) => s.hiddenOutputIds);
-  const toggleOutputVisibility = usePreviewLayoutStore((s) => s.toggleOutputVisibility);
-  const isOutputVisible = (id: string) => !hiddenOutputIds.includes(id);
+  const gridMode = usePreviewLayoutStore((s) => s.gridMode);
+  const setGridMode = usePreviewLayoutStore((s) => s.setGridMode);
+  const cellAssignments = usePreviewLayoutStore((s) => s.cellAssignments);
+  const setCellAssignment = usePreviewLayoutStore((s) => s.setCellAssignment);
+  const previewHeight = usePreviewLayoutStore((s) => s.previewHeight);
+  const setPreviewHeight = usePreviewLayoutStore((s) => s.setPreviewHeight);
+  const adjustmentsTab = usePreviewLayoutStore((s) => s.adjustmentsTab);
+  const setAdjustmentsTab = usePreviewLayoutStore((s) => s.setAdjustmentsTab);
+
   const configuredOutputs = useDisplaysStore((s) => s.outputs);
   const selectedOutputId = useDisplaysStore((s) => s.selectedOutputId);
   const outputOverrides = useOutputOverridesStore((s) => s.overrides);
@@ -105,6 +119,7 @@ export function LivePreview() {
       null
     );
   }, [configuredOutputs, selectedOutputId]);
+
   const previewOverride = previewOutput
     ? (outputOverrides[previewOutput.id]?.background ?? null)
     : null;
@@ -175,7 +190,6 @@ export function LivePreview() {
     serverRunning,
   );
 
-  // Build synthetic LiveSlide for Preview monitor
   const previewSlide: LiveSlide | null = preview
     ? {
         content: preview,
@@ -192,187 +206,226 @@ export function LivePreview() {
     await usePresentationStore.getState().publishLive(preview, null);
   }
 
-  // Determine if nothing is showing on the Live Public display
   const isLiveEmpty = live.cleared || live.content.kind === "blank";
-  const allHidden =
-    configuredOutputs.length > 0
-      ? !showPreview && configuredOutputs.every((o) => !isOutputVisible(o.id))
-      : !showPreview && !showLive && !showStage;
 
-  const previewCard = (
-    <div key="preview" className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Eye className="size-3.5 text-primary" />
-          <span className="font-semibold text-xs text-foreground">
-            Preview
-          </span>
-          <Badge
-            variant="secondary"
-            className="h-4 px-1.5 text-[9px] font-medium text-muted-foreground"
-          >
-            Prévia
-          </Badge>
+  // Total cells according to grid mode
+  const totalCells = useMemo(() => {
+    switch (gridMode) {
+      case "1x2":
+        return 2;
+      case "2x2":
+        return 4;
+      case "3x3":
+        return 9;
+      case "4x4":
+        return 16;
+      default:
+        return 4;
+    }
+  }, [gridMode]);
+
+  // Renders the preview monitor (Cell 0)
+  const renderPreviewCard = () => (
+    <div className="flex flex-col h-full w-full overflow-hidden bg-black select-none">
+      <div className="relative flex-1 min-h-0 w-full overflow-hidden bg-zinc-950 flex items-center justify-center">
+        <div className="relative aspect-video w-full h-full max-h-full max-w-full flex items-center justify-center">
+          {previewSlide ? (
+            (() => {
+              const asset = kindToAsset(previewSlide.content.kind);
+              if (previewTheme && asset) {
+                return (
+                  <>
+                    <BackgroundRenderer
+                      background={previewSlide.background}
+                      isFirstFrameOnly={true}
+                    />
+                    <ScaledStage
+                      theme={previewTheme}
+                      asset={asset}
+                      props={buildProps(
+                        previewSlide.content.kind,
+                        previewSlide.content,
+                        null,
+                      )}
+                    />
+                  </>
+                );
+              }
+              return <SlideCanvas slide={previewSlide} isFirstFrameOnly={true} />;
+            })()
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center text-muted-foreground/50 select-none">
+              <Eye className="size-5 text-muted-foreground/30" />
+              <p className="text-[10px] text-muted-foreground/50">Prévia Vazia</p>
+            </div>
+          )}
         </div>
+      </div>
 
-        {preview && (
-          <Button
+      {/* Apenas texto no rodapé */}
+      <div className="flex h-6 shrink-0 items-center justify-between px-2 bg-zinc-950 text-[10px] text-zinc-300 border-t border-white/5">
+        <span className="font-semibold text-zinc-200 truncate">
+          PREVIEW{preview ? ` · ${preview.title}${preview.section ? ` (${preview.section})` : ""}` : ""}
+        </span>
+        {preview ? (
+          <button
             type="button"
-            size="sm"
-            variant="default"
-            className="h-6 gap-1 px-2 text-[10px] font-semibold shadow-2xs cursor-pointer"
             onClick={handlePresentPreview}
-            title="Apresentar este slide no telão ao vivo (Enter)"
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary text-primary-foreground font-semibold text-[9px] hover:bg-primary/90 cursor-pointer shadow-xs"
+            title="Apresentar no telão ao vivo (Enter)"
           >
             <Play className="size-2.5 fill-current" />
-            Apresentar
-          </Button>
-        )}
-      </div>
-
-      {/* 16:9 Canvas */}
-      <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
-        {previewSlide ? (
-          (() => {
-            const asset = kindToAsset(previewSlide.content.kind);
-            if (previewTheme && asset) {
-              return (
-                <>
-                  <BackgroundRenderer
-                    background={previewSlide.background}
-                  />
-                  <ScaledStage
-                    theme={previewTheme}
-                    asset={asset}
-                    props={buildProps(
-                      previewSlide.content.kind,
-                      previewSlide.content,
-                      null,
-                    )}
-                  />
-                </>
-              );
-            }
-            return <SlideCanvas slide={previewSlide} />;
-          })()
+            <span>Apresentar</span>
+          </button>
         ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground select-none">
-            <Eye className="size-6 text-muted-foreground/40" />
-            <p className="text-xs font-semibold text-foreground/80">
-              Prévia Vazia
-            </p>
-            <p className="text-[10px] max-w-[200px] text-muted-foreground/80">
-              Clique em uma estrofe da música para carregar a prévia aqui.
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Subtitle / Staged Info */}
-      <div className="flex h-5 items-center justify-between px-0.5 text-[10px] text-muted-foreground">
-        <span className="truncate">
-          {preview
-            ? `${preview.title}${preview.section ? ` · ${preview.section}` : ""}`
-            : "Aguardando seleção"}
-        </span>
-        {preview && (
-          <span className="tabular-nums font-mono text-[9px] text-primary shrink-0">
-            Pronto para projetar
-          </span>
+          <span className="text-[9px] text-zinc-500">Aguardando</span>
         )}
       </div>
     </div>
   );
 
-  const liveCard = (
-    <div key="live" className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Tv className="size-3.5 text-emerald-500" />
-          <span className="font-semibold text-xs text-foreground">
-            Ao Vivo
-          </span>
-          <span className="text-[10px] text-muted-foreground">(Telão)</span>
-        </div>
-
-        <div>
-          {live.blackout ? (
-            <Badge
-              variant="destructive"
-              className="h-4 gap-1 px-1.5 text-[9px] font-semibold animate-pulse"
-            >
-              Blackout
-            </Badge>
-          ) : live.cleared && !isLiveEmpty ? (
-            <Badge
-              variant="secondary"
-              className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-amber-500/15 text-amber-500 border-amber-500/30"
-            >
-              Fundo Ativo
-            </Badge>
-          ) : isLiveEmpty ? (
-            <Badge
-              variant="outline"
-              className="h-4 px-1.5 text-[9px] text-muted-foreground"
-            >
-              Telão Livre
-            </Badge>
+  // Renders the Live card (Telão)
+  const renderLiveCard = () => (
+    <div className="flex flex-col h-full w-full overflow-hidden bg-black select-none">
+      <div
+        className="relative flex-1 min-h-0 w-full overflow-hidden bg-zinc-950 flex items-center justify-center"
+        onDragOver={previewOutput ? handleAssetDragOver : undefined}
+        onDrop={previewOutput ? (event) => handleAssetDrop(event, previewOutput) : undefined}
+      >
+        <div className="relative aspect-video w-full h-full max-h-full max-w-full">
+          {isLiveEmpty && !live.blackout && !previewOverride ? (
+            wallpaper ? (
+              <div className="relative h-full w-full bg-black">
+                <BackgroundRenderer background={wallpaperToBackground(wallpaper)} />
+              </div>
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center select-none bg-zinc-950">
+                <Projector className="size-4 text-zinc-600" />
+                <p className="text-[10px] text-zinc-600">Nenhum conteúdo ao vivo</p>
+              </div>
+            )
           ) : (
-            <Badge
-              variant="default"
-              className="h-4 gap-1 px-1.5 text-[9px] font-semibold bg-emerald-600 hover:bg-emerald-600 text-white animate-pulse"
-            >
-              <Radio className="size-2.5" />
-              No Ar
-            </Badge>
+            <div className="relative h-full w-full">
+              <div
+                className="absolute inset-0 transition-opacity duration-300 ease-in-out"
+                style={{ opacity: live.cleared && wallpaper ? 0 : 1 }}
+              >
+                <PersistentBackground background={previewOverride ?? effectiveBackground} />
+              </div>
+              <div className="absolute inset-0">
+                <SlideTransition
+                  slide={live}
+                  theme={liveTheme}
+                  asset={kindToAsset(live.content.kind)}
+                  cleared={live.cleared}
+                  textHidden={live.textHidden}
+                  durationMs={300}
+                  transitionBackground={false}
+                />
+              </div>
+            </div>
+          )}
+
+          {previewOutput && resolveOutputLook(previewOutput).mask && previewOutput.mask && (
+            <div className="absolute inset-0 z-[25] pointer-events-none">
+              <MaskOverlay mask={previewOutput.mask} />
+            </div>
+          )}
+
+          {live.blackout && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/85">
+              <Badge variant="destructive" className="text-[10px] px-2 py-0.5 font-semibold animate-pulse">
+                Blackout
+              </Badge>
+            </div>
+          )}
+
+          {isPublicAlertTargeted && activeAlert && activeAlert.displayMode === "banner_top" && (
+            <StageAlertBanner position="top" alert={activeAlert} compact />
+          )}
+          {isPublicAlertTargeted && activeAlert && activeAlert.displayMode === "banner_bottom" && (
+            <StageAlertBanner position="bottom" alert={activeAlert} compact />
+          )}
+          {isPublicAlertTargeted && activeAlert && activeAlert.displayMode === "overlay" && (
+            <StageAlertOverlay alert={activeAlert} compact />
           )}
         </div>
       </div>
 
-      {/* 16:9 Canvas or Placeholder */}
-      <div
-        className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner"
-        onDragOver={previewOutput ? handleAssetDragOver : undefined}
-        onDrop={previewOutput ? (event) => handleAssetDrop(event, previewOutput) : undefined}
-      >
-        {isLiveEmpty && !live.blackout ? (
-          wallpaper ? (
-            <div className="relative h-full w-full bg-black">
-              <BackgroundRenderer
-                background={wallpaperToBackground(wallpaper)}
-              />
-              <div className="absolute bottom-2 left-2 rounded bg-black/70 px-2 py-0.5 text-[9px] font-medium text-zinc-300 backdrop-blur-xs border border-white/10">
-                Papel de Parede Ativo
-              </div>
-            </div>
-          ) : (
-            /* Placeholder Ao Vivo quando não há nada transmitindo */
-            <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-4 text-center select-none bg-zinc-950">
-              <div className="flex size-10 items-center justify-center rounded-full bg-zinc-900 border border-zinc-800 text-zinc-500">
-                <Projector className="size-5" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-zinc-300">
-                  Placeholder Ao Vivo
-                </p>
-                <p className="mt-0.5 text-[10px] text-zinc-500">
-                  Telão desocupado · Nenhum conteúdo ao vivo
-                </p>
-              </div>
-            </div>
-          )
-        ) : (
-          <div className="relative h-full w-full">
-            <div
-              className="absolute inset-0 transition-opacity duration-300 ease-in-out"
-              style={{ opacity: live.cleared && wallpaper ? 0 : 1 }}
-            >
-              <PersistentBackground background={previewOverride ?? effectiveBackground} />
-            </div>
+      {/* Apenas texto no rodapé */}
+      <div className="flex h-6 shrink-0 items-center justify-between px-2 bg-zinc-950 text-[10px] text-zinc-300 border-t border-white/5">
+        <span className="font-semibold text-emerald-400 truncate">
+          AO VIVO{live.content.title && live.content.title !== "Nenhum slide ao vivo" ? ` · ${live.content.title}` : " · TELÃO"}
+        </span>
+        <span
+          className={cn(
+            "text-[9px] font-semibold uppercase tracking-wider",
+            live.blackout
+              ? "text-destructive"
+              : live.cleared && !isLiveEmpty
+              ? "text-amber-400"
+              : isLiveEmpty
+              ? "text-zinc-500"
+              : "text-emerald-400",
+          )}
+        >
+          {live.blackout
+            ? "Blackout"
+            : live.cleared && !isLiveEmpty
+            ? "Fundo Ativo"
+            : isLiveEmpty
+            ? "Livre"
+            : "No Ar"}
+        </span>
+      </div>
+    </div>
+  );
+
+  // Renders the Stage card
+  const renderStageCard = () => (
+    <div className="flex flex-col h-full w-full overflow-hidden bg-black select-none">
+      <div className="relative flex-1 min-h-0 w-full overflow-hidden bg-black flex items-center justify-center">
+        <div className="relative aspect-video w-full h-full max-h-full max-w-full">
+          <StageMiniPreview />
+        </div>
+      </div>
+
+      {/* Apenas texto no rodapé */}
+      <div className="flex h-6 shrink-0 items-center justify-between px-2 bg-zinc-950 text-[10px] text-zinc-300 border-t border-white/5">
+        <span className="font-semibold text-sky-400 truncate">
+          RETORNO · PALCO
+        </span>
+        <span className="text-[9px] text-zinc-400 font-mono">
+          {stageActive ? "Ativo" : "Prévia"}
+        </span>
+      </div>
+    </div>
+  );
+
+  // Renders Stream / Lower Third card
+  const renderStreamCard = () => {
+    const lowerRawTheme =
+      allThemes.find((t) => t.category === "stream") ?? DEFAULT_STREAM_THEME;
+    const lowerContext = contextForSlide(live.content.kind, live.content.media?.kind) ?? "music";
+    const lowerTheme = lowerRawTheme.pages?.length
+      ? (getPageForContext(lowerRawTheme, lowerContext)
+          ? materializePage(lowerRawTheme, getPageForContext(lowerRawTheme, lowerContext)!)
+          : lowerRawTheme)
+      : lowerRawTheme;
+
+    return (
+      <div className="flex flex-col h-full w-full overflow-hidden bg-black select-none">
+        <div className="relative flex-1 min-h-0 w-full overflow-hidden bg-zinc-950 flex items-center justify-center">
+          <div
+            className="relative aspect-video w-full h-full max-h-full max-w-full"
+            style={{
+              backgroundImage: "repeating-conic-gradient(#1f2937 0% 25%, #111827 0% 50%) 50% / 14px 14px",
+            }}
+          >
             <div className="absolute inset-0">
               <SlideTransition
                 slide={live}
-                theme={liveTheme}
+                theme={lowerTheme}
                 asset={kindToAsset(live.content.kind)}
                 cleared={live.cleared}
                 textHidden={live.textHidden}
@@ -381,480 +434,483 @@ export function LivePreview() {
               />
             </div>
           </div>
-        )}
-
-        {/* Máscara da saída principal */}
-        {previewOutput && resolveOutputLook(previewOutput).mask && previewOutput.mask && (
-          <div className="absolute inset-0 z-[25] pointer-events-none">
-            <MaskOverlay mask={previewOutput.mask} />
-          </div>
-        )}
-
-        {/* Blackout overlay badge indicator if blackout is active */}
-        {live.blackout && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-            <Badge
-              variant="destructive"
-              className="text-xs px-2.5 py-1 font-semibold animate-pulse"
-            >
-              Tela Preta (Blackout)
-            </Badge>
-          </div>
-        )}
-
-        {/* Mini Preview do Aviso no Telão Público (se ativo) */}
-        {isPublicAlertTargeted && activeAlert && activeAlert.displayMode === "banner_top" && (
-          <StageAlertBanner position="top" alert={activeAlert} compact />
-        )}
-        {isPublicAlertTargeted && activeAlert && activeAlert.displayMode === "banner_bottom" && (
-          <StageAlertBanner position="bottom" alert={activeAlert} compact />
-        )}
-        {isPublicAlertTargeted && activeAlert && activeAlert.displayMode === "overlay" && (
-          <StageAlertOverlay alert={activeAlert} compact />
-        )}
-      </div>
-
-      {/* Subtitle / Live Output Info */}
-      <div className="flex h-5 items-center justify-between px-0.5 text-[10px] text-muted-foreground">
-        <span className="truncate">
-          {live.blackout
-            ? "Saída escurecida"
-            : isLiveEmpty && wallpaper
-            ? "Papel de parede em exibição (tela desocupada)"
-            : live.cleared
-            ? "Plano de fundo em exibição (sem texto)"
-            : live.content.title}
-        </span>
-        {live.nextUp && !live.blackout && !live.cleared && (
-          <span className="truncate max-w-[140px] text-[9px] opacity-75">
-            Próx: {live.nextUp.lines[0] || live.nextUp.title}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-
-  const stageCard = (
-    <div key="stage" className="flex flex-col gap-2 rounded-xl border border-sky-500/30 bg-card p-3 shadow-2xs">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Monitor className="size-3.5 text-sky-500" />
-          <span className="font-semibold text-xs text-foreground">
-            Stage
-          </span>
-          <span className="text-[10px] text-muted-foreground">
-            (Retorno)
-          </span>
         </div>
 
-        <Badge
-          variant="secondary"
-          className="h-4 px-1.5 text-[9px] font-semibold bg-sky-500/15 text-sky-500 border-sky-500/30 cursor-pointer"
-          onClick={() => {
-            if (isTauri()) void openDisplaysWindow();
-            else window.open("#/displays", "_blank");
-          }}
-          title="Clique para configurar a Tela de Retorno"
-        >
-          {stageActive
-            ? stageConfig.mode === "native"
-              ? "Nativo"
-              : stageConfig.mode === "web"
-              ? "Web"
-              : "Nativo + Web"
-            : "Prévia"}
-        </Badge>
+        {/* Apenas texto no rodapé */}
+        <div className="flex h-6 shrink-0 items-center justify-between px-2 bg-zinc-950 text-[10px] text-zinc-300 border-t border-white/5">
+          <span className="font-semibold text-purple-400 truncate">
+            TRANSMISSÃO · OBS
+          </span>
+          <span className="text-[9px] text-purple-300/70 font-mono">
+            LOWER THIRD
+          </span>
+        </div>
       </div>
+    );
+  };
 
-      {/* 16:9 Mini Stage Canvas */}
-      <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-black shadow-inner">
-        <StageMiniPreview />
-      </div>
+  // Renders Next Slide card
+  const renderNextCard = () => {
+    const nextUp = live.nextUp;
+    const nextSlide: LiveSlide | null = nextUp
+      ? {
+          content: nextUp,
+          background: live.background,
+          blackout: false,
+          cleared: false,
+          textHidden: false,
+          updatedAt: live.updatedAt,
+        }
+      : null;
 
-      {/* Stage Stopwatch Controls (operator panel) */}
-      <StageTimerControls />
-
-      {/* Subtitle */}
-      <div className="flex h-5 items-center justify-between px-0.5 text-[10px] text-muted-foreground">
-        <span className="truncate">Retorno dos músicos no palco</span>
-        <button
-          type="button"
-          onClick={() => {
-            if (isTauri()) void openDisplaysWindow();
-            else window.open("#/displays", "_blank");
-          }}
-          className="text-[9px] text-sky-500 hover:underline cursor-pointer"
-        >
-          Configurar
-        </button>
-      </div>
-    </div>
-  );
-
-  const visibleCards: ReactNode[] = [];
-  if (showPreview) visibleCards.push(previewCard);
-
-  if (configuredOutputs.length > 0) {
-    for (const out of configuredOutputs) {
-      if (!isOutputVisible(out.id)) continue;
-      const outputLook = resolveOutputLook(out);
-      const overrideBackground = outputOverrides[out.id]?.background ?? null;
-
-      if (out.category === "stage") {
-        visibleCards.push(
-          <div
-            key={out.id}
-            className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs"
-            onDragOver={handleAssetDragOver}
-            onDrop={(event) => handleAssetDrop(event, out)}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <Monitor className="size-3.5 text-sky-400 shrink-0" />
-                <span className="font-semibold text-xs text-foreground truncate">{out.name}</span>
-                <span className="text-[10px] text-muted-foreground font-mono">({out.resolution.width}x{out.resolution.height})</span>
-              </div>
-              <Badge variant="outline" className="text-[9px] h-4 px-1 text-sky-400 border-sky-400/30">
-                {out.type.toUpperCase()}
-              </Badge>
-            </div>
-            <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-black shadow-inner">
-              <StageMiniPreview outputId={out.id} />
-            </div>
-            <StageTimerControls />
-          </div>
-        );
-      } else if (out.category === "lower") {
-        const lowerRawTheme =
-          (out.defaultThemeGuid ? allThemes.find((t) => t.guid === out.defaultThemeGuid) : null) ??
-          allThemes.find((t) => t.category === "stream") ??
-          DEFAULT_STREAM_THEME;
-        const lowerContext = contextForSlide(live.content.kind, live.content.media?.kind) ?? "music";
-        const lowerTheme = lowerRawTheme.pages?.length
-          ? (getPageForContext(lowerRawTheme, lowerContext)
-              ? materializePage(lowerRawTheme, getPageForContext(lowerRawTheme, lowerContext)!)
-              : lowerRawTheme)
-          : lowerRawTheme;
-
-        const isCustomBg =
-          out.backgroundColorEnabled &&
-          out.backgroundColor &&
-          out.backgroundColor !== "transparent";
-
-        visibleCards.push(
-          <div
-            key={out.id}
-            className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs"
-            onDragOver={handleAssetDragOver}
-            onDrop={(event) => handleAssetDrop(event, out)}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <Video className="size-3.5 text-purple-400 shrink-0" />
-                <span className="font-semibold text-xs text-foreground truncate">{out.name}</span>
-                <span className="text-[10px] text-muted-foreground font-mono">({out.resolution.width}x{out.resolution.height})</span>
-              </div>
-              <Badge variant="outline" className="text-[9px] h-4 px-1 text-purple-400 border-purple-400/30">
-                LOWER THIRD
-              </Badge>
-            </div>
-            <div
-              className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner"
-              style={{
-                backgroundColor: isCustomBg ? out.backgroundColor : undefined,
-                backgroundImage: !isCustomBg
-                  ? "repeating-conic-gradient(#1f2937 0% 25%, #111827 0% 50%) 50% / 16px 16px"
-                  : undefined,
-              }}
-            >
-              <div className="absolute inset-0">
-                <SlideTransition
-                  slide={live}
-                  theme={filterThemeForLook(lowerTheme, outputLook)}
-                  asset={kindToAsset(live.content.kind)}
-                  cleared={live.cleared || !outputLook.slide}
-                  textHidden={live.textHidden}
-                  durationMs={300}
-                  transitionBackground={false}
-                />
-              </div>
-            </div>
-          </div>
-        );
-      } else {
-        visibleCards.push(
-          <div
-            key={out.id}
-            className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 shadow-2xs"
-            onDragOver={handleAssetDragOver}
-            onDrop={(event) => handleAssetDrop(event, out)}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <Tv className="size-3.5 text-emerald-400 shrink-0" />
-                <span className="font-semibold text-xs text-foreground truncate">{out.name}</span>
-                <span className="text-[10px] text-muted-foreground font-mono">({out.resolution.width}x{out.resolution.height})</span>
-              </div>
-              <Badge variant="outline" className="text-[9px] h-4 px-1 text-emerald-400 border-emerald-400/30">
-                {out.type.toUpperCase()}
-              </Badge>
-            </div>
-            <div className="relative aspect-video w-full overflow-hidden rounded-lg border border-border bg-zinc-950 shadow-inner">
-              {isLiveEmpty && !live.blackout ? (
-                wallpaper ? (
-                  <div className="relative h-full w-full bg-black">
-                    <BackgroundRenderer background={wallpaperToBackground(wallpaper)} />
-                  </div>
-                ) : (out.placeholderEnabled ?? true) && out.placeholderType !== "none" ? (
-                  <div className="relative h-full w-full">
-                    <OutputPlaceholder output={out} />
-                  </div>
-                ) : (
-                  <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center select-none bg-zinc-950">
-                    <Projector className="size-5 text-zinc-500 mb-1" />
-                    <p className="text-xs font-semibold text-zinc-300">Telão Livre</p>
-                  </div>
-                )
-              ) : (
-                <div className="relative h-full w-full">
-                  <PersistentBackground background={overrideBackground ?? effectiveBackground} />
-                  <div className="absolute inset-0">
-                    <SlideTransition
-                      slide={live}
-                      theme={liveTheme ? filterThemeForLook(liveTheme, outputLook) : liveTheme}
-                      asset={kindToAsset(live.content.kind)}
-                      cleared={live.cleared || !outputLook.slide}
-                      textHidden={live.textHidden}
-                      durationMs={300}
-                      transitionBackground={false}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      }
-    }
-  } else {
-    if (showLive) visibleCards.push(liveCard);
-    if (showStage) visibleCards.push(stageCard);
-  }
-
-  const visibleCount = visibleCards.length;
-
-  return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-background">
-      {/* Área dos Monitores com Menu de Contexto no Botão Direito */}
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <div className="@container flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 select-none [scrollbar-gutter:stable]">
-            {allHidden ? (
-              <div className="flex h-full min-h-[300px] flex-col items-center justify-center p-6 text-center text-muted-foreground">
-                <div className="flex size-12 items-center justify-center rounded-full bg-muted/60 text-muted-foreground/60 border border-border/40 mb-3">
-                  <EyeOff className="size-6" />
-                </div>
-                <p className="text-sm font-semibold text-foreground">
-                  Monitores de prévia ocultos
-                </p>
-                <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                  Todos os monitores foram ocultados. Use o menu de monitores no cabeçalho ou clique com o botão direito para reexibir.
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={showAll}
-                  className="mt-4 text-xs gap-1.5 cursor-pointer"
-                >
-                  <Eye className="size-3.5" />
-                  <span>Reexibir Todos os Monitores</span>
-                </Button>
-              </div>
+    return (
+      <div className="flex flex-col h-full w-full overflow-hidden bg-black select-none">
+        <div className="relative flex-1 min-h-0 w-full overflow-hidden bg-zinc-950 flex items-center justify-center">
+          <div className="relative aspect-video w-full h-full max-h-full max-w-full">
+            {nextSlide ? (
+              <SlideCanvas slide={nextSlide} isFirstFrameOnly={true} />
             ) : (
-              <div
-                className="mx-auto w-full transition-all duration-150"
-                style={{
-                  maxWidth: `${Math.round((visibleCount >= 2 ? 1160 : 680) * (zoom / 100))}px`,
-                }}
-              >
-                {visibleCount === 1 ? (
-                  <div className="w-full">
-                    {visibleCards[0]}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 @[540px]:grid-cols-2 gap-3.5 items-start">
-                    {visibleCards.map((card, idx) => (
-                      <div key={idx}>{card}</div>
-                    ))}
-                  </div>
-                )}
+              <div className="flex h-full w-full flex-col items-center justify-center p-2 text-center text-muted-foreground/50 select-none">
+                <ArrowRight className="size-4 text-muted-foreground/30 mb-1" />
+                <p className="text-[9px]">Fim da sequência</p>
               </div>
             )}
           </div>
-        </ContextMenuTrigger>
+        </div>
 
-        {/* Menu de Contexto (Botão Direito em Qualquer Ponto da Coluna de Monitores) */}
-        <ContextMenuContent className="w-56">
-          <ContextMenuLabel className="text-xs font-semibold text-muted-foreground">
-            Monitores Visíveis
-          </ContextMenuLabel>
-          <ContextMenuSeparator />
+        {/* Apenas texto no rodapé */}
+        <div className="flex h-6 shrink-0 items-center justify-between px-2 bg-zinc-950 text-[10px] text-zinc-300 border-t border-white/5">
+          <span className="font-semibold text-amber-400 truncate">
+            PRÓXIMO{nextUp?.title ? ` · ${nextUp.title}` : " SLIDE"}
+          </span>
+          <span className="text-[9px] text-zinc-400">
+            {nextUp?.lines[0] ? `"${nextUp.lines[0]}"` : "A Seguir"}
+          </span>
+        </div>
+      </div>
+    );
+  };
 
-          <ContextMenuCheckboxItem
-            checked={showPreview}
-            onCheckedChange={togglePreview}
-            onSelect={(e) => e.preventDefault()}
-            className="text-xs cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <Eye className="size-3.5 text-primary" />
-              <span>Prévia (Preview)</span>
+  // Renders Previous Slide card
+  const renderPrevCard = () => {
+    const prevUp = live.prevUp;
+    const prevSlide: LiveSlide | null = prevUp
+      ? {
+          content: prevUp,
+          background: live.background,
+          blackout: false,
+          cleared: false,
+          textHidden: false,
+          updatedAt: live.updatedAt,
+        }
+      : null;
+
+    return (
+      <div className="flex flex-col h-full w-full overflow-hidden bg-black select-none">
+        <div className="relative flex-1 min-h-0 w-full overflow-hidden bg-zinc-950 flex items-center justify-center">
+          <div className="relative aspect-video w-full h-full max-h-full max-w-full">
+            {prevSlide ? (
+              <SlideCanvas slide={prevSlide} isFirstFrameOnly={true} />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center p-2 text-center text-muted-foreground/50 select-none">
+                <ArrowLeft className="size-4 text-muted-foreground/30 mb-1" />
+                <p className="text-[9px]">Início da sequência</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Apenas texto no rodapé */}
+        <div className="flex h-6 shrink-0 items-center justify-between px-2 bg-zinc-950 text-[10px] text-zinc-300 border-t border-white/5">
+          <span className="font-semibold text-zinc-400 truncate">
+            SLIDE ANTERIOR{prevUp?.title ? ` · ${prevUp.title}` : ""}
+          </span>
+          <span className="text-[9px] text-zinc-500">
+            Anterior
+          </span>
+        </div>
+      </div>
+    );
+  };
+
+  // Renders custom configured output card
+  const renderConfiguredOutputCard = (outId: string) => {
+    const out = configuredOutputs.find((o) => o.id === outId);
+    if (!out) {
+      return (
+        <div className="flex flex-col h-full w-full overflow-hidden bg-black select-none">
+          <div className="flex flex-1 items-center justify-center text-[10px] text-muted-foreground/60">
+            Saída não encontrada ({outId})
+          </div>
+          <div className="flex h-6 shrink-0 items-center justify-between px-2 bg-zinc-950 text-[10px] text-zinc-500 border-t border-white/5">
+            <span>{outId}</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (out.category === "stage") {
+      return (
+        <div className="flex flex-col h-full w-full overflow-hidden bg-black select-none">
+          <div className="relative flex-1 min-h-0 w-full overflow-hidden bg-black flex items-center justify-center">
+            <div className="relative aspect-video w-full h-full max-h-full max-w-full">
+              <StageMiniPreview outputId={out.id} />
             </div>
-          </ContextMenuCheckboxItem>
+          </div>
+          <div className="flex h-6 shrink-0 items-center justify-between px-2 bg-zinc-950 text-[10px] text-zinc-300 border-t border-white/5">
+            <span className="font-semibold text-sky-400 truncate">{out.name.toUpperCase()}</span>
+            <span className="text-[9px] text-zinc-400 font-mono">{out.type.toUpperCase()}</span>
+          </div>
+        </div>
+      );
+    }
 
-          {configuredOutputs.length > 0 ? (
-            configuredOutputs.map((out) => {
-              const isVisible = isOutputVisible(out.id);
-              const Icon =
-                out.category === "stage"
-                  ? Monitor
-                  : out.category === "lower"
-                    ? Video
-                    : Tv;
-              const color =
-                out.category === "stage"
-                  ? "text-sky-400"
-                  : out.category === "lower"
-                    ? "text-purple-400"
-                    : "text-emerald-400";
-              return (
-                <ContextMenuCheckboxItem
-                  key={out.id}
-                  checked={isVisible}
-                  onCheckedChange={() => toggleOutputVisibility(out.id)}
-                  onSelect={(e) => e.preventDefault()}
-                  className="text-xs cursor-pointer"
+    const outputLook = resolveOutputLook(out);
+    const overrideBg = outputOverrides[out.id]?.background ?? null;
+
+    return (
+      <div className="flex flex-col h-full w-full overflow-hidden bg-black select-none">
+        <div className="relative flex-1 min-h-0 w-full overflow-hidden bg-zinc-950 flex items-center justify-center">
+          <div className="relative aspect-video w-full h-full max-h-full max-w-full">
+            {isLiveEmpty && !live.blackout && !overrideBg ? (
+              wallpaper ? (
+                <div className="relative h-full w-full bg-black">
+                  <BackgroundRenderer background={wallpaperToBackground(wallpaper)} />
+                </div>
+              ) : (out.placeholderEnabled ?? true) && out.placeholderType !== "none" ? (
+                <div className="relative h-full w-full">
+                  <OutputPlaceholder output={out} />
+                </div>
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center p-2 text-center select-none bg-zinc-950">
+                  <Projector className="size-4 text-zinc-600 mb-1" />
+                  <p className="text-[10px] text-zinc-500">Telão Livre</p>
+                </div>
+              )
+            ) : (
+              <div className="relative h-full w-full">
+                <PersistentBackground background={overrideBg ?? effectiveBackground} />
+                <div className="absolute inset-0">
+                  <SlideTransition
+                    slide={live}
+                    theme={liveTheme ? filterThemeForLook(liveTheme, outputLook) : liveTheme}
+                    asset={kindToAsset(live.content.kind)}
+                    cleared={live.cleared || !outputLook.slide}
+                    textHidden={live.textHidden}
+                    durationMs={300}
+                    transitionBackground={false}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex h-6 shrink-0 items-center justify-between px-2 bg-zinc-950 text-[10px] text-zinc-300 border-t border-white/5">
+          <span className="font-semibold text-emerald-400 truncate">{out.name.toUpperCase()}</span>
+          <span className="text-[9px] text-zinc-400 font-mono">{out.type.toUpperCase()}</span>
+        </div>
+      </div>
+    );
+  };
+
+  // Renders empty placeholder card
+  const renderEmptyCard = () => (
+    <div className="flex flex-col h-full w-full overflow-hidden bg-zinc-950 select-none">
+      <div className="flex flex-1 flex-col items-center justify-center gap-1 p-2 text-center text-muted-foreground/40">
+        <Monitor className="size-4 text-muted-foreground/30" />
+        <span className="text-[10px]">Monitor Vazio</span>
+      </div>
+      <div className="flex h-6 shrink-0 items-center justify-between px-2 bg-zinc-950 text-[10px] text-zinc-500 border-t border-white/5">
+        <span className="truncate">VAZIO</span>
+        <span className="text-[9px] text-zinc-600">Botão direito</span>
+      </div>
+    </div>
+  );
+
+  // Dispatcher for each cell based on assigned source
+  const renderCellContent = (index: number) => {
+    if (index === 0) return renderPreviewCard();
+
+    const source = cellAssignments[index] || (index === 1 ? "live" : index === 2 ? "stage" : index === 3 ? "stream" : "empty");
+
+    if (source === "live") return renderLiveCard();
+    if (source === "stage") return renderStageCard();
+    if (source === "stream") return renderStreamCard();
+    if (source === "next") return renderNextCard();
+    if (source === "prev") return renderPrevCard();
+    if (source.startsWith("output:")) return renderConfiguredOutputCard(source.replace("output:", ""));
+    return renderEmptyCard();
+  };
+
+  const currentSourceFor = (index: number) => {
+    if (index === 0) return "preview";
+    return cellAssignments[index] || (index === 1 ? "live" : index === 2 ? "stage" : index === 3 ? "stream" : "empty");
+  };
+
+  return (
+    <div className="flex h-full w-full flex-col overflow-hidden bg-background">
+      {/* Top Section: Monitor Grid Area */}
+      <div
+        className="flex flex-col overflow-hidden shrink-0 bg-black"
+        style={{ height: previewHeight }}
+      >
+        {/* Top toolbar */}
+        <div className="flex h-7 items-center justify-between border-b border-white/10 bg-zinc-950 px-2 shrink-0 select-none">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold text-zinc-300">Monitores</span>
+            <div className="flex items-center rounded border border-white/10 bg-zinc-900 p-0.5">
+              {(["1x2", "2x2", "3x3", "4x4"] as GridMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setGridMode(mode)}
+                  className={cn(
+                    "rounded px-1.5 py-0.2 text-[9px] font-semibold transition-all cursor-pointer",
+                    gridMode === mode
+                      ? "bg-zinc-800 text-white shadow-2xs"
+                      : "text-zinc-400 hover:text-white",
+                  )}
+                  title={`Grade ${mode}`}
                 >
-                  <div className="flex items-center gap-2 truncate">
-                    <Icon className={`size-3.5 ${color}`} />
-                    <span className="truncate">{out.name}</span>
+                  {mode}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => {
+                if (isTauri()) void openDisplaysWindow();
+                else window.open("#/displays", "_blank");
+              }}
+              className="size-5 text-zinc-400 hover:text-white cursor-pointer"
+              title="Configurar Saídas de Vídeo"
+            >
+              <Settings className="size-3" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Grid area - sem margens entre container e grid items, sem bordas */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-0 bg-black">
+          <div
+            className={cn(
+              "grid h-full w-full gap-px bg-zinc-900/60",
+              gridMode === "1x2" && "grid-cols-2",
+              gridMode === "2x2" && "grid-cols-2 grid-rows-2",
+              gridMode === "3x3" && "grid-cols-3 grid-rows-3",
+              gridMode === "4x4" && "grid-cols-4 grid-rows-4",
+            )}
+          >
+            {Array.from({ length: totalCells }).map((_, idx) => {
+              const source = currentSourceFor(idx);
+
+              if (idx === 0) {
+                return (
+                  <div key={idx} className="h-full w-full overflow-hidden">
+                    {renderPreviewCard()}
                   </div>
-                </ContextMenuCheckboxItem>
+                );
+              }
+
+              return (
+                <ContextMenu key={idx}>
+                  <ContextMenuTrigger asChild>
+                    <div className="relative group h-full w-full overflow-hidden">
+                      {renderCellContent(idx)}
+
+                      {/* Dropdown switch button on hover for direct click */}
+                      <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="flex size-5 items-center justify-center rounded bg-black/70 text-zinc-300 hover:text-white backdrop-blur-xs cursor-pointer border border-white/10"
+                              title="Alterar monitor"
+                            >
+                              <MoreVertical className="size-3" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuLabel className="text-xs">
+                              Monitor {idx + 1}
+                            </DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuRadioGroup
+                              value={source}
+                              onValueChange={(val) => setCellAssignment(idx, val)}
+                            >
+                              {SOURCE_OPTIONS.map((opt) => {
+                                const Icon = opt.icon;
+                                return (
+                                  <DropdownMenuRadioItem
+                                    key={opt.id}
+                                    value={opt.id}
+                                    className="text-xs cursor-pointer"
+                                  >
+                                    <Icon className={cn("size-3.5 mr-2", opt.color)} />
+                                    <span>{opt.label}</span>
+                                  </DropdownMenuRadioItem>
+                                );
+                              })}
+
+                              {configuredOutputs.length > 0 && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuLabel className="text-[10px] text-muted-foreground">
+                                    Saídas de Vídeo
+                                  </DropdownMenuLabel>
+                                  {configuredOutputs.map((out) => (
+                                    <DropdownMenuRadioItem
+                                      key={out.id}
+                                      value={`output:${out.id}`}
+                                      className="text-xs cursor-pointer"
+                                    >
+                                      <Tv className="size-3.5 mr-2 text-emerald-400" />
+                                      <span className="truncate">{out.name}</span>
+                                    </DropdownMenuRadioItem>
+                                  ))}
+                                </>
+                              )}
+
+                              <DropdownMenuSeparator />
+                              <DropdownMenuRadioItem
+                                value="empty"
+                                className="text-xs text-muted-foreground cursor-pointer"
+                              >
+                                Vazio (Nenhum)
+                              </DropdownMenuRadioItem>
+                            </DropdownMenuRadioGroup>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  </ContextMenuTrigger>
+
+                  <ContextMenuContent className="w-56">
+                    <ContextMenuLabel className="text-xs">
+                      Fonte do Monitor {idx + 1}
+                    </ContextMenuLabel>
+                    <ContextMenuSeparator />
+                    <ContextMenuRadioGroup
+                      value={source}
+                      onValueChange={(val) => setCellAssignment(idx, val)}
+                    >
+                      {SOURCE_OPTIONS.map((opt) => {
+                        const Icon = opt.icon;
+                        return (
+                          <ContextMenuRadioItem
+                            key={opt.id}
+                            value={opt.id}
+                            className="text-xs cursor-pointer"
+                          >
+                            <Icon className={cn("size-3.5 mr-2", opt.color)} />
+                            <span>{opt.label}</span>
+                          </ContextMenuRadioItem>
+                        );
+                      })}
+
+                      {configuredOutputs.length > 0 && (
+                        <>
+                          <ContextMenuSeparator />
+                          <ContextMenuLabel className="text-[10px] text-muted-foreground">
+                            Saídas de Vídeo
+                          </ContextMenuLabel>
+                          {configuredOutputs.map((out) => (
+                            <ContextMenuRadioItem
+                              key={out.id}
+                              value={`output:${out.id}`}
+                              className="text-xs cursor-pointer"
+                            >
+                              <Tv className="size-3.5 mr-2 text-emerald-400" />
+                              <span className="truncate">{out.name}</span>
+                            </ContextMenuRadioItem>
+                          ))}
+                        </>
+                      )}
+
+                      <ContextMenuSeparator />
+                      <ContextMenuRadioItem
+                        value="empty"
+                        className="text-xs text-muted-foreground cursor-pointer"
+                      >
+                        Vazio (Nenhum)
+                      </ContextMenuRadioItem>
+                    </ContextMenuRadioGroup>
+                  </ContextMenuContent>
+                </ContextMenu>
               );
-            })
-          ) : (
-            <>
-              <ContextMenuCheckboxItem
-                checked={showLive}
-                onCheckedChange={toggleLive}
-                onSelect={(e) => e.preventDefault()}
-                className="text-xs cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <Tv className="size-3.5 text-emerald-500" />
-                  <span>Ao Vivo (Telão)</span>
-                </div>
-              </ContextMenuCheckboxItem>
+            })}
+          </div>
+        </div>
+      </div>
 
-              <ContextMenuCheckboxItem
-                checked={showStage}
-                onCheckedChange={toggleStage}
-                onSelect={(e) => e.preventDefault()}
-                className="text-xs cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <Monitor className="size-3.5 text-sky-500" />
-                  <span>Retorno (Palco)</span>
-                </div>
-              </ContextMenuCheckboxItem>
-            </>
-          )}
+      {/* Vertical Resize Handle for adjusting grid height */}
+      <ResizeHandle
+        direction="vertical"
+        invertVerticalDelta={true}
+        value={previewHeight}
+        min={180}
+        max={700}
+        defaultValue={360}
+        onChange={setPreviewHeight}
+        label="Redimensionar prévias de monitores"
+      />
 
-          <ContextMenuSeparator />
-          <ContextMenuLabel className="text-xs font-semibold text-muted-foreground">
-            Zoom ({zoom}%)
-          </ContextMenuLabel>
+      {/* Middle: Media Controls Bar */}
+      <div className="shrink-0 border-b border-border/60 bg-card/30">
+        <HeaderMediaControls />
+      </div>
 
-          <ContextMenuItem
-            onClick={zoomIn}
-            disabled={zoom >= 150}
-            className="text-xs cursor-pointer"
-          >
-            <Plus className="size-3.5 mr-2" />
-            <span>Aumentar Zoom (+)</span>
-          </ContextMenuItem>
+      {/* Bottom: Adjustments Tabs (Avisos & Cronômetros) */}
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden bg-muted/5">
+        {/* Tabs Bar */}
+        <div className="flex h-8 items-center justify-between border-b border-border/60 bg-card/60 px-2 shrink-0 select-none">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setAdjustmentsTab("alerts")}
+              className={cn(
+                "flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+                adjustmentsTab === "alerts"
+                  ? "bg-background text-foreground font-semibold shadow-2xs"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Megaphone className="size-3.5" />
+              <span>Avisos</span>
+              {activeAlert && (
+                <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
+              )}
+            </button>
 
-          <ContextMenuItem
-            onClick={zoomOut}
-            disabled={zoom <= 50}
-            className="text-xs cursor-pointer"
-          >
-            <Minus className="size-3.5 mr-2" />
-            <span>Diminuir Zoom (-)</span>
-          </ContextMenuItem>
+            <button
+              type="button"
+              onClick={() => setAdjustmentsTab("timers")}
+              className={cn(
+                "flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+                adjustmentsTab === "timers"
+                  ? "bg-background text-foreground font-semibold shadow-2xs"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Timer className="size-3.5" />
+              <span>Cronômetros & Timers</span>
+            </button>
+          </div>
+        </div>
 
-          <ContextMenuItem
-            onClick={resetZoom}
-            disabled={zoom === 100}
-            className="text-xs cursor-pointer"
-          >
-            <RotateCcw className="size-3.5 mr-2" />
-            <span>Redefinir para 100%</span>
-          </ContextMenuItem>
-
-          <ContextMenuSeparator />
-          <ContextMenuSub>
-            <ContextMenuSubTrigger className="text-xs cursor-pointer">
-              <SlidersHorizontal className="size-3.5 mr-2" />
-              <span>Tamanhos Pré-definidos</span>
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="w-44">
-              <ContextMenuItem
-                onClick={() => setZoom(60)}
-                className="text-xs cursor-pointer"
-              >
-                Compacto (60%)
-              </ContextMenuItem>
-              <ContextMenuItem
-                onClick={() => setZoom(80)}
-                className="text-xs cursor-pointer"
-              >
-                Pequeno (80%)
-              </ContextMenuItem>
-              <ContextMenuItem
-                onClick={() => setZoom(100)}
-                className="text-xs cursor-pointer"
-              >
-                Padrão (100%)
-              </ContextMenuItem>
-              <ContextMenuItem
-                onClick={() => setZoom(120)}
-                className="text-xs cursor-pointer"
-              >
-                Grande (120%)
-              </ContextMenuItem>
-              <ContextMenuItem
-                onClick={() => setZoom(140)}
-                className="text-xs cursor-pointer"
-              >
-                Máximo (140%)
-              </ContextMenuItem>
-            </ContextMenuSubContent>
-          </ContextMenuSub>
-
-          <ContextMenuSeparator />
-          <ContextMenuItem
-            onClick={() => {
-              if (isTauri()) void openDisplaysWindow();
-              else window.open("#/displays", "_blank");
-            }}
-            className="text-xs cursor-pointer"
-          >
-            <Settings className="size-3.5 mr-2" />
-            <span>Configurar Saídas de Vídeo…</span>
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
+        {/* Tab Body */}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          {adjustmentsTab === "alerts" && <AlertsAdjustmentTab />}
+          {adjustmentsTab === "timers" && <TimersAdjustmentTab />}
+        </div>
+      </div>
     </div>
   );
 }

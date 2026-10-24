@@ -63,6 +63,12 @@ function createSyncBus(): SyncBus {
       await listenCommand<unknown>(TAURI_EVENTS.wallpaper, (payload) =>
         dispatch(TAURI_EVENTS.wallpaper, payload),
       );
+      await listenCommand<unknown>(TAURI_EVENTS.outputPlans, (payload) =>
+        dispatch(TAURI_EVENTS.outputPlans, payload),
+      );
+      await listenCommand<unknown>(TAURI_EVENTS.themesChanged, (payload) =>
+        dispatch(TAURI_EVENTS.themesChanged, payload),
+      );
       return;
     }
 

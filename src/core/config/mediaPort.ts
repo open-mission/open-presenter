@@ -3,8 +3,30 @@ import { getServerStatus } from "@/core/ipc/commands";
 import { isTauri, listenCommand } from "@/core/ipc/tauri";
 import { OUTPUT_HTTP_PORT, TAURI_EVENTS } from "./app";
 
-let mediaPort: number | null = null;
-let mediaServerRunning: boolean | null = null;
+const STORAGE_KEY_PORT = "open_presenter_media_port";
+const STORAGE_KEY_RUNNING = "open_presenter_media_server_running";
+
+function getCachedPort(): number | null {
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY_PORT) : null;
+    const num = raw ? Number(raw) : null;
+    return num && num > 0 ? num : null;
+  } catch {
+    return null;
+  }
+}
+
+function getCachedRunning(): boolean | null {
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY_RUNNING) : null;
+    return raw !== null ? raw === "true" : null;
+  } catch {
+    return null;
+  }
+}
+
+let mediaPort: number | null = getCachedPort();
+let mediaServerRunning: boolean | null = getCachedRunning();
 const listeners = new Set<() => void>();
 
 function notify(): void {
@@ -15,6 +37,9 @@ export function setMediaPort(port: number | null): void {
   const normalized = port && port > 0 ? port : null;
   if (mediaPort === normalized) return;
   mediaPort = normalized;
+  try {
+    if (normalized) localStorage.setItem(STORAGE_KEY_PORT, String(normalized));
+  } catch {}
   notify();
 }
 
@@ -25,6 +50,9 @@ export function setMediaPort(port: number | null): void {
  */
 export function setMediaServer(port: number | null, running: boolean | null): void {
   setMediaPort(port);
+  try {
+    if (running !== null) localStorage.setItem(STORAGE_KEY_RUNNING, String(running));
+  } catch {}
   if (mediaServerRunning === running) return;
   mediaServerRunning = running;
   notify();
@@ -41,6 +69,8 @@ export function isMediaServerRunning(): boolean | null {
 export function resolveMediaPort(explicit?: number): number {
   if (explicit && explicit > 0) return explicit;
   if (mediaPort && mediaPort > 0) return mediaPort;
+  const cached = getCachedPort();
+  if (cached && cached > 0) return cached;
   if (
     !isTauri() &&
     typeof window !== "undefined" &&

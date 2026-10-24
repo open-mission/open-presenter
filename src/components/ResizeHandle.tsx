@@ -14,6 +14,7 @@ export function ResizeHandle({
   onChange,
   label,
   direction = "horizontal",
+  invertVerticalDelta = false,
 }: {
   value: number;
   min: number;
@@ -23,6 +24,8 @@ export function ResizeHandle({
   label: string;
   /** "horizontal": colunas lado a lado (redimensiona largura). "vertical": painéis empilhados (altura). */
   direction?: "horizontal" | "vertical";
+  /** Para painéis no topo, arrastar para baixo aumenta a altura. */
+  invertVerticalDelta?: boolean;
 }) {
   const start = useRef({ pointer: 0, value });
   const [dragging, setDragging] = useState(false);
@@ -40,11 +43,12 @@ export function ResizeHandle({
 
   function handlePointerMove(e: ReactPointerEvent<HTMLDivElement>) {
     if (!dragging) return;
-    // Painel inferior: arrastar para cima aumenta a altura.
-    const delta = isColumnResize
+    const rawDelta = isColumnResize
       ? e.clientX - start.current.pointer
+      : invertVerticalDelta
+      ? e.clientY - start.current.pointer
       : start.current.pointer - e.clientY;
-    onChange(clampPanelWidth(start.current.value + delta, min, max));
+    onChange(clampPanelWidth(start.current.value + rawDelta, min, max));
   }
 
   function handlePointerUp(e: ReactPointerEvent<HTMLDivElement>) {

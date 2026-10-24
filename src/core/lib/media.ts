@@ -6,6 +6,7 @@ export const MEDIA_KIND_LABEL: Record<MediaKind, string> = {
   image: "Imagem",
   folder: "Pasta de imagens",
   video: "Vídeo",
+  audio: "Áudio",
 };
 
 export function mediaKindLabel(kind: MediaKind): string {
@@ -131,6 +132,7 @@ export function buildMediaSlides(
     }
     case "image":
     case "video":
+    case "audio":
       return [
         {
           index: 0,

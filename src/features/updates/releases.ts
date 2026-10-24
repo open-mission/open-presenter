@@ -37,6 +37,65 @@ export interface ReleaseNotes {
 
 export const RELEASES: ReleaseNotes[] = [
   {
+    version: "0.5.0",
+    date: "2026-10-24",
+    title: "Multiview, Paleta Global e Drag & Drop",
+    summary:
+      "Uma repaginação completa do layout com grid multiview configurável de monitores, paleta de comandos global (Cmd+K), novos controles de mídia integrados, abas de avisos e cronômetros, e arrastar e soltar universal para a programação.",
+    highlights: [
+      {
+        icon: "monitor",
+        title: "Previews Multiview",
+        description:
+          "Grade configurável (2x2, 3x3, 4x4) sem bordas para monitorar o slide ao vivo e todas as saídas ao mesmo tempo com clique com botão direito.",
+      },
+      {
+        icon: "palette",
+        title: "Paleta Global (Cmd+K)",
+        description:
+          "Busca unificada para músicas, versículos bíblicos, mídias e comandos. Enter para navegar, Shift+Enter para projetar ao vivo.",
+      },
+      {
+        icon: "book",
+        title: "Bíblia e Drag & Drop",
+        description:
+          "Aba da Bíblia integrada com busca por referência e versão, seleção múltipla e arrasto direto de mídias e versículos para a programação.",
+      },
+    ],
+    sections: [
+      {
+        title: "Multiview e Layout",
+        items: [
+          "Grade de monitores personalizável e redimensionável.",
+          "Controles de mídia integrados abaixo dos previews.",
+          "Abas de Avisos e Cronômetros/Timers de palco no painel inferior.",
+          "Menu nativo Exibir para alternar abas e janelas.",
+        ],
+      },
+      {
+        title: "Paleta de Comandos e Atalhos",
+        items: [
+          "Abertura global via Cmd+K / Ctrl+K.",
+          "Busca em todo o acervo com ações de navegação e projeção.",
+        ],
+      },
+      {
+        title: "Programação e Mídia",
+        items: [
+          "Arrastar e soltar mídias, temas, músicas e passagens bíblicas para a programação.",
+          "Menu de contexto com opção de adicionar à programação.",
+          "Agenda de eventos em janela própria destacada.",
+        ],
+      },
+    ],
+    fixes: [
+      "Arrastar e soltar corrigido para todas as seções e áreas vazias da programação.",
+      "Identificação limpa de versões da Bíblia sem prefixos técnicos.",
+      "Previews estáticos em shaders WebGL para máxima performance.",
+    ],
+    changelogUrl: `${CHANGELOG_URL}#050---2026-10-24`,
+  },
+  {
     version: "0.4.2",
     date: "2026-10-23",
     title: "Telão com papel de parede de volta",

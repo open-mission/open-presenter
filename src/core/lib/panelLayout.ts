@@ -7,8 +7,21 @@ export const SLIDES_WIDTH_DEFAULT = 384;
 export const MONITORS_MIN_WIDTH = 240;
 export const RESIZE_HANDLES_WIDTH = 12;
 export const MEDIA_HEIGHT_MIN = 140;
-export const MEDIA_HEIGHT_MAX = 560;
+export const MEDIA_HEIGHT_MAX = 1600;
 export const MEDIA_HEIGHT_DEFAULT = 260;
+
+export type MediaPanelTab =
+  | "presentations"
+  | "studio"
+  | "bible"
+  | "themes"
+  | "backgrounds"
+  | "lower"
+  | "shaders"
+  | "songs"
+  | "images"
+  | "videos"
+  | "audios";
 
 export interface PanelLayout {
   setlistWidth: number;
@@ -16,6 +29,7 @@ export interface PanelLayout {
   monitorsVisible: boolean;
   mediaHeight: number;
   mediaOpen: boolean;
+  mediaTab: MediaPanelTab;
 }
 
 export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
@@ -24,6 +38,7 @@ export const DEFAULT_PANEL_LAYOUT: PanelLayout = {
   monitorsVisible: true,
   mediaHeight: MEDIA_HEIGHT_DEFAULT,
   mediaOpen: true,
+  mediaTab: "themes",
 };
 
 export function clampPanelWidth(value: number, min: number, max: number): number {
@@ -74,6 +89,24 @@ export function fitPanelLayout(
 export function parsePanelLayout(input: unknown): PanelLayout {
   if (input === null || typeof input !== "object") return DEFAULT_PANEL_LAYOUT;
   const record = input as Record<string, unknown>;
+  const validTabs = new Set<MediaPanelTab>([
+    "presentations",
+    "studio",
+    "bible",
+    "themes",
+    "backgrounds",
+    "lower",
+    "shaders",
+    "songs",
+    "images",
+    "videos",
+    "audios",
+  ]);
+  const parsedTab =
+    typeof record.mediaTab === "string" && validTabs.has(record.mediaTab as MediaPanelTab)
+      ? (record.mediaTab as MediaPanelTab)
+      : "themes";
+
   return {
     setlistWidth:
       typeof record.setlistWidth === "number"
@@ -93,5 +126,6 @@ export function parsePanelLayout(input: unknown): PanelLayout {
         : MEDIA_HEIGHT_DEFAULT,
     mediaOpen:
       typeof record.mediaOpen === "boolean" ? record.mediaOpen : true,
+    mediaTab: parsedTab,
   };
 }

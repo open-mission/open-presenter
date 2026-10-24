@@ -78,7 +78,7 @@ export function MediaDialog({
     const currentEvent = useSetlistStore.getState().event;
     const item = itemId ? findEventItem(currentEvent, itemId) : undefined;
     const media = item?.media ?? null;
-    if (media && media.kind !== "text") {
+    if (media && (media.kind === "image" || media.kind === "folder" || media.kind === "video")) {
       setKind(media.kind);
       setTitle(media.title);
       setPath(media.path ?? null);

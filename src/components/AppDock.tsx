@@ -3,8 +3,6 @@ import {
   BookOpen,
   Calendar,
   HelpCircle,
-  Images,
-  Music,
   Settings,
   Smartphone,
   Sparkles,
@@ -13,9 +11,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { isTauri } from "@/core/ipc/tauri";
-import { openShortcutsWindow } from "@/core/ipc/commands";
+import { openAgendaWindow, openShortcutsWindow } from "@/core/ipc/commands";
 import { usePreferencesStore } from "@/features/preferences/store";
 import { useNavigationStore } from "@/features/navigation/store";
+import { usePanelLayoutStore } from "@/features/presentation/panelLayoutStore";
 
 interface NavButtonProps {
   icon: React.ComponentType<{ className?: string }>;
@@ -79,7 +78,8 @@ export function AppDock() {
         setActiveTab("agenda");
       } else if (e.key === "5") {
         e.preventDefault();
-        setActiveTab("images");
+        setActiveTab("presentation");
+        usePanelLayoutStore.getState().setMediaOpen(true);
       } else if (e.key === "6") {
         e.preventDefault();
         setActiveTab("studio");
@@ -114,15 +114,6 @@ export function AppDock() {
           onClick={() => setActiveTab("presentation")}
         />
 
-        {/* Músicas & Letras */}
-        <NavButton
-          icon={Music}
-          label="Músicas & Letras"
-          shortcut="⌘2"
-          active={activeTab === "songs"}
-          onClick={() => setActiveTab("songs")}
-        />
-
         {/* Bíblia & Versículos */}
         <NavButton
           icon={BookOpen}
@@ -130,15 +121,6 @@ export function AppDock() {
           shortcut="⌘3"
           active={activeTab === "bible"}
           onClick={() => setActiveTab("bible")}
-        />
-
-        {/* Biblioteca de Imagens */}
-        <NavButton
-          icon={Images}
-          label="Biblioteca de Imagens"
-          shortcut="⌘5"
-          active={activeTab === "images"}
-          onClick={() => setActiveTab("images")}
         />
 
         {/* Studio de Criação & Apresentações */}
@@ -158,10 +140,10 @@ export function AppDock() {
         {/* Agenda & Eventos */}
         <NavButton
           icon={Calendar}
-          label="Agenda & Cronograma"
+          label="Agenda de Eventos"
           shortcut="⌘4"
-          active={activeTab === "agenda"}
-          onClick={() => setActiveTab("agenda")}
+          active={false}
+          onClick={() => void openAgendaWindow()}
         />
       </div>
 

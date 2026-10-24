@@ -33,6 +33,8 @@ interface SongsState {
   onlineResults: OnlineLyricHit[];
   onlineLoading: boolean;
   onlineError: string | null;
+  adHocSong: Song | null;
+  setAdHocSong(song: Song | null): void;
   load(): Promise<void>;
   setQuery(query: string): void;
   startNewSong(): void;
@@ -67,6 +69,8 @@ export const useSongsStore = create<SongsState>((set, get) => ({
   onlineResults: [],
   onlineLoading: false,
   onlineError: null,
+  adHocSong: null,
+  setAdHocSong: (adHocSong) => set({ adHocSong }),
 
   load: async () => {
     set({ loading: true, error: null });

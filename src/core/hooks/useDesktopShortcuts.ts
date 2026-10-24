@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { isMainWindow, isTauri } from "@/core/ipc/tauri";
+import { useCommandPaletteStore } from "@/features/command-palette/store";
 
 /**
  * Previne recargas acidentais de página (F5, Cmd+R, Ctrl+R), fechamento indevido
@@ -37,6 +38,20 @@ export function useDesktopShortcuts(): void {
       ) {
         event.preventDefault();
         event.stopPropagation();
+        return;
+      }
+
+      // 4. Paleta Universal de Comandos: Cmd+K / Ctrl+K
+      if (modifier && key === "k") {
+        event.preventDefault();
+        event.stopPropagation();
+        const store = useCommandPaletteStore.getState();
+        if (store.open) {
+          store.closePalette();
+        } else {
+          store.openPalette();
+        }
+        return;
       }
     };
 

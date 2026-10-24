@@ -19,6 +19,7 @@ pub enum MediaKind {
     Image,
     Folder,
     Video,
+    Audio,
 }
 
 impl MediaKind {
@@ -28,6 +29,7 @@ impl MediaKind {
             MediaKind::Image => "Imagem",
             MediaKind::Folder => "Pasta de imagens",
             MediaKind::Video => "Vídeo",
+            MediaKind::Audio => "Áudio",
         }
     }
 }

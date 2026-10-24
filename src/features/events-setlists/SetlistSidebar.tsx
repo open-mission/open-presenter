@@ -23,6 +23,7 @@ import {
   Sparkles,
   Trash2,
   Video,
+  Volume2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +56,7 @@ import { SETLIST_WIDTH_DEFAULT } from "@/core/lib/panelLayout";
 import { useSongsStore } from "@/features/songs/store";
 import { createEmptyStudioTheme } from "@/features/slide-themes/seedThemes";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
+import { clearAssetDragData, readAssetPayload } from "@/features/media-library/dnd";
 import { findEventItem, useSetlistStore } from "./store";
 import { MediaDialog, type VisualMediaKind } from "./MediaDialog";
 import { TextEditorDialog } from "./TextEditorDialog";
@@ -72,6 +74,7 @@ const MEDIA_ICONS: Record<MediaKind, typeof AlignLeft> = {
   image: ImageIcon,
   folder: Images,
   video: Video,
+  audio: Volume2,
 };
 
 function ItemKindIcon({ item }: { item: EventItem }) {
@@ -286,6 +289,135 @@ export function SetlistSidebar({
     setNewEventDialogOpen(false);
   }
 
+  function handleDropExternalPayload(
+    e: React.DragEvent,
+    targetPartId: string,
+    destIndex?: number,
+  ): boolean {
+    const payload = readAssetPayload(e.dataTransfer);
+    if (!payload) return false;
+
+    const store = useSetlistStore.getState();
+    let currentEvent = store.event;
+
+    // Resolve uma parte de destino válida se targetPartId estiver vazia ou inexistente
+    let finalPartId = targetPartId;
+    if (!finalPartId || !currentEvent?.parts.some((p) => p.id === finalPartId)) {
+      if (!currentEvent || currentEvent.parts.length === 0) {
+        const defaultTitle =
+          payload.type === "song"
+            ? "Louvor"
+            : payload.type === "scripture"
+            ? "Palavra"
+            : "Mídia";
+        finalPartId = store.addPart(defaultTitle);
+      } else {
+        const namedPart = currentEvent.parts.find((p) => p.title.trim() !== "");
+        finalPartId = namedPart ? namedPart.id : currentEvent.parts[0].id;
+      }
+    }
+
+    if (payload.type === "theme") {
+      useSlideThemesStore.getState().setEventThemeGuid(payload.themeGuid);
+      toast.success("Tema aplicado à programação!");
+      clearAssetDragData();
+      void store.save();
+      return true;
+    }
+
+    if (payload.type === "scripture") {
+      const { versionId, bookId, bookName, chapter, verses } = payload;
+      const sorted = [...verses].sort((a, b) => a - b);
+      let nextDest = destIndex;
+
+      for (const vNum of sorted) {
+        const newId = store.addScripture(finalPartId, {
+          versionId,
+          bookId,
+          bookName,
+          chapter,
+          verse: vNum,
+          part: 0,
+          totalParts: 1,
+        });
+
+        if (nextDest !== undefined) {
+          const part = store.event?.parts.find((p) => p.id === finalPartId);
+          if (part) {
+            const fromIdx = part.items.findIndex((it) => it.id === newId);
+            if (fromIdx !== -1 && fromIdx !== nextDest) {
+              store.reorderItem(finalPartId, fromIdx, finalPartId, nextDest);
+              nextDest++;
+            }
+          }
+        }
+      }
+
+      const rangeLabel =
+        sorted.length > 1
+          ? `${bookName} ${chapter}:${sorted[0]}–${sorted[sorted.length - 1]}`
+          : `${bookName} ${chapter}:${sorted[0]}`;
+      toast.success(`"${rangeLabel}" adicionado à programação!`);
+      clearAssetDragData();
+      void store.save();
+      return true;
+    }
+
+    if (payload.type === "background") {
+      const asset = payload.asset;
+      const kind: MediaKind =
+        asset.kind === "video"
+          ? "video"
+          : asset.kind === "audio"
+          ? "audio"
+          : "image";
+
+      const newId = store.addMedia(finalPartId, {
+        kind,
+        title: asset.name,
+        path: asset.source,
+        fit: "contain",
+      });
+
+      if (destIndex !== undefined) {
+        const part = store.event?.parts.find((p) => p.id === finalPartId);
+        if (part) {
+          const fromIdx = part.items.findIndex((it) => it.id === newId);
+          if (fromIdx !== -1 && fromIdx !== destIndex) {
+            store.reorderItem(finalPartId, fromIdx, finalPartId, destIndex);
+          }
+        }
+      }
+
+      toast.success(`"${asset.name}" adicionado à programação!`);
+      clearAssetDragData();
+      void store.save();
+      return true;
+    }
+
+    if (payload.type === "song") {
+      const newId = store.addSong(finalPartId, payload.song);
+
+      if (destIndex !== undefined) {
+        const part = store.event?.parts.find((p) => p.id === finalPartId);
+        if (part) {
+          const fromIdx = part.items.findIndex((it) => it.id === newId);
+          if (fromIdx !== -1 && fromIdx !== destIndex) {
+            store.reorderItem(finalPartId, fromIdx, finalPartId, destIndex);
+          }
+        }
+      }
+
+      toast.success(`"${payload.song.title}" adicionada à programação!`);
+      clearAssetDragData();
+      void store.save();
+      return true;
+    }
+
+    clearAssetDragData();
+    return false;
+  }
+
   function handleDropOnItem(
     e: React.DragEvent,
     targetPartId: string,
@@ -296,6 +428,14 @@ export function SetlistSidebar({
     e.preventDefault();
     e.stopPropagation();
 
+    const destIndex = position === "before" ? targetIndex : targetIndex + 1;
+    if (handleDropExternalPayload(e, targetPartId, destIndex)) {
+      dragItemRef.current = null;
+      setDraggedItem(null);
+      setDragOverItem(null);
+      return;
+    }
+
     const source = dragItemRef.current || draggedItem;
     if (!source || source.itemId === targetItemId) {
       dragItemRef.current = null;
@@ -304,18 +444,18 @@ export function SetlistSidebar({
       return;
     }
 
-    let destIndex = targetIndex;
+    let calculatedDestIndex = targetIndex;
     if (source.partId === targetPartId) {
       if (position === "before") {
-        destIndex = source.index < targetIndex ? targetIndex - 1 : targetIndex;
+        calculatedDestIndex = source.index < targetIndex ? targetIndex - 1 : targetIndex;
       } else {
-        destIndex = source.index < targetIndex ? targetIndex : targetIndex + 1;
+        calculatedDestIndex = source.index < targetIndex ? targetIndex : targetIndex + 1;
       }
     } else {
-      destIndex = position === "before" ? targetIndex : targetIndex + 1;
+      calculatedDestIndex = position === "before" ? targetIndex : targetIndex + 1;
     }
 
-    reorderItem(source.partId, source.index, targetPartId, destIndex);
+    reorderItem(source.partId, source.index, targetPartId, calculatedDestIndex);
     dragItemRef.current = null;
     setDraggedItem(null);
     setDragOverItem(null);
@@ -325,6 +465,13 @@ export function SetlistSidebar({
   function handleDropOnEmptyPart(e: React.DragEvent, targetPartId: string) {
     e.preventDefault();
     e.stopPropagation();
+
+    if (handleDropExternalPayload(e, targetPartId)) {
+      dragItemRef.current = null;
+      setDraggedItem(null);
+      setDragOverItem(null);
+      return;
+    }
 
     const source = dragItemRef.current || draggedItem;
     if (!source) return;
@@ -339,6 +486,14 @@ export function SetlistSidebar({
   function handleDropOnPartHeader(e: React.DragEvent, targetPartIdx: number) {
     e.preventDefault();
     e.stopPropagation();
+
+    const targetPart = event?.parts[targetPartIdx];
+    if (targetPart && handleDropExternalPayload(e, targetPart.id)) {
+      dragPartRef.current = null;
+      setDraggedPartIndex(null);
+      setDragOverPartIndex(null);
+      return;
+    }
 
     const srcIdx = dragPartRef.current ?? draggedPartIndex;
     if (srcIdx !== null && srcIdx !== targetPartIdx) {
@@ -428,7 +583,9 @@ export function SetlistSidebar({
 
     setMediaPartId(partId);
     setMediaItemId(null);
-    setMediaInitialKind(kind);
+    if (kind === "image" || kind === "folder" || kind === "video") {
+      setMediaInitialKind(kind);
+    }
     setMediaDialogOpen(true);
   }
 
@@ -590,9 +747,31 @@ export function SetlistSidebar({
       {/* Programação Items List with Background Context Menu */}
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2 space-y-4 scrollbar-gutter-stable">
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              handleDropExternalPayload(e, "");
+            }}
+            className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-2 space-y-4 scrollbar-gutter-stable"
+          >
             {!event || !hasVisibleParts ? (
-              <div className="flex h-72 flex-col items-center justify-center gap-3 p-4 text-center select-none">
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.dataTransfer.dropEffect = "copy";
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleDropExternalPayload(e, "");
+                }}
+                className="flex h-72 flex-col items-center justify-center gap-3 p-4 text-center select-none rounded-xl border border-dashed border-border/60 hover:border-primary/50 transition-colors"
+              >
                 <div className="flex size-12 items-center justify-center rounded-2xl bg-muted/60 border border-border/80 text-muted-foreground shadow-2xs">
                   <Music className="size-6 opacity-60" />
                 </div>
@@ -688,6 +867,15 @@ export function SetlistSidebar({
                 return (
                   <div
                     key={part.id}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "copy";
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDropExternalPayload(e, part.id);
+                    }}
                     className="space-y-1.5 rounded-lg transition-all"
                   >
                     {/* Part Section Header (only for named sections) */}
@@ -709,7 +897,7 @@ export function SetlistSidebar({
                         onDragOver={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          e.dataTransfer.dropEffect = "move";
+                          e.dataTransfer.dropEffect = "copy";
                           if (dragPartRef.current !== null && dragPartRef.current !== partIdx) {
                             setDragOverPartIndex(partIdx);
                           }
@@ -722,7 +910,7 @@ export function SetlistSidebar({
                         onDrop={(e) => {
                           if (dragPartRef.current !== null) {
                             handleDropOnPartHeader(e, partIdx);
-                          } else if (dragItemRef.current) {
+                          } else {
                             handleDropOnEmptyPart(e, part.id);
                           }
                         }}
@@ -836,12 +1024,12 @@ export function SetlistSidebar({
                         onDragOver={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          e.dataTransfer.dropEffect = "move";
+                          e.dataTransfer.dropEffect = "copy";
                         }}
                         onDrop={(e) => handleDropOnEmptyPart(e, part.id)}
                         className="rounded-lg border border-dashed border-border/60 p-3 text-center text-[11px] text-muted-foreground/70"
                       >
-                        Arraste músicas para esta seção
+                        Arraste músicas, versículos ou mídias para cá
                       </div>
                     )}
 
@@ -884,7 +1072,7 @@ export function SetlistSidebar({
                                 onDragOver={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
-                                  e.dataTransfer.dropEffect = "move";
+                                  e.dataTransfer.dropEffect = "copy";
                                   const rect = e.currentTarget.getBoundingClientRect();
                                   const position: "before" | "after" =
                                     e.clientY < rect.top + rect.height / 2 ? "before" : "after";
