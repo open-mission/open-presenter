@@ -18,6 +18,7 @@ import {
   type BibleImportResult,
 } from "./store";
 import { pickBibleFiles } from "./bibleFilePicker";
+import { formatBibleVersionLabel, formatBibleVersionAbbrev } from "./bibleUtils";
 
 export function ManageBibleVersionsDialog({
   open,
@@ -82,10 +83,10 @@ export function ManageBibleVersionsDialog({
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold">
-                      {version.name}
+                      {formatBibleVersionLabel(version)}
                     </p>
                     <p className="truncate font-mono text-[11px] text-muted-foreground">
-                      {version.id} · {version.abbrev}
+                      {formatBibleVersionAbbrev(version)}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">

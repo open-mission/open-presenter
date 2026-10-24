@@ -156,6 +156,13 @@ pub fn list_bible_versions(app: &AppHandle) -> Result<Vec<BibleVersion>, AppErro
         }
 
         // Tenta ler metadados
+        let clean_fallback = stem
+            .strip_prefix("Bibles_")
+            .or_else(|| stem.strip_prefix("bibles_"))
+            .or_else(|| stem.strip_prefix("Bible_"))
+            .unwrap_or(&stem)
+            .to_string();
+
         let name: String = conn
             .query_row(
                 "SELECT value FROM metadata WHERE key = 'name' LIMIT 1",
@@ -164,7 +171,7 @@ pub fn list_bible_versions(app: &AppHandle) -> Result<Vec<BibleVersion>, AppErro
             )
             .optional()
             .unwrap_or(None)
-            .unwrap_or_else(|| stem.clone());
+            .unwrap_or_else(|| clean_fallback.clone());
 
         let abbrev: String = conn
             .query_row(
@@ -174,7 +181,7 @@ pub fn list_bible_versions(app: &AppHandle) -> Result<Vec<BibleVersion>, AppErro
             )
             .optional()
             .unwrap_or(None)
-            .unwrap_or_else(|| stem.clone());
+            .unwrap_or_else(|| clean_fallback.clone());
 
         versions.push(BibleVersion {
             id: stem.clone(),

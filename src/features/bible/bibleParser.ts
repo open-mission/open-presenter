@@ -6,6 +6,7 @@ export interface ParsedBibleReference {
   verse?: number;
   verseEnd?: number;
   raw: string;
+  versionQuery?: string;
 }
 
 interface BookDefinition {
@@ -121,7 +122,8 @@ export function parseBibleReference(input: string): ParsedBibleReference | null 
   // Grupo 2: capítulo
   // Grupo 3: versículo inicial (opcional)
   // Grupo 4: versículo final (opcional, ex: -18)
-  const pattern = /^([1-3iI]{0,3}\s*[a-zA-ZÀ-ÿ]+)\s*(\d+)[\s.:,]*(?:(\d+)(?:\s*-\s*(\d+))?)?$/;
+  // Grupo 5: versão bíblica opcional (ex: "ara", "nvi", "arc")
+  const pattern = /^([1-3iI]{0,3}\s*[a-zA-ZÀ-ÿ]+)\s*(\d+)[\s.:,]*(?:(\d+)(?:\s*-\s*(\d+))?)?(?:\s+([a-zA-Z0-9_\-]+))?$/;
   const match = clean.match(pattern);
 
   if (!match) {
@@ -133,6 +135,7 @@ export function parseBibleReference(input: string): ParsedBibleReference | null 
   const chapter = parseInt(match[2], 10);
   const verse = match[3] ? parseInt(match[3], 10) : undefined;
   const verseEnd = match[4] ? parseInt(match[4], 10) : undefined;
+  const versionQuery = match[5] ? match[5].trim() : undefined;
 
   const normalizedBook = removeAccents(rawBook).replace(/\s+/g, " ");
   const book = ALIAS_MAP.get(normalizedBook);
@@ -153,6 +156,7 @@ export function parseBibleReference(input: string): ParsedBibleReference | null 
       verse,
       verseEnd,
       raw: clean,
+      versionQuery,
     };
   }
 
@@ -164,5 +168,6 @@ export function parseBibleReference(input: string): ParsedBibleReference | null 
     verse,
     verseEnd,
     raw: clean,
+    versionQuery,
   };
 }

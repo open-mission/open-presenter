@@ -18,7 +18,9 @@ import {
   Sparkles,
   Upload,
   X,
+  Plus,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PreviewZoomControls } from "@/components/PreviewZoomControls";
@@ -42,6 +44,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { clearAssetDragData, setAssetDragData } from "@/features/media-library/dnd";
+import { addItemToActiveSetlist } from "@/features/command-palette/addToSetlist";
+import { formatBibleVersionLabel } from "./bibleUtils";
 import { useBibleStore } from "./store";
 import { usePresentationStore } from "../presentation/store";
 import {
@@ -51,8 +63,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CompareModal } from "./CompareModal";
-import { BibleCommandPalette } from "./BibleCommandPalette";
-import { shouldOpenPaletteOnKey } from "./bibleShortcuts";
 import { ManageBibleVersionsDialog } from "./ManageBibleVersionsDialog";
 import { pickBibleFiles } from "./bibleFilePicker";
 
@@ -119,19 +129,113 @@ export function BiblePage() {
 
   const [quickRefInput, setQuickRefInput] = useState("");
   const [wordSearchInput, setWordSearchInput] = useState("");
-  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [paletteInitialQuery, setPaletteInitialQuery] = useState("");
   const [isManageVersionsOpen, setIsManageVersionsOpen] = useState(false);
+  const [selectedVerseNums, setSelectedVerseNums] = useState<number[]>([]);
   const versesContainerRef = useRef<HTMLDivElement>(null);
-
-  function openPalette(initial = "") {
-    setPaletteInitialQuery(initial);
-    setIsCommandPaletteOpen(true);
-  }
 
   useEffect(() => {
     void loadInitial();
   }, [loadInitial]);
+
+  useEffect(() => {
+    setSelectedVerseNums(selectedVerseNum ? [selectedVerseNum] : []);
+  }, [activeBookId, activeChapter]);
+
+  const activeBook = useMemo(
+    () => books.find((b) => b.id === activeBookId),
+    [books, activeBookId],
+  );
+
+  const handleVerseClick = (e: React.MouseEvent, verseNum: number, partIndex = 0) => {
+    if (
+      document.activeElement instanceof HTMLElement &&
+      (document.activeElement.tagName === "INPUT" ||
+        document.activeElement.tagName === "TEXTAREA")
+    ) {
+      document.activeElement.blur();
+    }
+
+    if (e.metaKey || e.ctrlKey) {
+      setSelectedVerseNums((prev) => {
+        const exists = prev.includes(verseNum);
+        if (exists) {
+          const next = prev.filter((v) => v !== verseNum);
+          return next;
+        }
+        return [...prev, verseNum].sort((a, b) => a - b);
+      });
+      selectVerse(verseNum, partIndex);
+    } else if (e.shiftKey && selectedVerseNums.length > 0) {
+      const lastNum = selectedVerseNums[selectedVerseNums.length - 1];
+      const min = Math.min(lastNum, verseNum);
+      const max = Math.max(lastNum, verseNum);
+      const range: number[] = [];
+      for (let i = min; i <= max; i++) {
+        range.push(i);
+      }
+      setSelectedVerseNums(range);
+      selectVerse(verseNum, partIndex);
+    } else {
+      setSelectedVerseNums([verseNum]);
+      selectVerse(verseNum, partIndex);
+    }
+  };
+
+  const handleAddVersesToSetlist = (verseNumsToAdd?: number[]) => {
+    const nums =
+      verseNumsToAdd && verseNumsToAdd.length > 0
+        ? verseNumsToAdd
+        : selectedVerseNums.length > 0
+        ? selectedVerseNums
+        : selectedVerseNum
+        ? [selectedVerseNum]
+        : [];
+
+    if (nums.length === 0) {
+      toast.error("Nenhum versículo selecionado.");
+      return;
+    }
+
+    const sorted = [...nums].sort((a, b) => a - b);
+    const bookName = activeBook?.name ?? `Livro ${activeBookId}`;
+
+    for (const vNum of sorted) {
+      addItemToActiveSetlist({
+        scripture: {
+          versionId: activeVersionId,
+          bookId: activeBookId,
+          bookName,
+          chapter: activeChapter,
+          verse: vNum,
+          part: 0,
+          totalParts: 1,
+        },
+      });
+    }
+
+    const rangeLabel =
+      sorted.length > 1
+        ? `${bookName} ${activeChapter}:${sorted[0]}–${sorted[sorted.length - 1]}`
+        : `${bookName} ${activeChapter}:${sorted[0]}`;
+    toast.success(`"${rangeLabel}" adicionado à programação!`);
+  };
+
+  const handleVerseDragStart = (e: React.DragEvent, verseNum: number) => {
+    const bookName = activeBook?.name ?? `Livro ${activeBookId}`;
+    const versesToDrag =
+      selectedVerseNums.includes(verseNum) && selectedVerseNums.length > 1
+        ? [...selectedVerseNums].sort((a, b) => a - b)
+        : [verseNum];
+
+    setAssetDragData(e, {
+      type: "scripture",
+      versionId: activeVersionId,
+      bookId: activeBookId,
+      bookName,
+      chapter: activeChapter,
+      verses: versesToDrag,
+    });
+  };
 
   // Filtra livros por testamento e texto
   const filteredBooks = useMemo(() => {
@@ -146,11 +250,6 @@ export function BiblePage() {
       );
     });
   }, [books, testamentFilter, bookFilter]);
-
-  const activeBook = useMemo(
-    () => books.find((b) => b.id === activeBookId),
-    [books, activeBookId],
-  );
 
   const verseCards = useMemo(() => {
     if (versesView === "list" || !activeBook || !activeVersionId) return [];
@@ -206,14 +305,6 @@ export function BiblePage() {
   // Teclas de atalho para selecionar e apresentar versículos
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // Abre Command Palette com Cmd+K (Mac) ou Ctrl+K (Windows/Linux)
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        if (!isCommandPaletteOpen) openPalette();
-        else setIsCommandPaletteOpen(false);
-        return;
-      }
-
       const target = e.target as HTMLElement | null;
       if (
         target?.tagName === "INPUT" ||
@@ -221,32 +312,6 @@ export function BiblePage() {
         target?.isContentEditable ||
         target?.closest('[role="dialog"]')
       ) {
-        return;
-      }
-
-      // Se a paleta já está aberta, não captura mais nada aqui
-      if (isCommandPaletteOpen) {
-        return;
-      }
-
-      // Digitação direta de um caractere abre a paleta pré-preenchida,
-      // respeitando a precedência dos atalhos globais (B/C/F) com apresentação ativa
-      const live = usePresentationStore.getState().live;
-      const presentationActive = live.content.kind !== "blank";
-      if (
-        shouldOpenPaletteOnKey(
-          {
-            key: e.key,
-            metaKey: e.metaKey,
-            ctrlKey: e.ctrlKey,
-            altKey: e.altKey,
-          },
-          presentationActive,
-        )
-      ) {
-        e.preventDefault();
-        e.stopPropagation();
-        openPalette(e.key);
         return;
       }
 
@@ -319,7 +384,6 @@ export function BiblePage() {
     isCurrentLiveScripture,
     isSearching,
     clearSearch,
-    isCommandPaletteOpen,
   ]);
 
   async function handleImport() {
@@ -358,13 +422,17 @@ export function BiblePage() {
               value={activeVersionId}
               onValueChange={(val) => void setActiveVersion(val)}
             >
-              <SelectTrigger className="w-[180px] h-9 text-xs font-semibold cursor-pointer">
-                <SelectValue placeholder="Selecione a versão" />
+              <SelectTrigger className="w-[200px] h-9 text-xs font-semibold cursor-pointer">
+                <SelectValue placeholder="Selecione a versão">
+                  {versions.find((v) => v.id === activeVersionId)
+                    ? formatBibleVersionLabel(versions.find((v) => v.id === activeVersionId)!)
+                    : undefined}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {versions.map((v) => (
                   <SelectItem key={v.id} value={v.id} className="text-xs">
-                    {v.name} ({v.id})
+                    {formatBibleVersionLabel(v)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -421,21 +489,6 @@ export function BiblePage() {
           </div>
         </form>
 
-        {/* Botão Command Palette (⌘K) */}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => openPalette()}
-          className="h-9 px-3 gap-2 text-xs font-semibold cursor-pointer border-border/70 hover:border-primary/60 bg-background shrink-0"
-          title="Abrir Command Palette para buscar referências bíblicas (⌘K / Ctrl+K)"
-        >
-          <Sparkles className="size-3.5 text-primary" />
-          <span className="hidden lg:inline">Paleta de Referências</span>
-          <kbd className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border/70 text-muted-foreground">
-            ⌘K
-          </kbd>
-        </Button>
 
         {/* Campo Direito: Pesquisa por Palavras */}
         <form onSubmit={handleWordSearchSubmit} className="flex-1 max-w-xs">
@@ -823,56 +876,105 @@ export function BiblePage() {
                     ({ verse, partIndex, totalParts, slide, theme }) => {
                       const isLive =
                         isCurrentLiveScripture && liveVerseKey === slide.id;
+                      const isMultiSelected = selectedVerseNums.includes(verse.verse);
                       const isSelected =
-                        selectedVerseNum === verse.verse &&
-                        activePartIndex === partIndex;
+                        (selectedVerseNum === verse.verse &&
+                          activePartIndex === partIndex) ||
+                        isMultiSelected;
+
                       return (
-                        <button
-                          key={slide.id}
-                          type="button"
-                          data-verse={verse.verse}
-                          onClick={() => selectVerse(verse.verse, partIndex)}
-                          onDoubleClick={() =>
-                            void presentVerse(
-                              verse,
-                              undefined,
-                              partIndex,
-                            )
-                          }
-                          className={cn(
-                            "group flex flex-col gap-1.5 rounded-xl border p-2 text-left transition-all",
-                            isLive
-                              ? "border-emerald-500 bg-emerald-500/5 ring-2 ring-emerald-500/40"
-                              : isSelected
-                              ? "border-primary bg-primary/10 ring-2 ring-primary/30"
-                              : "border-border/80 bg-card/70 hover:border-primary/50",
-                          )}
-                        >
-                          {versesView === "slides" ? (
-                            <SlideThumbnail
-                              content={slide}
-                              theme={theme}
-                              className="pointer-events-none"
-                            />
-                          ) : (
-                            <p className="min-h-16 whitespace-pre-line text-[11px] leading-snug text-foreground/90">
-                              {slide.lines.join("\n")}
-                            </p>
-                          )}
-                          <div className="flex items-center justify-between gap-1 px-0.5">
-                            <span className="truncate text-[10px] font-semibold text-primary">
-                              {slide.section}
-                            </span>
-                            {totalParts > 1 && (
-                              <Badge
-                                variant="outline"
-                                className="h-4 px-1 text-[9px]"
-                              >
-                                {partIndex + 1}/{totalParts}
-                              </Badge>
-                            )}
-                          </div>
-                        </button>
+                        <ContextMenu key={slide.id}>
+                          <ContextMenuTrigger asChild>
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              draggable
+                              onDragStart={(e) => handleVerseDragStart(e, verse.verse)}
+                              onDragEnd={() => clearAssetDragData()}
+                              data-verse={verse.verse}
+                              onClick={(e) => handleVerseClick(e, verse.verse, partIndex)}
+                              onDoubleClick={() =>
+                                void presentVerse(
+                                  verse,
+                                  undefined,
+                                  partIndex,
+                                )
+                              }
+                              className={cn(
+                                "group flex flex-col gap-1.5 rounded-xl border p-2 text-left transition-all cursor-pointer select-none",
+                                isLive
+                                  ? "border-emerald-500 bg-emerald-500/5 ring-2 ring-emerald-500/40"
+                                  : isMultiSelected
+                                  ? "border-primary bg-primary/15 ring-2 ring-primary/50 shadow-xs"
+                                  : isSelected
+                                  ? "border-primary bg-primary/10 ring-2 ring-primary/30"
+                                  : "border-border/80 bg-card/70 hover:border-primary/50",
+                              )}
+                              title="Arraste para a Programação · Cmd/Ctrl+Clique: selecionar múltiplos"
+                            >
+                              {versesView === "slides" ? (
+                                <SlideThumbnail
+                                  content={slide}
+                                  theme={theme}
+                                  className="pointer-events-none"
+                                />
+                              ) : (
+                                <p className="min-h-16 whitespace-pre-line text-[11px] leading-snug text-foreground/90">
+                                  {slide.lines.join("\n")}
+                                </p>
+                              )}
+                              <div className="flex items-center justify-between gap-1 px-0.5">
+                                <span className="truncate text-[10px] font-semibold text-primary">
+                                  {slide.section}
+                                </span>
+                                {totalParts > 1 && (
+                                  <Badge
+                                    variant="outline"
+                                    className="h-4 px-1 text-[9px]"
+                                  >
+                                    {partIndex + 1}/{totalParts}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </ContextMenuTrigger>
+
+                          <ContextMenuContent className="w-56 text-xs">
+                            <ContextMenuItem
+                              onSelect={() => {
+                                const targetNums = selectedVerseNums.includes(verse.verse)
+                                  ? selectedVerseNums
+                                  : [verse.verse];
+                                handleAddVersesToSetlist(targetNums);
+                              }}
+                            >
+                              <Plus className="size-3.5 mr-2 text-primary" />
+                              <span>
+                                {selectedVerseNums.length > 1 && selectedVerseNums.includes(verse.verse)
+                                  ? `Adicionar ${selectedVerseNums.length} versículos ao Setlist`
+                                  : "Adicionar à Programação"}
+                              </span>
+                            </ContextMenuItem>
+                            <ContextMenuItem
+                              onSelect={() =>
+                                void presentVerse(verse, undefined, partIndex)
+                              }
+                            >
+                              <Play className="size-3.5 mr-2 text-emerald-500" />
+                              <span>Projetar ao Vivo (Enter)</span>
+                            </ContextMenuItem>
+                            <ContextMenuSeparator />
+                            <ContextMenuItem
+                              onSelect={() => {
+                                selectVerse(verse.verse);
+                                void openCompare(verse.verse);
+                              }}
+                            >
+                              <Columns2 className="size-3.5 mr-2 text-muted-foreground" />
+                              <span>Comparar Versões</span>
+                            </ContextMenuItem>
+                          </ContextMenuContent>
+                        </ContextMenu>
                       );
                     },
                   )}
@@ -888,148 +990,222 @@ export function BiblePage() {
                         (liveVerseKey === baseVerseKey ||
                           liveVerseKey.startsWith(`${baseVerseKey}#`)),
                     ) && isCurrentLiveScripture;
-                  const isSelected = selectedVerseNum === verse.verse;
+                  const isMultiSelected = selectedVerseNums.includes(verse.verse);
+                  const isSelected = selectedVerseNum === verse.verse || isMultiSelected;
 
                   return (
-                    <div
-                      key={verse.id || verse.verse}
-                      id={`verse-row-${verse.verse}`}
-                      data-verse={verse.verse}
-                      onClick={() => {
-                        if (
-                          document.activeElement instanceof HTMLElement &&
-                          (document.activeElement.tagName === "INPUT" ||
-                            document.activeElement.tagName === "TEXTAREA")
-                        ) {
-                          document.activeElement.blur();
-                        }
-                        selectVerse(verse.verse, 0);
-                      }}
-                      onDoubleClick={() => {
-                        selectVerse(verse.verse, 0);
-                        void presentVerse(verse, undefined, 0);
-                      }}
-                      className={`group relative flex items-start gap-3 rounded-xl border p-3.5 transition-all cursor-pointer ${
-                        isLiveThisVerse
-                          ? "border-emerald-500 bg-emerald-500/10 shadow-sm ring-1 ring-emerald-500"
-                          : isSelected
-                          ? "border-primary/80 bg-primary/5 shadow-xs"
-                          : "border-border/60 bg-card hover:border-border hover:bg-muted/30"
-                      }`}
-                    >
-                      {/* Número do Versículo */}
-                      <span
-                        className={`flex size-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition-all ${
-                          isLiveThisVerse
-                            ? "bg-emerald-500 text-black font-extrabold shadow-xs"
-                            : isSelected
-                            ? "bg-primary text-primary-foreground font-bold"
-                            : "bg-muted text-muted-foreground group-hover:bg-muted/80 group-hover:text-foreground"
-                        }`}
-                      >
-                        {verse.verse}
-                      </span>
-
-                      {/* Texto do Versículo e Partes */}
-                      <div className="flex-1 pr-16">
-                        <p
-                          className={`text-sm leading-relaxed font-sans ${
+                    <ContextMenu key={verse.id || verse.verse}>
+                      <ContextMenuTrigger asChild>
+                        <div
+                          draggable
+                          onDragStart={(e) => handleVerseDragStart(e, verse.verse)}
+                          onDragEnd={() => clearAssetDragData()}
+                          id={`verse-row-${verse.verse}`}
+                          data-verse={verse.verse}
+                          onClick={(e) => handleVerseClick(e, verse.verse, 0)}
+                          onDoubleClick={() => {
+                            selectVerse(verse.verse, 0);
+                            void presentVerse(verse, undefined, 0);
+                          }}
+                          className={`group relative flex items-start gap-3 rounded-xl border p-3.5 transition-all cursor-pointer select-none ${
                             isLiveThisVerse
-                              ? "font-semibold text-foreground"
-                              : "text-foreground/90"
+                              ? "border-emerald-500 bg-emerald-500/10 shadow-sm ring-1 ring-emerald-500"
+                              : isMultiSelected
+                              ? "border-primary bg-primary/10 ring-2 ring-primary/40 shadow-xs"
+                              : isSelected
+                              ? "border-primary/80 bg-primary/5 shadow-xs"
+                              : "border-border/60 bg-card hover:border-border hover:bg-muted/30"
                           }`}
+                          title="Arraste para a Programação · Cmd/Ctrl+Clique: selecionar múltiplos · Shift+Clique: intervalo"
                         >
-                          {verse.text}
-                        </p>
-
-                        {/* Partes do versículo quando dividido */}
-                        {isSplit && (
-                          <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-border/40">
-                            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
-                              Slides ({parts.length}):
-                            </span>
-                            {parts.map((partText, pIdx) => {
-                              const partNum = pIdx + 1;
-                              const partKey = `${baseVerseKey}#${partNum}`;
-                              const isPartLive =
-                                liveVerseKey === partKey && isCurrentLiveScripture;
-                              const isPartSelected =
-                                isSelected && activePartIndex === pIdx;
-
-                              return (
-                                <button
-                                  key={pIdx}
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    selectVerse(verse.verse, pIdx);
-                                  }}
-                                  onDoubleClick={(e) => {
-                                    e.stopPropagation();
-                                    selectVerse(verse.verse, pIdx);
-                                    void presentVerse(verse, undefined, pIdx);
-                                  }}
-                                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
-                                    isPartLive
-                                      ? "bg-emerald-500 text-black shadow-xs ring-1 ring-emerald-500 font-extrabold"
-                                      : isPartSelected
-                                      ? "bg-primary text-primary-foreground shadow-xs"
-                                      : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40"
-                                  }`}
-                                  title={`Parte ${partNum}/${parts.length}: "${partText.slice(0, 50)}..." (Duplo clique para projetar)`}
-                                >
-                                  <span>{partNum}/{parts.length}</span>
-                                  {isPartLive && <Radio className="size-2.5 animate-pulse" />}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Badges e Ações na Direita */}
-                      <div className="absolute right-3 top-3 flex items-center gap-1.5">
-                        {isLiveThisVerse ? (
-                          <span className="flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 animate-pulse">
-                            <Radio className="size-3" />
-                            AO VIVO{isSplit ? ` (${activePartIndex + 1}/${parts.length})` : ""}
-                          </span>
-                        ) : isSelected ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void presentVerse(verse, undefined, activePartIndex);
-                            }}
-                            className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer font-semibold shadow-xs flex items-center gap-1"
-                            title="Projetar versículo agora (ou pressione Enter)"
+                          {/* Número do Versículo */}
+                          <span
+                            className={`flex size-7 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition-all ${
+                              isLiveThisVerse
+                                ? "bg-emerald-500 text-black font-extrabold shadow-xs"
+                                : isMultiSelected
+                                ? "bg-primary text-primary-foreground font-bold"
+                                : isSelected
+                                ? "bg-primary text-primary-foreground font-bold"
+                                : "bg-muted text-muted-foreground group-hover:bg-muted/80 group-hover:text-foreground"
+                            }`}
                           >
-                            <Play className="size-2.5 fill-current" />
-                            Projetar (Enter)
-                          </Button>
-                        ) : null}
+                            {verse.verse}
+                          </span>
 
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          {/* Texto do Versículo e Partes */}
+                          <div className="flex-1 pr-16">
+                            <p
+                              className={`text-sm leading-relaxed font-sans ${
+                                isLiveThisVerse
+                                  ? "font-semibold text-foreground"
+                                  : "text-foreground/90"
+                              }`}
+                            >
+                              {verse.text}
+                            </p>
+
+                            {/* Partes do versículo quando dividido */}
+                            {isSplit && (
+                              <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-border/40">
+                                <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">
+                                  Slides ({parts.length}):
+                                </span>
+                                {parts.map((partText, pIdx) => {
+                                  const partNum = pIdx + 1;
+                                  const partKey = `${baseVerseKey}#${partNum}`;
+                                  const isPartLive =
+                                    liveVerseKey === partKey && isCurrentLiveScripture;
+                                  const isPartSelected =
+                                    isSelected && activePartIndex === pIdx;
+
+                                  return (
+                                    <button
+                                      key={pIdx}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        selectVerse(verse.verse, pIdx);
+                                      }}
+                                      onDoubleClick={(e) => {
+                                        e.stopPropagation();
+                                        selectVerse(verse.verse, pIdx);
+                                        void presentVerse(verse, undefined, pIdx);
+                                      }}
+                                      className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                                        isPartLive
+                                          ? "bg-emerald-500 text-black shadow-xs ring-1 ring-emerald-500 font-extrabold"
+                                          : isPartSelected
+                                          ? "bg-primary text-primary-foreground shadow-xs"
+                                          : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40"
+                                      }`}
+                                      title={`Parte ${partNum}/${parts.length}: "${partText.slice(0, 50)}..." (Duplo clique para projetar)`}
+                                    >
+                                      <span>{partNum}/{parts.length}</span>
+                                      {isPartLive && <Radio className="size-2.5 animate-pulse" />}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Badges e Ações na Direita */}
+                          <div className="absolute right-3 top-3 flex items-center gap-1.5">
+                            {isLiveThisVerse ? (
+                              <span className="flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 animate-pulse">
+                                <Radio className="size-3" />
+                                AO VIVO{isSplit ? ` (${activePartIndex + 1}/${parts.length})` : ""}
+                              </span>
+                            ) : isSelected ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void presentVerse(verse, undefined, activePartIndex);
+                                }}
+                                className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer font-semibold shadow-xs flex items-center gap-1"
+                                title="Projetar versículo agora (ou pressione Enter)"
+                              >
+                                <Play className="size-2.5 fill-current" />
+                                Projetar (Enter)
+                              </Button>
+                            ) : null}
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                selectVerse(verse.verse);
+                                void openCompare(verse.verse);
+                              }}
+                              className="size-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground cursor-pointer"
+                              title="Comparar versões deste versículo"
+                            >
+                              <Columns2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      </ContextMenuTrigger>
+
+                      <ContextMenuContent className="w-56 text-xs">
+                        <ContextMenuItem
+                          onSelect={() => {
+                            const targetNums = selectedVerseNums.includes(verse.verse)
+                              ? selectedVerseNums
+                              : [verse.verse];
+                            handleAddVersesToSetlist(targetNums);
+                          }}
+                        >
+                          <Plus className="size-3.5 mr-2 text-primary" />
+                          <span>
+                            {selectedVerseNums.length > 1 && selectedVerseNums.includes(verse.verse)
+                              ? `Adicionar ${selectedVerseNums.length} versículos ao Setlist`
+                              : "Adicionar à Programação"}
+                          </span>
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          onSelect={() => {
+                            selectVerse(verse.verse, 0);
+                            void presentVerse(verse, undefined, 0);
+                          }}
+                        >
+                          <Play className="size-3.5 mr-2 text-emerald-500" />
+                          <span>Projetar ao Vivo (Enter)</span>
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                          onSelect={() => {
                             selectVerse(verse.verse);
                             void openCompare(verse.verse);
                           }}
-                          className="size-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground cursor-pointer"
-                          title="Comparar versões deste versículo"
                         >
-                          <Columns2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </div>
+                          <Columns2 className="size-3.5 mr-2 text-muted-foreground" />
+                          <span>Comparar Versões</span>
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
                   );
                 })
               )}
             </div>
+
+            {/* Barra de Múltiplos Versículos Selecionados */}
+            {selectedVerseNums.length > 1 && (
+              <div className="flex items-center justify-between gap-3 px-4 py-2 bg-primary/10 border-t border-primary/30 shrink-0">
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-primary text-primary-foreground font-semibold text-xs">
+                    {selectedVerseNums.length} versículos selecionados
+                  </Badge>
+                  <span className="text-xs font-medium text-foreground">
+                    {activeBook?.name} {activeChapter}:{Math.min(...selectedVerseNums)}–{Math.max(...selectedVerseNums)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setSelectedVerseNums([])}
+                    className="h-7 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                  >
+                    Limpar seleção
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => handleAddVersesToSetlist()}
+                    className="h-7 text-xs font-semibold gap-1 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
+                  >
+                    <Plus className="size-3" />
+                    Adicionar ao Setlist
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Bottom Controls Bar: Navegação Rápida entre versículos */}
             {verses.length > 0 && (
@@ -1070,6 +1246,18 @@ export function BiblePage() {
                     </span>
                   )}
 
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAddVersesToSetlist()}
+                    className="h-8 text-xs font-semibold cursor-pointer gap-1"
+                    title="Adicionar versículo(s) à programação ativa"
+                  >
+                    <Plus className="size-3" />
+                    + Setlist
+                  </Button>
+
                   {selectedVerseNum &&
                     (!isCurrentLiveScripture ||
                       liveVerseKey !==
@@ -1098,15 +1286,6 @@ export function BiblePage() {
         onOpenChange={setIsManageVersionsOpen}
       />
 
-      {/* Command Palette de Referências Bíblicas (⌘K / Ctrl+K) */}
-      <BibleCommandPalette
-        open={isCommandPaletteOpen}
-        onOpenChange={(open) => {
-          setIsCommandPaletteOpen(open);
-          if (!open) setPaletteInitialQuery("");
-        }}
-        initialQuery={paletteInitialQuery}
-      />
     </div>
   );
 }

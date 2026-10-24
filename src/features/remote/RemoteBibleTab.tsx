@@ -19,6 +19,7 @@ import type {
   LiveSlide,
 } from "@/core/types";
 import { parseBibleReference } from "../bible/bibleParser";
+import { formatBibleVersionLabel } from "../bible/bibleUtils";
 import { buildBiblePresentationPayload } from "@/core/lib/biblePresentation";
 import { splitVerseText } from "@/core/lib/verseSplitter";
 
@@ -380,7 +381,7 @@ export function RemoteBibleTab({ token, live, onPost }: RemoteBibleTabProps) {
             >
               {versions.map((v) => (
                 <option key={v.id} value={v.id}>
-                  {v.name} ({v.id})
+                  {formatBibleVersionLabel(v)}
                 </option>
               ))}
             </select>
