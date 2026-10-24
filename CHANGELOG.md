@@ -5,6 +5,24 @@ Todas as mudanças relevantes do Open Presenter são documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.5.1] - 2026-10-24
+
+Correção crítica de inicialização no Windows 10 para processos ocultos no Gerenciador de Tarefas, suporte a instância única, contenção de erros com ErrorBoundary e barras de rolagem nativas na busca de músicas e no painel de monitores.
+
+### Corrigido
+
+#### Desktop e Windows 10
+- Corrigida a inicialização do WebView2 no Windows 10: a janela agora é criada com `visible: true` e exibida incondicionalmente, eliminando o cenário em que o processo ficava em segundo plano no Gerenciador de Tarefas sem abrir a interface.
+- Bloqueada a persistência de coordenadas minimizadas (`-32000, -32000`) no banco de dados SQLite, evitando que o app abrisse fora dos limites visíveis dos monitores.
+- Implementado plugin de instância única (`tauri-plugin-single-instance`): clicar no atalho do aplicativo com uma instância já em execução agora desminimiza, exibe e foca a janela existente, impedindo acúmulo de processos concorrentes e conflitos de porta.
+- Proteção contra sequestro de tela em monitor único: saídas de projeção configuradas para monitores externos ausentes não abrem mais em tela cheia sobre a tela principal do operador.
+- Adicionado `ErrorBoundary` global no React para capturar exceções de renderização e oferecer botões de recarga e restauração em vez de tela preta.
+
+#### Interface e Rolagem
+- Adicionada rolagem nativa com barra visível e responsiva (`overflow-y-auto` e `[scrollbar-gutter:stable]`) na janela de busca de letras na internet (`OnlineLyricsDialog`).
+- Corrigido o container de abas inferiores do painel de monitores e saídas (`DisplaysTabsPanel`), permitindo rolagem fluida em todas as 7 abas de configuração de saídas (*Hardware*, *Cor*, *Plano de Fundo*, *Modelo Padrão*, *Camadas*, *Prévia* e *Palco & Relógio*).
+- Adicionada rolagem com `min-h-0` na barra lateral de saídas (`DisplaysSidebar`) e rolagem nativa estilizada na aba de Saídas das Preferências (`PreferencesView`).
+
 ## [0.5.0] - 2026-10-24
 
 Nova interface com Multiview de Previews, Paleta de Comandos Global (Cmd+K), controles de mídia integrados, abas de Avisos e Timers, integração direta da Bíblia no painel de mídia e arrastar e soltar universal para a programação.

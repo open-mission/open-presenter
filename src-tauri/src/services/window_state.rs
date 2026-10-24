@@ -66,8 +66,16 @@ fn monitor_rects(window: &WebviewWindow) -> Vec<MonitorRect> {
 }
 
 fn is_rect_usable(window: &WebviewWindow, rect: &WindowRect) -> bool {
+    // Rejeita coordenadas aberrantes (ex.: janela minimizada no Windows com x/y = -32000)
+    // ou dimensões insuficientes para exibição.
+    if rect.x <= -10000 || rect.y <= -10000 || rect.w < 300 || rect.h < 200 {
+        return false;
+    }
     let monitors = monitor_rects(window);
-    monitors.is_empty() || monitors.iter().any(|m| rects_intersect(rect, m))
+    if monitors.is_empty() {
+        return rect.x >= 0 && rect.y >= 0;
+    }
+    monitors.iter().any(|m| rects_intersect(rect, m))
 }
 
 fn primary_fallback(window: &WebviewWindow) -> Option<WindowRect> {
@@ -119,17 +127,22 @@ pub fn save_geometry(window: &Window) {
     let Some(main) = window.app_handle().get_webview_window("main") else {
         return;
     };
-    if main.is_maximized().unwrap_or(false) {
+    if main.is_maximized().unwrap_or(false) || main.is_minimized().unwrap_or(false) {
         return;
     }
     if let Some(rect) = current_rect(&main) {
+        if rect.x <= -10000 || rect.y <= -10000 || rect.w < 300 || rect.h < 200 {
+            return;
+        }
         let _ = write_rect(&main.app_handle(), &rect);
     }
 }
 
 pub fn apply_startup_geometry(window: &WebviewWindow) {
     if crate::commands::preferences::start_maximized(window.app_handle()) {
+        let _ = window.unminimize();
         let _ = window.maximize();
+        let _ = window.show();
         let _ = window.set_focus();
         return;
     }
@@ -140,13 +153,17 @@ pub fn apply_startup_geometry(window: &WebviewWindow) {
 
     match restored {
         Some(rect) => {
-            let _ = window.unmaximize();
+            let _ = window.unminimize();
             let _ = window.set_size(PhysicalSize::new(rect.w, rect.h));
             let _ = window.set_position(PhysicalPosition::new(rect.x, rect.y));
+            let _ = window.show();
+            let _ = window.set_focus();
             let _ = write_rect(window.app_handle(), &rect);
         }
         None => {
+            let _ = window.unminimize();
             let _ = window.center();
+            let _ = window.show();
             let _ = window.set_focus();
         }
     }
@@ -214,5 +231,17 @@ mod tests {
         assert_eq!(big.h, 900);
         assert_eq!(big.x, 100 + 260);
         assert_eq!(big.y, 50 + 90);
+    }
+
+    #[test]
+    fn rejeita_geometria_minimizada_ou_invalida() {
+        let min_win = WindowRect {
+            x: -32000,
+            y: -32000,
+            w: 160,
+            h: 28,
+        };
+        // Coordenadas extremas de janela minimizada no Windows
+        assert!(min_win.x <= -10000 || min_win.y <= -10000 || min_win.w < 300 || min_win.h < 200);
     }
 }

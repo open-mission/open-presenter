@@ -107,7 +107,7 @@ export function DisplaysCanvasPreview({ output }: DisplaysCanvasPreviewProps) {
   }, [activeTheme, look]);
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-6 bg-zinc-950/40 overflow-hidden relative select-none">
+    <div className="flex-1 min-h-0 flex flex-col items-center justify-center p-6 bg-zinc-950/40 overflow-hidden relative select-none">
       {/* Visual Canvas Framing */}
       <div className="w-full max-w-xl max-h-[380px] flex flex-col items-center justify-center relative">
         <div

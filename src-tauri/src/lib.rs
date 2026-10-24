@@ -24,6 +24,13 @@ pub fn run() {
         .init();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -402,17 +409,19 @@ pub fn run() {
 
             if let Some(window) = app.get_webview_window("main") {
                 crate::services::window_state::apply_startup_geometry(&window);
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
             }
 
             let timeout_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
                 if let Some(window) = timeout_handle.get_webview_window("main") {
-                    if !window.is_visible().unwrap_or(false) {
-                        crate::services::window_state::apply_startup_geometry(&window);
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
+                    crate::services::window_state::apply_startup_geometry(&window);
+                    let _ = window.unminimize();
+                    let _ = window.show();
+                    let _ = window.set_focus();
                 }
             });
 

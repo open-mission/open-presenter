@@ -6,7 +6,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSongsStore } from "./store";
 
 const PROVIDER_FILTERS = [
@@ -64,7 +63,7 @@ export function OnlineLyricsDialog() {
       {onlineOpen && (
         <DialogContent
           aria-describedby={undefined}
-          className="sm:max-w-xl max-h-[85vh] flex flex-col overflow-hidden gap-3"
+          className="sm:max-w-xl max-h-[90vh] flex flex-col min-h-0 overflow-hidden gap-3"
         >
           <DialogHeader className="pb-1">
             <DialogTitle>Buscar letra na internet</DialogTitle>
@@ -131,8 +130,8 @@ export function OnlineLyricsDialog() {
             )}
 
           {!onlineLoading && onlineError === null && onlineResults.length > 0 && (
-            <ScrollArea className="max-h-[50vh] w-full min-w-0">
-              <div className="flex flex-col gap-1.5 pr-2.5 w-full min-w-0">
+            <div className="flex-1 min-h-0 max-h-[55vh] overflow-y-auto pr-1.5 space-y-1.5 [scrollbar-gutter:stable]">
+              <div className="flex flex-col gap-1.5 w-full min-w-0">
                 {onlineResults.map((hit, index) => (
                   <Button
                     key={`${hit.trackName}-${hit.artistName}-${hit.provider}-${index}`}
@@ -155,7 +154,7 @@ export function OnlineLyricsDialog() {
                   </Button>
                 ))}
               </div>
-            </ScrollArea>
+            </div>
           )}
 
           <div className="pt-2 border-t border-border/40 text-[11px] text-muted-foreground flex items-center justify-between">

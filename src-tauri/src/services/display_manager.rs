@@ -177,7 +177,14 @@ fn pick_monitor(
             return Some((index, monitors[index].clone()));
         }
     }
-    first_non_primary(monitors, primary).or_else(|| monitors.first().cloned().map(|m| (0, m)))
+    // Fallback: prefere monitor secundário. Se houver apenas 1 monitor (a tela principal do operador),
+    // e a saída estava vinculada a um monitor externo que não existe mais, não sequestra a tela principal.
+    let fallback = first_non_primary(monitors, primary);
+    if fallback.is_some() || (monitor_id.is_none() && monitor_label.is_none()) {
+        fallback.or_else(|| monitors.first().cloned().map(|m| (0, m)))
+    } else {
+        None
+    }
 }
 
 fn first_non_primary(
@@ -546,6 +553,11 @@ pub async fn open_native_output(
         monitor_label.as_deref(),
     );
     let chosen_monitor = chosen.as_ref().map(|(_, monitor)| monitor.clone());
+
+    if chosen_monitor.is_none() && (monitor_id.is_some() || monitor_label.is_some()) {
+        tracing::warn!("monitor configurado não encontrado e nenhum secundário disponível; saída nativa não aberta para não cobrir tela principal");
+        return Ok(());
+    }
 
     if let Some(window) = existing {
         if let Some(monitor) = chosen_monitor {

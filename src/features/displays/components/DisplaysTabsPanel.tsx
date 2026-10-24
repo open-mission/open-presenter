@@ -359,10 +359,10 @@ export function DisplaysTabsPanel({
   ];
 
   return (
-    <div className="border-t border-zinc-800 bg-zinc-900/90 flex flex-col shrink-0 select-none">
+    <div className="h-full w-full min-h-0 border-t border-zinc-800 bg-zinc-900/90 flex flex-col select-none">
       {/* Tabs Header bar */}
-      <div className="flex items-center justify-between px-4 pt-2.5 pb-1 border-b border-zinc-800/60">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 pt-2.5 pb-1 border-b border-zinc-800/60 shrink-0 gap-3">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="font-semibold text-xs text-zinc-300">
             {output.monitorName || output.name}
           </span>
@@ -371,8 +371,8 @@ export function DisplaysTabsPanel({
           </Badge>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
-          <TabsList className="bg-zinc-950/80 border border-zinc-800 h-8 p-0.5">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto min-w-0 max-w-full overflow-x-auto">
+          <TabsList className="bg-zinc-950/80 border border-zinc-800 h-8 p-0.5 shrink-0">
             <TabsTrigger
               value="hardware"
               className="text-xs px-2.5 py-1 data-[state=active]:bg-zinc-800 data-[state=active]:text-white"
@@ -433,7 +433,7 @@ export function DisplaysTabsPanel({
       </div>
 
       {/* Tabs Content */}
-      <div className="p-4 flex-1 overflow-y-auto">
+      <div className="p-4 flex-1 min-h-0 overflow-y-auto [scrollbar-gutter:stable] select-text">
         {/* Tab 1: Hardware / Conexão */}
         {activeTab === "hardware" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

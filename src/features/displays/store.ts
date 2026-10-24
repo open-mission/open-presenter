@@ -192,14 +192,24 @@ export const useDisplaysStore = create<DisplaysState>((set, get) => ({
 
         // Só o processo principal reabre as saídas, e apenas uma vez por sessão:
         // abrir a janela de Configuração de tela não deve relançar/focar telas.
+        // Se houver apenas 1 monitor disponível (ex.: notebook desconectado do projetor),
+        // não auto-ativa projeção vinculada a monitor ausente para não cobrir o painel de controle.
         if (
           settings.autoActivateOnLaunch !== false &&
           !autoActivated &&
           isMainWindow()
         ) {
           autoActivated = true;
+          const hasSecondaryMonitor = monitors.some((m) => !m.isPrimary);
           for (const out of outputs) {
             if (out.enabled && out.type === "monitor") {
+              if (
+                !hasSecondaryMonitor &&
+                out.monitorId &&
+                !monitors.some((m) => m.id === out.monitorId)
+              ) {
+                continue;
+              }
               void syncNativeWindow(out);
             }
           }
