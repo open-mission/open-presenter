@@ -5,6 +5,37 @@ Todas as mudanças relevantes do Open Presenter são documentadas neste arquivo.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e o
 versionamento segue [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [0.5.0] - 2026-10-24
+
+Nova interface com Multiview de Previews, Paleta de Comandos Global (Cmd+K), controles de mídia integrados, abas de Avisos e Timers, integração direta da Bíblia no painel de mídia e arrastar e soltar universal para a programação.
+
+### Adicionado
+
+#### Previews e Layout
+- Grade Multiview configurável (2x2, 3x3, 4x4) com seletor de saída via botão direito e visual limpo sem bordas.
+- Controles de mídia centralizados logo abaixo da grade de previews, desobstruindo o cabeçalho.
+- Abas inferiores dedicadas de Avisos (alertas rápidos) e Cronômetros/Timers de palco.
+- Menu nativo "Exibir" para controle de visibilidade das abas e janelas auxiliares.
+- Botão para recolher/expandir a barra de abas no painel de mídia.
+
+#### Paleta de Comandos Global
+- Abertura via `Cmd+K` / `Ctrl+K` para busca instantânea de músicas, versículos da Bíblia, mídias e comandos.
+- Pressione `Enter` para navegar até o recurso ou `Shift+Enter` para apresentá-lo ao vivo imediatamente.
+
+#### Arrastar e Soltar (DnD) e Organização
+- Arraste mídias, temas, músicas ou passagens bíblicas para qualquer ponto da programação com criação automática de seções.
+- Menus de contexto nos itens de mídia para adicionar diretamente à programação.
+- Seleção de múltiplos versículos segurando `Cmd` ou `Ctrl`.
+
+#### Bíblia e Agenda
+- Aba da Bíblia unificada no painel de mídia.
+- Busca rápida com reconhecimento inteligente de versões bíblicas (ex: `Joao 3.16 Ara`).
+- Seletor de versão limpo exibindo apenas o nome e a abreviação oficial.
+- Agenda de Eventos desacoplada em janela dedicada.
+
+#### Shaders
+- Pré-visualização estática (snapshot WebGL) na biblioteca de shaders ISF sem sobrecarga de renderização contínua.
+
 ## [0.4.2] - 2026-10-23
 
 O telão volta a exibir o papel de parede quando está livre: a camada de entrada de
