@@ -37,6 +37,7 @@ test("parse limita larguras e preserva visibilidade", () => {
       monitorsVisible: false,
       mediaHeight: DEFAULT_PANEL_LAYOUT.mediaHeight,
       mediaOpen: true,
+      mediaTab: "themes",
     },
   );
 });

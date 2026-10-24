@@ -177,6 +177,16 @@ pub async fn close_communication_window(app: tauri::AppHandle) -> Result<(), App
 }
 
 #[tauri::command]
+pub async fn open_agenda_window(app: tauri::AppHandle) -> Result<(), AppError> {
+    display_manager::open_agenda_window(&app)
+}
+
+#[tauri::command]
+pub async fn close_agenda_window(app: tauri::AppHandle) -> Result<(), AppError> {
+    display_manager::close_agenda_window(&app)
+}
+
+#[tauri::command]
 pub async fn open_displays_window(app: tauri::AppHandle) -> Result<(), AppError> {
     display_manager::open_displays_window(&app)
 }

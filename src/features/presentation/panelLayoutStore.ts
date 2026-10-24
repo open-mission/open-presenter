@@ -11,6 +11,7 @@ import {
   SLIDES_WIDTH_DEFAULT,
   SLIDES_WIDTH_MAX,
   SLIDES_WIDTH_MIN,
+  type MediaPanelTab,
   type PanelLayout,
 } from "@/core/lib/panelLayout";
 
@@ -38,6 +39,7 @@ interface PanelLayoutState extends PanelLayout {
   setSlidesWidth(width: number): void;
   setMediaHeight(height: number): void;
   setMediaOpen(open: boolean): void;
+  setMediaTab(tab: MediaPanelTab): void;
   toggleMedia(): void;
   reset(): void;
   setMonitorsVisible(visible: boolean): void;
@@ -66,6 +68,7 @@ export const usePanelLayoutStore = create<PanelLayoutState>((set, get) => {
         MEDIA_HEIGHT_MAX,
       ),
       mediaOpen: next.mediaOpen,
+      mediaTab: next.mediaTab,
     };
     persist(layout);
     set(layout);
@@ -77,6 +80,7 @@ export const usePanelLayoutStore = create<PanelLayoutState>((set, get) => {
     setSlidesWidth: (width) => update({ slidesWidth: width }),
     setMediaHeight: (height) => update({ mediaHeight: height }),
     setMediaOpen: (mediaOpen) => update({ mediaOpen }),
+    setMediaTab: (mediaTab) => update({ mediaTab }),
     toggleMedia: () => update({ mediaOpen: !get().mediaOpen }),
     reset: () =>
       update({
@@ -85,6 +89,7 @@ export const usePanelLayoutStore = create<PanelLayoutState>((set, get) => {
         monitorsVisible: true,
         mediaHeight: MEDIA_HEIGHT_DEFAULT,
         mediaOpen: true,
+        mediaTab: "themes",
       }),
     setMonitorsVisible: (monitorsVisible) => update({ monitorsVisible }),
     toggleMonitors: () =>

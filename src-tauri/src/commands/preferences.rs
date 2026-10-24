@@ -63,3 +63,13 @@ pub fn set_close_to_tray(app: AppHandle, db: State<'_, Db>, enabled: bool) -> Re
     crate::services::tray::refresh(&app);
     Ok(())
 }
+
+#[tauri::command]
+pub fn get_setting(db: State<'_, Db>, key: String) -> Result<Option<String>, AppError> {
+    db.with_conn(|conn| settings::get_setting(conn, &key))
+}
+
+#[tauri::command]
+pub fn set_setting(db: State<'_, Db>, key: String, value: String) -> Result<(), AppError> {
+    db.with_conn(|conn| settings::set_setting(conn, &key, &value))
+}

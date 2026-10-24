@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import type { DisplayOutput } from "@/core/types";
 import { BrandMark } from "@/components/BrandMark";
 import { cn } from "@/core/lib/utils";
+import { useMediaPort } from "@/core/config/mediaPort";
 import { resolveThemeMediaUrl } from "@/features/theme-editor/media";
 
 interface OutputPlaceholderProps {
@@ -17,15 +19,24 @@ export function OutputPlaceholder({
   const isEnabled = output?.placeholderEnabled ?? true;
   const type = output?.placeholderType ?? "logo";
   const rawUrl = output?.placeholderUrl;
-  const url = rawUrl ? (resolveThemeMediaUrl(rawUrl) ?? rawUrl) : rawUrl;
+  const mediaPort = useMediaPort();
+  const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+  const url = rawUrl
+    ? (resolveThemeMediaUrl(rawUrl, host, mediaPort ?? undefined) ?? rawUrl)
+    : rawUrl;
   const fit = output?.placeholderFit ?? "contain";
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [url]);
 
   if (!isEnabled || type === "none") {
     return null;
   }
 
   // Custom uploaded or URL image
-  if (type === "image" && url) {
+  if (type === "image" && url && !imgError) {
     return (
       <div
         className={cn(
@@ -36,6 +47,7 @@ export function OutputPlaceholder({
         <img
           src={url}
           alt={output?.name ?? "Plano de Fundo"}
+          onError={() => setImgError(true)}
           className={cn(
             "w-full h-full",
             fit === "contain" && "object-contain",

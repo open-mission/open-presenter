@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { usePresentationSync } from "@/core/sync/usePresentationSync";
-import { openOutputWindow } from "@/core/ipc/commands";
-import type { OutputTarget } from "@/core/types";
 import { AppTopBar } from "@/components/AppTopBar";
-import { AppDock } from "@/components/AppDock";
 import { ResizeHandle } from "@/components/ResizeHandle";
 import {
   fitPanelLayout,
@@ -28,7 +25,6 @@ import { useThemesSync } from "@/features/slide-themes/useThemeSync";
 import { useOutputPlansPublisher } from "@/features/slide-themes/useOutputPlansPublisher";
 import { useSlideThemesStore } from "@/features/slide-themes/store";
 import { useOutputsSync } from "@/features/output-manager/useOutputsSync";
-import { useOutputManagerStore } from "@/features/output-manager/store";
 import { useWallpaperPublisher } from "@/features/presentation/useWallpaperPublisher";
 import { useStageTimerSync } from "@/features/stage-display/useStageTimerSync";
 import { SongEditorDialog } from "@/features/songs/SongEditorDialog";
@@ -42,13 +38,14 @@ import { SongsPage } from "@/features/songs/SongsPage";
 import { AgendaCalendar } from "@/features/events-setlists/AgendaCalendar";
 import { AgendaDialog } from "@/features/events-setlists/AgendaDialog";
 import { CreateEventDialog } from "@/features/events-setlists/CreateEventDialog";
-import { ImagesPage } from "@/features/image-browser/ImagesPage";
 import { StudioPage } from "@/features/studio/StudioPage";
 import { BiblePage } from "@/features/bible/BiblePage";
 import { useBibleLiveSync } from "@/features/bible/useBibleLiveSync";
 import { useRemoteSetlistPublisher } from "@/features/remote/useRemoteSetlistPublisher";
 import { UpdateDialog } from "@/features/updates/UpdateDialog";
 import { WhatsNewDialog } from "@/features/updates/WhatsNewDialog";
+import { BackgroundAudioPlayer } from "@/components/BackgroundAudioPlayer";
+import { UniversalCommandPalette } from "@/features/command-palette/UniversalCommandPalette";
 import { useUpdateChecker } from "@/features/updates/useUpdateChecker";
 import {
   useCommunicationStore,
@@ -96,7 +93,6 @@ export default function AdminView() {
   const addEmptySlideAtStart = useSongDefaultsStore(
     (s) => s.addEmptySlideAtStart,
   );
-  const outputsLoaded = useOutputManagerStore((s) => s.loaded);
   const activeTab = useNavigationStore((s) => s.activeTab);
   const setActiveTab = useNavigationStore((s) => s.setActiveTab);
 
@@ -125,7 +121,7 @@ export default function AdminView() {
 
   const fitted =
     monitorsVisible && mainWidth > 0
-      ? fitPanelLayout({ setlistWidth, slidesWidth }, mainWidth - 192)
+      ? fitPanelLayout({ setlistWidth, slidesWidth }, mainWidth)
       : { setlistWidth, slidesWidth };
 
   useEffect(() => {
@@ -152,33 +148,13 @@ export default function AdminView() {
       .shiftRunnerIndex(addEmptySlideAtStart ? 1 : -1, addEmptySlideAtStart);
   }, [addEmptySlideAtStart]);
 
-  useEffect(() => {
-    if (!outputsLoaded) return;
-    const { configs, monitors, runtime } = useOutputManagerStore.getState();
-    for (const target of ["public", "stage", "stream"] as const satisfies OutputTarget[]) {
-      const config = configs[target];
-      if (config.mode !== "native" && config.mode !== "both") continue;
-      if (runtime[target]?.open) continue;
-      if (
-        config.monitorId &&
-        !monitors.some((m) => m.id === config.monitorId)
-      ) {
-        continue;
-      }
-      void openOutputWindow(target, config.monitorId, config.monitorLabel);
-    }
-  }, [outputsLoaded]);
-
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground transition-colors">
       {/* Top Application Bar */}
       <AppTopBar />
 
-      {/* Main Body: Dock Lateral on the left + Content Views */}
+      {/* Main Body: Content Views */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Dock Lateral Apenas com icone no lado esquerdo */}
-        <AppDock />
-
         {/* View 1: Apresentação & Culto ao Vivo */}
         {activeTab === "presentation" && (
           <main ref={mainRef} className="flex flex-1 flex-col overflow-hidden">
@@ -234,17 +210,17 @@ export default function AdminView() {
             {mediaOpen && (
               <ResizeHandle
                 direction="vertical"
-                label="Redimensionar painel de mídia"
+                label="Redimensionar painel de mídias"
                 value={mediaHeight}
                 min={MEDIA_HEIGHT_MIN}
-                max={MEDIA_HEIGHT_MAX}
+                max={typeof window !== "undefined" ? Math.floor(window.innerHeight * 0.95) : MEDIA_HEIGHT_MAX}
                 defaultValue={MEDIA_HEIGHT_DEFAULT}
                 onChange={setMediaHeight}
               />
             )}
             <div
               className="shrink-0 overflow-hidden"
-              style={mediaOpen ? { height: mediaHeight } : undefined}
+              style={mediaOpen ? { height: mediaHeight, maxHeight: "95vh" } : undefined}
             >
               <MediaPanel />
             </div>
@@ -272,13 +248,6 @@ export default function AdminView() {
           </main>
         )}
 
-        {/* View 4: Biblioteca de Imagens */}
-        {activeTab === "images" && (
-          <main className="flex flex-1 overflow-hidden">
-            <ImagesPage />
-          </main>
-        )}
-
         {/* View 5: Studio de Criação & Apresentações */}
         {activeTab === "studio" && (
           <main className="flex flex-1 overflow-hidden">
@@ -286,6 +255,9 @@ export default function AdminView() {
           </main>
         )}
       </div>
+
+      {/* Paleta Universal de Comandos (⌘K / Ctrl+K) */}
+      <UniversalCommandPalette />
 
       {/* Preferences Modal Dialog (Native ⌘, shortcut or Edit > Preferences) */}
       <PreferencesDialog />
@@ -304,6 +276,9 @@ export default function AdminView() {
 
       {/* Agenda Dialog (Modal version) */}
       <AgendaDialog />
+
+      {/* Background internal audio player for media library playback */}
+      <BackgroundAudioPlayer />
 
       {/* Release notes and in-app update dialogs */}
       <UpdateDialog />

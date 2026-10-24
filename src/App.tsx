@@ -13,6 +13,7 @@ import DisplaysView from "./views/DisplaysView";
 import IdentifyOverlayView from "./views/IdentifyOverlayView";
 import DynamicOutputView from "./views/DynamicOutputView";
 import RemoteView from "./features/remote/RemoteView";
+import { AgendaView } from "./views/AgendaView";
 import { Toaster } from "@/components/ui/sonner";
 import { useMediaPortSync } from "@/core/config/mediaPort";
 import { initSongGroupsSync } from "@/features/songs/songGroupsStore";
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="/identify" element={<IdentifyOverlayView />} />
         <Route path="/output/:slug" element={<DynamicOutputView />} />
         <Route path="/output" element={<DynamicOutputView />} />
+        <Route path="/agenda" element={<AgendaView />} />
         <Route path="/remote" element={<RemoteView />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -1,9 +1,13 @@
 import { useEffect } from "react";
 import {
+  Calendar,
+  Check,
   ChevronDown,
   Eye,
   EyeOff,
   Image,
+  LayoutGrid,
+  Megaphone,
   Minus,
   Monitor,
   Moon,
@@ -11,9 +15,11 @@ import {
   PanelRightOpen,
   Plus,
   RotateCcw,
+  Search,
   Settings,
-  Sliders,
   Smartphone,
+  Sparkles,
+  Timer,
   Tv,
   Video,
 } from "lucide-react";
@@ -30,12 +36,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { outputHttpUrl } from "@/core/config/app";
 import { isTauri } from "@/core/ipc/tauri";
 import { openDisplaysWindow } from "@/core/ipc/commands";
 
-import type { OutputMode } from "@/core/types";
-import { isOutputActive } from "@/features/output-manager/outputActive";
 import { useOutputManagerStore } from "@/features/output-manager/store";
 import { usePreferencesStore } from "@/features/preferences/store";
 import { usePresentationStore } from "@/features/presentation/store";
@@ -45,43 +48,24 @@ import { usePanelLayoutStore } from "@/features/presentation/panelLayoutStore";
 import { usePreviewLayoutStore } from "@/features/presentation/previewLayoutStore";
 import { useDisplaysStore } from "@/features/displays/store";
 import { SetlistSelector } from "@/features/events-setlists/SetlistSelector";
-import { HeaderTimerControls } from "@/features/stage-display/HeaderTimerControls";
-import { HeaderCommunicationButton } from "@/features/communication";
-
-function statusTitle(
-  label: string,
-  mode: OutputMode,
-  monitorLabel: string | null,
-  url: string,
-  active: boolean,
-): string {
-  if (!active) return "Clique para gerenciar Saídas (telas)";
-  const modeLabel =
-    mode === "native" ? "Nativa" : mode === "web" ? "Web" : "Ambas";
-  const detail =
-    mode === "web"
-      ? url
-      : `${monitorLabel ?? "monitor automático"}${mode === "both" ? ` · ${url}` : ""}`;
-  return `${label} ativo — ${modeLabel} (${detail})`;
-}
+import { useSetlistStore } from "@/features/events-setlists/store";
+import { useCommunicationStore } from "@/features/communication";
+import { useCommandPaletteStore } from "@/features/command-palette/store";
 
 export function AppTopBar() {
   const live = usePresentationStore((s) => s.live);
   const openPreferences = usePreferencesStore((s) => s.openPreferences);
-  const publicConfig = useOutputManagerStore((s) => s.configs.public);
-  const stageConfig = useOutputManagerStore((s) => s.configs.stage);
-  const streamConfig = useOutputManagerStore((s) => s.configs.stream);
-  const publicRuntime = useOutputManagerStore((s) => s.runtime.public);
-  const stageRuntime = useOutputManagerStore((s) => s.runtime.stage);
-  const streamRuntime = useOutputManagerStore((s) => s.runtime.stream);
-  const host = useOutputManagerStore((s) => s.host);
-  const port = useOutputManagerStore((s) => s.server.port);
   const serverRunning = useOutputManagerStore((s) => s.server.running);
   const remoteConfig = useRemoteStore((s) => s.config);
   const ensureRemoteToken = useRemoteStore((s) => s.ensureToken);
   const activeTab = useNavigationStore((s) => s.activeTab);
   const monitorsVisible = usePanelLayoutStore((s) => s.monitorsVisible);
   const toggleMonitors = usePanelLayoutStore((s) => s.toggleMonitors);
+  const mediaOpen = usePanelLayoutStore((s) => s.mediaOpen);
+  const toggleMedia = usePanelLayoutStore((s) => s.toggleMedia);
+
+  const adjustmentsTab = usePreviewLayoutStore((s) => s.adjustmentsTab);
+  const setAdjustmentsTab = usePreviewLayoutStore((s) => s.setAdjustmentsTab);
 
   const showPreview = usePreviewLayoutStore((s) => s.showPreview);
   const showLive = usePreviewLayoutStore((s) => s.showLive);
@@ -95,8 +79,8 @@ export function AppTopBar() {
   const resetZoom = usePreviewLayoutStore((s) => s.resetZoom);
   const showAll = usePreviewLayoutStore((s) => s.showAll);
   const hiddenOutputIds = usePreviewLayoutStore((s) => s.hiddenOutputIds);
-  const toggleOutputVisibility = usePreviewLayoutStore((s) => s.toggleOutputVisibility);
   const isOutputVisible = (id: string) => !hiddenOutputIds.includes(id);
+  const toggleOutputVisibility = usePreviewLayoutStore((s) => s.toggleOutputVisibility);
   const configuredOutputs = useDisplaysStore((s) => s.outputs);
 
   useEffect(() => {
@@ -104,44 +88,6 @@ export function AppTopBar() {
   }, [ensureRemoteToken]);
 
   const remoteActive = Boolean(remoteConfig?.enabled && serverRunning);
-
-  const publicActive = isOutputActive(
-    publicConfig.mode,
-    publicRuntime.open,
-    serverRunning,
-  );
-  const stageActive = isOutputActive(
-    stageConfig.mode,
-    stageRuntime.open,
-    serverRunning,
-  );
-  const streamActive = isOutputActive(
-    streamConfig?.mode ?? "off",
-    streamRuntime?.open ?? false,
-    serverRunning,
-  );
-
-  const publicTitle = statusTitle(
-    "Público",
-    publicConfig.mode,
-    publicConfig.monitorLabel,
-    outputHttpUrl(host, port, "/public"),
-    publicActive,
-  );
-  const stageTitle = statusTitle(
-    "Palco",
-    stageConfig.mode,
-    stageConfig.monitorLabel,
-    outputHttpUrl(host, port, "/stage"),
-    stageActive,
-  );
-  const streamTitle = statusTitle(
-    "Transmissão",
-    streamConfig?.mode ?? "off",
-    streamConfig?.monitorLabel ?? null,
-    outputHttpUrl(host, port, "/stream"),
-    streamActive,
-  );
 
   // Global shortcuts for quick projection actions (F: Background, C: Clear Text, B: Blackout)
   useEffect(() => {
@@ -178,7 +124,7 @@ export function AppTopBar() {
 
   return (
     <header className="flex h-14 w-full items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur-xs shrink-0">
-      {/* Left section: Brand mark and Setlist/Culto selector */}
+      {/* Left section: Brand mark, Setlist selector and Agenda button */}
       <div className="flex items-center gap-2">
         <div
           role="img"
@@ -190,12 +136,157 @@ export function AppTopBar() {
         </div>
 
         <SetlistSelector />
-      </div>
 
-      {/* Center: Stage Timer & Countdown Controls + Communication Alerts */}
-      <div className="flex items-center gap-2">
-        <HeaderTimerControls />
-        <HeaderCommunicationButton />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => useSetlistStore.getState().openAgenda()}
+          className="h-8 gap-1.5 px-2.5 text-xs font-medium cursor-pointer"
+          title="Abrir Agenda de Eventos"
+        >
+          <Calendar className="size-3.5 text-primary" />
+          <span className="hidden sm:inline">Agenda</span>
+        </Button>
+
+        {/* Menu Principal: Exibir */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 px-2.5 text-xs font-medium cursor-pointer text-muted-foreground hover:text-foreground"
+              title="Menu Exibir: Gerenciar visibilidade de abas, painéis e janelas"
+            >
+              <LayoutGrid className="size-3.5 text-primary" />
+              <span>Exibir</span>
+              <ChevronDown className="size-3 opacity-60" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-64">
+            <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
+              Painéis da Tela
+            </DropdownMenuLabel>
+
+            <DropdownMenuCheckboxItem
+              checked={monitorsVisible}
+              onCheckedChange={() => toggleMonitors()}
+              onSelect={(e) => e.preventDefault()}
+              className="text-xs cursor-pointer"
+            >
+              <Eye className="size-3.5 mr-2 text-primary" />
+              <span>Painel de Previews</span>
+              <kbd className="ml-auto font-mono text-[10px] text-muted-foreground">⌥P</kbd>
+            </DropdownMenuCheckboxItem>
+
+            <DropdownMenuCheckboxItem
+              checked={mediaOpen}
+              onCheckedChange={() => toggleMedia()}
+              onSelect={(e) => e.preventDefault()}
+              className="text-xs cursor-pointer"
+            >
+              <Image className="size-3.5 mr-2 text-purple-400" />
+              <span>Painel de Mídias</span>
+              <kbd className="ml-auto font-mono text-[10px] text-muted-foreground">⌥M</kbd>
+            </DropdownMenuCheckboxItem>
+
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
+              Abas do Painel de Ajustes
+            </DropdownMenuLabel>
+
+            <DropdownMenuItem
+              onClick={() => {
+                if (!monitorsVisible) toggleMonitors();
+                setAdjustmentsTab("alerts");
+              }}
+              className="text-xs cursor-pointer"
+            >
+              <Megaphone className="size-3.5 mr-2 text-amber-400" />
+              <span>Aba de Avisos</span>
+              {adjustmentsTab === "alerts" && monitorsVisible && (
+                <Check className="size-3.5 ml-auto text-primary" />
+              )}
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={() => {
+                if (!monitorsVisible) toggleMonitors();
+                setAdjustmentsTab("timers");
+              }}
+              className="text-xs cursor-pointer"
+            >
+              <Timer className="size-3.5 mr-2 text-emerald-400" />
+              <span>Aba de Cronômetros & Timers</span>
+              {adjustmentsTab === "timers" && monitorsVisible && (
+                <Check className="size-3.5 ml-auto text-primary" />
+              )}
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">
+              Janelas Destacadas
+            </DropdownMenuLabel>
+
+            <DropdownMenuItem
+              onClick={() => void useCommunicationStore.getState().openWindow()}
+              className="text-xs cursor-pointer"
+            >
+              <Megaphone className="size-3.5 mr-2 text-muted-foreground" />
+              <span>Janela de Comunicação & Avisos…</span>
+              <kbd className="ml-auto font-mono text-[10px] text-muted-foreground">⌘M</kbd>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={() => useSetlistStore.getState().openAgenda()}
+              className="text-xs cursor-pointer"
+            >
+              <Calendar className="size-3.5 mr-2 text-muted-foreground" />
+              <span>Janela de Agenda de Eventos…</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              onClick={() => {
+                if (isTauri()) {
+                  void openDisplaysWindow();
+                } else {
+                  window.open("#/displays", "_blank");
+                }
+              }}
+              className="text-xs cursor-pointer"
+            >
+              <Monitor className="size-3.5 mr-2 text-muted-foreground" />
+              <span>Gerenciar Saídas e Telas…</span>
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => useCommandPaletteStore.getState().openPalette()}
+              className="text-xs cursor-pointer font-semibold text-primary"
+            >
+              <Sparkles className="size-3.5 mr-2 text-primary" />
+              <span>Paleta de Comandos…</span>
+              <kbd className="ml-auto font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border">⌘K</kbd>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Gatilho Rápido para a Paleta Universal de Comandos */}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => useCommandPaletteStore.getState().openPalette()}
+          className="h-8 gap-2 px-2.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer bg-card/40 border-border/70"
+          title="Buscar músicas, bíblia, mídias e comandos (⌘K / Ctrl+K)"
+        >
+          <Search className="size-3.5 text-primary" />
+          <span className="hidden md:inline">Buscar ou comando…</span>
+          <kbd className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border/70 text-muted-foreground">
+            ⌘K
+          </kbd>
+        </Button>
       </div>
 
       {/* Right section: Output status indicators, quick blackout/clear, and settings */}
@@ -223,79 +314,6 @@ export function AppTopBar() {
           <Smartphone className="size-3.5" />
           <span className="hidden md:inline">Remote</span>
         </Button>
-
-        {/* Output Targets Live Indicators */}
-        <div className="hidden items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1 text-[11px] sm:flex">
-          {/* Public output status */}
-          <div
-            className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors"
-            onClick={() => {
-              if (isTauri()) void openDisplaysWindow();
-              else window.open("#/displays", "_blank");
-            }}
-            title={publicTitle}
-          >
-            <span
-              className={`size-2 rounded-full ${
-                publicActive ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"
-              }`}
-            />
-            <span className="font-medium text-muted-foreground">Público</span>
-          </div>
-
-          <span className="text-border">|</span>
-
-          {/* Stage output status */}
-          <div
-            className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors"
-            onClick={() => {
-              if (isTauri()) void openDisplaysWindow();
-              else window.open("#/displays", "_blank");
-            }}
-            title={stageTitle}
-          >
-            <span
-              className={`size-2 rounded-full ${
-                stageActive ? "bg-sky-500 animate-pulse" : "bg-zinc-400"
-              }`}
-            />
-            <span className="font-medium text-muted-foreground">Palco</span>
-          </div>
-
-          <span className="text-border">|</span>
-
-          {/* Stream / OBS output status */}
-          <div
-            className="flex items-center gap-1.5 cursor-pointer hover:text-foreground transition-colors"
-            onClick={() => {
-              if (isTauri()) void openDisplaysWindow();
-              else window.open("#/displays", "_blank");
-            }}
-            title={streamTitle}
-          >
-            <span
-              className={`size-2 rounded-full ${
-                streamActive ? "bg-purple-500 animate-pulse" : "bg-zinc-400"
-              }`}
-            />
-            <span className="font-medium text-muted-foreground">OBS</span>
-          </div>
-
-          <span className="text-border">|</span>
-
-          {/* Quick Displays window launcher */}
-          <button
-            type="button"
-            className="flex items-center text-muted-foreground hover:text-foreground transition-colors cursor-pointer p-0.5 rounded hover:bg-muted/50"
-            onClick={() => {
-              if (isTauri()) void openDisplaysWindow();
-              else window.open("#/displays", "_blank");
-            }}
-            title="Configuração de telas e saídas"
-          >
-            <Sliders className="size-3" />
-          </button>
-        </div>
 
         {/* Preview: Botão Toggle Ativar/Desativar + Dropdown de Opções */}
         {activeTab === "presentation" && (

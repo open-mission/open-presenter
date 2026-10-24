@@ -325,6 +325,41 @@ pub fn close_communication_window(app: &AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
+pub fn open_agenda_window(app: &AppHandle) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("agenda") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        window.set_focus().map_err(AppError::Tauri)?;
+        return Ok(());
+    }
+
+    let builder = WebviewWindowBuilder::new(
+        app,
+        "agenda",
+        WebviewUrl::App("index.html#/agenda".into()),
+    )
+    .title("Agenda de Eventos & Cultos — Open Presenter")
+    .inner_size(1080.0, 720.0)
+    .min_inner_size(800.0, 560.0)
+    .resizable(true)
+    .center()
+    .focused(true)
+    .background_color(Color(10, 10, 10, 255))
+    .decorations(true);
+
+    let window = builder.build().map_err(AppError::Tauri)?;
+    let _ = window.show();
+    let _ = window.set_focus();
+    Ok(())
+}
+
+pub fn close_agenda_window(app: &AppHandle) -> Result<(), AppError> {
+    if let Some(window) = app.get_webview_window("agenda") {
+        window.close().map_err(AppError::Tauri)?;
+    }
+    Ok(())
+}
+
 pub fn open_displays_window(app: &AppHandle) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window("displays") {
         let _ = window.unminimize();
