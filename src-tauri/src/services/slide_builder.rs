@@ -300,6 +300,23 @@ pub fn build_media_slides(item_id: &str, media: &MediaItem) -> Vec<RemoteSlide> 
                 },
             }]
         }
+        MediaKind::Audio => {
+            vec![RemoteSlide {
+                index: 0,
+                label: Some("Áudio".to_string()),
+                section_type: None,
+                content: SlideContent {
+                    id: format!("{item_id}#0"),
+                    kind: SlideKind::Media,
+                    title: media.title.clone(),
+                    lines: Vec::new(),
+                    notes: None,
+                    section: None,
+                    media: Some(media.clone()),
+                    scripture: None,
+                },
+            }]
+        }
     }
 }
 

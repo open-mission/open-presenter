@@ -99,6 +99,18 @@ export async function closeCommunicationWindow(): Promise<void> {
   await invokeCommand("close_communication_window");
 }
 
+export async function openAgendaWindow(): Promise<void> {
+  if (isTauri()) {
+    await invokeCommand("open_agenda_window");
+  } else {
+    window.open("/#/agenda", "_blank", "width=1080,height=720");
+  }
+}
+
+export async function closeAgendaWindow(): Promise<void> {
+  await invokeCommand("close_agenda_window");
+}
+
 export async function openThemeEditor(guid?: string): Promise<void> {
   if (isTauri()) {
     await invokeCommand("open_theme_editor", { guid: guid ?? null });
@@ -483,6 +495,54 @@ export async function openMediaLibrary(): Promise<void> {
 
 export async function listImageLibrary(): Promise<ImageTreeNode[]> {
   return invokeStrict<ImageTreeNode[]>("list_image_library");
+}
+
+export async function listBackgroundsLibrary(): Promise<ImageTreeNode[]> {
+  return invokeStrict<ImageTreeNode[]>("list_backgrounds_library");
+}
+
+export async function listVideoLibrary(): Promise<ImageTreeNode[]> {
+  return invokeStrict<ImageTreeNode[]>("list_video_library");
+}
+
+export async function listAudioLibrary(): Promise<ImageTreeNode[]> {
+  return invokeStrict<ImageTreeNode[]>("list_audio_library");
+}
+
+export async function getSetting(key: string): Promise<string | null> {
+  return (await invokeCommand<string | null>("get_setting", { key })) ?? null;
+}
+
+export async function setSetting(key: string, value: string): Promise<void> {
+  await invokeStrict("set_setting", { key, value });
+}
+
+export async function createMediaFolder(
+  library: string,
+  parentPath: string,
+  name: string,
+): Promise<string> {
+  return invokeStrict<string>("create_media_folder", {
+    library,
+    parentPath,
+    name,
+  });
+}
+
+export async function importMediaFiles(
+  library: string,
+  subfolder: string | null,
+  files: string[],
+): Promise<ImportedMedia[]> {
+  return invokeStrict<ImportedMedia[]>("import_media_files", {
+    library,
+    subfolder,
+    files,
+  });
+}
+
+export async function openLibraryFolder(library: string): Promise<void> {
+  await invokeStrict("open_library_folder", { library });
 }
 
 export async function importImagesFolder(path: string): Promise<string> {

@@ -159,6 +159,46 @@ pub fn run() {
                 .accelerator(fullscreen_accelerator)
                 .build(app)?;
 
+            let command_palette_item = MenuItemBuilder::with_id("open-command-palette", "Paleta de Comandos…")
+                .accelerator("CmdOrCtrl+K")
+                .build(app)?;
+
+            let toggle_monitors_item = MenuItemBuilder::with_id("toggle-monitors", "Painel de Previews dos Monitores")
+                .accelerator("Option+CmdOrCtrl+P")
+                .build(app)?;
+
+            let toggle_media_item = MenuItemBuilder::with_id("toggle-media", "Painel de Mídias")
+                .accelerator("Option+CmdOrCtrl+M")
+                .build(app)?;
+
+            let view_alerts_item = MenuItemBuilder::with_id("view-alerts", "Aba de Avisos")
+                .build(app)?;
+
+            let view_timers_item = MenuItemBuilder::with_id("view-timers", "Aba de Cronômetros & Timers")
+                .build(app)?;
+
+            let view_communication_item = MenuItemBuilder::with_id("view-communication", "Janela de Comunicação & Avisos…")
+                .accelerator("CmdOrCtrl+M")
+                .build(app)?;
+
+            let view_agenda_item = MenuItemBuilder::with_id("view-agenda", "Janela de Agenda de Eventos…")
+                .build(app)?;
+
+            let exibir_menu = SubmenuBuilder::new(app, "Exibir")
+                .item(&command_palette_item)
+                .separator()
+                .item(&toggle_monitors_item)
+                .item(&toggle_media_item)
+                .separator()
+                .item(&view_alerts_item)
+                .item(&view_timers_item)
+                .separator()
+                .item(&view_communication_item)
+                .item(&view_agenda_item)
+                .separator()
+                .item(&fullscreen_item)
+                .build()?;
+
             let presentation_menu = SubmenuBuilder::new(app, "Apresentação")
                 .item(&next_slide_item)
                 .item(&prev_slide_item)
@@ -172,13 +212,34 @@ pub fn run() {
                 .build()?;
 
             let menu = MenuBuilder::new(app)
-                .items(&[&app_menu, &file_menu, &edit_menu, &presentation_menu, &window_menu, &help_menu])
+                .items(&[&app_menu, &file_menu, &edit_menu, &exibir_menu, &presentation_menu, &window_menu, &help_menu])
                 .build()?;
 
             app.set_menu(menu)?;
 
             app.on_menu_event(move |app_handle, event| {
                 match event.id().as_ref() {
+                    "open-command-palette" => {
+                        let _ = app_handle.emit("open-command-palette", ());
+                    }
+                    "toggle-monitors" => {
+                        let _ = app_handle.emit("toggle-monitors", ());
+                    }
+                    "toggle-media" => {
+                        let _ = app_handle.emit("toggle-media", ());
+                    }
+                    "view-alerts" => {
+                        let _ = app_handle.emit("view-alerts", ());
+                    }
+                    "view-timers" => {
+                        let _ = app_handle.emit("view-timers", ());
+                    }
+                    "view-communication" => {
+                        let _ = app_handle.emit("open-communication-window", ());
+                    }
+                    "view-agenda" => {
+                        let _ = app_handle.emit("open-agenda", ());
+                    }
                     "preferences" => {
                         let _ = crate::services::display_manager::open_preferences_window(app_handle);
                         let _ = app_handle.emit("open-preferences", ());
@@ -309,6 +370,36 @@ pub fn run() {
                 )
             });
 
+            // Restaura o slide ao vivo, planos de saída e papel de parede salvos no SQLite
+            let pres_state = app.state::<PresentationState>();
+            let _ = db.with_conn(|conn| {
+                if let Ok(Some(saved_slide)) =
+                    crate::services::settings::get_setting(conn, "presentation.live_slide")
+                {
+                    if let Ok(slide) = serde_json::from_str::<crate::state::LiveSlide>(&saved_slide)
+                    {
+                        pres_state.set(slide);
+                    }
+                }
+                if let Ok(Some(saved_plans)) =
+                    crate::services::settings::get_setting(conn, "presentation.output_plans")
+                {
+                    if let Ok(plans) =
+                        serde_json::from_str::<crate::state::LiveOutputPlans>(&saved_plans)
+                    {
+                        pres_state.set_output_plans(plans);
+                    }
+                }
+                if let Ok(Some(saved_wp)) =
+                    crate::services::settings::get_setting(conn, "presentation.wallpaper")
+                {
+                    if !saved_wp.is_empty() {
+                        pres_state.set_wallpaper(Some(saved_wp));
+                    }
+                }
+                Ok::<(), crate::error::AppError>(())
+            });
+
             if let Some(window) = app.get_webview_window("main") {
                 crate::services::window_state::apply_startup_geometry(&window);
             }
@@ -390,6 +481,8 @@ pub fn run() {
             commands::presentation::close_shortcuts_window,
             commands::presentation::open_communication_window,
             commands::presentation::close_communication_window,
+            commands::presentation::open_agenda_window,
+            commands::presentation::close_agenda_window,
             commands::presentation::open_displays_window,
             commands::presentation::close_displays_window,
             commands::presentation::open_theme_editor,
@@ -425,6 +518,8 @@ pub fn run() {
             commands::preferences::set_close_to_tray,
             commands::preferences::get_start_maximized,
             commands::preferences::set_start_maximized,
+            commands::preferences::get_setting,
+            commands::preferences::set_setting,
             commands::presentation::go_live,
             commands::presentation::set_blackout,
             commands::presentation::get_live_slide,
@@ -466,6 +561,12 @@ pub fn run() {
             commands::media::import_media_folder,
             commands::media::open_media_library,
             commands::media::list_image_library,
+            commands::media::list_backgrounds_library,
+            commands::media::list_video_library,
+            commands::media::list_audio_library,
+            commands::media::create_media_folder,
+            commands::media::import_media_files,
+            commands::media::open_library_folder,
             commands::media::import_images_folder,
             commands::media::open_images_folder,
             commands::remote::get_remote_config,
