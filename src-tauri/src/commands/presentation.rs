@@ -223,11 +223,10 @@ pub async fn toggle_fullscreen(app: tauri::AppHandle) -> Result<bool, AppError> 
 pub async fn show_main_window(app: tauri::AppHandle) -> Result<(), AppError> {
     use tauri::Manager;
     if let Some(window) = app.get_webview_window("main") {
-        if !window.is_visible().unwrap_or(false) {
-            crate::services::window_state::apply_startup_geometry(&window);
-            window.show().map_err(AppError::Tauri)?;
-            let _ = window.set_focus();
-        }
+        crate::services::window_state::apply_startup_geometry(&window);
+        let _ = window.unminimize();
+        window.show().map_err(AppError::Tauri)?;
+        let _ = window.set_focus();
     }
     Ok(())
 }

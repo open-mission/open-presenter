@@ -12,7 +12,6 @@ import { ThemesTab } from "@/features/preferences/tabs/ThemesTab";
 import { SongsTab } from "@/features/preferences/tabs/SongsTab";
 import { UpdatesTab } from "@/features/preferences/tabs/UpdatesTab";
 import { BrandMark } from "@/components/BrandMark";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { APP_VERSION } from "@/core/config/version";
 import { isTauri } from "@/core/ipc/tauri";
@@ -170,7 +169,7 @@ export default function PreferencesView() {
         </div>
 
         {/* Content Body */}
-        <ScrollArea className="min-h-0 min-w-0 flex-1 p-6">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-6 [scrollbar-gutter:stable]">
           <div className="mx-auto w-full max-w-3xl pb-8">
             {activeTab === "appearance" && <AppearanceTab />}
             {activeTab === "audio" && <AudioTab />}
@@ -181,7 +180,7 @@ export default function PreferencesView() {
             {activeTab === "general" && <GeneralTab />}
             {activeTab === "updates" && <UpdatesTab />}
           </div>
-        </ScrollArea>
+        </div>
       </div>
 
       <UpdateDialog />

@@ -74,7 +74,7 @@ export function DisplaysManager() {
       <DisplaysSidebar />
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 bg-zinc-900/50">
+      <main className="flex-1 flex flex-col min-w-0 min-h-0 bg-zinc-900/50 overflow-hidden">
         {selectedOutput ? (
           <>
             {/* Top Toolbar of Selected Output */}
@@ -197,7 +197,7 @@ export function DisplaysManager() {
             </div>
 
             {/* Bottom: Tabs Panel with Resizable Height */}
-            <div style={{ height: `${bottomPanelHeight}px` }} className="flex flex-col shrink-0 overflow-hidden">
+            <div style={{ height: `${bottomPanelHeight}px` }} className="flex flex-col shrink-0 min-h-0 overflow-hidden w-full">
               <DisplaysTabsPanel
                 output={selectedOutput}
                 monitors={monitors}

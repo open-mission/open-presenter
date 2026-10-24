@@ -15,6 +15,7 @@ import DynamicOutputView from "./views/DynamicOutputView";
 import RemoteView from "./features/remote/RemoteView";
 import { AgendaView } from "./views/AgendaView";
 import { Toaster } from "@/components/ui/sonner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useMediaPortSync } from "@/core/config/mediaPort";
 import { initSongGroupsSync } from "@/features/songs/songGroupsStore";
 import { useDesktopShortcuts } from "@/core/hooks/useDesktopShortcuts";
@@ -39,26 +40,28 @@ export default function App() {
 
   return (
     <HashRouter>
-      <Routes>
-        <Route path="/" element={<AdminView />} />
-        <Route path="/admin" element={<AdminView />} />
-        <Route path="/preferences" element={<PreferencesView />} />
-        <Route path="/shortcuts" element={<ShortcutsView />} />
-        <Route path="/public" element={<PublicView />} />
-        <Route path="/stage" element={<StageView />} />
-        <Route path="/stream" element={<StreamView />} />
-        <Route path="/lower" element={<StreamView />} />
-        <Route path="/theme-editor" element={<ThemeEditorView />} />
-        <Route path="/song-editor" element={<SongEditorView />} />
-        <Route path="/communication" element={<CommunicationView />} />
-        <Route path="/displays" element={<DisplaysView />} />
-        <Route path="/identify" element={<IdentifyOverlayView />} />
-        <Route path="/output/:slug" element={<DynamicOutputView />} />
-        <Route path="/output" element={<DynamicOutputView />} />
-        <Route path="/agenda" element={<AgendaView />} />
-        <Route path="/remote" element={<RemoteView />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/" element={<AdminView />} />
+          <Route path="/admin" element={<AdminView />} />
+          <Route path="/preferences" element={<PreferencesView />} />
+          <Route path="/shortcuts" element={<ShortcutsView />} />
+          <Route path="/public" element={<PublicView />} />
+          <Route path="/stage" element={<StageView />} />
+          <Route path="/stream" element={<StreamView />} />
+          <Route path="/lower" element={<StreamView />} />
+          <Route path="/theme-editor" element={<ThemeEditorView />} />
+          <Route path="/song-editor" element={<SongEditorView />} />
+          <Route path="/communication" element={<CommunicationView />} />
+          <Route path="/displays" element={<DisplaysView />} />
+          <Route path="/identify" element={<IdentifyOverlayView />} />
+          <Route path="/output/:slug" element={<DynamicOutputView />} />
+          <Route path="/output" element={<DynamicOutputView />} />
+          <Route path="/agenda" element={<AgendaView />} />
+          <Route path="/remote" element={<RemoteView />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </ErrorBoundary>
       <Toaster />
     </HashRouter>
   );

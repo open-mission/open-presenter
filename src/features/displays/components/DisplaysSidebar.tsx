@@ -46,9 +46,9 @@ export function DisplaysSidebar() {
   }
 
   return (
-    <aside className="w-64 sm:w-72 border-r border-zinc-800 bg-zinc-950/70 flex flex-col shrink-0 select-none">
+    <aside className="w-64 sm:w-72 border-r border-zinc-800 bg-zinc-950/70 flex flex-col shrink-0 min-h-0 select-none">
       {/* Category Groups List */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4 [scrollbar-gutter:stable]">
         {categories.map((cat) => {
           const groupOutputs = outputs.filter((o) => o.category === cat);
 

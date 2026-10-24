@@ -21,7 +21,7 @@
         "minHeight": 640,
         "resizable": true,
         "fullscreen": false,
-        "visible": false,
+        "visible": true,
         "backgroundColor": "#0a0a0a",
         "dragDropEnabled": false
       }
